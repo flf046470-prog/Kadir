@@ -1,0 +1,109 @@
+/token-sale-site
+    index.html
+    style.css
+    app.js
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Coin Ön Satış</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Meme Coin Ön Satışı</h1>
+        <p>Hedefimiz: 500,000 $</p>
+        <p>Token Fiyatı: 0.0001 ETH</p>
+
+        <div>
+            <label for="ethAmount">ETH Miktarı:</label>
+            <input type="number" id="ethAmount" placeholder="ETH miktarını girin" />
+        </div>
+
+        <button onclick="buyToken()">Token Satın Al</button>
+
+        <p id="status"></p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    text-align: center;
+}
+
+h1 {
+    color: #333;
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin-top: 20px;
+    border-radius: 5px;
+    font-size: 16px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+let web3;
+let contract;
+const contractAddress = "0xYourSmartContractAddress"; // Akıllı sözleşmenizin adresini buraya yazın
+const abi = [
+    // Akıllı sözleşmenizin ABI'si burada yer alacak.
+    // Bu ABI'yi, sözleşmenizi dağıttığınızda alırsınız.
+];
+
+async function initWeb3() {
+    if (typeof window.ethereum !== 'undefined') {
+        web3 = new Web3(window.ethereum);
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
+        console.log("Cüzdan bağlandı");
+    } else {
+        alert("Ethereum cüzdanı bulunamadı! MetaMask kullanmanız gerekebilir.");
+    }
+}
+
+async function buyToken() {
+    const ethAmount = document.getElementById("ethAmount").value;
+    if (!ethAmount) {
+        alert("Lütfen geçerli bir ETH miktarı girin.");
+        return;
+    }
+
+    const accounts = await web3.eth.getAccounts();
+    const amountInWei = web3.utils.toWei(ethAmount, 'ether');  // ETH'yi Wei'ye çevir
+
+    try {
+        const result = await contract.methods.buyTokens().send({
+            from: accounts[0],
+            value: amountInWei
+        });
+
+        document.getElementById("status").innerText = "Token satın alındı: " + result.transactionHash;
+    } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "Bir hata oluştu!";
+    }
+}
+
+window.onload = initWeb3;
