@@ -21,6 +21,7 @@ export function Footer() {
             <li><Link href="/how-matching-works" className="hover:text-white">{nav("matching")}</Link></li>
             <li><Link href="/global-match" className="hover:text-white">{nav("globalMatch")}</Link></li>
             <li><Link href="/conversations" className="hover:text-white">{nav("conversation")}</Link></li>
+            <li><Link href="/referral" className="hover:text-white">{nav("referral")}</Link></li>
             <li><Link href="/dating" className="hover:text-white">{nav("dating")}</Link></li>
             <li><Link href="/international-dating" className="hover:text-white">{nav("international")}</Link></li>
             <li><Link href="/features" className="hover:text-white">{nav("features")}</Link></li>

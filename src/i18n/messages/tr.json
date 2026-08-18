@@ -16,7 +16,8 @@
     "join": "Ücretsiz Katıl",
     "matching": "Eşleştirme Nasıl Çalışır",
     "globalMatch": "Global Match",
-    "conversation": "Sohbetler"
+    "conversation": "Sohbetler",
+    "referral": "Arkadaşını Davet Et"
   },
   "footer": {
     "product": "Ürün",
@@ -453,6 +454,139 @@
       "international_dating": "Uluslararası tanışma",
       "friendship": "Arkadaşlık",
       "language_exchange": "Dil değişimi"
+    }
+  },
+  "games": {
+    "title": "Match Games",
+    "subtitle": "İlk sohbeti kolaylaştıran isteğe bağlı mini oyunlar.",
+    "fairPlay": "İkiniz de cevap verene kadar hiçbiriniz diğerinin cevabını göremez — bunu uygulamaya güvenerek değil, sunucu zorunlu kılarak sağlıyoruz.",
+    "optional": "Oyunlar her zaman isteğe bağlıdır. İkiniz de bir daveti atlayabilir veya oyunu istediğiniz an bitirebilirsiniz; reddetmek gayet normal bir cevaptır.",
+    "list": [
+      {
+        "name": "This or That",
+        "desc": "Hızlı ya o ya bu seçimleri. Kahve mi çay mı, her şeyi planlamak mı doğaçlama mı."
+      },
+      {
+        "name": "Would You Rather",
+        "desc": "İki cazip seçenek, kolay cevap yok. Birinin nasıl düşündüğünü anlamanın hızlı yolu."
+      },
+      {
+        "name": "Two Truths and a Lie",
+        "desc": "Biri yalan olmak üzere üç cümle yaz. Eşleşmen hangisi olduğunu tahmin etsin — tahmin edene kadar yalan gizli kalır."
+      },
+      {
+        "name": "Quick Questions",
+        "desc": "Kısa açık uçlu sorular: en iyi seyahat, teselli yemeği, sürekli dinlediğin şarkı."
+      },
+      {
+        "name": "Guess My Answer",
+        "desc": "Eşleşmenin ne diyeceğini tahmin et, sonra karşılaştır. Genelde beşinin en eğlencelisi."
+      }
+    ],
+    "prompts": {
+      "coffee_tea": {
+        "a": "Kahve",
+        "b": "Çay"
+      },
+      "beach_mountains": {
+        "a": "Deniz",
+        "b": "Dağ"
+      },
+      "morning_night": {
+        "a": "Erkenci",
+        "b": "Gece kuşu"
+      },
+      "city_countryside": {
+        "a": "Şehir",
+        "b": "Kırsal"
+      },
+      "cook_eat_out": {
+        "a": "Evde yemek yapmak",
+        "b": "Dışarıda yemek"
+      },
+      "call_text": {
+        "a": "Aramak",
+        "b": "Mesajlaşmak"
+      },
+      "books_films": {
+        "a": "Kitaplar",
+        "b": "Filmler"
+      },
+      "plan_improvise": {
+        "a": "Planlamak",
+        "b": "Doğaçlama"
+      },
+      "live_abroad_forever_or_travel_always": {
+        "a": "Sonsuza dek yurt dışında yaşamak",
+        "b": "Sürekli seyahat etmek"
+      },
+      "speak_every_language_or_visit_every_country": {
+        "a": "Her dili konuşmak",
+        "b": "Her ülkeyi görmek"
+      },
+      "always_summer_or_always_winter": {
+        "a": "Hep yaz",
+        "b": "Hep kış"
+      },
+      "famous_meal_or_famous_view": {
+        "a": "En iyi yemek",
+        "b": "En iyi manzara"
+      },
+      "no_music_or_no_films": {
+        "a": "Müzikten vazgeçmek",
+        "b": "Filmlerden vazgeçmek"
+      },
+      "meet_your_heroes_or_be_someone_hero": {
+        "a": "Kahramanlarınla tanışmak",
+        "b": "Birinin kahramanı olmak"
+      },
+      "best_trip": "Şimdiye kadar yaptığın en iyi seyahat hangisiydi?",
+      "comfort_food": "Teselli yemeğin nedir?",
+      "song_on_repeat": "Şu sıralar sürekli dinlediğin şarkı hangisi?",
+      "perfect_sunday": "Mükemmel bir pazar günü nasıl geçer?",
+      "learning_right_now": "Şu anda ne öğreniyorsun?",
+      "makes_you_laugh": "Seni kesinlikle güldüren şey nedir?",
+      "my_ideal_first_date": "Benim ideal ilk buluşmam...",
+      "my_most_used_emoji": "En çok kullandığım emoji...",
+      "my_go_to_karaoke_song": "Karaoke şarkım...",
+      "my_dream_city_to_live_in": "Yaşamak isteyeceğim şehir...",
+      "my_useless_talent": "En işe yaramaz yeteneğim..."
+    }
+  },
+  "referral": {
+    "title": "Bir arkadaşını davet et",
+    "subtitle": "FioreMatch'i gerçekten kullanacak biriyle paylaş.",
+    "howTitle": "Nasıl çalışır",
+    "how": [
+      "Kişisel davet kodunu veya bağlantını paylaş.",
+      "Arkadaşın kaydolsun ve gerçek bir profil oluştursun.",
+      "Doğrulamasını tamamlayıp FioreMatch'i kullanmaya başladığında ödülün açılır."
+    ],
+    "rewardsTitle": "Ödüller",
+    "rewards": [
+      {
+        "name": "Süper Beğeni",
+        "desc": "İlk geçerli davetin için."
+      },
+      {
+        "name": "Boost",
+        "desc": "İkincisi için — Keşfet'in en üstünde 30 dakika."
+      },
+      {
+        "name": "14 günlük Premium deneme",
+        "desc": "Üçüncüsü için. Sonra sıra baştan başlar."
+      }
+    ],
+    "fairTitle": "Ödüller neden anında değil sonra açılıyor",
+    "fairBody": "Birisi kaydolur olmaz ödeme yapmak, davet programlarını tam da suistimale açık hale getiren şeydir. Ödüller; arkadaşın e-postasını ve telefonunu doğruladığında, profilini tamamladığında ve FioreMatch'i birkaç gün gerçekten kullandığında açılır. Daha yavaş, ama ödüllerin cömert kalabilmesinin sebebi bu.",
+    "abuseTitle": "İzin vermediklerimiz",
+    "abuseBody": "Kendini davet etmek, ödül toplamak için hesap açmak veya kodları toplu takas etmek. Şüpheli davetler otomatik cezalandırılmaz, insan incelemesine alınır — bağlantını popüler bir yerde paylaşmak suistimal değildir ve seni haksız yere cezalandırmaktansa sormayı tercih ederiz.",
+    "outcome": {
+      "granted": "Ödül açıldı.",
+      "pendingQualification": "Arkadaşının kurulumu tamamlayıp FioreMatch'i kullanmaya başlaması bekleniyor.",
+      "heldForReview": "Bu davet ekibimiz tarafından inceleniyor.",
+      "monthlyCapReached": "Bu ayki ödül sınırına ulaştın — ek davetler manuel olarak inceleniyor.",
+      "rejected": "Bu davet geçerli değil."
     }
   }
 }

@@ -37,11 +37,14 @@ proven before the app exists to host them.
   Engine, Today's 5, AI Matchmaker validation boundary, feedback learning loop
 - Scam Shield detection + risk banding + moderation state machine, Trust
   Profile, Date Safety plans, copy guards
+- Match Games: five game types, prompt banks, session lifecycle, fair reveal
+- Referral: Crockford Base32 codes, reward ladder, qualification gating, and
+  fraud signals that hold rather than punish
 - Feature flags with staged rollout for all 22 V2/V3 features
 - Marketing pages: `/how-matching-works`, `/global-match`, `/conversations`,
-  expanded `/safety`
+  `/referral`, expanded `/safety`
 
-**Exit criteria met:** 57 unit tests passing, lint clean, build clean.
+**Exit criteria met:** 109 unit tests passing, lint clean, build clean.
 Analysis in `docs/ARCHITECTURE.md`; constraints in `docs/AI_SAFETY.md`.
 
 These modules are libraries, not features a member can use — they need Phases

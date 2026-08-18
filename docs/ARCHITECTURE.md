@@ -33,9 +33,13 @@ the positioning. Everything else is sequenced below.
 | `src/lib/safety/trust-profile.ts` | Verification badges, no aggregate score | ✓ |
 | `src/lib/safety/date-safety.ts` | Date plan lifecycle and opt-in sharing | ✓ |
 | `src/lib/safety/copy-guards.ts` | Negation-aware copy guard helper | ✓ |
+| `src/lib/games/prompts.ts` | Match Games prompt banks, ids only; text in i18n | ✓ |
+| `src/lib/games/session.ts` | Game session lifecycle, answer validation, fair reveal | ✓ |
+| `src/lib/referral/codes.ts` | Crockford Base32 codes with confusable folding | ✓ |
+| `src/lib/referral/rewards.ts` | Qualification, reward ladder, fraud signals, payout decision | ✓ |
 | `src/lib/flags/flags.ts` | Deterministic percentage rollout for all 22 V2/V3 flags | ✓ |
 
-57 unit tests, all passing. These modules are pure functions over plain data —
+109 unit tests, all passing. These modules are pure functions over plain data —
 no database, no network, no framework — so they can be wired into the API layer
 in Phase 1/2 without rework.
 
@@ -69,6 +73,8 @@ New tables/columns needed when Phase 1 lands:
 | Matching | `match_feedback` (pass reasons), `signal_weights` (learned multipliers per member) |
 | Today's 5 | `daily_suggestions` — (member_id, date, profile_id, score, reasons) for stability and analytics |
 | Safety | `risk_assessments`, `moderation_cases` (with the state machine's stage), `verifications`, `date_plans` |
+| Games | `game_sessions`, `game_rounds`, `game_answers`; answers must be readable per-player so the server can enforce fair reveal, plus `played_prompts` per pair to avoid repeats |
+| Referral | `referral_codes` (unique index), `referrals` with qualification state, `referral_rewards`, `referral_fraud_signals` |
 | Flags | `feature_flags` — name, rollout, killed, always_on[] |
 
 Indexing notes: Discover needs a composite index on (country, city, goal,
@@ -149,6 +155,12 @@ conversation. It proposes; deterministic code validates; the member decides.
   unbounded cost.
 - **Date Safety data is sensitive.** Trusted-contact details are encrypted at
   rest, and a plan is shared only with an explicit per-plan opt-in; tested.
+- **Fair reveal is a server responsibility.** `viewFor` redacts a partner's
+  game answer until both have answered, so the API must serve the redacted
+  view — never the full round with the UI hiding part of it. Tested.
+- **Referral payouts are the abuse surface.** Rewards unlock on qualification
+  rather than signup, payouts are capped per referrer per month, and a
+  suspicious referral is held for review rather than auto-penalised. Tested.
 
 ### 8. Testing requirements
 

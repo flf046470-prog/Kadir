@@ -11,6 +11,7 @@ const staticPaths = [
   "/how-matching-works",
   "/global-match",
   "/conversations",
+  "/referral",
   "/features",
   "/pricing",
   "/safety",

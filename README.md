@@ -42,10 +42,16 @@ wired into the API layer when it lands, without rework.
 - **`src/lib/safety/`** — Scam Shield detection and risk banding, the
   moderation state machine, Trust Profile badges, Date Safety plans, and
   negation-aware copy guards
+- **`src/lib/games/`** — Match Games: five game types, prompt banks, session
+  lifecycle, and fair reveal (neither player can see the other's answer before
+  both have answered, enforced server-side rather than by the UI)
+- **`src/lib/referral/`** — Crockford Base32 referral codes with confusable
+  folding, a reward ladder, and fraud signals that hold a payout for human
+  review rather than penalising the referrer
 - **`src/lib/flags/`** — deterministic percentage rollout (0/1/5/10/25/50/100)
   with nested cohorts and kill switches, for all 22 V2/V3 features
 
-**57 unit tests**, all passing (`npm test`).
+**109 unit tests**, all passing (`npm test`).
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full analysis and
 [`docs/AI_SAFETY.md`](./docs/AI_SAFETY.md) for the AI constraints.
@@ -101,6 +107,8 @@ src/
   lib/domain/          Taxonomies, MatchProfile + visibility, quiz
   lib/matching/        Signals, score, reasons, Today's 5, matchmaker, learning
   lib/safety/          Scam Shield, Trust Profile, Date Safety, copy guards
+  lib/games/           Match Games: prompts, session state, fair reveal
+  lib/referral/        Referral codes, reward ladder, fraud detection
   lib/flags/           Feature flags with staged rollout
   i18n/
     locales.ts         Locale list, RTL list, display names

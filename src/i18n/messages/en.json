@@ -16,7 +16,8 @@
     "join": "Join Free",
     "matching": "How Matching Works",
     "globalMatch": "Global Match",
-    "conversation": "Conversations"
+    "conversation": "Conversations",
+    "referral": "Invite a Friend"
   },
   "footer": {
     "product": "Product",
@@ -453,6 +454,139 @@
       "international_dating": "International dating",
       "friendship": "Friendship",
       "language_exchange": "Language exchange"
+    }
+  },
+  "games": {
+    "title": "Match Games",
+    "subtitle": "Optional mini-games that make the first conversation easier.",
+    "fairPlay": "Neither of you can see the other's answer until you've both answered — enforced by the server, not by trusting the app.",
+    "optional": "Games are always optional. Either of you can skip an invite or end a game at any point, and declining is a perfectly normal answer.",
+    "list": [
+      {
+        "name": "This or That",
+        "desc": "Quick either/or picks. Coffee or tea, plan everything or improvise."
+      },
+      {
+        "name": "Would You Rather",
+        "desc": "Two tempting options, no easy answer. A fast way to find out how someone thinks."
+      },
+      {
+        "name": "Two Truths and a Lie",
+        "desc": "Write three statements, one false. Your match guesses which — and the lie stays hidden until they do."
+      },
+      {
+        "name": "Quick Questions",
+        "desc": "Short open questions: best trip, comfort food, the song you have on repeat."
+      },
+      {
+        "name": "Guess My Answer",
+        "desc": "Guess what your match would say, then compare. Usually the funniest of the five."
+      }
+    ],
+    "prompts": {
+      "coffee_tea": {
+        "a": "Coffee",
+        "b": "Tea"
+      },
+      "beach_mountains": {
+        "a": "Beach",
+        "b": "Mountains"
+      },
+      "morning_night": {
+        "a": "Early bird",
+        "b": "Night owl"
+      },
+      "city_countryside": {
+        "a": "City",
+        "b": "Countryside"
+      },
+      "cook_eat_out": {
+        "a": "Cook at home",
+        "b": "Eat out"
+      },
+      "call_text": {
+        "a": "Call",
+        "b": "Text"
+      },
+      "books_films": {
+        "a": "Books",
+        "b": "Films"
+      },
+      "plan_improvise": {
+        "a": "Plan it",
+        "b": "Improvise"
+      },
+      "live_abroad_forever_or_travel_always": {
+        "a": "Live abroad forever",
+        "b": "Travel constantly"
+      },
+      "speak_every_language_or_visit_every_country": {
+        "a": "Speak every language",
+        "b": "Visit every country"
+      },
+      "always_summer_or_always_winter": {
+        "a": "Always summer",
+        "b": "Always winter"
+      },
+      "famous_meal_or_famous_view": {
+        "a": "The best meal",
+        "b": "The best view"
+      },
+      "no_music_or_no_films": {
+        "a": "Give up music",
+        "b": "Give up films"
+      },
+      "meet_your_heroes_or_be_someone_hero": {
+        "a": "Meet your heroes",
+        "b": "Be someone's hero"
+      },
+      "best_trip": "What's the best trip you've ever taken?",
+      "comfort_food": "What's your comfort food?",
+      "song_on_repeat": "What song do you have on repeat right now?",
+      "perfect_sunday": "What does a perfect Sunday look like?",
+      "learning_right_now": "What are you learning at the moment?",
+      "makes_you_laugh": "What reliably makes you laugh?",
+      "my_ideal_first_date": "My ideal first date is...",
+      "my_most_used_emoji": "My most-used emoji is...",
+      "my_go_to_karaoke_song": "My go-to karaoke song is...",
+      "my_dream_city_to_live_in": "The city I'd most like to live in is...",
+      "my_useless_talent": "My most useless talent is..."
+    }
+  },
+  "referral": {
+    "title": "Invite a friend",
+    "subtitle": "Share FioreMatch with someone who'd actually use it.",
+    "howTitle": "How it works",
+    "how": [
+      "Share your personal referral code or link.",
+      "Your friend signs up and sets up a real profile.",
+      "Once they've verified and started using FioreMatch, your reward unlocks."
+    ],
+    "rewardsTitle": "Rewards",
+    "rewards": [
+      {
+        "name": "Super Like",
+        "desc": "For your first qualified referral."
+      },
+      {
+        "name": "Boost",
+        "desc": "For your second — 30 minutes at the top of Discover."
+      },
+      {
+        "name": "14-day Premium trial",
+        "desc": "For your third. Then the ladder starts again."
+      }
+    ],
+    "fairTitle": "Why rewards unlock later, not instantly",
+    "fairBody": "Paying out the moment someone signs up is exactly what makes referral programmes worth gaming. Rewards unlock once your friend has verified their email and phone, completed a profile, and actually used FioreMatch for a few days. It's slower, and it's the reason the rewards can stay generous.",
+    "abuseTitle": "What we don't allow",
+    "abuseBody": "Referring yourself, creating accounts to farm rewards, or trading codes in bulk. Suspicious referrals are held for human review rather than auto-penalised — sharing your link somewhere popular is not abuse, and we'd rather ask than wrongly punish you.",
+    "outcome": {
+      "granted": "Reward unlocked.",
+      "pendingQualification": "Waiting for your friend to finish setting up and start using FioreMatch.",
+      "heldForReview": "This referral is being reviewed by our team.",
+      "monthlyCapReached": "You've reached this month's reward limit — additional referrals are reviewed manually.",
+      "rejected": "This referral doesn't qualify."
     }
   }
 }

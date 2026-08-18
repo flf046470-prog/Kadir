@@ -34,6 +34,8 @@ export default function ConversationsPage() {
         <Card title={t("translationTitle")} body={t("translationBody")} />
       </section>
 
+      <GamesSection />
+
       <section className="border-t border-black/5 bg-dusk-900 py-16 text-white">
         <div className="container-fm max-w-3xl">
           <h2 className="font-display text-2xl font-semibold">{t("boundaryTitle")}</h2>
@@ -41,6 +43,40 @@ export default function ConversationsPage() {
         </div>
       </section>
     </>
+  );
+}
+
+type GameItem = { name: string; desc: string };
+
+function GamesSection() {
+  const t = useTranslations("games");
+  const games = t.raw("list") as GameItem[];
+
+  return (
+    <section className="border-y border-black/5 bg-bloom-50 py-16">
+      <div className="container-fm">
+        <h2 className="font-display text-2xl font-semibold text-ink">{t("title")}</h2>
+        <p className="mt-2 max-w-2xl text-ink/70">{t("subtitle")}</p>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {games.map((game) => (
+            <div key={game.name} className="rounded-2xl border border-black/5 bg-white p-5">
+              <h3 className="font-semibold text-ink">{game.name}</h3>
+              <p className="mt-2 text-sm text-ink/70">{game.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <p className="rounded-xl border border-black/10 bg-white p-4 text-sm text-ink/75">
+            {t("fairPlay")}
+          </p>
+          <p className="rounded-xl border border-black/10 bg-white p-4 text-sm text-ink/75">
+            {t("optional")}
+          </p>
+        </div>
+      </div>
+    </section>
   );
 }
 
