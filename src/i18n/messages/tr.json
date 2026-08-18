@@ -1,0 +1,250 @@
+{
+  "meta": {
+    "siteName": "FioreMatch",
+    "tagline": "Sınırların Ötesinde Tanış.",
+    "description": "FioreMatch, insanların sınırlar ve diller arasında güvenli şekilde tanışmasını, eşleşmesini ve bağlantı kurmasını sağlayan global, yapay zeka destekli bir dating platformudur."
+  },
+  "nav": {
+    "dating": "Tanışma",
+    "international": "Uluslararası Tanışma",
+    "features": "Özellikler",
+    "pricing": "Fiyatlandırma",
+    "safety": "Güvenlik",
+    "about": "Hakkımızda",
+    "contact": "İletişim",
+    "login": "Giriş yap",
+    "join": "Ücretsiz Katıl"
+  },
+  "footer": {
+    "product": "Ürün",
+    "company": "Şirket",
+    "legal": "Yasal",
+    "resources": "Rehberler",
+    "languages": "Diller",
+    "rights": "Tüm hakları saklıdır.",
+    "madeFor": "Sınırlar ötesinde aşık olan insanlar için tasarlandı.",
+    "privacy": "Gizlilik Politikası",
+    "terms": "Kullanım Koşulları",
+    "guidelines": "Topluluk Kuralları",
+    "cookies": "Çerez Politikası",
+    "safetyCenter": "Güvenlik Merkezi"
+  },
+  "home": {
+    "heroEyebrow": "Global AI Dating & Sosyal Bağlantı Platformu",
+    "heroTitle": "Bir sınırı geçmeye değecek insanlarla tanışın.",
+    "heroSubtitle": "FioreMatch, 12'den fazla dilde ve her saat diliminde gerçek insanları; kendini açıklayan yapay zeka eşleştirmesi ve asla gözünü kaçırmayan güvenlik araçlarıyla bir araya getirir.",
+    "ctaPrimary": "Ücretsiz profilini oluştur",
+    "ctaSecondary": "Eşleştirme nasıl çalışır, gör",
+    "trustBar": "İlk günden itibaren global güvenlik, gizlilik ve moderasyon standartlarıyla inşa edildi.",
+    "statCountries": "190+ ülkeye erişim",
+    "statLanguages": "12 lansman dili",
+    "statPrice": "PLUS & VIP yılda $1.99'dan başlıyor",
+    "sectionHowTitle": "FioreMatch nasıl çalışır",
+    "sectionHowSubtitle": "Numara yok. Seninle gerçek bir bağlantı arasında sadece üç adım var.",
+    "step1Title": "Gerçek bir profil oluştur",
+    "step1Body": "Fotoğraflarını, hikayeni, konuştuğun dilleri ve gerçekten ne aradığını ekle. AI Profil Asistanımız, hakkında hiçbir şey uydurmadan bunu iyi anlatmana yardım eder.",
+    "step2Title": "Sana uyan insanları keşfet",
+    "step2Body": "Konum, dil, ilgi alanları ve niyet gibi gerçekten önemli olan kriterlere göre filtrelenmiş profillere göz at; yapay zekamız arka planda uyumluluk sinyallerini sessizce sıralar.",
+    "step3Title": "Eşleş ve güvenle konuş",
+    "step3Body": "Birbirinizi beğendiğinizde sohbet anında açılır. Her konuşma; engelleme, raporlama ve gerçekten incelenen moderasyon araçlarıyla desteklenir.",
+    "sectionAiTitle": "Eşleşmelerini açıklayan yapay zeka",
+    "sectionAiBody": "FioreMatch'in eşleştirme modeli yaş ve mesafenin ötesine bakar — ortak ilgi alanları, ilişki hedefleri, yaşam tarzı ve uygulamadaki gerçek davranışların — ve bir profilin neden önerildiğini sade bir \"Neden eşleşebileceğinizi düşünüyoruz\" notuyla açıklar. Kara kutu yok, manipülatif tasarım yok.",
+    "sectionGlobalTitle": "Tek bir ülke için değil, dünya için inşa edildi",
+    "sectionGlobalBody": "FioreMatch; İngilizce, Türkçe, Almanca, İspanyolca, Fransızca, İtalyanca, Portekizce, Arapça, Japonca, Korece, Hintçe ve Endonezce dilleriyle, yerel fiyatlandırma ve çevrilmiş mesajlaşmaya hazır bir mimariyle başlıyor.",
+    "sectionSafetyTitle": "Güvenlik sonradan eklenen bir özellik değil",
+    "sectionSafetyBody": "Spam ve sahte hesap sinyalleri, dolandırıcılık örüntü tespiti ve insan incelemeli moderasyon kuyrukları platformu korur — yapay zeka riski işaretler, zor kararları insanlar verir.",
+    "ctaBandTitle": "Bir sonraki gerçek bağlantın dünyanın başka bir yerinde.",
+    "ctaBandBody": "Ücretsiz katıl. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt.",
+    "ctaBandButton": "Hemen başla"
+  },
+  "dating": {
+    "title": "Global Bir Dünya İçin Yeniden Tasarlanmış Online Tanışma",
+    "subtitle": "FioreMatch, tanışma havuzunun bir sınır, bir dil ya da eskimiş bir algoritma tarafından kısıtlanmasını istemeyen insanlar için inşa edildi.",
+    "intro": "İster bir ilişki, ister daha rahat bir tanışıklık, ister hayatını birlikte kuracağın yeni insanlar arıyor ol; FioreMatch sana gerçek filtreler, kendini açıklayan bir AI eşleştirme katmanı ve raporları gerçekten inceleyen bir güvenlik ekibi sunar — sadece bir kaydırma destesi değil.",
+    "filtersTitle": "Gerçekten önemli olana göre filtrele",
+    "filters": [
+      "Yaş aralığı ve konum yarıçapı",
+      "Ülke, şehir ve konuşulan diller",
+      "İlgi alanları, hobiler ve yaşam tarzı",
+      "İlişki niyeti — rahat, ciddi, uzun vadeli, arkadaşlık",
+      "Cinsiyet ve tercih seçenekleri"
+    ],
+    "browseCountries": "Ülkeye göre tanışmayı keşfet",
+    "browseCities": "FioreMatch'te popüler şehirler"
+  },
+  "international": {
+    "title": "Tahmin Yürütmeden Uluslararası Tanışma",
+    "subtitle": "Sınır ötesi ilişkilerde sahteciliği fark etmek daha zor, hata yapmak ise daha kolaydır. FioreMatch bu gerçeklik üzerine tasarlandı.",
+    "body1": "Uluslararası tanışma genelde öngörülebilir nedenlerle başarısız olur: dil farkı, niyet konusunda uyuşmayan beklentiler, saat dilimi sürtünmesi ve çoğu zaman evden uzak hisseden insanları hedef alan dolandırıcılık. FioreMatch'in mimarisi çeviri, doğrulama sinyalleri ve dürüst niyet belirtmeyi sonradan eklenen değil, temel özellikler olarak ele alır.",
+    "body2": "Her profil, konuştuğu dilleri ve ilişki niyetini baştan belirtir. Moderasyon sistemlerimiz özellikle sınır ötesi dolandırıcılık örüntüleri için ayarlandı — romantik dolandırıcılık, sahte asker ya da yurt dışında çalışan kimlikleri ve acil para talepleri — böylece sen gerçek biriyle tanışmaya odaklanabilirsin.",
+    "tipsTitle": "Sınır ötesi tanışmayı doğru yapmak",
+    "tips": [
+      "Duygusal olarak bağlanmadan önce mutlaka görüntülü görüş.",
+      "Yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme.",
+      "Gerçek güven oluşana kadar uygulama içi mesajlaşmayı kullan.",
+      "Bir sohbet değil de bir senaryo gibi hissettiren her şeyi bildir."
+    ]
+  },
+  "features": {
+    "title": "Gerçek biriyle tanışmak için ihtiyacın olan her şey",
+    "subtitle": "Gerçek bir yazılım gibi inşa edilmiş bir tanışma platformu: hızlı, açıklanabilir ve varsayılan olarak güvenli.",
+    "groups": [
+      {
+        "heading": "Keşfet & Eşleş",
+        "items": [
+          { "name": "Beğen, Geç, Süper Beğen", "desc": "Basit, bilinçli işlemler — sonsuz kaydırma tuzağı yok." },
+          { "name": "Anında eşleşme", "desc": "Karşılıklı beğeniler beklemeden hemen sohbeti açar." },
+          { "name": "Hassas filtreler", "desc": "Yaş, ülke, şehir, dil, ilgi alanı, niyet ve mesafe." }
+        ]
+      },
+      {
+        "heading": "Dürüstçe kullanılan yapay zeka",
+        "items": [
+          { "name": "Açıklanabilir AI eşleştirme", "desc": "Önerilen her eşleşmenin sade dildeki nedenini gör." },
+          { "name": "AI Profil Asistanı", "desc": "Bio ve ilk mesaj yazmakta yardım al — hakkında hiçbir şey uydurulmaz." },
+          { "name": "Davranışsal sinyaller", "desc": "Gerçek beğenilerin ve eşleşme geçmişin gelecekteki önerileri iyileştirir." }
+        ]
+      },
+      {
+        "heading": "Gerçek zamanlı mesajlaşma",
+        "items": [
+          { "name": "Metin, emoji ve fotoğraf", "desc": "Gerçek bir sohbet için gereken her şey." },
+          { "name": "Okundu bilgisi ve yazıyor göstergesi", "desc": "Mesajının ulaştığını bil." },
+          { "name": "Çeviriye hazır mimari", "desc": "Uygulama içi AI çevirisini devreye alacağımız şekilde inşa edildi." }
+        ]
+      },
+      {
+        "heading": "Güvenlik & moderasyon",
+        "items": [
+          { "name": "Engelle & bildir", "desc": "Her profilde ve her sohbette mevcut." },
+          { "name": "Dolandırıcılık ve spam tespiti", "desc": "Otomatik sinyaller şüpheli hesapları sana ulaşmadan işaretler." },
+          { "name": "İnsan incelemeli moderasyon kuyruğu", "desc": "Yapay zeka riski işaretler; ciddi raporlarda son kararı eğitimli insanlar verir." }
+        ]
+      }
+    ]
+  },
+  "pricing": {
+    "title": "Basit, dürüst fiyatlandırma",
+    "subtitle": "Ücretsiz başla. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt. Fiyatlar, App Store ve Google Play'in desteklediği yerlerde kendi para biriminde gösterilir.",
+    "freeName": "Ücretsiz",
+    "freePrice": "$0",
+    "freePeriod": "süresiz",
+    "freeDesc": "İnsanlarla tanışmaya başlamak için ihtiyacın olan her şey.",
+    "freeFeatures": [
+      "Tam profil oluşturma",
+      "Keşfet, Beğen ve Geç",
+      "Eşleşme ve mesajlaşma",
+      "Standart filtreler",
+      "Engelleme ve bildirme araçları"
+    ],
+    "plusName": "PLUS",
+    "plusPrice": "$1.99",
+    "plusPeriod": "/ yıl",
+    "plusDesc": "Kiminle tanışacağı üzerinde daha fazla kontrol isteyenler için.",
+    "plusFeatures": [
+      "Ücretsiz paketteki her şey",
+      "Gelişmiş filtreler",
+      "Günde daha fazla Beğeni",
+      "Reklamsız deneyim",
+      "Profilini kimlerin ziyaret ettiğini gör",
+      "Sohbet içi mesaj çevirisi"
+    ],
+    "vipName": "VIP",
+    "vipPrice": "$1.99",
+    "vipPeriod": "/ yıl",
+    "vipDesc": "Maksimum görünürlük ve en akıllı eşleştirmemiz.",
+    "vipFeatures": [
+      "PLUS'taki her şey",
+      "Yapay zeka destekli eşleşme önerileri",
+      "Öncelikli profil görünürlüğü",
+      "Profilinde VIP rozeti",
+      "Boost avantajları",
+      "En gelişmiş keşfetme araçlarımız"
+    ],
+    "vipBadge": "En popüler",
+    "localNote": "Yerel fiyatlar, ham bir döviz dönüşümü değil, Apple App Store ve Google Play'in ülke bazlı fiyat kademelerini takip eder ve pazarlara adil şekilde ayarlayabilmemiz için merkezi olarak yönetilir.",
+    "addonsTitle": "Tek seferlik boost'lar",
+    "addonsSubtitle": "İstediğin ekstra erişimi, tam istediğin zaman satın al.",
+    "addons": [
+      { "name": "Boost", "desc": "Bölgende 30 dakika boyunca Keşfet'in en üstüne çık." },
+      { "name": "Süper Beğeni", "desc": "Hemen öne çık — Süper Beğenilen profiller ilk fark edilenlerdir." },
+      { "name": "Profil Tanıtımı", "desc": "Aktif filtrelerin ve bölgende genişletilmiş görünürlük." },
+      { "name": "Premium Görünürlük", "desc": "Bugün eşleşmeye çalışan kullanıcılar için öncelikli yerleşim." }
+    ],
+    "cta": "Ücretsiz başla, istediğin an yükselt"
+  },
+  "safety": {
+    "title": "Güvenlik Merkezi",
+    "subtitle": "Tanışma ancak güvenliyse işe yarar. FioreMatch'in tam olarak ne yaptığı — ve senin ne yapman gerektiği burada.",
+    "platformTitle": "FioreMatch ne yapar",
+    "platformItems": [
+      "Otomatik spam ve sahte hesap sinyali tespiti",
+      "Romantik dolandırıcılık taktiklerine göre ayarlanmış dolandırıcılık örüntü tespiti",
+      "Beğeniler, mesajlar ve raporlar genelinde şüpheli davranış izleme",
+      "Her profilde ve sohbette tek dokunuşla engelleme ve bildirme",
+      "Ciddi raporlar için insan incelemeli kuyruğa sahip AI destekli içerik moderasyonu",
+      "İstek üzerine her an tam hesap silme"
+    ],
+    "userTitle": "Senin yapman gerekenler",
+    "userItems": [
+      "Yüz yüze görüşmeden önce her zaman görüntülü konuş.",
+      "İlk buluşmaları herkese açık yerlerde yap ve nereye gittiğini bir arkadaşına söyle.",
+      "Yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme.",
+      "Gerçek bir güven oluşana kadar konuşmaları uygulama içinde tut.",
+      "Tuhaf gelen her şeyi bildir — bildirmekte asla haksız değilsin."
+    ],
+    "reportTitle": "Yanlış bir şey mi gördün?",
+    "reportBody": "Her profilde ve sohbette bir Bildir seçeneği var. Taciz, dolandırıcılık sinyali veya güvenlik tehdidi içeren raporlar insan incelemesi için önceliklendirilir.",
+    "moderationNote": "Yapay zekamız ciddi vakalarda asla tek başına nihai bir yaptırım kararı vermez — işaretlenen hesaplar büyük bir işlem alınmadan önce insan incelemesi için moderasyon kuyruğuna yönlendirilir."
+  },
+  "about": {
+    "title": "FioreMatch Hakkında",
+    "subtitle": "Tek bir fikir üzerine kurulu global bir tanışma platformu: gerçek insanlar, gerçek eşleşmeler, gerçek güvenlik.",
+    "body1": "FioreMatch, en iyi ilişkilerin genelde en olası olmayan rastlantıyla başladığı fikriyle var: sınırın iki yakasındaki iki insanın konuşmaya karar vermesi. Biz ürünü, mesafe ve farklılığın önemli olmadığını iddia etmeden, bu rastlantıyı daha olası ve daha güvenli hale getirmek için inşa ediyoruz.",
+    "body2": "Tasarım gereği globaliz: lansmanda 12 dil, tek tip yerine yerel fiyatlandırma ve sonradan eklenmeyen, ilk günden sınır ötesi risk için inşa edilmiş bir güvenlik ve moderasyon sistemi.",
+    "valuesTitle": "Neyi optimize ediyoruz",
+    "values": [
+      { "name": "Gerçek kullanıcılar", "desc": "Sahte hesap yok, şişirilmiş rakam yok, yapay etkileşim yok." },
+      { "name": "Gerçek eşleşmeler", "desc": "Uygulamada geçirilen zamanı optimize eden bir kara kutu değil, açıklanabilir eşleştirme." },
+      { "name": "Gerçek güvenlik", "desc": "AI sinyal tespitini insan muhakemesiyle birleştiren moderasyon." },
+      { "name": "Gerçek değer", "desc": "Sömürü yerine uygun fiyat — PLUS ve VIP için yılda $1.99." }
+    ]
+  },
+  "contact": {
+    "title": "Bize ulaşın",
+    "subtitle": "Destek, basın, güvenlik endişeleri veya iş birlikleri — bize ne olduğunu anlat.",
+    "formName": "İsim",
+    "formEmail": "E-posta",
+    "formTopic": "Konu",
+    "formTopicOptions": ["Genel soru", "Hesap desteği", "Güvenlik bildirimi", "Basın", "İş birlikleri"],
+    "formMessage": "Mesaj",
+    "formSubmit": "Mesaj gönder",
+    "formNote": "Bu bir demo iletişim formudur — mesajların destek sistemimize yönlendirilmesi backend sürümüyle birlikte devreye girecek.",
+    "safetyUrgent": "Acil bir tehlikedeysen önce yerel acil durum servislerine ulaş."
+  },
+  "guidesIndex": {
+    "title": "Rehberler",
+    "subtitle": "Uluslararası tanışma ve bunu yaparken güvende kalma konusunda pratik, spam olmayan tavsiyeler."
+  },
+  "auth": {
+    "loginTitle": "FioreMatch'e giriş yap",
+    "loginSubtitle": "Tekrar hoş geldin. Eşleşmelerin seni özledi.",
+    "registerTitle": "Ücretsiz profilini oluştur",
+    "registerSubtitle": "Yaklaşık iki dakika sürer. Katılmak için asla kredi kartı gerekmez.",
+    "emailLabel": "E-posta",
+    "phoneLabel": "Telefon numarası",
+    "passwordLabel": "Şifre",
+    "nameLabel": "Ad",
+    "birthdateLabel": "Doğum tarihi",
+    "loginButton": "Giriş yap",
+    "registerButton": "Hesap oluştur",
+    "orDivider": "veya şununla devam et",
+    "forgotPassword": "Şifreni mi unuttun?",
+    "noAccount": "FioreMatch'te yeni misin?",
+    "haveAccount": "Zaten bir hesabın var mı?",
+    "signUpLink": "Ücretsiz kaydol",
+    "logInLink": "Giriş yap",
+    "demoNotice": "Bu, FioreMatch hesap akışının bir ön yüz önizlemesidir. Hesap oluşturma, kimlik doğrulama ve şifre saklama henüz canlı değildir — bunlar yol haritamızda açıklanan backend ve güvenlik incelemesiyle birlikte devreye girecektir.",
+    "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun."
+  }
+}
