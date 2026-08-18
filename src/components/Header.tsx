@@ -7,8 +7,8 @@ export function Header() {
   const t = useTranslations("nav");
 
   const links = [
-    { href: "/dating", label: t("dating") },
-    { href: "/international-dating", label: t("international") },
+    { href: "/how-matching-works", label: t("matching") },
+    { href: "/global-match", label: t("globalMatch") },
     { href: "/features", label: t("features") },
     { href: "/pricing", label: t("pricing") },
     { href: "/safety", label: t("safety") }

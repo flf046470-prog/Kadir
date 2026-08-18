@@ -24,8 +24,31 @@ A production-ready **web front end**, statically generated across 12 locales:
   across all 12 locales plus `x-default`, and JSON-LD for Organization,
   WebSite, SoftwareApplication, Article, and FAQPage
 
-Every page is prerendered as static HTML (329 routes), mobile-first, and
+Every page is prerendered as static HTML (365 routes), mobile-first, and
 renders correctly in RTL for Arabic.
+
+### Product logic (V2/V3)
+
+A tested, dependency-free domain core for the differentiation features. These
+are pure functions over plain data — no database, no network — so they can be
+wired into the API layer when it lands, without rework.
+
+- **`src/lib/domain/`** — shared taxonomies (relationship goals, match intents,
+  cultures, travel styles, ideal dates, discovery modes, verifications), the
+  `MatchProfile` shape with per-field visibility, and the compatibility quiz
+- **`src/lib/matching/`** — 11 matching signals, the Smart Match Score with
+  per-mode weights, the Match Reason Engine, Today's 5 selection, the AI
+  Matchmaker validation boundary, and the feedback learning loop
+- **`src/lib/safety/`** — Scam Shield detection and risk banding, the
+  moderation state machine, Trust Profile badges, Date Safety plans, and
+  negation-aware copy guards
+- **`src/lib/flags/`** — deterministic percentage rollout (0/1/5/10/25/50/100)
+  with nested cohorts and kill switches, for all 22 V2/V3 features
+
+**57 unit tests**, all passing (`npm test`).
+
+See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full analysis and
+[`docs/AI_SAFETY.md`](./docs/AI_SAFETY.md) for the AI constraints.
 
 ## Not implemented (and deliberately not faked)
 
@@ -60,6 +83,8 @@ npm install
 npm run dev     # http://localhost:3000 → redirects to /en
 npm run build   # production build, prerenders all locales
 npm run start   # serve the production build
+npm test        # unit tests for the matching, safety, and flag logic
+npm run lint
 ```
 
 No environment variables are required for the current site. When backend
@@ -73,6 +98,10 @@ src/
   app/sitemap.ts       Sitemap covering every locale × route
   app/robots.ts        robots.txt
   components/          Header, Footer, LanguageSwitcher, cards, JSON-LD
+  lib/domain/          Taxonomies, MatchProfile + visibility, quiz
+  lib/matching/        Signals, score, reasons, Today's 5, matchmaker, learning
+  lib/safety/          Scam Shield, Trust Profile, Date Safety, copy guards
+  lib/flags/           Feature flags with staged rollout
   i18n/
     locales.ts         Locale list, RTL list, display names
     navigation.ts      Locale-aware Link / router

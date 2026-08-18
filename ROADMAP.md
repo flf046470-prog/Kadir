@@ -21,8 +21,31 @@ The public web surface, statically generated across 12 locales.
 - JSON-LD: Organization, WebSite, SoftwareApplication, Article, FAQPage
 - Account UI shells, explicitly non-functional
 
-**Exit criteria met:** builds clean, 329 static routes, no console errors,
+**Exit criteria met:** builds clean, 365 static routes, no console errors,
 mobile and RTL verified.
+
+---
+
+## Phase 0.5 — Product logic core ✅ shipped
+
+The V2/V3 differentiation features have a deterministic core that does not
+depend on a database. Building and testing it first means the hard parts are
+proven before the app exists to host them.
+
+- Domain taxonomies, `MatchProfile` with per-field visibility, compatibility quiz
+- 11 matching signals, Smart Match Score with per-mode weights, Match Reason
+  Engine, Today's 5, AI Matchmaker validation boundary, feedback learning loop
+- Scam Shield detection + risk banding + moderation state machine, Trust
+  Profile, Date Safety plans, copy guards
+- Feature flags with staged rollout for all 22 V2/V3 features
+- Marketing pages: `/how-matching-works`, `/global-match`, `/conversations`,
+  expanded `/safety`
+
+**Exit criteria met:** 57 unit tests passing, lint clean, build clean.
+Analysis in `docs/ARCHITECTURE.md`; constraints in `docs/AI_SAFETY.md`.
+
+These modules are libraries, not features a member can use — they need Phases
+1–2 to have profiles, a feed, and conversations to operate on.
 
 ---
 

@@ -13,7 +13,10 @@
     "about": "Hakkımızda",
     "contact": "İletişim",
     "login": "Giriş yap",
-    "join": "Ücretsiz Katıl"
+    "join": "Ücretsiz Katıl",
+    "matching": "Eşleştirme Nasıl Çalışır",
+    "globalMatch": "Global Match",
+    "conversation": "Sohbetler"
   },
   "footer": {
     "product": "Ürün",
@@ -31,7 +34,7 @@
   },
   "home": {
     "heroEyebrow": "Global AI Dating & Sosyal Bağlantı Platformu",
-    "heroTitle": "Bir sınırı geçmeye değecek insanlarla tanışın.",
+    "heroTitle": "Sonsuza kadar kaydırma. Sana gerçekten uyan insanlarla tanış.",
     "heroSubtitle": "FioreMatch, 12'den fazla dilde ve her saat diliminde gerçek insanları; kendini açıklayan yapay zeka eşleştirmesi ve asla gözünü kaçırmayan güvenlik araçlarıyla bir araya getirir.",
     "ctaPrimary": "Ücretsiz profilini oluştur",
     "ctaSecondary": "Eşleştirme nasıl çalışır, gör",
@@ -92,33 +95,69 @@
       {
         "heading": "Keşfet & Eşleş",
         "items": [
-          { "name": "Beğen, Geç, Süper Beğen", "desc": "Basit, bilinçli işlemler — sonsuz kaydırma tuzağı yok." },
-          { "name": "Anında eşleşme", "desc": "Karşılıklı beğeniler beklemeden hemen sohbeti açar." },
-          { "name": "Hassas filtreler", "desc": "Yaş, ülke, şehir, dil, ilgi alanı, niyet ve mesafe." }
+          {
+            "name": "Beğen, Geç, Süper Beğen",
+            "desc": "Basit, bilinçli işlemler — sonsuz kaydırma tuzağı yok."
+          },
+          {
+            "name": "Anında eşleşme",
+            "desc": "Karşılıklı beğeniler beklemeden hemen sohbeti açar."
+          },
+          {
+            "name": "Hassas filtreler",
+            "desc": "Yaş, ülke, şehir, dil, ilgi alanı, niyet ve mesafe."
+          }
         ]
       },
       {
         "heading": "Dürüstçe kullanılan yapay zeka",
         "items": [
-          { "name": "Açıklanabilir AI eşleştirme", "desc": "Önerilen her eşleşmenin sade dildeki nedenini gör." },
-          { "name": "AI Profil Asistanı", "desc": "Bio ve ilk mesaj yazmakta yardım al — hakkında hiçbir şey uydurulmaz." },
-          { "name": "Davranışsal sinyaller", "desc": "Gerçek beğenilerin ve eşleşme geçmişin gelecekteki önerileri iyileştirir." }
+          {
+            "name": "Açıklanabilir AI eşleştirme",
+            "desc": "Önerilen her eşleşmenin sade dildeki nedenini gör."
+          },
+          {
+            "name": "AI Profil Asistanı",
+            "desc": "Bio ve ilk mesaj yazmakta yardım al — hakkında hiçbir şey uydurulmaz."
+          },
+          {
+            "name": "Davranışsal sinyaller",
+            "desc": "Gerçek beğenilerin ve eşleşme geçmişin gelecekteki önerileri iyileştirir."
+          }
         ]
       },
       {
         "heading": "Gerçek zamanlı mesajlaşma",
         "items": [
-          { "name": "Metin, emoji ve fotoğraf", "desc": "Gerçek bir sohbet için gereken her şey." },
-          { "name": "Okundu bilgisi ve yazıyor göstergesi", "desc": "Mesajının ulaştığını bil." },
-          { "name": "Çeviriye hazır mimari", "desc": "Uygulama içi AI çevirisini devreye alacağımız şekilde inşa edildi." }
+          {
+            "name": "Metin, emoji ve fotoğraf",
+            "desc": "Gerçek bir sohbet için gereken her şey."
+          },
+          {
+            "name": "Okundu bilgisi ve yazıyor göstergesi",
+            "desc": "Mesajının ulaştığını bil."
+          },
+          {
+            "name": "Çeviriye hazır mimari",
+            "desc": "Uygulama içi AI çevirisini devreye alacağımız şekilde inşa edildi."
+          }
         ]
       },
       {
         "heading": "Güvenlik & moderasyon",
         "items": [
-          { "name": "Engelle & bildir", "desc": "Her profilde ve her sohbette mevcut." },
-          { "name": "Dolandırıcılık ve spam tespiti", "desc": "Otomatik sinyaller şüpheli hesapları sana ulaşmadan işaretler." },
-          { "name": "İnsan incelemeli moderasyon kuyruğu", "desc": "Yapay zeka riski işaretler; ciddi raporlarda son kararı eğitimli insanlar verir." }
+          {
+            "name": "Engelle & bildir",
+            "desc": "Her profilde ve her sohbette mevcut."
+          },
+          {
+            "name": "Dolandırıcılık ve spam tespiti",
+            "desc": "Otomatik sinyaller şüpheli hesapları sana ulaşmadan işaretler."
+          },
+          {
+            "name": "İnsan incelemeli moderasyon kuyruğu",
+            "desc": "Yapay zeka riski işaretler; ciddi raporlarda son kararı eğitimli insanlar verir."
+          }
         ]
       }
     ]
@@ -166,10 +205,22 @@
     "addonsTitle": "Tek seferlik boost'lar",
     "addonsSubtitle": "İstediğin ekstra erişimi, tam istediğin zaman satın al.",
     "addons": [
-      { "name": "Boost", "desc": "Bölgende 30 dakika boyunca Keşfet'in en üstüne çık." },
-      { "name": "Süper Beğeni", "desc": "Hemen öne çık — Süper Beğenilen profiller ilk fark edilenlerdir." },
-      { "name": "Profil Tanıtımı", "desc": "Aktif filtrelerin ve bölgende genişletilmiş görünürlük." },
-      { "name": "Premium Görünürlük", "desc": "Bugün eşleşmeye çalışan kullanıcılar için öncelikli yerleşim." }
+      {
+        "name": "Boost",
+        "desc": "Bölgende 30 dakika boyunca Keşfet'in en üstüne çık."
+      },
+      {
+        "name": "Süper Beğeni",
+        "desc": "Hemen öne çık — Süper Beğenilen profiller ilk fark edilenlerdir."
+      },
+      {
+        "name": "Profil Tanıtımı",
+        "desc": "Aktif filtrelerin ve bölgende genişletilmiş görünürlük."
+      },
+      {
+        "name": "Premium Görünürlük",
+        "desc": "Bugün eşleşmeye çalışan kullanıcılar için öncelikli yerleşim."
+      }
     ],
     "cta": "Ücretsiz başla, istediğin an yükselt"
   },
@@ -204,10 +255,22 @@
     "body2": "Tasarım gereği globaliz: lansmanda 12 dil, tek tip yerine yerel fiyatlandırma ve sonradan eklenmeyen, ilk günden sınır ötesi risk için inşa edilmiş bir güvenlik ve moderasyon sistemi.",
     "valuesTitle": "Neyi optimize ediyoruz",
     "values": [
-      { "name": "Gerçek kullanıcılar", "desc": "Sahte hesap yok, şişirilmiş rakam yok, yapay etkileşim yok." },
-      { "name": "Gerçek eşleşmeler", "desc": "Uygulamada geçirilen zamanı optimize eden bir kara kutu değil, açıklanabilir eşleştirme." },
-      { "name": "Gerçek güvenlik", "desc": "AI sinyal tespitini insan muhakemesiyle birleştiren moderasyon." },
-      { "name": "Gerçek değer", "desc": "Sömürü yerine uygun fiyat — PLUS ve VIP için yılda $1.99." }
+      {
+        "name": "Gerçek kullanıcılar",
+        "desc": "Sahte hesap yok, şişirilmiş rakam yok, yapay etkileşim yok."
+      },
+      {
+        "name": "Gerçek eşleşmeler",
+        "desc": "Uygulamada geçirilen zamanı optimize eden bir kara kutu değil, açıklanabilir eşleştirme."
+      },
+      {
+        "name": "Gerçek güvenlik",
+        "desc": "AI sinyal tespitini insan muhakemesiyle birleştiren moderasyon."
+      },
+      {
+        "name": "Gerçek değer",
+        "desc": "Sömürü yerine uygun fiyat — PLUS ve VIP için yılda $1.99."
+      }
     ]
   },
   "contact": {
@@ -216,7 +279,13 @@
     "formName": "İsim",
     "formEmail": "E-posta",
     "formTopic": "Konu",
-    "formTopicOptions": ["Genel soru", "Hesap desteği", "Güvenlik bildirimi", "Basın", "İş birlikleri"],
+    "formTopicOptions": [
+      "Genel soru",
+      "Hesap desteği",
+      "Güvenlik bildirimi",
+      "Basın",
+      "İş birlikleri"
+    ],
     "formMessage": "Mesaj",
     "formSubmit": "Mesaj gönder",
     "formNote": "Bu bir demo iletişim formudur — mesajların destek sistemimize yönlendirilmesi backend sürümüyle birlikte devreye girecek.",
@@ -246,5 +315,144 @@
     "logInLink": "Giriş yap",
     "demoNotice": "Bu, FioreMatch hesap akışının bir ön yüz önizlemesidir. Hesap oluşturma, kimlik doğrulama ve şifre saklama henüz canlı değildir — bunlar yol haritamızda açıklanan backend ve güvenlik incelemesiyle birlikte devreye girecektir.",
     "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun."
+  },
+  "matching": {
+    "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",
+    "subtitle": "Sonsuza kadar kaydırma. Sana gerçekten uyan insanlarla tanış.",
+    "intro": "Çoğu dating uygulaması ne kadar süre kaydırmaya devam ettiğini optimize eder. FioreMatch, konuşmaya değer birini ne kadar hızlı bulduğunu optimize eder. Eşleştirmemizin nasıl çalıştığı tam olarak burada — kara kutu yok, gizem yok.",
+    "matchmakerTitle": "AI Matchmaker",
+    "matchmakerBody": "Ne aradığını kendi kelimelerinle anlat — \"uzun süreli ilişki isteyen, seyahat etmeyi seven ve İngilizce konuşan biri\" — FioreMatch bunu yapılandırılmış arama kriterlerine dönüştürsün. Yapay zeka yalnızca sabit bir hedef, ilgi alanı, dil ve kültür sözlüğünden seçim yapabilir ve her kriter eşleştirme motoruna ulaşmadan önce doğrulanır. Senin istemediğin bir koşulu uyduramaz.",
+    "dnaTitle": "Compatibility DNA",
+    "dnaBody": "Kısa ve hafif bir test ile profilin, üç sade sinyal üzerinden bir resim oluşturur: yaşam tarzı, iletişim tarzı ve ilgi alanları. Bu bir kişilik testi değildir ve hakkında hiçbir psikolojik etiket üretmez. Sonuçlar her zaman bilimsel bir hüküm olarak değil, potansiyel uyumluluk olarak sunulur.",
+    "fiveTitle": "Today's 5",
+    "fiveBody": "Her gün en fazla beş güçlü öneri alırsın — gerçekten iyi eşleşme daha azsa bilinçli olarak daha az. Listeyi zayıf profillerle doldurmak zaten amacı bozardı.",
+    "reasonsTitle": "Her eşleşme kendini açıklar",
+    "reasonsBody": "Her öneri, yalnızca gerçekten sahip olduğumuz verilerden oluşturulmuş bir \"Neden eşleşebilirsiniz\" listesi taşır — ortak bir ilişki hedefi, ikinizin de konuştuğu bir dil, ikinizin de belirttiği bir ilgi alanı. Bir nedeni gerçek bir ortak değerle destekleyemiyorsak, onu göstermeyiz.",
+    "reasonsExampleTitle": "Neden eşleşebilirsiniz",
+    "reasonsExample": [
+      "Aynı ilişki hedefi: uzun süreli",
+      "İkiniz de İngilizce ve İspanyolca konuşuyorsunuz",
+      "İkiniz de seyahat ve fotoğrafçılıkla ilgileniyorsunuz",
+      "İkiniz de farklı kültürlerden insanlarla tanışmaya açıksınız"
+    ],
+    "signalsTitle": "Neyi puanlıyoruz",
+    "signalsBody": "Eşleştirme motoru bu sinyalleri, her keşfetme modunda farklı ağırlıklarla harmanlar. Verisi olmayan hiçbir şey uyum sayılmaz — bilinmeyen olarak ele alınır.",
+    "signals": [
+      "İlişki hedefi ve eşleşme niyeti",
+      "Ortak ilgi alanları ve ideal buluşmalar",
+      "Yaşam tarzı ve iletişim uyumu",
+      "Konuşulan diller ve dil değişimi uyumu",
+      "Konum, mesafe ve gelecekteki konum planları",
+      "Kültürel ilgi alanları",
+      "Örtüşen seyahat planları"
+    ],
+    "notScoredTitle": "Neyi asla puanlamıyoruz",
+    "notScoredBody": "Eşleştirme motoruna yalnızca yukarıdaki alanlar verilir. Etnik köken, din, sağlık, siyasi görüş veya gelir bilgisini asla almaz ve bunları çıkarsayamaz. Kültürel ilgi, nereli olduğuna dayalı bir varsayım değil, neyle bağ kurmak istediğin anlamına gelir.",
+    "learningTitle": "Yalnızca senin söylediklerinden öğrenir",
+    "learningBody": "Birini geçtiğinde istersen nedenini söyleyebilirsin. Bu geri bildirim, senin için bir sinyalin ağırlığını sıkı sınırlar içinde ayarlar ve zamanla nötre doğru geri çekilir; böylece önerilerin yeniden genişlemeye devam eder. Bir fotoğrafa ne kadar baktığından tercih çıkarmıyoruz."
+  },
+  "globalMatch": {
+    "title": "Global Match",
+    "subtitle": "Sınırların ötesinde tanış — tesadüfen değil, bilerek.",
+    "intro": "Çoğu uygulama mesafeyi tek bir kaydırıcı olarak görür. FioreMatch, nasıl bağ kurmak istediğini birinci sınıf bir tercih olarak ele alır; her biri farklı bir şey öne çıkaran altı keşfetme modu sunar.",
+    "modesTitle": "Keşfetmenin altı yolu",
+    "modes": [
+      {
+        "name": "Local",
+        "desc": "Yakınındaki insanlar, mesafe en ağır basan kriter."
+      },
+      {
+        "name": "Country",
+        "desc": "Ülkendeki herkes; mesafe hâlâ önemli ama daha az."
+      },
+      {
+        "name": "Global",
+        "desc": "Dünya geneli, yakınlık yerine ortak dil ve ilgi alanlarına göre sıralanır."
+      },
+      {
+        "name": "Culture",
+        "desc": "Kültürel ilgi alanlarını paylaşan ya da seninkilere açık olan insanlar."
+      },
+      {
+        "name": "Language",
+        "desc": "Dil değişimi — sen kendi dilini, o kendi dilini öğretir."
+      },
+      {
+        "name": "Travel",
+        "desc": "Seyahat planları seninkiyle örtüşen ya da gideceğin yerde yaşayan insanlar."
+      }
+    ],
+    "reachTitle": "Erişimini belirle",
+    "reachBody": "Şehrim · Ülkem · Yakın ülkeler · Dünya geneli · Belirli ülkeler. Sen seçersin ve istediğin zaman değiştirirsin.",
+    "cultureTitle": "Culture Connect",
+    "cultureBody": "Gerçekten merak ettiğin kültürleri seç ve istersen başka kültürlerle ilgilenen insanlarla tanışmak istediğini belirt. Bu ortak merakla ilgilidir — FioreMatch hiç kimsenin milliyetini bir kişilik özelliği olarak görmez ve yaşadığı yerden kültürünü çıkarsamaz.",
+    "languageTitle": "Language Exchange",
+    "languageBody": "Ne konuştuğunu ve ne öğrendiğini belirt. Dillerin bir başkasınınkini tamamladığında — sen Türkçe konuşup İspanyolca istiyorsun, o İspanyolca konuşup Türkçe istiyor — bu karşılıklı uyum yüksek puan alır. FioreMatch'i tanışma, dil değişimi veya ikisi için birden kullanabilirsin.",
+    "travelTitle": "Travel Match & Future Location",
+    "travelBody": "Bir seyahat ekle — varış yeri, tarihler ve ilgi alanların — biz de aynı anda orada olacak ya da hâlihazırda orada yaşayan insanları önceliklendirelim. Altı ay içinde yeni bir şehre mi taşınıyorsun? Belirt ve daha varmadan insanlarla tanışmaya başla. İkisi de isteğe bağlıdır ve kimin göreceğini sen kontrol edersin.",
+    "privacyTitle": "Neyin görüneceğini sen belirlersin",
+    "privacyBody": "Konum, seyahat planları, gelecekteki konum, diller, kültürel ilgi alanları ve ilişki hedefinin her birinin kendi görünürlük ayarı vardır: herkes, yalnızca eşleşmeler veya gizli. Gizli alanlar, eşleştirme onları okumadan önce ayıklanır; bu yüzden önerilerini etkileyemez veya bir hatadan sızamaz. Kesin adresi asla göstermiyoruz."
+  },
+  "safetyV2": {
+    "shieldTitle": "Scam Shield",
+    "shieldBody": "FioreMatch, romantik dolandırıcılıkların gerçekten kullandığı kalıpları izler — para talepleri, kripto ve yatırım yönlendirmesi, kısaltılmış linkler, eşleşmeden dakikalar sonra başka bir uygulamaya geçme baskısı ve aynı mesajın çok sayıda kişiye toplu gönderilmesi.",
+    "shieldFlowTitle": "Bir şey tespit edilince ne olur",
+    "shieldFlow": [
+      {
+        "step": "Uyarı",
+        "desc": "Tam olarak neyi fark ettiğimizi anlatan sade bir uyarı görürsün; kararı sen verirsin."
+      },
+      {
+        "step": "Bildirim",
+        "desc": "Bir şeyin yanlış olduğuna karar verirsen, bildirme seçeneği gizlenmez, öne çıkarılır."
+      },
+      {
+        "step": "İnsan incelemesi",
+        "desc": "Yüksek riskli vakalar otomatik bir karara değil, eğitimli bir moderatöre gider."
+      },
+      {
+        "step": "İşlem",
+        "desc": "Her yaptırım bir insanın kararını takip eder. Asla bir tespitin otomatik sonucu değildir."
+      }
+    ],
+    "shieldNoteTitle": "Scam Shield'in yapmayacakları",
+    "shieldNote": "Hiç kimseyi otomatik olarak dolandırıcı ilan etmez ve tespit tek başına asla bir hesabı kapatmaz. Tespit yalnızca metinsel ve davranışsaldır — hiç kimsenin milliyetini, adını, dilini veya fotoğrafını risk sinyali saymayız. Bilinçli olarak az işaretleriz: gerçek bir üyeyi haksız yere suçlamak, bildirim akışının zaten yakalayacağı sınırdaki bir vakadan daha çok zarar verir.",
+    "trustTitle": "Trust Profile",
+    "trustBody": "Profiller, bir üyenin tamamladığı doğrulamaları gösterir — e-posta, telefon, fotoğraf, canlılık veya kimlik. Her rozet belirli bir kontrolün geçtiğini onaylar. Genel bir güvenlik puanı yoktur ve hiçbir üyenin güvenli olduğunu garanti etmeyiz: doğrulama bir olguyu onaylar, bir kişinin niyetini değil. Rozeti olmayan üyeler şüpheli olarak işaretlenmez — eksik rozet yalnızca eksik bir kontrol demektir.",
+    "dateTitle": "Date Safety Mode",
+    "dateBody": "Biriyle buluşmayı mı planlıyorsun? Kiminle, ne zaman ve nerede olduğunu kaydet, istersen bu bilgileri güvendiğin bir kişiyle paylaş. Buluşmayı başladı ve tamamlandı olarak kendin işaretleyebilirsin.",
+    "dateDisclaimer": "Date Safety Mode bir planı kaydeder ve senin seçtiğin bir kişiye bildirim gönderebilir. FioreMatch bir acil yardım servisi değildir: seni izlemez ve bir olaya müdahale edemez. Acil bir tehlikedeysen yerel acil durum servislerine ulaş."
+  },
+  "conversation": {
+    "title": "İlk mesaj, artık daha kolay",
+    "subtitle": "Dating uygulamalarının en zor kısmı boş metin kutusudur. Bu araçlar yardım eder — asla yerini almaz.",
+    "icebreakerTitle": "AI Icebreaker",
+    "icebreakerBody": "Eşleştiğinizde FioreMatch gerçekten ortak olan noktaları bulur ve buna dayalı bir açılış önerir. \"İkiniz de seyahat etmeyi seviyorsunuz — gittiğin en güzel yer neresiydi?\" Kategoriler; samimi, esprili, romantik, seyahat, kültür, yemek ve hobileri kapsar.",
+    "coachTitle": "Conversation Coach",
+    "coachBody": "Konuşmanın ortasında tıkandın mı? Yardım iste; açık uçlu bir soru, bir devam sorusu, bir konu önerisi veya bir cevap fikri al. Ne göndereceğini sen seçersin, dilediğin gibi düzenlersin veya tamamen görmezden gelirsin.",
+    "gamesTitle": "Match Games",
+    "gamesBody": "Buzu kırmak için isteğe bağlı mini oyunlar: This or That, Would You Rather, Two Truths and a Lie, Quick Questions ve Guess My Answer.",
+    "translationTitle": "AI Translation",
+    "translationBody": "Diller arasında mesajlaş; çevrilmiş metinle orijinali arasında tek dokunuşla geçiş yap — böylece tam olarak ne yazıldığını her zaman görebilirsin. Çeviri anlamı taşımak içindir, değiştirmek için değil.",
+    "boundaryTitle": "Sınırı nerede çiziyoruz",
+    "boundaryBody": "FioreMatch'te yapay zeka önerir; asla senin yerine hareket etmez. Senin adına mesaj göndermez, senin yerine romantik bir konuşma yürütmez ve bir insanmış gibi davranmaz. Giden her mesaj, senin göndermeyi seçtiğin mesajdır."
+  },
+  "taxonomy": {
+    "relationshipGoals": {
+      "long_term": "Uzun süreli ilişki",
+      "marriage": "Evlilik",
+      "dating": "Tanışma",
+      "casual": "Rahat tanışma",
+      "friendship": "Arkadaşlık",
+      "international": "Uluslararası ilişki",
+      "unsure": "Henüz emin değilim"
+    },
+    "matchIntents": {
+      "serious_relationship": "Ciddi ilişki",
+      "getting_to_know": "Birini tanımak",
+      "international_dating": "Uluslararası tanışma",
+      "friendship": "Arkadaşlık",
+      "language_exchange": "Dil değişimi"
+    }
   }
 }
