@@ -90,15 +90,20 @@ src/
 | --- | --- |
 | English (`en`) | Complete |
 | Turkish (`tr`) | Complete |
-| `de` `es` `fr` `it` `pt` `ar` `ja` `ko` `hi` `id` | Routing, hreflang, and RTL wired up; **copy currently mirrors English pending professional translation** |
+| `de` `es` `fr` `it` `pt` `ar` `ja` `ko` `hi` `id` | Routing, hreflang, and RTL wired up; **falls back to English until translated** |
 
-The i18n architecture is complete for all 12 locales — each has its own
-catalog at `src/i18n/messages/<locale>.json`, its own URL prefix, and correct
-hreflang. Translating a locale means editing its catalog only; no code changes
-are needed. Arabic already renders RTL correctly.
+The i18n architecture is complete for all 12 locales — each has its own URL
+prefix and correct hreflang, and Arabic already renders RTL. Untranslated
+locales fall back to the English catalog rather than shipping duplicated copies
+that would silently drift out of sync.
 
-Adding a 13th language: add the code to `src/i18n/locales.ts`, add a display
-name, and drop in `src/i18n/messages/<code>.json`.
+**To translate a locale:** add `src/i18n/messages/<locale>.json` and list the
+locale in `fullyTranslatedLocales` in `src/i18n/locales.ts`. No other code
+changes are needed.
+
+**To add a 13th language:** add the code to `locales` in
+`src/i18n/locales.ts` and give it a display name. It will serve English until
+its catalog lands.
 
 ## Content policy
 
