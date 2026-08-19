@@ -1,0 +1,192 @@
+@import "tailwindcss";
+
+/*
+  Palette taken from the Andean west of Chubut: wet basalt, lenga forest in
+  autumn, river fog, snowline, and the tulip fields that open outside Trevelin
+  in spring. Nothing is fully saturated — the valley isn't.
+*/
+@theme {
+  --color-basalt: #0e1311;
+  --color-loam: #161c19;
+  --color-stone: #232a26;
+  --color-slate-ridge: #333c36;
+  --color-fog: #a6b0a8;
+  --color-mist: #cfd5cd;
+  --color-snow: #f4f2ec;
+  --color-moss: #6d8060;
+  --color-lenga: #c0603a;
+  --color-ember: #d98b52;
+  --color-glacier: #7fa3b5;
+  --color-tulip: #b8433f;
+
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  --spacing-gutter: 1.25rem;
+}
+
+:root {
+  color-scheme: dark;
+  --shell-max: 78rem;
+}
+
+@layer base {
+  * {
+    border-color: color-mix(in oklab, var(--color-fog) 14%, transparent);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+
+  body {
+    background-color: var(--color-basalt);
+    color: var(--color-mist);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--color-snow);
+    font-weight: 400;
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-lenga) 45%, transparent);
+    color: var(--color-snow);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ember);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+@layer components {
+  /* Small uppercase label used for kickers, phase names and metadata. */
+  .label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    font-weight: 500;
+    color: var(--color-fog);
+  }
+
+  .shell {
+    width: 100%;
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    padding-inline: var(--spacing-gutter);
+  }
+
+  @media (min-width: 768px) {
+    .shell {
+      padding-inline: 2.5rem;
+    }
+  }
+
+  /* Editorial body copy: generous measure, slightly larger than UI text. */
+  .prose-valley {
+    font-size: 1.0625rem;
+    line-height: 1.75;
+    color: color-mix(in oklab, var(--color-mist) 88%, transparent);
+  }
+
+  .prose-valley > p + p {
+    margin-top: 1.15em;
+  }
+
+  @media (min-width: 768px) {
+    .prose-valley {
+      font-size: 1.125rem;
+    }
+  }
+
+  /* A hairline that reads like a contour line on a survey map. */
+  .contour-rule {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, var(--color-fog) 30%, transparent) 15%,
+      color-mix(in oklab, var(--color-fog) 30%, transparent) 85%,
+      transparent
+    );
+  }
+
+  .card-stone {
+    background: color-mix(in oklab, var(--color-loam) 92%, var(--color-glacier));
+    border: 1px solid color-mix(in oklab, var(--color-fog) 12%, transparent);
+    border-radius: 2px;
+  }
+
+  /* Grain: a faint noise wash so large dark areas don't band on cheap panels. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+  }
+}
+
+@layer utilities {
+  .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 900ms cubic-bezier(0.16, 1, 0.3, 1),
+      transform 900ms cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
+
+  .reveal[data-visible="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
