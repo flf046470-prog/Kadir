@@ -614,6 +614,19 @@
     "potential": "Potential compatibility",
     "bandStrong": "Strong",
     "bandPromising": "Promising",
-    "bandExploring": "Worth exploring"
+    "bandExploring": "Worth exploring",
+    "matchesTitle": "Matches",
+    "matchesEmpty": "No matches yet. Keep discovering.",
+    "sendPlaceholder": "Write a message…",
+    "send": "Send",
+    "noMessages": "Say hello.",
+    "unread": "unread",
+    "block": "Block",
+    "report": "Report",
+    "scamWarningTitle": "Be careful with this message",
+    "scamWarningBody": "This message matches patterns we see in scams. We are not saying this person is a scammer — but never send money, gift cards, or crypto to someone you haven't met, and report anything that feels wrong.",
+    "blockConfirm": "Block this person? Your match and conversation will be removed.",
+    "reportSent": "Report sent. Our team will review it.",
+    "backToMatches": "← Matches"
   }
 }

@@ -215,6 +215,86 @@ export const blocks = pgTable(
   (table) => [primaryKey({ columns: [table.blockerId, table.blockedId] })]
 );
 
+/**
+ * Messages within a match.
+ *
+ * `language` is stored per message from the start, even though nothing reads it
+ * yet: AI translation (roadmap Phase 5) needs to know the source language of
+ * historic messages, and backfilling that later means guessing.
+ *
+ * Deletion is soft. A member deleting their message should remove it from both
+ * views, but a hard delete would also destroy evidence in an abuse report filed
+ * minutes later — which is exactly when it matters most.
+ */
+export const messages = pgTable(
+  "messages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    /** BCP-47 primary subtag the message was written in, best effort. */
+    language: text("language"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true })
+  },
+  (table) => [
+    // The conversation view reads newest-last for one match.
+    index("messages_match_idx").on(table.matchId, table.createdAt)
+  ]
+);
+
+/**
+ * Scam Shield assessments on messages.
+ *
+ * Stored separately from the message so a risk signal is an observation *about*
+ * a message rather than a property of it — the message stands on its own, and
+ * an assessment can be revised or dismissed by a moderator without editing what
+ * someone actually wrote.
+ */
+export const messageRiskAssessments = pgTable(
+  "message_risk_assessments",
+  {
+    messageId: uuid("message_id")
+      .primaryKey()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    /** none | low | elevated | high */
+    band: text("band").notNull(),
+    /** Signal ids that fired, as JSON. For moderator context only. */
+    signals: text("signals").notNull(),
+    /** warning | reported | human_review | action | dismissed */
+    stage: text("stage").notNull().default("warning"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("message_risk_stage_idx").on(table.stage, table.band)]
+);
+
+/** Abuse reports raised by members. Always routed to a human. */
+export const reports = pgTable(
+  "reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    reportedId: uuid("reported_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Optional: the message that prompted the report. */
+    messageId: uuid("message_id").references(() => messages.id, { onDelete: "set null" }),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    stage: text("stage").notNull().default("reported"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("reports_stage_idx").on(table.stage)]
+);
+
 /** Learned signal weight multipliers, from volunteered pass feedback only. */
 export const signalWeights = pgTable(
   "signal_weights",

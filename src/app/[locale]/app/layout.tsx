@@ -39,6 +39,7 @@ export default async function AppLayout({
             displayName={user.displayName}
             labels={{
               discover: t("discoverTitle"),
+              matches: t("matchesTitle"),
               profile: t("profileTitle"),
               logout: t("logout")
             }}

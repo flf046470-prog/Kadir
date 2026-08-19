@@ -88,12 +88,16 @@ it, two members liking each other simultaneously produced *no* match at all —
 neither transaction could see the other's uncommitted row. Found by a
 concurrency test, which now guards it.
 
+- Messaging with read state, message deletion, block, and report
+- Scam Shield running on every message, warning the recipient and queueing
+  high-risk cases for human review
+
 Still to build:
 
 - Filters UI: age, country, city, language, interests, intent, distance,
   gender/preference
-- Real-time messaging: text, emoji, photos, delete, read status, typing
-- Report on every profile and conversation
+- Real-time delivery (the conversation view polls today), typing indicators
+- Photo sharing in messages
 - Photo upload and storage
 - Today's 5 surface
 

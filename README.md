@@ -53,9 +53,10 @@ wired into the API layer when it lands, without rework.
 - **`src/lib/flags/`** — deterministic percentage rollout (0/1/5/10/25/50/100)
   with nested cohorts and kill switches, for all 22 V2/V3 features
 
-**146 tests**, all passing (`npm test`) — unit tests for the domain logic plus
+**167 tests**, all passing (`npm test`) — unit tests for the domain logic plus
 integration tests against a real Postgres database covering auth, cascade
-deletion, matching, the like/match race, and visibility enforcement.
+deletion, matching, the like/match race, visibility enforcement, and
+conversation authorization.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full analysis and
 [`docs/AI_SAFETY.md`](./docs/AI_SAFETY.md) for the AI constraints.
@@ -73,14 +74,20 @@ A real, signed-in product running on Postgres:
   every suggestion showing why it was made
 - **Like / Pass / Super Like → Match** — including the concurrency handling for
   two members liking each other simultaneously
+- **Messaging** — conversations per match, read state, message deletion, block,
+  and report. Scam Shield runs on every outbound message and warns the
+  *recipient* (never the sender, which would only teach evasion); high risk
+  queues for human review and never auto-blocks anyone
 
-`/en/app/discover` and `/en/app/profile` require a session; the API returns 401
-and the pages redirect to login.
+`/en/app/*` requires a session; the API returns 401 and the pages redirect to
+login. A conversation that isn't yours returns 404, not 403 — telling a stranger
+it exists would confirm a match they have no business knowing about.
 
 ## Not implemented (and deliberately not faked)
 
-- Messaging, Match Games UI, and the AI features (matchmaker, icebreaker,
-  translation) — the logic exists and is tested, but is not wired to a UI
+- Match Games UI and the AI features (matchmaker, icebreaker, translation) —
+  the logic exists and is tested, but is not wired to a UI
+- Real-time message delivery (the conversation view polls; WebSockets later)
 - Email and phone verification delivery
 - Payments (Apple IAP, Google Play Billing, web), entitlements, webhooks
 - Admin panel and analytics dashboards

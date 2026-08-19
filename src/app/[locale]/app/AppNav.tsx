@@ -9,7 +9,7 @@ export function AppNav({
 }: {
   locale: string;
   displayName: string;
-  labels: { discover: string; profile: string; logout: string };
+  labels: { discover: string; matches: string; profile: string; logout: string };
 }) {
   const router = useRouter();
 
@@ -23,6 +23,9 @@ export function AppNav({
     <nav className="flex items-center gap-5 text-sm" aria-label="Account">
       <a href={`/${locale}/app/discover`} className="font-medium text-ink/70 hover:text-ink">
         {labels.discover}
+      </a>
+      <a href={`/${locale}/app/matches`} className="font-medium text-ink/70 hover:text-ink">
+        {labels.matches}
       </a>
       <a href={`/${locale}/app/profile`} className="font-medium text-ink/70 hover:text-ink">
         {labels.profile}

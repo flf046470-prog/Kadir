@@ -614,6 +614,19 @@
     "potential": "Potansiyel uyumluluk",
     "bandStrong": "Güçlü",
     "bandPromising": "Umut verici",
-    "bandExploring": "Keşfetmeye değer"
+    "bandExploring": "Keşfetmeye değer",
+    "matchesTitle": "Eşleşmeler",
+    "matchesEmpty": "Henüz eşleşme yok. Keşfetmeye devam et.",
+    "sendPlaceholder": "Bir mesaj yaz…",
+    "send": "Gönder",
+    "noMessages": "Merhaba de.",
+    "unread": "okunmamış",
+    "block": "Engelle",
+    "report": "Bildir",
+    "scamWarningTitle": "Bu mesaja karşı dikkatli ol",
+    "scamWarningBody": "Bu mesaj, dolandırıcılıklarda gördüğümüz kalıplarla eşleşiyor. Bu kişinin dolandırıcı olduğunu söylemiyoruz — ama yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme ve yanlış hissettiren her şeyi bildir.",
+    "blockConfirm": "Bu kişiyi engelle? Eşleşmen ve sohbetin kaldırılacak.",
+    "reportSent": "Bildirim gönderildi. Ekibimiz inceleyecek.",
+    "backToMatches": "← Eşleşmeler"
   }
 }
