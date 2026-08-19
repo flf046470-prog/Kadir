@@ -3,11 +3,14 @@
 **Meet Beyond Borders.** — Global AI Dating & Social Connection Platform.
 
 This repository contains the FioreMatch web application: a multi-language,
-SEO-first Next.js site covering the public-facing product surface.
+SEO-first marketing site plus a working signed-in product — registration,
+profiles, and a Discover feed driven by an explainable matching engine.
 
 ## What's in this repo today
 
-A production-ready **web front end**, statically generated across 12 locales:
+### Marketing site
+
+Statically generated across 12 locales:
 
 - **Marketing & product pages** — home, `/dating`, `/international-dating`,
   `/features`, `/pricing`, `/safety`, `/about`, `/contact`
@@ -18,14 +21,13 @@ A production-ready **web front end**, statically generated across 12 locales:
   online dating safety, first dates, and cross-cultural dating
 - **Legal** — Privacy Policy, Terms of Service, Community Guidelines,
   Cookie Policy
-- **Account UI** — `/login` and `/register`, front-end only and clearly
-  labeled as such (see *Not implemented* below)
 - **SEO plumbing** — `sitemap.xml`, `robots.txt`, canonical URLs, hreflang
   across all 12 locales plus `x-default`, and JSON-LD for Organization,
   WebSite, SoftwareApplication, Article, and FAQPage
 
-Every page is prerendered as static HTML (365 routes), mobile-first, and
-renders correctly in RTL for Arabic.
+Every marketing page is prerendered as static HTML, mobile-first, and renders
+correctly in RTL for Arabic. The signed-in app has its own shell so these pages
+stay static.
 
 ### Product logic (V2/V3)
 
@@ -51,56 +53,78 @@ wired into the API layer when it lands, without rework.
 - **`src/lib/flags/`** — deterministic percentage rollout (0/1/5/10/25/50/100)
   with nested cohorts and kill switches, for all 22 V2/V3 features
 
-**109 unit tests**, all passing (`npm test`).
+**146 tests**, all passing (`npm test`) — unit tests for the domain logic plus
+integration tests against a real Postgres database covering auth, cascade
+deletion, matching, the like/match race, and visibility enforcement.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full analysis and
 [`docs/AI_SAFETY.md`](./docs/AI_SAFETY.md) for the AI constraints.
 
+### Working application
+
+A real, signed-in product running on Postgres:
+
+- **Auth** — registration with an 18+ check, argon2id password hashing, session
+  cookies storing only a token hash, login rate limiting per IP and per account,
+  and account deletion that cascades across every table
+- **Profile** — editable profile with per-field visibility, validated against
+  the taxonomies on write
+- **Discover** — the matching engine over real data, six discovery modes, with
+  every suggestion showing why it was made
+- **Like / Pass / Super Like → Match** — including the concurrency handling for
+  two members liking each other simultaneously
+
+`/en/app/discover` and `/en/app/profile` require a session; the API returns 401
+and the pages redirect to login.
+
 ## Not implemented (and deliberately not faked)
 
-The following are **not** in this repo. The `/login` and `/register` pages
-render a working form UI but create no account and send no data anywhere — they
-say so on the page itself. Nothing here stores a password, processes a payment,
-or claims a user count.
-
-- Authentication, account storage, password reset
-- Database, API layer, migrations
-- Discover / Like / Pass / Match / messaging
-- AI matching and AI Profile Assistant
-- Moderation pipeline and moderation queue
+- Messaging, Match Games UI, and the AI features (matchmaker, icebreaker,
+  translation) — the logic exists and is tested, but is not wired to a UI
+- Email and phone verification delivery
 - Payments (Apple IAP, Google Play Billing, web), entitlements, webhooks
 - Admin panel and analytics dashboards
 - iOS and Android applications
+- Photo upload and storage
 
-These require dedicated backend, security, and compliance work. See
+These require dedicated backend, security, and compliance work — plus accounts
+and services only the project owner can provision. See
 [ROADMAP.md](./ROADMAP.md) for the phased plan.
 
 ## Tech stack
 
 - **Next.js 15** (App Router, React 19) — static generation for SEO and speed
+- **PostgreSQL** with **Drizzle ORM** — typed schema and versioned migrations
+- **argon2id** (`@node-rs/argon2`) for password hashing
 - **next-intl** — locale routing, message catalogs, RTL support
 - **Tailwind CSS** — design system tokens in `tailwind.config.ts`
 - **TypeScript** — strict mode
+- **Vitest** — unit and integration tests
 
 ## Getting started
 
 ```bash
 npm install
+cp .env.example .env.local   # then set DATABASE_URL
+npm run db:migrate           # create the schema
 npm run dev     # http://localhost:3000 → redirects to /en
 npm run build   # production build, prerenders all locales
 npm run start   # serve the production build
-npm test        # unit tests for the matching, safety, and flag logic
+npm test        # unit + integration tests (integration needs DATABASE_URL)
 npm run lint
 ```
 
-No environment variables are required for the current site. When backend
-services land, secrets go in `.env.local` (gitignored) — never in source.
+`DATABASE_URL` is required and has no in-code default: a misconfigured deploy
+fails at startup rather than silently connecting somewhere unintended. Secrets
+live in `.env.local`, which is gitignored — never in source.
 
 ## Project structure
 
 ```
 src/
-  app/[locale]/        Locale-scoped routes (all pages live here)
+  app/[locale]/(marketing)/  Static marketing site
+  app/[locale]/app/    Signed-in application shell
+  app/api/             Route handlers
   app/sitemap.ts       Sitemap covering every locale × route
   app/robots.ts        robots.txt
   components/          Header, Footer, LanguageSwitcher, cards, JSON-LD
@@ -110,6 +134,8 @@ src/
   lib/games/           Match Games: prompts, session state, fair reveal
   lib/referral/        Referral codes, reward ladder, fraud detection
   lib/flags/           Feature flags with staged rollout
+  db/                  Schema, client, repositories, integration tests
+  auth/                Passwords, sessions, accounts, route guards
   i18n/
     locales.ts         Locale list, RTL list, display names
     navigation.ts      Locale-aware Link / router

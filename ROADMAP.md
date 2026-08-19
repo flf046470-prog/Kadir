@@ -44,7 +44,7 @@ proven before the app exists to host them.
 - Marketing pages: `/how-matching-works`, `/global-match`, `/conversations`,
   `/referral`, expanded `/safety`
 
-**Exit criteria met:** 109 unit tests passing, lint clean, build clean.
+**Exit criteria met:** unit tests passing, lint clean, build clean.
 Analysis in `docs/ARCHITECTURE.md`; constraints in `docs/AI_SAFETY.md`.
 
 These modules are libraries, not features a member can use — they need Phases
@@ -52,36 +52,52 @@ These modules are libraries, not features a member can use — they need Phases
 
 ---
 
-## Phase 1 — Identity & data layer
+## Phase 1 — Identity & data layer ✅ shipped
 
-The first phase that touches real user data, and therefore the first that
-needs a full security review.
+- PostgreSQL schema (12 tables) with Drizzle migrations
+- Email registration with an 18+ check, secure login, logout
+- argon2id password hashing at OWASP parameters; sessions store only a
+  SHA-256 of the token, so a database leak yields no usable sessions
+- Rate limiting per IP and per account on login, per IP on registration
+- Profile model with per-field visibility, validated against the taxonomies
+- **Full account deletion** by cascade from `users`, so erasure cannot drift
+  out of sync with the schema
+- API layer with `requireUser` on every non-public route
 
-- PostgreSQL schema + migration tooling
-- Email and phone registration, secure login, password reset
-- Password hashing (argon2id), session management, rate limiting
-- Profile model: photos, bio, age, city, country, interests, hobbies,
-  relationship intent, languages, preferences
-- Privacy controls and **full account deletion** (GDPR/KVKK erasure)
-- API layer with authorization enforced server-side on every route
+**Security gate passed:** no user enumeration (a miss burns equivalent hash
+time), password never stored readably, expired and revoked sessions rejected,
+password change revokes all sessions, deletion completeness verified across
+every table. All covered by integration tests against a real database.
 
-**Security gate:** authentication flow review, rate-limit verification,
-PII-at-rest audit, deletion-completeness test.
+**Not yet done in this phase:** phone registration, password reset delivery,
+and email/phone verification delivery — all need an email/SMS provider.
 
 ---
 
-## Phase 2 — Core product loop
+## Phase 2 — Core product loop 🚧 in progress
 
-The MVP that makes the product a dating app rather than a website.
+Shipped:
+- Discover feed running the matching engine over real data, six modes
+- Like / Pass / Super Like, and mutual-like → Match
+- Explainable reasons rendered on every suggestion
+- Block, which also removes an existing match
+- Optional pass feedback stored for the learning loop
 
-- Discover feed with Like / Pass / Super Like
-- Mutual-like → Match creation
-- Filters: age, country, city, language, interests, intent, distance,
+The like/match path serialises on an advisory lock keyed to the pair. Without
+it, two members liking each other simultaneously produced *no* match at all —
+neither transaction could see the other's uncommitted row. Found by a
+concurrency test, which now guards it.
+
+Still to build:
+
+- Filters UI: age, country, city, language, interests, intent, distance,
   gender/preference
 - Real-time messaging: text, emoji, photos, delete, read status, typing
-- Block and report on every profile and conversation
+- Report on every profile and conversation
+- Photo upload and storage
+- Today's 5 surface
 
-**Design constraint:** the messaging schema carries a language field per
+**Design constraint:** the messaging schema must carry a language field per
 message from day one, so AI translation (Phase 5) is additive, not a rewrite.
 
 ---

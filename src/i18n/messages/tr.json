@@ -314,8 +314,8 @@
     "haveAccount": "Zaten bir hesabın var mı?",
     "signUpLink": "Ücretsiz kaydol",
     "logInLink": "Giriş yap",
-    "demoNotice": "Bu, FioreMatch hesap akışının bir ön yüz önizlemesidir. Hesap oluşturma, kimlik doğrulama ve şifre saklama henüz canlı değildir — bunlar yol haritamızda açıklanan backend ve güvenlik incelemesiyle birlikte devreye girecektir.",
-    "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun."
+    "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun.",
+    "countryLabel": "Ülke"
   },
   "matching": {
     "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",
@@ -588,5 +588,32 @@
       "monthlyCapReached": "Bu ayki ödül sınırına ulaştın — ek davetler manuel olarak inceleniyor.",
       "rejected": "Bu davet geçerli değil."
     }
+  },
+  "app": {
+    "discoverTitle": "Keşfet",
+    "discoverEmpty": "Şu an öneri yok. Profilini tamamla veya keşfetme modunu genişlet.",
+    "why": "Neden eşleşebilirsiniz",
+    "like": "Beğen",
+    "pass": "Geç",
+    "superLike": "Süper Beğeni",
+    "matched": "Eşleştiniz!",
+    "loading": "Yükleniyor…",
+    "modeLabel": "Keşfetme modu",
+    "profileTitle": "Profilin",
+    "profileIntro": "Ne kadar çok doldurursan öneriler o kadar iyileşir — ve buradaki her şey isteğe bağlı.",
+    "save": "Profili kaydet",
+    "saved": "Kaydedildi.",
+    "logout": "Çıkış yap",
+    "bio": "Hakkında",
+    "interests": "İlgi alanları (virgülle ayır)",
+    "goal": "İlişki hedefi",
+    "city": "Şehir",
+    "country": "Ülke",
+    "languages": "Konuştuğun diller (virgülle ayır, örn. tr, en)",
+    "complete": "Profilimi Keşfet'te göster",
+    "potential": "Potansiyel uyumluluk",
+    "bandStrong": "Güçlü",
+    "bandPromising": "Umut verici",
+    "bandExploring": "Keşfetmeye değer"
   }
 }

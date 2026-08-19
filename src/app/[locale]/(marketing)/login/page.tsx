@@ -36,11 +36,11 @@ export default async function LoginPage({
 
         <AuthForm
           mode="login"
+          locale={locale}
           labels={{
             email: t("emailLabel"),
             password: t("passwordLabel"),
-            submit: t("loginButton"),
-            demoNotice: t("demoNotice")
+            submit: t("loginButton")
           }}
         />
 

@@ -6,8 +6,6 @@ import { notFound } from "next/navigation";
 import { Inter, Fraunces } from "next/font/google";
 import "../globals.css";
 import { locales, rtlLocales, type Locale } from "@/i18n/locales";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { organizationSchema, websiteSchema, buildAlternates } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
@@ -71,9 +69,9 @@ export default async function LocaleLayout({
         <NextIntlClientProvider messages={messages}>
           <JsonLd data={organizationSchema()} />
           <JsonLd data={websiteSchema(locale as Locale)} />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
+          {/* Header and footer live in the per-section layouts: the marketing
+              shell and the signed-in app shell are genuinely different. */}
+          {children}
         </NextIntlClientProvider>
       </body>
     </html>

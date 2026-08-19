@@ -1,0 +1,102 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import {
+  findCandidateIds,
+  loadMatchProfile,
+  loadMatchProfiles,
+  matchedUserIds
+} from "@/db/profile-repository";
+import { scoreMatch } from "@/lib/matching/score";
+import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
+import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
+import type { LocationContext } from "@/lib/matching/signals";
+
+/**
+ * Discover — the matching engine running against real data.
+ *
+ * The engine is a pure function, so everything interesting happens at this
+ * boundary: loading profiles, deciding what the viewer is allowed to see, and
+ * turning scores into a response. The engine itself never touches the database
+ * or the request.
+ */
+
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 50;
+
+export async function GET(request: NextRequest) {
+  const auth = await requireUser();
+  if (isUnauthorized(auth)) return auth.response;
+
+  const params = request.nextUrl.searchParams;
+  const mode = params.get("mode") ?? "local";
+  if (!discoveryModes.includes(mode as DiscoveryModeId)) {
+    return apiError("invalid_mode", 400);
+  }
+
+  const limit = Math.min(MAX_LIMIT, Number(params.get("limit")) || DEFAULT_LIMIT);
+
+  const viewer = await loadMatchProfile(auth.user.id);
+  if (!viewer) return apiError("profile_not_found", 404);
+
+  // LOCAL and COUNTRY restrict the candidate pool in SQL; the wider modes rank
+  // on other signals instead, so they read the unrestricted pool.
+  const restrictToCountry = mode === "local" || mode === "country";
+  const candidateIds = await findCandidateIds(auth.user.id, {
+    countryId: restrictToCountry ? viewer.countryId : undefined,
+    limit: 200
+  });
+
+  if (candidateIds.length === 0) {
+    return NextResponse.json({ mode, results: [] });
+  }
+
+  const [candidates, matchedIds] = await Promise.all([
+    loadMatchProfiles(candidateIds),
+    matchedUserIds(auth.user.id)
+  ]);
+  const matched = new Set(matchedIds);
+
+  const scored = [...candidates.values()].map((candidate) => {
+    const result = scoreMatch({
+      viewer,
+      candidate,
+      mode: mode as DiscoveryModeId,
+      location: locationContext(viewer.cityId, candidate.cityId, mode as DiscoveryModeId),
+      // Drives whether "matches only" fields are visible to this viewer.
+      isMutualMatch: matched.has(candidate.id)
+    });
+
+    return {
+      profileId: candidate.id,
+      score: result.score,
+      compatibility: describeCompatibility(result),
+      reasons: buildReasons(result)
+    };
+  });
+
+  scored.sort((a, b) => b.score - a.score || a.profileId.localeCompare(b.profileId));
+
+  return NextResponse.json({ mode, results: scored.slice(0, limit) });
+}
+
+/**
+ * Distance context.
+ *
+ * We do not store coordinates, so there is no true distance to compute. Until a
+ * geocoding service is wired in, "same city" is the only distance fact we
+ * actually hold — and the engine is told distance is unknown rather than being
+ * handed a fabricated number, which would silently corrupt every LOCAL score.
+ */
+function locationContext(
+  viewerCityId: string | null,
+  candidateCityId: string | null,
+  mode: DiscoveryModeId
+): LocationContext {
+  const maxDistanceKm = mode === "local" ? 50 : mode === "country" ? 500 : 20_000;
+
+  if (viewerCityId && candidateCityId && viewerCityId === candidateCityId) {
+    return { approximateDistanceKm: 0, maxDistanceKm };
+  }
+
+  return { approximateDistanceKm: null, maxDistanceKm };
+}

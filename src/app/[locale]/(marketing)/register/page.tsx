@@ -36,13 +36,14 @@ export default async function RegisterPage({
 
         <AuthForm
           mode="register"
+          locale={locale}
           labels={{
             name: t("nameLabel"),
             email: t("emailLabel"),
             password: t("passwordLabel"),
             birthdate: t("birthdateLabel"),
+            country: t("countryLabel"),
             submit: t("registerButton"),
-            demoNotice: t("demoNotice"),
             termsAgree: t("termsAgree")
           }}
         />

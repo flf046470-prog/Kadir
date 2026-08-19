@@ -314,8 +314,8 @@
     "haveAccount": "Already have an account?",
     "signUpLink": "Sign up free",
     "logInLink": "Log in",
-    "demoNotice": "This is a front-end preview of the FioreMatch account flow. Account creation, authentication, and password storage are not live yet — that ships with the backend and security review described in our roadmap.",
-    "termsAgree": "By continuing, you agree to our Terms of Service and acknowledge our Privacy Policy."
+    "termsAgree": "By continuing, you agree to our Terms of Service and acknowledge our Privacy Policy.",
+    "countryLabel": "Country"
   },
   "matching": {
     "title": "How FioreMatch matching actually works",
@@ -588,5 +588,32 @@
       "monthlyCapReached": "You've reached this month's reward limit — additional referrals are reviewed manually.",
       "rejected": "This referral doesn't qualify."
     }
+  },
+  "app": {
+    "discoverTitle": "Discover",
+    "discoverEmpty": "No suggestions right now. Complete your profile, or widen your discovery mode.",
+    "why": "Why you may match",
+    "like": "Like",
+    "pass": "Pass",
+    "superLike": "Super Like",
+    "matched": "It's a match!",
+    "loading": "Loading…",
+    "modeLabel": "Discovery mode",
+    "profileTitle": "Your profile",
+    "profileIntro": "The more you fill in, the better your suggestions get — and everything here is optional.",
+    "save": "Save profile",
+    "saved": "Saved.",
+    "logout": "Log out",
+    "bio": "About you",
+    "interests": "Interests (comma separated)",
+    "goal": "Relationship goal",
+    "city": "City",
+    "country": "Country",
+    "languages": "Languages you speak (comma separated, e.g. en, tr)",
+    "complete": "Show my profile in Discover",
+    "potential": "Potential compatibility",
+    "bandStrong": "Strong",
+    "bandPromising": "Promising",
+    "bandExploring": "Worth exploring"
   }
 }
