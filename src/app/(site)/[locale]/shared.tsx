@@ -67,7 +67,7 @@ export function landmarksFor(t: Translator): Landmark[] {
     {
       id: "home",
       title: t("explore.home"),
-      body: "Where a house like this one would sit: into a slope, facing the valley, with the meadow continuing over its roof. The real plot location is not published yet.",
+      body: "The design concept, drawn in three dimensions: a circular plan cut into the shelf, the meadow returned over its roof, a glazed dome over the courtyard and one open face to the valley. Nothing is built — this is the concept, not a survey and not a finished design. The real plot location is not published yet.",
       x: 2,
       z: -4,
       color: 0xc0603a,

@@ -112,10 +112,19 @@ fetched when someone switches to 3D.
 The terrain is generated procedurally from a deterministic noise function — a
 conceptual Andean valley, labelled "Conceptual — not survey data" on screen. It
 is **not** a survey of the real terrain, and the plot's real position is not
-published. Landmarks are clickable, the render loop pauses when the canvas
-scrolls out of view or the tab is hidden, WebGL support is detected before the
-toggle is enabled, and the same places are always described in text below the
-canvas for anyone who cannot or does not want to use it.
+published.
+
+The house itself stands in the scene as geometry: a circular plan cut into a
+levelled shelf, the meadow returned over its roof, a glazed dome over the
+courtyard and one open face to the valley. That is the **design concept drawn in
+three dimensions** — not a built structure, not an engineered model, and the
+marker's card says so. Selecting it eases the camera in; selecting nothing
+returns to the wide view.
+
+Landmarks are clickable, the render loop pauses when the canvas scrolls out of
+view or the tab is hidden, WebGL support is detected before the toggle is
+enabled, and the same places are always described in text below the canvas for
+anyone who cannot or does not want to use it.
 
 ## Security
 
