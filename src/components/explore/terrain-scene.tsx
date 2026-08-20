@@ -64,10 +64,10 @@ function elevation(x: number, z: number): number {
 
   // Western cordillera: rises steeply toward -x.
   const range = Math.max(0, -nx - 0.05) * 2.1;
-  const ridge = Math.pow(range, 1.35) * 34 * (0.75 + fbm(nx * 3 + 11, nz * 3 + 4, 4) * 0.7);
+  const ridge = Math.pow(range, 1.35) * 48 * (0.75 + fbm(nx * 3 + 11, nz * 3 + 4, 4) * 0.7);
 
   // Rolling foothills across the whole plate.
-  const hills = fbm(nx * 4.5 + 3, nz * 4.5 + 7) * 9;
+  const hills = fbm(nx * 4.5 + 3, nz * 4.5 + 7) * 12;
 
   // River valley: a soft trough running north–south near x = 0.18.
   const valley = Math.exp(-Math.pow((nx - 0.18) * 7.5, 2)) * 6.5;
@@ -75,7 +75,9 @@ function elevation(x: number, z: number): number {
   // Lake basin in the south-east.
   const basin = Math.exp(-(Math.pow((nx - 0.34) * 5.2, 2) + Math.pow((nz - 0.3) * 5.2, 2))) * 8;
 
-  return Math.max(0, ridge + hills - valley - basin + 1.2);
+  // The base lifts the whole plate clear of the water line; only the river
+  // trough and the lake basin are allowed to dig below it.
+  return Math.max(-2.5, ridge + hills - valley - basin + 3.4);
 }
 
 const COLOR_WATERLINE = new THREE.Color("#3f5a52");
@@ -121,7 +123,7 @@ export default function TerrainScene({
     scene.fog = new THREE.Fog(0x0e1311, 150, 340);
 
     const camera = new THREE.PerspectiveCamera(45, 1, 0.5, 800);
-    camera.position.set(95, 60, 105);
+    camera.position.set(112, 74, 126);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -139,13 +141,13 @@ export default function TerrainScene({
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.minDistance = 60;
-    controls.maxDistance = 260;
+    controls.minDistance = 70;
+    controls.maxDistance = 280;
     controls.maxPolarAngle = Math.PI * 0.47;
     controls.enablePan = false;
     controls.autoRotate = true;
     controls.autoRotateSpeed = 0.35;
-    controls.target.set(0, 4, 0);
+    controls.target.set(0, 2, 0);
 
     // ── lighting: low western sun, cold sky bounce ──────────────────────
     const sun = new THREE.DirectionalLight(0xffd9a8, 2.1);

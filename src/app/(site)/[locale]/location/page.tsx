@@ -52,7 +52,7 @@ export default async function LocationPage({ params }: { params: Promise<{ local
               unsupported: t("explore.unsupported"),
               map: t("explore.map"),
               view3d: t("explore.3d"),
-              hint: t("explore.load"),
+              hint: t("explore.hint"),
               conceptual: "Conceptual — not survey data",
             }}
             mapView={<OrientationMap className="h-full max-h-[26rem] w-full" />}

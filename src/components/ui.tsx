@@ -24,11 +24,16 @@ export function PageHeader({
       <ContourField className="pointer-events-none absolute -top-16 right-0 w-[120%] max-w-none text-fog/[0.07] md:w-[70%]" />
       <div className="shell relative">
         <p className="label text-ember">{kicker}</p>
-        <h1 className="mt-5 max-w-4xl font-display text-[2.6rem] leading-[1.05] md:text-[4.25rem]">
+        <h1
+          dir="auto"
+          className="mt-5 max-w-4xl font-display text-[2.6rem] leading-[1.05] md:text-[4.25rem]"
+        >
           {title}
         </h1>
         {intro ? (
-          <p className="prose-valley mt-7 max-w-2xl text-fog">{intro}</p>
+          <p dir="auto" className="prose-valley mt-7 max-w-2xl text-fog">
+            {intro}
+          </p>
         ) : null}
         {aside ? <div className="mt-8">{aside}</div> : null}
       </div>
@@ -48,14 +53,16 @@ export function SectionHeading({
   return (
     <div className={className}>
       {kicker ? <p className="label text-ember">{kicker}</p> : null}
-      <h2 className="mt-4 font-display text-3xl leading-tight md:text-[2.75rem]">{title}</h2>
+      <h2 dir="auto" className="mt-4 font-display text-3xl leading-tight md:text-[2.75rem]">
+        {title}
+      </h2>
     </div>
   );
 }
 
 export function Prose({ body, className = "" }: { body: string; className?: string }) {
   return (
-    <div className={`prose-valley ${className}`}>
+    <div dir="auto" className={`prose-valley ${className}`}>
       {paragraphs(body).map((p, i) => (
         <p key={i}>{p}</p>
       ))}

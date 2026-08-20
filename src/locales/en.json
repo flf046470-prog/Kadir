@@ -15,7 +15,6 @@
   "nav.skip": "Skip to content",
   "nav.language": "Language",
   "nav.searchLanguage": "Search language",
-
   "cta.explore": "Explore Trevelin",
   "cta.join": "Join the project",
   "cta.discover": "Discover the project",
@@ -32,7 +31,6 @@
   "cta.sendIdea": "Send my idea",
   "cta.readMore": "Read",
   "cta.back": "Back",
-
   "community.title": "Should we really build this house?",
   "community.subtitle": "We're building this idea one step at a time. Before we open the doors, we'd love to know what you think.",
   "community.absolutely": "Absolutely",
@@ -53,7 +51,6 @@
   "community.countries": "Countries represented",
   "community.waiting": "People waiting for opening",
   "community.responses": "responses",
-
   "form.firstName": "First name",
   "form.name": "Name",
   "form.email": "Email",
@@ -65,7 +62,6 @@
   "form.privacy": "We only use your information to send project updates and respond to your message.",
   "form.error": "Please check the highlighted fields.",
   "form.sending": "Sending…",
-
   "support.title": "Support the project",
   "support.body": "If you believe this place should exist, you can help us take the next step.",
   "support.follow": "Follow the project",
@@ -84,14 +80,12 @@
   "support.listMe": "I'd like to be listed as a supporter",
   "support.supporters": "Supporters",
   "support.noSupporters": "No supporters are listed yet. Names only ever appear here with explicit permission.",
-
   "airbnb.title": "Be one of the first guests",
   "airbnb.body": "When reservations open, we'd love to let you know first.",
   "airbnb.checkbox": "Notify me when Airbnb reservations open",
   "airbnb.success": "We'll let you know when the doors open.",
   "airbnb.book": "Book on Airbnb",
   "airbnb.notOpen": "Reservations are not open. There is no listing yet, and no date has been set.",
-
   "notify.title": "When the doors open",
   "notify.body": "Be the first to know when the house is ready.",
   "notify.updates": "Project updates",
@@ -99,15 +93,14 @@
   "notify.reservations": "Airbnb reservations",
   "notify.earlyGuest": "Early guest opportunities",
   "notify.success": "You're on the list.",
-
   "share.title": "Share the project",
   "share.copy": "Copy link",
   "share.copied": "Link copied",
   "share.email": "Email",
-
   "explore.title": "Explore Trevelin",
   "explore.body": "A conceptual 3D landscape, drawn to show the kind of country this project sits in. It is not a survey of the real terrain.",
   "explore.load": "Load the 3D view",
+  "explore.hint": "Drag to rotate · scroll to zoom · tap a marker",
   "explore.without": "View without 3D",
   "explore.unsupported": "Your browser can't run the 3D view. The same places are described below.",
   "explore.map": "Map",
@@ -118,7 +111,6 @@
   "explore.water": "The water",
   "explore.town": "Trevelin",
   "explore.home": "Our future home",
-
   "land.title": "The land around us",
   "land.mountain": "Mountains",
   "land.forest": "Forest",
@@ -126,10 +118,8 @@
   "land.sky": "Open skies",
   "land.trails": "Trails",
   "land.town": "Small town life",
-
   "final.title": "Maybe this place should exist.",
   "final.body": "If you think so too, we'd love to hear from you.",
-
   "misc.status": "Status",
   "misc.contentInEnglish": "Project texts are published in English. Site navigation is translated.",
   "misc.noFakeData": "No invented numbers appear on this site.",

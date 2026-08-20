@@ -86,6 +86,7 @@
   "explore.title": "Trevelin'i keşfet",
   "explore.body": "Projenin bulunduğu coğrafyanın karakterini göstermek için çizilmiş kavramsal bir 3D manzara. Gerçek arazinin ölçümü değildir.",
   "explore.load": "3D görünümü yükle",
+  "explore.hint": "Döndürmek için sürükleyin · yakınlaştırmak için kaydırın · işarete dokunun",
   "explore.without": "3D olmadan görüntüle",
   "explore.map": "Harita",
   "explore.3d": "3D",

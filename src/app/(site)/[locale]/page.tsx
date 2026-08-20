@@ -60,11 +60,14 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
             {settings["brand.projectName"]}
           </h1>
 
-          <p className="mt-6 max-w-2xl font-display text-xl leading-snug text-mist md:text-3xl">
+          <p
+            dir="auto"
+            className="mt-6 max-w-2xl font-display text-xl leading-snug text-mist md:text-3xl"
+          >
             {settings["brand.heroLine"]}
           </p>
 
-          <p className="mt-6 max-w-xl text-[0.95rem] leading-relaxed text-fog">
+          <p dir="auto" className="mt-6 max-w-xl text-[0.95rem] leading-relaxed text-fog">
             {settings["brand.heroIntro"]}
           </p>
 
@@ -164,7 +167,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
                 unsupported: t("explore.unsupported"),
                 map: t("explore.map"),
                 view3d: t("explore.3d"),
-                hint: t("explore.load"),
+                hint: t("explore.hint"),
                 conceptual: "Conceptual — not survey data",
               }}
               mapView={<OrientationMap className="h-full max-h-[26rem] w-full" />}

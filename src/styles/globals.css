@@ -53,6 +53,18 @@
     }
   }
 
+  /*
+   * Decorative artwork is deliberately wider than its section. In LTR the
+   * document simply clips it, but in RTL the overflow extends the scrollable
+   * area to the left and the viewport opens on empty space — so the clip has
+   * to sit on the root element, not just on body.
+   */
+  html,
+  body {
+    overflow-x: clip;
+    max-width: 100%;
+  }
+
   body {
     background-color: var(--color-basalt);
     color: var(--color-mist);
@@ -60,7 +72,6 @@
     font-synthesis-weight: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
   }
 
   h1,
