@@ -18,3 +18,7 @@ next-env.d.ts
 
 # Local database + secrets
 .env.local
+
+# Local object storage (photo uploads)
+.storage/
+.storage-test/

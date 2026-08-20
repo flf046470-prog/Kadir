@@ -7,6 +7,7 @@ import {
   matchedUserIds
 } from "@/db/profile-repository";
 import { scoreMatch } from "@/lib/matching/score";
+import { listVisiblePhotos } from "@/db/photos";
 import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import type { LocationContext } from "@/lib/matching/signals";
@@ -56,6 +57,15 @@ export async function GET(request: NextRequest) {
   ]);
   const matched = new Set(matchedIds);
 
+  // Only approved photos reach another member; `listVisiblePhotos` enforces it.
+  const photosByUser = new Map(
+    await Promise.all(
+      [...candidates.keys()].map(
+        async (id) => [id, await listVisiblePhotos(id, auth.user.id)] as const
+      )
+    )
+  );
+
   const scored = [...candidates.values()].map((candidate) => {
     const result = scoreMatch({
       viewer,
@@ -70,7 +80,8 @@ export async function GET(request: NextRequest) {
       profileId: candidate.id,
       score: result.score,
       compatibility: describeCompatibility(result),
-      reasons: buildReasons(result)
+      reasons: buildReasons(result),
+      photos: photosByUser.get(candidate.id) ?? []
     };
   });
 

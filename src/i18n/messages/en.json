@@ -627,6 +627,17 @@
     "scamWarningBody": "This message matches patterns we see in scams. We are not saying this person is a scammer — but never send money, gift cards, or crypto to someone you haven't met, and report anything that feels wrong.",
     "blockConfirm": "Block this person? Your match and conversation will be removed.",
     "reportSent": "Report sent. Our team will review it.",
-    "backToMatches": "← Matches"
+    "backToMatches": "← Matches",
+    "photos": "Photos",
+    "addPhoto": "Add photo",
+    "photoPending": "Awaiting review",
+    "photoRejected": "Not approved",
+    "photoDelete": "Remove",
+    "photoHelp": "Photos are reviewed before other members can see them. Location data is stripped from every upload.",
+    "photoTooLarge": "That file is too large (max 8 MB).",
+    "photoUnsupported": "Please upload a JPEG, PNG, or WebP image.",
+    "photoTooSmall": "That image is too small (minimum 200×200).",
+    "photoTooMany": "You've reached the photo limit.",
+    "photoFailed": "Upload failed. Please try again."
   }
 }

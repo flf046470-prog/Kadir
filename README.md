@@ -50,13 +50,17 @@ wired into the API layer when it lands, without rework.
 - **`src/lib/referral/`** — Crockford Base32 referral codes with confusable
   folding, a reward ladder, and fraud signals that hold a payout for human
   review rather than penalising the referrer
+- **`src/lib/photos/`** — magic-byte format sniffing, decompression-bomb
+  guards, and EXIF-stripping re-encode
+- **`src/lib/storage/`** — object storage behind a driver interface, with a
+  local-disk implementation; S3/R2/GCS is one more driver, not a rewrite
 - **`src/lib/flags/`** — deterministic percentage rollout (0/1/5/10/25/50/100)
   with nested cohorts and kill switches, for all 22 V2/V3 features
 
-**167 tests**, all passing (`npm test`) — unit tests for the domain logic plus
+**185 tests**, all passing (`npm test`) — unit tests for the domain logic plus
 integration tests against a real Postgres database covering auth, cascade
-deletion, matching, the like/match race, visibility enforcement, and
-conversation authorization.
+deletion, matching, the like/match race, messaging authorization, photo
+processing, and visibility enforcement.
 
 See [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) for the full analysis and
 [`docs/AI_SAFETY.md`](./docs/AI_SAFETY.md) for the AI constraints.
@@ -78,6 +82,10 @@ A real, signed-in product running on Postgres:
   and report. Scam Shield runs on every outbound message and warns the
   *recipient* (never the sender, which would only teach evasion); high risk
   queues for human review and never auto-blocks anyone
+- **Photos** — upload with the format sniffed from magic bytes, re-encoded to
+  strip EXIF (phone photos carry GPS — publishing that on a dating profile
+  would hand a stranger someone's home address), and gated behind moderation:
+  a photo is visible only to its owner until approved
 
 `/en/app/*` requires a session; the API returns 401 and the pages redirect to
 login. A conversation that isn't yours returns 404, not 403 — telling a stranger
@@ -85,14 +93,18 @@ it exists would confirm a match they have no business knowing about.
 
 ## Not implemented (and deliberately not faked)
 
+- **Automated photo screening (NSFW / CSAM).** Photos are gated behind manual
+  approval and `approvePhoto` is the hook where automated screening belongs,
+  but nothing here performs it. **This is a hard launch blocker** — a
+  hash-matching service (e.g. PhotoDNA) plus a classifier must be wired in
+  before public signups.
 - Match Games UI and the AI features (matchmaker, icebreaker, translation) —
   the logic exists and is tested, but is not wired to a UI
 - Real-time message delivery (the conversation view polls; WebSockets later)
 - Email and phone verification delivery
 - Payments (Apple IAP, Google Play Billing, web), entitlements, webhooks
-- Admin panel and analytics dashboards
+- Admin panel, moderation console, and analytics dashboards
 - iOS and Android applications
-- Photo upload and storage
 
 These require dedicated backend, security, and compliance work — plus accounts
 and services only the project owner can provision. See
@@ -140,6 +152,8 @@ src/
   lib/safety/          Scam Shield, Trust Profile, Date Safety, copy guards
   lib/games/           Match Games: prompts, session state, fair reveal
   lib/referral/        Referral codes, reward ladder, fraud detection
+  lib/photos/          Format sniffing, EXIF stripping, re-encoding
+  lib/storage/         Storage driver interface + local-disk driver
   lib/flags/           Feature flags with staged rollout
   db/                  Schema, client, repositories, integration tests
   auth/                Passwords, sessions, accounts, route guards

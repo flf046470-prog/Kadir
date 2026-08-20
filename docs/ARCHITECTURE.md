@@ -37,11 +37,15 @@ the positioning. Everything else is sequenced below.
 | `src/lib/games/session.ts` | Game session lifecycle, answer validation, fair reveal | ✓ |
 | `src/lib/referral/codes.ts` | Crockford Base32 codes with confusable folding | ✓ |
 | `src/lib/referral/rewards.ts` | Qualification, reward ladder, fraud signals, payout decision | ✓ |
+| `src/lib/photos/process.ts` | Magic-byte sniffing, bomb guards, EXIF-stripping re-encode | ✓ |
+| `src/lib/storage/` | Storage driver interface + local-disk driver | ✓ |
+| `src/db/photos.ts` | Upload, moderation gating, per-viewer visibility | ✓ |
 | `src/lib/flags/flags.ts` | Deterministic percentage rollout for all 22 V2/V3 flags | ✓ |
 
-109 unit tests, all passing. These modules are pure functions over plain data —
-no database, no network, no framework — so they can be wired into the API layer
-in Phase 1/2 without rework.
+185 tests, all passing: unit tests for the pure domain modules plus integration
+tests against a real Postgres database. The domain modules take plain data and
+touch no infrastructure, which is what made them testable before the app that
+now hosts them existed.
 
 ## The eight-point analysis
 
@@ -50,7 +54,7 @@ in Phase 1/2 without rework.
 The matching engine is deliberately a **pure library**, not a service. It takes
 profiles in and returns scores and reasons out. That keeps three properties:
 
-- It is fully testable without infrastructure (proven — 57 tests, no mocks).
+- It is fully testable without infrastructure (proven — no mocks needed).
 - It can run in the API process now and move to a dedicated service later
   without changing callers.
 - The set of fields it can see is fixed by the `MatchProfile` type, so
@@ -75,6 +79,7 @@ New tables/columns needed when Phase 1 lands:
 | Safety | `risk_assessments`, `moderation_cases` (with the state machine's stage), `verifications`, `date_plans` |
 | Games | `game_sessions`, `game_rounds`, `game_answers`; answers must be readable per-player so the server can enforce fair reveal, plus `played_prompts` per pair to avoid repeats |
 | Referral | `referral_codes` (unique index), `referrals` with qualification state, `referral_rewards`, `referral_fraud_signals` |
+| Photos | `photos` — content-addressed storage key, dimensions, position, moderation status; indexed on (user, position) and on moderation status for the queue |
 | Flags | `feature_flags` — name, rollout, killed, always_on[] |
 
 Indexing notes: Discover needs a composite index on (country, city, goal,
@@ -158,6 +163,13 @@ conversation. It proposes; deterministic code validates; the member decides.
 - **Fair reveal is a server responsibility.** `viewFor` redacts a partner's
   game answer until both have answered, so the API must serve the redacted
   view — never the full round with the UI hiding part of it. Tested.
+- **Photos are the highest-risk upload path.** Format comes from magic bytes,
+  not the request; every image is re-encoded (stripping EXIF/GPS and any
+  metadata payload); decoding is pixel-capped against decompression bombs;
+  storage keys are content-addressed and server-generated so there is no
+  traversal surface; and objects are served through a route that checks
+  moderation state rather than a static mount. **Automated NSFW/CSAM screening
+  is still missing and is a hard launch blocker** — `approvePhoto` is the hook.
 - **Referral payouts are the abuse surface.** Rewards unlock on qualification
   rather than signup, payouts are capped per referrer per month, and a
   suspicious referral is held for review rather than auto-penalised. Tested.

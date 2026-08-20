@@ -8,11 +8,14 @@ type Compatibility =
   | { kind: "unavailable" }
   | { kind: "band"; band: "exploring" | "promising" | "strong"; percent: number };
 
+type Photo = { id: string; url: string; width: number; height: number };
+
 type Suggestion = {
   profileId: string;
   score: number;
   compatibility: Compatibility;
   reasons: Reason[];
+  photos: Photo[];
 };
 
 type Labels = {
@@ -116,7 +119,16 @@ export function DiscoverClient({ labels }: { labels: Labels }) {
       {!loading && !current && <p className="mt-10 text-ink/60">{labels.empty}</p>}
 
       {!loading && current && (
-        <article className="mt-6 max-w-xl rounded-3xl border border-black/10 bg-white p-8 shadow-sm">
+        <article className="mt-6 max-w-xl overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm">
+          {current.photos.length > 0 && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={current.photos[0].url}
+              alt=""
+              className="aspect-[4/5] w-full object-cover"
+            />
+          )}
+          <div className="p-8">
           <CompatibilityLine
             compatibility={current.compatibility}
             potentialLabel={labels.potential}
@@ -163,6 +175,7 @@ export function DiscoverClient({ labels }: { labels: Labels }) {
             >
               {labels.like}
             </button>
+          </div>
           </div>
         </article>
       )}

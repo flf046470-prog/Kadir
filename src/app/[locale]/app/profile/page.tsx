@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/auth/guard";
 import { loadMatchProfile } from "@/db/profile-repository";
 import { ProfileForm } from "./ProfileForm";
+import { PhotoManager } from "./PhotoManager";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,26 @@ export default async function ProfilePage({
           logout: t("logout")
         }}
         locale={locale}
+      />
+
+      <PhotoManager
+        labels={{
+          photos: t("photos"),
+          addPhoto: t("addPhoto"),
+          pending: t("photoPending"),
+          rejected: t("photoRejected"),
+          remove: t("photoDelete"),
+          help: t("photoHelp"),
+          errors: {
+            too_large: t("photoTooLarge"),
+            unsupported_format: t("photoUnsupported"),
+            too_small: t("photoTooSmall"),
+            too_many_photos: t("photoTooMany"),
+            corrupt: t("photoUnsupported"),
+            too_many_pixels: t("photoTooLarge"),
+            failed: t("photoFailed")
+          }
+        }}
       />
     </section>
   );

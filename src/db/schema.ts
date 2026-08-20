@@ -216,6 +216,43 @@ export const blocks = pgTable(
 );
 
 /**
+ * Profile photos.
+ *
+ * `moderationStatus` starts as `pending` and a pending photo is visible only to
+ * its owner. That is the safe default: an un-screened photo reaching other
+ * members is the failure mode that matters, so the system fails closed.
+ *
+ * **Launch blocker:** automated NSFW and CSAM screening (e.g. a hash-matching
+ * service such as PhotoDNA, plus a classifier) MUST be wired into the approval
+ * path before public signups. Nothing in this repository performs that
+ * screening — `approvePhoto` is the hook it belongs in. See docs/ARCHITECTURE.md.
+ */
+export const photos = pgTable(
+  "photos",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Content-addressed storage key. */
+    storageKey: text("storage_key").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    /** Display order within the member's profile; 0 is the primary photo. */
+    position: integer("position").notNull().default(0),
+    /** pending | approved | rejected */
+    moderationStatus: text("moderation_status").notNull().default("pending"),
+    moderationNote: text("moderation_note"),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("photos_user_idx").on(table.userId, table.position),
+    index("photos_moderation_idx").on(table.moderationStatus)
+  ]
+);
+
+/**
  * Messages within a match.
  *
  * `language` is stored per message from the start, even though nothing reads it

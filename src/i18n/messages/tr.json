@@ -627,6 +627,17 @@
     "scamWarningBody": "Bu mesaj, dolandırıcılıklarda gördüğümüz kalıplarla eşleşiyor. Bu kişinin dolandırıcı olduğunu söylemiyoruz — ama yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme ve yanlış hissettiren her şeyi bildir.",
     "blockConfirm": "Bu kişiyi engelle? Eşleşmen ve sohbetin kaldırılacak.",
     "reportSent": "Bildirim gönderildi. Ekibimiz inceleyecek.",
-    "backToMatches": "← Eşleşmeler"
+    "backToMatches": "← Eşleşmeler",
+    "photos": "Fotoğraflar",
+    "addPhoto": "Fotoğraf ekle",
+    "photoPending": "İnceleme bekliyor",
+    "photoRejected": "Onaylanmadı",
+    "photoDelete": "Kaldır",
+    "photoHelp": "Fotoğraflar, diğer üyeler görebilmeden önce inceleniyor. Her yüklemeden konum bilgisi temizleniyor.",
+    "photoTooLarge": "Bu dosya çok büyük (en fazla 8 MB).",
+    "photoUnsupported": "Lütfen JPEG, PNG veya WebP bir görsel yükle.",
+    "photoTooSmall": "Bu görsel çok küçük (en az 200×200).",
+    "photoTooMany": "Fotoğraf sınırına ulaştın.",
+    "photoFailed": "Yükleme başarısız. Lütfen tekrar dene."
   }
 }

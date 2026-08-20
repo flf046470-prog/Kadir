@@ -118,6 +118,10 @@ should not accept public signups.
 - **Human-reviewed moderation queue** — AI never takes final enforcement
   action alone on serious cases
 - Moderator tooling: case view, action log, appeal trail
+- **Automated NSFW and CSAM screening for photos — a hard launch blocker.**
+  Photos are already gated behind approval and `approvePhoto` is the hook, but
+  no automated screening exists. Public signups must not open until a
+  hash-matching service (e.g. PhotoDNA) and a classifier are wired in.
 
 ---
 
