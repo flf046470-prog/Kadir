@@ -101,5 +101,6 @@
   "misc.retry": "Zkusit znovu",
   "misc.privacy": "Soukromí",
   "misc.terms": "Podmínky",
-  "misc.loading": "Načítání"
+  "misc.loading": "Načítání",
+  "gallery.counter": "{n} / {total}"
 }

@@ -101,5 +101,6 @@
   "misc.retry": "לנסות שוב",
   "misc.privacy": "פרטיות",
   "misc.terms": "תנאים",
-  "misc.loading": "טוען"
+  "misc.loading": "טוען",
+  "gallery.counter": "{n} / {total}"
 }

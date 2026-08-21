@@ -101,5 +101,6 @@
   "misc.retry": "Opnieuw proberen",
   "misc.privacy": "Privacy",
   "misc.terms": "Voorwaarden",
-  "misc.loading": "Laden"
+  "misc.loading": "Laden",
+  "gallery.counter": "{n} / {total}"
 }

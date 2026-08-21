@@ -297,6 +297,7 @@ export async function saveImageAction(
     license,
     category,
     field(formData, "season", 20),
+    field(formData, "subject", 60),
     altText,
     Number(formData.get("sort_order")) || 0,
     flag(formData, "published"),
@@ -305,15 +306,15 @@ export async function saveImageAction(
   if (id) {
     db.prepare(
       `UPDATE gallery_images SET file_path = ?, title = ?, description = ?, location = ?,
-         photographer = ?, source_url = ?, license = ?, category = ?, season = ?, alt_text = ?,
-         sort_order = ?, published = ?
+         photographer = ?, source_url = ?, license = ?, category = ?, season = ?, subject = ?,
+         alt_text = ?, sort_order = ?, published = ?
        WHERE id = ?`,
     ).run(...values, id);
   } else {
     db.prepare(
       `INSERT INTO gallery_images (file_path, title, description, location, photographer,
-         source_url, license, category, season, alt_text, sort_order, published)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         source_url, license, category, season, subject, alt_text, sort_order, published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(...values);
   }
 

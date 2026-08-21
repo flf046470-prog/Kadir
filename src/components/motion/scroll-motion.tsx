@@ -110,6 +110,32 @@ export function ScrollMotion() {
           /** Undo for anything that touches the DOM rather than just tweening. */
           const restores: (() => void)[] = [];
 
+          /**
+           * Plays something the first time its trigger is reached.
+           *
+           * `once: true` would be the obvious way to write this, but GSAP
+           * implements it by killing the trigger from inside the callback —
+           * and that callback can fire while GSAP is walking its own list of
+           * triggers during a refresh, which makes it read past the end of
+           * that list. A latch does the same job and never mutates the list.
+           */
+          const playOnce = (
+            trigger: Element,
+            start: string,
+            play: () => void,
+          ) => {
+            let played = false;
+            ScrollTrigger.create({
+              trigger,
+              start,
+              onEnter: () => {
+                if (played) return;
+                played = true;
+                play();
+              },
+            });
+          };
+
           /* ── 1 · hero ─────────────────────────────────────────────────
              The ridge settles back as the page moves, the words lift away
              a little faster. Both are scrubbed, so they follow the finger
@@ -167,6 +193,26 @@ export function ScrollMotion() {
                     start: "top top",
                     end: "bottom top",
                     scrub: 0.6,
+                  },
+                },
+              );
+            }
+
+            /* The landscape dissolves into the drawing of the house — slowly,
+               across the whole hero, so it reads as one continuous shot. */
+            const concept = hero.querySelector('[data-motion="hero-concept"]');
+            if (concept) {
+              gsap.fromTo(
+                concept,
+                { opacity: 0 },
+                {
+                  opacity: 1,
+                  ease: "none",
+                  scrollTrigger: {
+                    trigger: hero,
+                    start: "22% top",
+                    end: "bottom top",
+                    scrub: 0.8,
                   },
                 },
               );
@@ -233,19 +279,21 @@ export function ScrollMotion() {
              smoother and cheaper.                                          */
           ScrollTrigger.batch(".reveal", {
             start: "top 88%",
-            once: true,
             onEnter: (batch) =>
-              gsap.to(batch, {
-                opacity: 1,
-                y: 0,
-                duration: 0.9,
-                ease,
-                stagger: 0.08,
-                overwrite: true,
-                onStart: () => {
-                  for (const el of batch) (el as HTMLElement).dataset.visible = "true";
+              gsap.to(
+                batch.filter((el) => (el as HTMLElement).dataset.visible !== "true"),
+                {
+                  opacity: 1,
+                  y: 0,
+                  duration: 0.9,
+                  ease,
+                  stagger: 0.08,
+                  overwrite: true,
+                  onStart: () => {
+                    for (const el of batch) (el as HTMLElement).dataset.visible = "true";
+                  },
                 },
-              }),
+              ),
           });
 
           /* ── 3b · headlines ───────────────────────────────────────────
@@ -262,19 +310,63 @@ export function ScrollMotion() {
 
               const block = heading.closest(".reveal") ?? heading;
               const kicker = heading.previousElementSibling;
-              const timeline = gsap.timeline({
-                scrollTrigger: { trigger: block, start: "top 86%", once: true },
-              });
+              const labelled = kicker?.classList.contains("label") ?? false;
 
-              if (kicker?.classList.contains("label")) {
-                timeline.from(kicker, { y: 12, opacity: 0, duration: 0.5, ease });
-              }
-              timeline.from(
-                heading.querySelectorAll(".sm-word"),
-                { yPercent: 115, duration: 1, ease: "expo.out", stagger: 0.055 },
-                kicker?.classList.contains("label") ? "-=0.3" : 0,
-              );
+              playOnce(block, "top 86%", () => {
+                const timeline = gsap.timeline();
+                if (labelled && kicker) {
+                  timeline.from(kicker, { y: 12, opacity: 0, duration: 0.5, ease });
+                }
+                timeline.from(
+                  heading.querySelectorAll(".sm-word"),
+                  { yPercent: 115, duration: 1, ease: "expo.out", stagger: 0.055 },
+                  labelled ? "-=0.3" : 0,
+                );
+              });
             });
+
+          /* ── 3c · the narrative stage ─────────────────────────────────
+             One drawing is held while the text walks past; each step hands
+             over to the next as it reaches the middle of the screen.      */
+          const story = document.querySelector<HTMLElement>('[data-motion="story"]');
+          if (story) {
+            const visuals = gsap.utils.toArray<HTMLElement>("[data-story-visual]", story);
+            const stepEls = gsap.utils.toArray<HTMLElement>("[data-story-step]", story);
+
+            const show = (index: number) => {
+              visuals.forEach((visual, i) => {
+                gsap.to(visual, {
+                  opacity: i === index ? 1 : 0,
+                  duration: 0.7,
+                  ease: "power2.inOut",
+                  overwrite: "auto",
+                });
+              });
+            };
+
+            stepEls.forEach((step, i) => {
+              ScrollTrigger.create({
+                trigger: step,
+                start: "top 60%",
+                end: "bottom 40%",
+                onEnter: () => show(i),
+                onEnterBack: () => show(i),
+              });
+            });
+
+            // Each step's words rise as it takes the stage.
+            for (const step of stepEls) {
+              playOnce(step, "top 78%", () =>
+                gsap.from(step.children, {
+                  y: 20,
+                  opacity: 0,
+                  duration: 0.8,
+                  ease,
+                  stagger: 0.07,
+                }),
+              );
+            }
+          }
 
           /* ── 4 · the house, drawn ─────────────────────────────────────
              The cross-section builds in the order it would be built: raft
@@ -338,25 +430,24 @@ export function ScrollMotion() {
             const question = community.querySelector('[data-motion="community-question"]');
             const cards = community.querySelectorAll('[data-motion="vote-cards"] > *');
 
-            const timeline = gsap.timeline({
-              scrollTrigger: { trigger: community, start: "top 72%", once: true },
+            playOnce(community, "top 72%", () => {
+              const timeline = gsap.timeline();
+              if (question) {
+                timeline.fromTo(
+                  question,
+                  { scale: 0.97, opacity: 0, y: 16 },
+                  { scale: 1, opacity: 1, y: 0, duration: 0.85, ease },
+                );
+              }
+              if (cards.length) {
+                timeline.fromTo(
+                  cards,
+                  { opacity: 0, y: 22 },
+                  { opacity: 1, y: 0, duration: 0.7, ease, stagger: 0.09 },
+                  "-=0.45",
+                );
+              }
             });
-
-            if (question) {
-              timeline.fromTo(
-                question,
-                { scale: 0.97, opacity: 0, y: 16 },
-                { scale: 1, opacity: 1, y: 0, duration: 0.85, ease },
-              );
-            }
-            if (cards.length) {
-              timeline.fromTo(
-                cards,
-                { opacity: 0, y: 22 },
-                { opacity: 1, y: 0, duration: 0.7, ease, stagger: 0.09 },
-                "-=0.45",
-              );
-            }
           }
 
           /* ── 6 · support ──────────────────────────────────────────────
@@ -367,17 +458,12 @@ export function ScrollMotion() {
             .forEach((group) => {
               const children = group.children;
               if (children.length === 0) return;
-              gsap.fromTo(
-                children,
-                { opacity: 0, y: 24 },
-                {
-                  opacity: 1,
-                  y: 0,
-                  duration: 0.75,
-                  ease,
-                  stagger: 0.08,
-                  scrollTrigger: { trigger: group, start: "top 82%", once: true },
-                },
+              playOnce(group, "top 82%", () =>
+                gsap.fromTo(
+                  children,
+                  { opacity: 0, y: 24 },
+                  { opacity: 1, y: 0, duration: 0.75, ease, stagger: 0.08 },
+                ),
               );
             });
 
@@ -410,16 +496,12 @@ export function ScrollMotion() {
              stopping.                                                      */
           const footer = document.querySelector<HTMLElement>('[data-motion="footer"]');
           if (footer) {
-            gsap.fromTo(
-              footer,
-              { opacity: 0.25, y: 28 },
-              {
-                opacity: 1,
-                y: 0,
-                duration: 1.4,
-                ease: "power1.out",
-                scrollTrigger: { trigger: footer, start: "top 95%", once: true },
-              },
+            playOnce(footer, "top 95%", () =>
+              gsap.fromTo(
+                footer,
+                { opacity: 0.25, y: 28 },
+                { opacity: 1, y: 0, duration: 1.4, ease: "power1.out" },
+              ),
             );
           }
 
@@ -484,20 +566,20 @@ export function ScrollMotion() {
             gsap.utils
               .toArray<HTMLElement>(".reveal :is(h1, h2).font-display")
               .forEach((heading) => {
-                gsap.fromTo(
-                  heading,
-                  { filter: "blur(10px)" },
-                  {
-                    filter: "blur(0px)",
-                    duration: 1.2,
-                    ease,
-                    scrollTrigger: {
-                      trigger: heading.closest(".reveal") ?? heading,
-                      start: "top 86%",
-                      once: true,
-                    },
+                let pulled = false;
+                ScrollTrigger.create({
+                  trigger: heading.closest(".reveal") ?? heading,
+                  start: "top 86%",
+                  onEnter: () => {
+                    if (pulled) return;
+                    pulled = true;
+                    gsap.fromTo(
+                      heading,
+                      { filter: "blur(10px)" },
+                      { filter: "blur(0px)", duration: 1.2, ease },
+                    );
                   },
-                );
+                });
               });
 
             return () => {
@@ -530,6 +612,23 @@ export function ScrollMotion() {
         return moved;
       };
 
+      /* A trigger whose element has left the document cannot be measured.
+         Dropping one is only safe outside a refresh, though: GSAP walks its
+         own trigger list while refreshing, and removing an entry mid-walk is
+         what makes it read past the end of that list. So this is called from
+         one place only — inside the guarded rebuild below. */
+      const killDetached = () => {
+        for (const trigger of ScrollTrigger.getAll()) {
+          const el = trigger.trigger as Element | undefined;
+          if (el && !el.isConnected) trigger.kill();
+        }
+      };
+
+      // Measuring is safe at any time; it never mutates the trigger list.
+      const safeRefresh = () => {
+        if (!cancelled) ScrollTrigger.refresh();
+      };
+
       const rebuild = () => {
         if (cancelled) return;
         // Never tear triggers down while ScrollTrigger is measuring: it is
@@ -540,6 +639,7 @@ export function ScrollMotion() {
           return;
         }
         try {
+          killDetached();
           matchMediaInstance?.revert();
           context?.revert();
           buildAll();
@@ -554,9 +654,7 @@ export function ScrollMotion() {
         }
         // Measure from a fresh task, never from inside an animation frame:
         // refreshing while the ticker is running is what provokes the above.
-        window.setTimeout(() => {
-          if (!cancelled) ScrollTrigger.refresh();
-        }, 0);
+        window.setTimeout(safeRefresh, 0);
       };
 
       let idle: number | undefined;
@@ -573,14 +671,15 @@ export function ScrollMotion() {
 
       buildAll();
       changed();
-      // Late-loading fonts change element heights; measure again once they land.
-      window.setTimeout(() => {
-        if (!cancelled) ScrollTrigger.refresh();
-      }, 0);
-      document.fonts?.ready.then(() => ScrollTrigger.refresh());
+      // Late-loading fonts and images change element heights; measure again
+      // once they land, dropping anything detached in the meantime.
+      window.setTimeout(safeRefresh, 0);
+      document.fonts?.ready.then(safeRefresh);
+      window.addEventListener("load", safeRefresh, { once: true });
 
       disconnect = () => {
         window.clearTimeout(idle);
+        window.removeEventListener("load", safeRefresh);
         observer?.disconnect();
       };
     };

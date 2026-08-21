@@ -177,6 +177,9 @@ function migrate(db: Database.Database) {
   // Columns added after the first release.
   addColumn(db, "community_members", "interests", "TEXT NOT NULL DEFAULT ''");
   addColumn(db, "community_members", "locale", "TEXT NOT NULL DEFAULT ''");
+  // What an image shows — "Interior", "Floor plan", "Exterior — night". The
+  // gallery groups and labels by it.
+  addColumn(db, "gallery_images", "subject", "TEXT NOT NULL DEFAULT ''");
 }
 
 /** SQLite has no ADD COLUMN IF NOT EXISTS, so the column list is checked first. */

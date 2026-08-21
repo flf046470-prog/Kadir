@@ -101,5 +101,6 @@
   "misc.retry": "Prøv igjen",
   "misc.privacy": "Personvern",
   "misc.terms": "Vilkår",
-  "misc.loading": "Laster"
+  "misc.loading": "Laster",
+  "gallery.counter": "{n} / {total}"
 }

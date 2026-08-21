@@ -101,5 +101,6 @@
   "misc.retry": "Спробувати ще раз",
   "misc.privacy": "Приватність",
   "misc.terms": "Умови",
-  "misc.loading": "Завантаження"
+  "misc.loading": "Завантаження",
+  "gallery.counter": "{n} / {total}"
 }

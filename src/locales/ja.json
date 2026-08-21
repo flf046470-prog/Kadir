@@ -101,5 +101,6 @@
   "misc.retry": "再試行",
   "misc.privacy": "プライバシー",
   "misc.terms": "利用規約",
-  "misc.loading": "読み込み中"
+  "misc.loading": "読み込み中",
+  "gallery.counter": "{n} / {total}"
 }

@@ -123,8 +123,8 @@
      The padding gives them a finger-sized target; the matching negative margin
      keeps the layout exactly where it was. */
   a.label {
-    padding-block: 0.55rem;
-    margin-block: -0.55rem;
+    padding-block: 0.68rem;
+    margin-block: -0.68rem;
   }
 
   .shell {
@@ -270,6 +270,18 @@
     .reveal {
       opacity: 1;
       transform: none;
+    }
+  }
+
+  /* The narrative stage only makes sense when it can change. Without motion —
+     or without scripts — each step shows its own drawing instead. */
+  @media (prefers-reduced-motion: reduce) {
+    [data-story-stage] {
+      display: none;
+    }
+
+    [data-story-inline] {
+      display: block;
     }
   }
 

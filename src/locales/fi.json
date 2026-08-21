@@ -101,5 +101,6 @@
   "misc.retry": "Yritä uudelleen",
   "misc.privacy": "Tietosuoja",
   "misc.terms": "Ehdot",
-  "misc.loading": "Ladataan"
+  "misc.loading": "Ladataan",
+  "gallery.counter": "{n} / {total}"
 }

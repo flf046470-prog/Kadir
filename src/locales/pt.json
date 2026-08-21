@@ -101,5 +101,6 @@
   "misc.retry": "Tentar de novo",
   "misc.privacy": "Privacidade",
   "misc.terms": "Termos",
-  "misc.loading": "Carregando"
+  "misc.loading": "Carregando",
+  "gallery.counter": "{n} / {total}"
 }

@@ -101,5 +101,6 @@
   "misc.retry": "Réessayer",
   "misc.privacy": "Confidentialité",
   "misc.terms": "Conditions",
-  "misc.loading": "Chargement"
+  "misc.loading": "Chargement",
+  "gallery.counter": "{n} / {total}"
 }

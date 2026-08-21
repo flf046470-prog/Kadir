@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { EditorialGallery } from "@/components/gallery/editorial-gallery";
+import { galleryLabels, toGalleryItems } from "@/components/gallery/to-items";
 import { Reveal } from "@/components/reveal";
 import { CtaLink, EmptyState, PageHeader, SectionHeading } from "@/components/ui";
-import { getGalleryImages, type GalleryImage } from "@/lib/content";
+import { getGalleryImages } from "@/lib/content";
 import { getPageContext } from "@/lib/page";
 import { absoluteUrl } from "@/lib/site";
 
@@ -30,39 +31,11 @@ const SEASONS = [
   { key: "spring", label: "Spring" },
 ];
 
-function ImageCard({ image }: { image: GalleryImage }) {
-  const credit = [image.photographer, image.license].filter(Boolean).join(" · ");
-  return (
-    <figure className="card-stone group overflow-hidden">
-      <div className="relative aspect-[4/3] overflow-hidden bg-stone">
-        <Image
-          src={image.file_path}
-          alt={image.alt_text || image.title || "Gallery image"}
-          fill
-          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-          className="object-cover transition-transform duration-700 group-hover:scale-[1.03]"
-          loading="lazy"
-        />
-      </div>
-      <figcaption className="p-5">
-        {image.title ? <p className="font-display text-lg text-snow">{image.title}</p> : null}
-        {image.description ? (
-          <p className="mt-2 text-sm leading-relaxed text-fog">{image.description}</p>
-        ) : null}
-        <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1">
-          {image.location ? <span className="label text-fog/60">{image.location}</span> : null}
-          {image.season ? <span className="label text-ember">{image.season}</span> : null}
-        </div>
-        {credit ? <p className="mt-3 text-xs text-fog/50">{credit}</p> : null}
-      </figcaption>
-    </figure>
-  );
-}
-
 export default async function GalleryPage({ params }: { params: Promise<{ locale: string }> }) {
   const { t, path } = await getPageContext(params);
   const patagonia = getGalleryImages("patagonia");
   const project = getGalleryImages("project");
+  const labels = galleryLabels(t);
 
   return (
     <>
@@ -80,14 +53,8 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
           <div className="mt-10">
             {patagonia.length > 0 ? (
               <>
-                <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                  {patagonia.map((image, i) => (
-                    <Reveal key={image.id} delay={i * 40}>
-                      <ImageCard image={image} />
-                    </Reveal>
-                  ))}
-                </div>
-                <div className="mt-10 flex flex-wrap gap-2">
+                <EditorialGallery items={toGalleryItems(patagonia)} labels={labels} eager />
+                <div className="mt-14 flex flex-wrap gap-2">
                   <span className="label me-2 text-fog/60">Explore Trevelin by season</span>
                   {SEASONS.map((season) => {
                     const count = patagonia.filter((i) => i.season === season.key).length;
@@ -121,13 +88,7 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
           </Reveal>
           <div className="mt-10">
             {project.length > 0 ? (
-              <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {project.map((image, i) => (
-                  <Reveal key={image.id} delay={i * 40}>
-                    <ImageCard image={image} />
-                  </Reveal>
-                ))}
-              </div>
+              <EditorialGallery items={toGalleryItems(project)} labels={labels} />
             ) : (
               <EmptyState
                 title="No project photographs yet"

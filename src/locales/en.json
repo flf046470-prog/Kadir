@@ -130,5 +130,9 @@
   "misc.retry": "Try again",
   "misc.loading": "Loading",
   "misc.privacy": "Privacy",
-  "misc.terms": "Terms"
+  "misc.terms": "Terms",
+  "gallery.previous": "Previous image",
+  "gallery.next": "Next image",
+  "gallery.counter": "{n} / {total}",
+  "gallery.drawing": "Drawing, not a photograph"
 }

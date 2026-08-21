@@ -102,5 +102,6 @@
   "misc.retry": "Tekrar dene",
   "misc.privacy": "Gizlilik",
   "misc.terms": "Koşullar",
-  "misc.loading": "Yükleniyor"
+  "misc.loading": "Yükleniyor",
+  "gallery.counter": "{n} / {total}"
 }

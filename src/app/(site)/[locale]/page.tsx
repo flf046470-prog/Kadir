@@ -13,11 +13,14 @@ import {
   SupportSection,
 } from "@/components/sections";
 import { ShareRow } from "@/components/share";
+import { StorySequence } from "@/components/story/story-sequence";
+import { EditorialGallery } from "@/components/gallery/editorial-gallery";
+import { galleryLabels, toGalleryItems } from "@/components/gallery/to-items";
 import { SocialRow, StatusPill } from "@/components/site-chrome";
 import { CtaLink, EmptyState, PhaseRail, PostCard, Prose, SectionHeading } from "@/components/ui";
 import { ContourField, CrossSectionDiagram, OrientationMap } from "@/components/visuals";
 import { getCommunityStats, getPublishedIdeas } from "@/lib/community";
-import { getPhases, getPosts, getSocialLinks, getStorySection } from "@/lib/content";
+import { getGalleryImages, getPhases, getPosts, getSocialLinks, getStorySection } from "@/lib/content";
 import { formatDate } from "@/lib/format";
 import { getPageContext } from "@/lib/page";
 import { absoluteUrl } from "@/lib/site";
@@ -46,6 +49,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   const whyHere = getStorySection("why-patagonia");
   const stats = getCommunityStats();
   const ideas = getPublishedIdeas(3);
+  const projectImages = getGalleryImages("project");
   const shareUrl = absoluteUrl(path("/"), settings);
 
   return (
@@ -148,6 +152,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         </section>
       ) : null}
 
+      {/* ── 03b · The project, step by step ───────────────────────────── */}
+      <StorySequence />
+
       {/* ── 04 · The land around us ───────────────────────────────────── */}
       <LandSection t={t} />
 
@@ -214,6 +221,26 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
           </Reveal>
         </div>
       </section>
+
+      {/* ── 06b · The gallery ─────────────────────────────────────────── */}
+      {projectImages.length > 0 ? (
+        <section className="py-24 md:py-32">
+          <div className="shell">
+            <Reveal className="max-w-2xl">
+              <SectionHeading kicker="06 — Gallery" title="The project, image by image" />
+            </Reveal>
+          </div>
+          {/* Wider than the text column: the images are the point here. */}
+          <Reveal className="mx-auto mt-12 w-full max-w-[100rem] px-gutter md:px-10">
+            <EditorialGallery items={toGalleryItems(projectImages)} labels={galleryLabels(t)} />
+          </Reveal>
+          <div className="shell mt-10">
+            <Link href={path("/gallery")} className="label text-ember transition-colors hover:text-snow">
+              {t("nav.gallery")} →
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {/* ── 07 · The experience ───────────────────────────────────────── */}
       <section className="py-24 md:py-32">

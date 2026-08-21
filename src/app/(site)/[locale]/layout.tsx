@@ -123,7 +123,7 @@ export default async function LocaleLayout({
       <head>
         {/* Without scripts nothing can reveal the page, so show it as it is. */}
         <noscript>
-          <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>
+          <style>{`.reveal{opacity:1!important;transform:none!important}[data-story-stage]{display:none!important}[data-story-inline]{display:block!important}`}</style>
         </noscript>
         {/* Holds the hero for its opening beat — and releases it on its own if
             the animation never loads, so the page can never be left blank. */}

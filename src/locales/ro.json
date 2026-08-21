@@ -101,5 +101,6 @@
   "misc.retry": "Încearcă din nou",
   "misc.privacy": "Confidențialitate",
   "misc.terms": "Termeni",
-  "misc.loading": "Se încarcă"
+  "misc.loading": "Se încarcă",
+  "gallery.counter": "{n} / {total}"
 }

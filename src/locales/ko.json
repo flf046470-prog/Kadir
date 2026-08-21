@@ -101,5 +101,6 @@
   "misc.retry": "다시 시도",
   "misc.privacy": "개인정보",
   "misc.terms": "약관",
-  "misc.loading": "불러오는 중"
+  "misc.loading": "불러오는 중",
+  "gallery.counter": "{n} / {total}"
 }

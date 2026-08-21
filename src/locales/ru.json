@@ -101,5 +101,6 @@
   "misc.retry": "Повторить",
   "misc.privacy": "Конфиденциальность",
   "misc.terms": "Условия",
-  "misc.loading": "Загрузка"
+  "misc.loading": "Загрузка",
+  "gallery.counter": "{n} / {total}"
 }

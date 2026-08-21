@@ -101,5 +101,6 @@
   "misc.retry": "Försök igen",
   "misc.privacy": "Integritet",
   "misc.terms": "Villkor",
-  "misc.loading": "Laddar"
+  "misc.loading": "Laddar",
+  "gallery.counter": "{n} / {total}"
 }

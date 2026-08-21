@@ -101,5 +101,6 @@
   "misc.retry": "重试",
   "misc.privacy": "隐私",
   "misc.terms": "条款",
-  "misc.loading": "加载中"
+  "misc.loading": "加载中",
+  "gallery.counter": "{n} / {total}"
 }

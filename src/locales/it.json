@@ -101,5 +101,6 @@
   "misc.retry": "Riprova",
   "misc.privacy": "Privacy",
   "misc.terms": "Termini",
-  "misc.loading": "Caricamento"
+  "misc.loading": "Caricamento",
+  "gallery.counter": "{n} / {total}"
 }

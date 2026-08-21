@@ -101,5 +101,6 @@
   "misc.retry": "Δοκίμασε ξανά",
   "misc.privacy": "Απόρρητο",
   "misc.terms": "Όροι",
-  "misc.loading": "Φόρτωση"
+  "misc.loading": "Φόρτωση",
+  "gallery.counter": "{n} / {total}"
 }

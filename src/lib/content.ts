@@ -58,6 +58,8 @@ export type GalleryImage = {
   license: string;
   category: "patagonia" | "project";
   season: string;
+  /** What the image shows: "Interior", "Floor plan", "Exterior — night"… */
+  subject: string;
   alt_text: string;
   width: number;
   height: number;

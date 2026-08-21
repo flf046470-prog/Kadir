@@ -115,6 +115,36 @@ export default async function AdminGalleryPage({ searchParams }: { searchParams:
             </div>
 
             <div className="mt-4">
+              <label htmlFor="subject" className="label mb-2 block">
+                What it shows
+              </label>
+              <input
+                id="subject"
+                name="subject"
+                list="gallery-subjects"
+                placeholder="Exterior — night"
+                defaultValue={editing?.subject ?? ""}
+                className={inputClass}
+              />
+              <datalist id="gallery-subjects">
+                <option value="Exterior — night" />
+                <option value="Exterior — landscape" />
+                <option value="Living room" />
+                <option value="Dining area" />
+                <option value="Bedroom" />
+                <option value="Bathroom" />
+                <option value="Floor plan" />
+                <option value="Site plan" />
+                <option value="Section" />
+                <option value="Interface" />
+              </datalist>
+              <p className="mt-2 text-xs text-fog/60">
+                The label the gallery shows above the caption. Say what the image is — a render is
+                a render, a drawing is a drawing.
+              </p>
+            </div>
+
+            <div className="mt-4">
               <label htmlFor="title" className="label mb-2 block">
                 Title
               </label>

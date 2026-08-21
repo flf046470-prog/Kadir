@@ -101,5 +101,6 @@
   "misc.retry": "Prøv igen",
   "misc.privacy": "Privatliv",
   "misc.terms": "Vilkår",
-  "misc.loading": "Indlæser"
+  "misc.loading": "Indlæser",
+  "gallery.counter": "{n} / {total}"
 }

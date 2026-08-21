@@ -101,5 +101,6 @@
   "misc.retry": "أعد المحاولة",
   "misc.privacy": "الخصوصية",
   "misc.terms": "الشروط",
-  "misc.loading": "جارٍ التحميل"
+  "misc.loading": "جارٍ التحميل",
+  "gallery.counter": "{n} / {total}"
 }

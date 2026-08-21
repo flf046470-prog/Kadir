@@ -101,5 +101,6 @@
   "misc.retry": "फिर कोशिश करें",
   "misc.privacy": "गोपनीयता",
   "misc.terms": "शर्तें",
-  "misc.loading": "लोड हो रहा है"
+  "misc.loading": "लोड हो रहा है",
+  "gallery.counter": "{n} / {total}"
 }
