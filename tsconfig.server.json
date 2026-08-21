@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": "dist-server",
+    "rootDir": "server",
+    "noEmit": false,
+    "types": ["node"],
+    "allowImportingTsExtensions": false
+  },
+  "include": ["server/**/*.ts"]
+}

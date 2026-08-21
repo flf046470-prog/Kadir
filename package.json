@@ -5,11 +5,22 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "npm run build:client && npm run server:build",
+    "build:client": "tsc -b && vite build",
+    "start": "node dist-server/index.js",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server:dev": "tsx server/index.ts",
+    "server:build": "tsc -p tsconfig.server.json",
+    "server:typecheck": "tsc -p tsconfig.server.json --noEmit",
+    "test": "tsx --test server/**/*.test.ts",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "db:migrate": "npm run prisma:migrate"
   },
   "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "dotenv": "^16.5.0",
     "lucide-react": "^1.33.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
@@ -19,7 +30,10 @@
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
+    "dotenv": "^16.5.0",
     "oxlint": "^1.75.0",
+    "prisma": "^6.7.0",
+    "tsx": "^4.19.4",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
   }
