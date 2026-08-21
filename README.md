@@ -30,6 +30,8 @@ These are enforced in code, not just in copy:
 - **Tailwind CSS v4** — design tokens in `src/styles/globals.css`
 - **SQLite** via `better-sqlite3` — one file, no external service
 - **Three.js** for the conceptual 3D landscape, loaded only on request
+- **GSAP + ScrollTrigger** and **Lenis** for the motion layer, imported at
+  runtime so neither is in the first payload
 - Server Actions for every mutation; no client-side data fetching layer
 
 ## Getting started
@@ -125,6 +127,38 @@ Landmarks are clickable, the render loop pauses when the canvas scrolls out of
 view or the tab is hidden, WebGL support is detected before the toggle is
 enabled, and the same places are always described in text below the canvas for
 anyone who cannot or does not want to use it.
+
+## Motion
+
+Four client components in `src/components/motion/`, mounted once from the site
+layout, hold every animation on the site. Nothing else in the codebase animates
+on scroll, so there is one place to read, tune, or switch it all off.
+
+| Component | What it does |
+| --- | --- |
+| `scroll-motion.tsx` | Every scroll-driven animation: the hero, depth drift, block reveals, headline word rise, the cross-section drawing itself, the phase rail, and the light that answers to scroll speed |
+| `smooth-scroll.tsx` | Lenis wheel smoothing, driven from the GSAP ticker so scrubbed animations stay in step. Touch scrolling stays native |
+| `pointer-motion.tsx` | Magnetic calls to action and the hero's drift against the cursor — precise pointers on wide screens only |
+| `route-transition.tsx` | The incoming page rises into place, in CSS, keyed on the path |
+
+Ground rules the layer keeps:
+
+- **Nothing is required to read the page.** `.reveal` blocks are shown by CSS
+  under `prefers-reduced-motion` and by a `<noscript>` rule when scripts never
+  run; the hero's opening is released by its own timer in `<head>` if the
+  animation never arrives.
+- **Reduced motion means none of it** — no smoothing, no atmosphere, no
+  entrance, no drift.
+- **Resting states are the design.** Every scrub starts from the framing the
+  page ships with, so a still page is the site as designed.
+- **Text being read never dims.** Blocks only recede once they are on their way
+  out of frame.
+- **It cleans up after itself.** Everything is built inside a `gsap.context()`;
+  unmounting reverts the tweens, kills the triggers, and puts the split
+  headings back together. The set is rebuilt when the router swaps the page.
+- The heavier passes — atmosphere, depth recession, focus pull — are for
+  screens 900px and wider; phones get the reveals and the scrubs, and nothing
+  that costs a repaint of the whole viewport.
 
 ## Security
 

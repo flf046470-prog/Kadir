@@ -41,9 +41,12 @@ export function PointerMotion() {
 
           const onMove = (event: PointerEvent) => {
             const box = magnet.getBoundingClientRect();
-            const pull = 0.28;
-            moveX((event.clientX - (box.left + box.width / 2)) * pull);
-            moveY((event.clientY - (box.top + box.height / 2)) * pull);
+            // A lean, not a jump: capped so a wide button never slides far
+            // enough to leave the cursor outside it.
+            const pull = (distance: number) =>
+              gsap.utils.clamp(-12, 12, distance * 0.28);
+            moveX(pull(event.clientX - (box.left + box.width / 2)));
+            moveY(pull(event.clientY - (box.top + box.height / 2)));
           };
           const onLeave = () => {
             moveX(0);
