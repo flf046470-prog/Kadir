@@ -124,6 +124,134 @@ const PHASES = [
   },
 ];
 
+
+/*
+ * The project's own concept visualisations, supplied by the owner and shipped
+ * with the site. Every one of them is a render or a drawing — nothing here is
+ * a photograph, nothing here is built — and each caption says which it is, so
+ * the gallery can never be mistaken for a record of something that exists.
+ */
+const GALLERY: {
+  file: string;
+  subject: string;
+  title: string;
+  description: string;
+  width: number;
+  height: number;
+}[] = [
+  {
+    file: "/project/exterior-night.webp",
+    subject: "Exterior — night",
+    title: "The house from the approach",
+    description:
+      "The glazed face and the courtyard dome seen from the fire pit below. The roof is the meadow: from this angle the building is a curve in the hillside.",
+    width: 996,
+    height: 604,
+  },
+  {
+    file: "/project/exterior-dusk.webp",
+    subject: "Exterior — dusk",
+    title: "Dusk over the shoulder",
+    description: "The same ground at last light, looking toward the range in the south-west.",
+    width: 284,
+    height: 406,
+  },
+  {
+    file: "/project/living-room.webp",
+    subject: "Living room",
+    title: "Under the dome",
+    description:
+      "The main room sits below the eight-metre courtyard dome, with the hearth against the buried wall.",
+    width: 532,
+    height: 344,
+  },
+  {
+    file: "/project/interior-dining.webp",
+    subject: "Dining and kitchen",
+    title: "Kitchen and table",
+    description: "Kitchen and dining share one 28 m² space on the daylight side of the plan.",
+    width: 296,
+    height: 152,
+  },
+  {
+    file: "/project/bedroom-spa.webp",
+    subject: "Bedroom",
+    title: "A bedroom and the water",
+    description: "One of three bedrooms, opening to the courtyard through the inner glazing.",
+    width: 532,
+    height: 262,
+  },
+  {
+    file: "/project/interior-bedroom.webp",
+    subject: "Bathroom",
+    title: "Bath under the dome",
+    description: "The bath sits where the dome light reaches, against the earth wall.",
+    width: 296,
+    height: 156,
+  },
+  {
+    file: "/project/site-plan.webp",
+    subject: "Site plan",
+    title: "One hectare, and where the house sits on it",
+    description:
+      "The plot is 100 by 100 metres. House, viewing terrace, fire pit, parking and the track in — drawn to show the arrangement, not surveyed positions.",
+    width: 736,
+    height: 636,
+  },
+  {
+    file: "/project/floor-plan.webp",
+    subject: "Floor plan",
+    title: "Ground floor — 250 m²",
+    description:
+      "Twenty-two metres across: entrance, living room, kitchen and dining, three bedrooms, two bathrooms, utility, plant and the courtyard under the dome.",
+    width: 470,
+    height: 512,
+  },
+  {
+    file: "/project/floor-plan-annotated.webp",
+    subject: "Floor plan — annotated",
+    title: "The plan, room by room",
+    description: "The same plan with every room numbered against the schedule.",
+    width: 492,
+    height: 406,
+  },
+  {
+    file: "/project/section.webp",
+    subject: "Section",
+    title: "Section A–A",
+    description:
+      "Through the dome and down: 80 to 100 cm of soil, waterproofing, XPS insulation, a 25 cm reinforced concrete wall, drainage board and pipe, raft foundation.",
+    width: 478,
+    height: 284,
+  },
+  {
+    file: "/project/section-cutaway.webp",
+    subject: "Section — cutaway",
+    title: "The shell, opened",
+    description: "The same construction shown as a cutaway rather than a flat section.",
+    width: 478,
+    height: 238,
+  },
+  {
+    file: "/project/section-annotated.webp",
+    subject: "Section — annotated",
+    title: "The layers, named",
+    description:
+      "Soil cover, waterproofing, thermal insulation, the retaining wall, drainage and the raft — the parts the planning phase is working through now.",
+    width: 486,
+    height: 406,
+  },
+  {
+    file: "/project/smart-home.webp",
+    subject: "Systems",
+    title: "House systems, as intended",
+    description:
+      "A concept for how lighting, climate, water and blinds would be controlled. No system is installed; this is a design intention.",
+    width: 234,
+    height: 406,
+  },
+];
+
 export function seedIfEmpty(): void {
   const db = getDb();
 
@@ -136,6 +264,34 @@ export function seedIfEmpty(): void {
     );
     db.transaction(() => {
       STORY_SECTIONS.forEach((s, i) => stmt.run(s.slug, s.kicker, s.heading, s.body, i));
+    })();
+  }
+
+  const galleryCount = (
+    db.prepare("SELECT COUNT(*) AS c FROM gallery_images").get() as { c: number }
+  ).c;
+  if (galleryCount === 0) {
+    const stmt = db.prepare(
+      `INSERT INTO gallery_images (file_path, title, description, location, photographer,
+         source_url, license, category, season, subject, alt_text, width, height, sort_order, published)
+       VALUES (?, ?, ?, ?, ?, '', ?, 'project', '', ?, ?, ?, ?, ?, 1)`,
+    );
+    db.transaction(() => {
+      GALLERY.forEach((image, i) =>
+        stmt.run(
+          image.file,
+          image.title,
+          image.description,
+          "Trevelin · Chubut · Argentina",
+          "Patagonia Underground",
+          "Project concept visualisation — not a photograph",
+          image.subject,
+          `${image.subject}: ${image.title}. Concept visualisation of the project; nothing is built yet.`,
+          image.width,
+          image.height,
+          i,
+        ),
+      );
     })();
   }
 

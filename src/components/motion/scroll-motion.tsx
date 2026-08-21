@@ -209,10 +209,13 @@ export function ScrollMotion() {
                   opacity: 1,
                   ease: "none",
                   scrollTrigger: {
+                    // Completed while the hero still fills the frame, so the
+                    // landscape actually becomes the house on screen rather
+                    // than after it has left.
                     trigger: hero,
-                    start: "22% top",
-                    end: "bottom top",
-                    scrub: 0.8,
+                    start: "top top",
+                    end: "52% top",
+                    scrub: 0.9,
                   },
                 },
               );

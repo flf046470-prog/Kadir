@@ -1,5 +1,6 @@
+import Image from "next/image";
 import { AndesScene } from "./scene/andes-scene";
-import { ContourField, RidgeScene } from "./visuals";
+import { RidgeScene } from "./visuals";
 
 /**
  * The opening frame: the cordillera at dusk, with the project as one lit window
@@ -17,36 +18,21 @@ export function HeroBackdrop() {
       <RidgeScene className="absolute inset-0 h-full w-full" />
       <AndesScene className="absolute inset-0 h-full w-full" />
 
-      {/* The concept, waiting under the landscape. */}
+      {/* The project, waiting under the landscape: as the page scrolls, the
+          drawn range dissolves into the house that would sit in it. */}
       <div
         data-motion="hero-concept"
         className="pointer-events-none absolute inset-0 opacity-0"
         aria-hidden="true"
       >
-        <div className="absolute inset-0 bg-basalt/85" />
-        <ContourField className="absolute inset-x-0 bottom-0 w-full text-fog/[0.09]" />
-        <svg
-          viewBox="0 0 1440 860"
-          preserveAspectRatio="xMidYMid slice"
-          className="absolute inset-0 h-full w-full"
-        >
-          <g
-            transform="translate(720 560)"
-            fill="none"
-            stroke="#cfd5cd"
-            strokeOpacity="0.5"
-            strokeWidth="1.2"
-          >
-            {/* the shoulder, cut and re-covered */}
-            <path d="M-620 0 H620" strokeOpacity="0.25" />
-            <path d="M-360 0 C -300 -150, 300 -150, 360 0" />
-            <path d="M-300 0 C -250 -120, 250 -120, 300 0" strokeOpacity="0.3" />
-            <path d="M-360 0 v70 M360 0 v70" strokeOpacity="0.25" />
-            {/* the glazed face toward the valley */}
-            <path d="M-150 -96 v96 M-50 -119 v119 M50 -119 v119 M150 -96 v96" strokeOpacity="0.35" />
-            <circle cx="0" cy="-40" r="6" fill="#d98b52" stroke="none" fillOpacity="0.8" />
-          </g>
-        </svg>
+        <Image
+          src="/project/exterior-night.webp"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
       </div>
 
       {/* Scrims: bottom-weighted, so the range keeps its sky. */}

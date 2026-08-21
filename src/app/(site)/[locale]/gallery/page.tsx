@@ -85,6 +85,11 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
         <section className="mt-24 border-t border-fog/10 pt-20">
           <Reveal>
             <SectionHeading kicker="02 — Project" title="The land, the drawings, the build" />
+            <p className="prose-valley mt-6 max-w-2xl text-fog">
+              Everything in this section is a concept visualisation or a drawing. Nothing is built
+              yet, so nothing here is a photograph — the captions say which is which, and the
+              construction drawings are drawings of an intention, not of a finished building.
+            </p>
           </Reveal>
           <div className="mt-10">
             {project.length > 0 ? (
