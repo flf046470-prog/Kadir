@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // The locale proxy normally rewrites "/" to the visitor's language. This is
+  // the safety net: if the proxy is ever skipped, the root still resolves to a
+  // real page instead of a 404.
+  async redirects() {
+    return [{ source: "/", destination: "/en", permanent: false }];
+  },
 };
 
 export default nextConfig;

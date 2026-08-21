@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*.local
+node_modules
+.next
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.log
+Yeni Metin Belgesi.txt

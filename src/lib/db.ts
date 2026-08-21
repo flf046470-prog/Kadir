@@ -8,9 +8,21 @@ import Database from "better-sqlite3";
  * SQLite is intentional for this MVP: the whole site is one small Node process
  * with a file-backed database, so it can be hosted on any VPS or container with
  * a persistent volume. `DATABASE_PATH` points at that volume in production.
+ *
+ * On a serverless host the project directory is read-only and only /tmp can be
+ * written, so the default moves there. The database is then per-instance and
+ * short-lived: pages, phases and the gallery come back from the seed on every
+ * cold start, but sign-ups and votes written on one instance are not visible to
+ * the next. Point DATABASE_PATH at real storage — a volume, or a hosted
+ * Postgres/Turso — before collecting anything that has to last.
  */
+const SERVERLESS = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 const DB_PATH =
-  process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "patagonia.db");
+  process.env.DATABASE_PATH ??
+  (SERVERLESS
+    ? path.join("/tmp", "patagonia.db")
+    : path.join(process.cwd(), "data", "patagonia.db"));
 
 declare global {
   var __pu_db__: Database.Database | undefined;

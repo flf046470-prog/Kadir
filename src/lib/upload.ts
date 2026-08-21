@@ -39,9 +39,23 @@ export async function saveUpload(file: File): Promise<UploadResult> {
     return { ok: false, error: "That file's contents don't match its type." };
   }
 
-  await fs.mkdir(UPLOAD_DIR, { recursive: true });
   const name = `${Date.now().toString(36)}-${crypto.randomBytes(8).toString("hex")}.${spec.ext}`;
-  await fs.writeFile(path.join(UPLOAD_DIR, name), bytes);
+  try {
+    await fs.mkdir(UPLOAD_DIR, { recursive: true });
+    await fs.writeFile(path.join(UPLOAD_DIR, name), bytes);
+  } catch (error) {
+    // Serverless hosts serve the project directory read-only. Say so plainly
+    // rather than failing with a filesystem error nobody can act on.
+    const code = (error as NodeJS.ErrnoException)?.code;
+    if (code === "EROFS" || code === "EACCES" || code === "EPERM") {
+      return {
+        ok: false,
+        error:
+          "This deployment cannot store uploaded files: its filesystem is read-only. Add the image to the repository under /public, or host the site somewhere with a writable volume.",
+      };
+    }
+    throw error;
+  }
   return { ok: true, filePath: `/uploads/${name}` };
 }
 
