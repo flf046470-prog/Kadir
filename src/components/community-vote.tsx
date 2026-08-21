@@ -268,7 +268,10 @@ export function CommunityVote({
           <input id="vote-website" name="website" type="text" tabIndex={-1} autoComplete="off" />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4">
+        <div
+          data-motion="vote-cards"
+          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:gap-4"
+        >
           <VoteCard
             choice="absolutely"
             title={labels.absolutely}

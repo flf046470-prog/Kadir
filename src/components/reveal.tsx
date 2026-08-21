@@ -1,50 +1,34 @@
-"use client";
-
-import { useEffect, useRef, type ElementType, type ReactNode } from "react";
+import type { ElementType, ReactNode } from "react";
 
 /**
- * Scroll-in reveal. Deliberately restrained: a short fade and rise, once, and
- * fully skipped when the visitor prefers reduced motion.
+ * Marks a block for the scroll-in reveal. The animation itself is driven from
+ * one batched ScrollTrigger in <ScrollMotion />, so this stays a plain server
+ * component and ships no JavaScript of its own.
+ *
+ * The `.reveal` class holds the hidden starting state; CSS restores it for
+ * reduced motion, and <noscript> restores it when scripts never run.
  */
 export function Reveal({
   children,
   as: Tag = "div",
   className = "",
   delay = 0,
+  motion,
 }: {
   children: ReactNode;
   as?: ElementType;
   className?: string;
+  /** Kept for call sites that stagger manually; the batch also staggers. */
   delay?: number;
+  /** Names this block for <ScrollMotion /> when it needs its own treatment. */
+  motion?: string;
 }) {
-  const ref = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      node.dataset.visible = "true";
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            (entry.target as HTMLElement).dataset.visible = "true";
-            observer.unobserve(entry.target);
-          }
-        }
-      },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.05 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <Tag ref={ref} className={`reveal ${className}`} style={{ transitionDelay: `${delay}ms` }}>
+    <Tag
+      className={`reveal ${className}`}
+      data-motion={motion}
+      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+    >
       {children}
     </Tag>
   );

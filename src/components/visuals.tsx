@@ -136,9 +136,22 @@ export function RidgeScene({ className = "" }: { className?: string }) {
 }
 
 /** Topographic contour texture, used behind quiet sections. */
-export function ContourField({ className = "" }: { className?: string }) {
+export function ContourField({
+  className = "",
+  parallax,
+}: {
+  className?: string;
+  /** Drift rate for <ScrollMotion />; higher sits "closer" to the reader. */
+  parallax?: number;
+}) {
   return (
-    <svg viewBox="0 0 1200 420" className={className} aria-hidden="true" fill="none">
+    <svg
+      viewBox="0 0 1200 420"
+      className={className}
+      data-parallax={parallax}
+      aria-hidden="true"
+      fill="none"
+    >
       <g stroke="currentColor" strokeWidth="1">
         <path d="M-20 380 C 180 356, 300 300, 470 300 C 640 300, 760 352, 960 336 C 1080 326, 1160 344, 1220 336" />
         <path d="M-20 344 C 190 318, 312 262, 476 262 C 640 262, 754 314, 950 298 C 1074 288, 1156 306, 1220 298" />
@@ -172,6 +185,7 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
       <svg
         viewBox="0 0 720 420"
         className="w-full"
+        data-motion="section-diagram"
         role="img"
         aria-label="Concept cross-section: an earth-sheltered structure with soil cover over the roof, waterproofing and insulation layers, reinforced retaining walls, a drainage layer with perimeter pipe, and a raft foundation."
       >
@@ -187,9 +201,14 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
         </defs>
 
         {/* ground mass */}
-        <path d="M0 120 C 120 96, 250 84, 360 84 C 470 84, 600 96, 720 120 L720 420 L0 420 Z" fill="url(#pu-soil)" />
+        <path
+          data-part="roof"
+          d="M0 120 C 120 96, 250 84, 360 84 C 470 84, 600 96, 720 120 L720 420 L0 420 Z"
+          fill="url(#pu-soil)"
+        />
         {/* grass line */}
         <path
+          data-part="roof"
           d="M0 120 C 120 96, 250 84, 360 84 C 470 84, 600 96, 720 120"
           fill="none"
           stroke="#6d8060"
@@ -198,6 +217,7 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
 
         {/* buried shell */}
         <path
+          data-part="walls"
           d="M148 300 L148 196 C 148 140, 218 116, 360 116 C 502 116, 572 140, 572 196 L572 300 Z"
           fill="#171d1a"
           stroke="#8d968e"
@@ -205,6 +225,7 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
         />
         {/* membrane + insulation lines following the shell */}
         <path
+          data-part="walls"
           d="M138 300 L138 194 C 138 132, 214 106, 360 106 C 506 106, 582 132, 582 194 L582 300"
           fill="none"
           stroke="#7fa3b5"
@@ -212,6 +233,7 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
           strokeDasharray="6 4"
         />
         <path
+          data-part="walls"
           d="M130 300 L130 192 C 130 126, 210 98, 360 98 C 510 98, 590 126, 590 192 L590 300"
           fill="none"
           stroke="#c0603a"
@@ -219,18 +241,30 @@ export function CrossSectionDiagram({ className = "" }: { className?: string }) 
         />
 
         {/* interior slab + rooms */}
-        <path d="M148 300 H572" stroke="#8d968e" strokeWidth="2" />
-        <path d="M300 300 V196 M420 300 V196" stroke="#8d968e" strokeWidth="1" opacity="0.5" />
+        <path data-part="foundation" d="M148 300 H572" stroke="#8d968e" strokeWidth="2" />
+        <path data-part="walls" d="M300 300 V196 M420 300 V196" stroke="#8d968e" strokeWidth="1" opacity="0.5" />
 
         {/* the dome */}
-        <path d="M318 116 A 42 30 0 0 1 402 116 Z" fill="#1d2a30" stroke="#9fc0cd" strokeWidth="1.6" />
-        <path d="M360 86 V116 M330 96 L360 116 M390 96 L360 116" stroke="#9fc0cd" strokeWidth="0.8" opacity="0.6" />
+        <path
+          data-part="glass"
+          d="M318 116 A 42 30 0 0 1 402 116 Z"
+          fill="#1d2a30"
+          stroke="#9fc0cd"
+          strokeWidth="1.6"
+        />
+        <path
+          data-part="glass"
+          d="M360 86 V116 M330 96 L360 116 M390 96 L360 116"
+          stroke="#9fc0cd"
+          strokeWidth="0.8"
+          opacity="0.6"
+        />
 
         {/* drainage + raft */}
-        <rect x="118" y="300" width="484" height="16" fill="url(#pu-gravel)" />
-        <rect x="118" y="316" width="484" height="14" fill="#4a5750" />
-        <circle cx="132" cy="308" r="7" fill="#0e1311" stroke="#7fa3b5" strokeWidth="1.6" />
-        <circle cx="588" cy="308" r="7" fill="#0e1311" stroke="#7fa3b5" strokeWidth="1.6" />
+        <rect data-part="foundation" x="118" y="300" width="484" height="16" fill="url(#pu-gravel)" />
+        <rect data-part="foundation" x="118" y="316" width="484" height="14" fill="#4a5750" />
+        <circle data-part="foundation" cx="132" cy="308" r="7" fill="#0e1311" stroke="#7fa3b5" strokeWidth="1.6" />
+        <circle data-part="foundation" cx="588" cy="308" r="7" fill="#0e1311" stroke="#7fa3b5" strokeWidth="1.6" />
 
         {/* level marks */}
         <g stroke="#a6b0a8" strokeWidth="0.8" opacity="0.7">
@@ -275,18 +309,19 @@ export function OrientationMap({ className = "" }: { className?: string }) {
       <rect width="640" height="480" fill="#12181a" />
 
       {/* mountain hatching to the west */}
-      <g stroke="#4a5750" strokeWidth="1" opacity="0.8">
+      <g data-depth="3" stroke="#4a5750" strokeWidth="1" opacity="0.8">
         <path d="M40 60 l24 34 l24-34 M88 100 l24 34 l24-34 M40 140 l24 34 l24-34 M88 180 l24 34 l24-34 M40 220 l24 34 l24-34 M88 260 l24 34 l24-34 M40 300 l24 34 l24-34 M88 340 l24 34 l24-34 M40 380 l24 34 l24-34" />
       </g>
 
       {/* border */}
-      <path d="M150 20 C 168 120, 132 220, 158 320 C 176 392, 150 440, 162 468" stroke="#c0603a" strokeWidth="1.4" strokeDasharray="8 6" fill="none" />
+      <path data-depth="2" d="M150 20 C 168 120, 132 220, 158 320 C 176 392, 150 440, 162 468" stroke="#c0603a" strokeWidth="1.4" strokeDasharray="8 6" fill="none" />
       <text x="60" y="34" fill="#c0603a" fontSize="11" letterSpacing="2">
         CHILE
       </text>
 
       {/* national park */}
       <path
+        data-depth="2"
         d="M196 40 C 260 28, 320 44, 330 92 C 338 132, 300 156, 250 152 C 206 148, 182 110, 196 40 Z"
         fill="#1d2a22"
         stroke="#6d8060"
@@ -300,14 +335,14 @@ export function OrientationMap({ className = "" }: { className?: string }) {
       </text>
 
       {/* lake + river */}
-      <path d="M300 168 C 340 176, 360 204, 344 236 C 330 264, 300 268, 288 244" fill="#22323a" stroke="#7fa3b5" strokeWidth="1" />
+      <path data-depth="1.4" d="M300 168 C 340 176, 360 204, 344 236 C 330 264, 300 268, 288 244" fill="#22323a" stroke="#7fa3b5" strokeWidth="1" />
       <path d="M300 268 C 306 306, 288 340, 268 372 C 250 400, 244 432, 250 468" stroke="#7fa3b5" strokeWidth="1.4" fill="none" />
       <text x="352" y="212" fill="#7fa3b5" fontSize="11">
         Futaleufú
       </text>
 
       {/* roads */}
-      <path d="M470 84 C 452 160, 436 220, 424 300 C 416 356, 412 420, 414 468" stroke="#6b736c" strokeWidth="2" fill="none" />
+      <path data-depth="1" d="M470 84 C 452 160, 436 220, 424 300 C 416 356, 412 420, 414 468" stroke="#6b736c" strokeWidth="2" fill="none" />
       <path d="M424 300 C 360 292, 296 300, 234 316 C 200 324, 176 334, 158 344" stroke="#6b736c" strokeWidth="1.6" fill="none" />
       <text x="250" y="356" fill="#8d968e" fontSize="10" letterSpacing="1">
         RN 259 → FUTALEUFÚ CROSSING

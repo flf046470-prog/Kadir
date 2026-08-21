@@ -167,6 +167,70 @@
     border-radius: 2px;
   }
 
+  /* Hover, only where something actually happens on click. A card that leads
+     somewhere lifts a little and warms its edge; one that just holds text
+     stays where it is. */
+  .card-stone.group {
+    transition:
+      transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 320ms ease,
+      box-shadow 520ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .card-stone.group:hover {
+    transform: translateY(-4px);
+    border-color: color-mix(in oklab, var(--color-ember) 45%, transparent);
+    box-shadow: 0 18px 40px -28px rgb(0 0 0 / 0.9);
+  }
+
+  a.group {
+    transition: background-color 380ms ease;
+  }
+
+  a.group:hover {
+    background-color: color-mix(in oklab, var(--color-snow) 3%, transparent);
+  }
+
+  /* Primary calls to action: a press that answers the finger. */
+  .cta-press {
+    transition:
+      background-color 260ms ease,
+      border-color 260ms ease,
+      color 260ms ease,
+      transform 160ms ease;
+  }
+
+  .cta-press:active {
+    transform: scale(0.975);
+  }
+
+  /* Navigation: a rule that draws in under the word being considered. */
+  .nav-link {
+    position: relative;
+  }
+
+  .nav-link::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -0.35rem;
+    height: 1px;
+    background: var(--color-ember);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  [dir="rtl"] .nav-link::after {
+    transform-origin: right center;
+  }
+
+  .nav-link:hover::after,
+  .nav-link:focus-visible::after {
+    transform: scaleX(1);
+  }
+
   /* Grain: a faint noise wash so large dark areas don't band on cheap panels. */
   .grain::after {
     content: "";
@@ -199,5 +263,87 @@
       opacity: 1;
       transform: none;
     }
+  }
+
+  /* Word masks for the headline rise. Written by <ScrollMotion /> at runtime and
+     removed again on unmount; the padding/margin pair keeps descenders from
+     being clipped so the line sits exactly where it did before the split. */
+  .sm-mask {
+    display: inline-block;
+    overflow: hidden;
+    vertical-align: bottom;
+    padding-bottom: 0.14em;
+    margin-bottom: -0.14em;
+  }
+
+  .sm-word {
+    display: inline-block;
+    will-change: transform;
+  }
+
+  /* The light in the air. Appended by <ScrollMotion /> on wide screens only
+     and removed with it; it rests at zero opacity, so a still page looks
+     exactly as it does without it. Sits under the header (z-50). */
+  /* Smooth scrolling (Lenis drives the wheel; touch stays native). */
+  html.lenis,
+  html.lenis body {
+    height: auto;
+  }
+
+  .lenis.lenis-smooth {
+    scroll-behavior: auto !important;
+  }
+
+  .lenis.lenis-smooth [data-lenis-prevent] {
+    overscroll-behavior: contain;
+  }
+
+  .lenis.lenis-stopped {
+    overflow: hidden;
+  }
+
+  /* The hero is held for its opening beat. The attribute is written by an
+     inline script only when scripts run and motion is welcome, and that same
+     script clears it on a timer if the animation never arrives. */
+  [data-intro="pending"] [data-motion="hero-content"] > * {
+    opacity: 0;
+  }
+
+  /* Page-to-page: the new page rises into place. */
+  .route-enter {
+    animation: route-enter 620ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes route-enter {
+    from {
+      opacity: 0;
+      transform: translate3d(0, 14px, 0);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .route-enter {
+      animation: none;
+    }
+
+    [data-intro="pending"] [data-motion="hero-content"] > * {
+      opacity: 1;
+    }
+  }
+
+  .sm-atmosphere {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    opacity: 0;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    background:
+      radial-gradient(58% 44% at 50% 108%, rgb(217 139 82 / 0.14), transparent 70%),
+      radial-gradient(46% 40% at 18% -8%, rgb(138 169 178 / 0.1), transparent 72%);
   }
 }

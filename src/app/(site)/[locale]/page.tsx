@@ -51,9 +51,12 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
   return (
     <>
       {/* ── 01 · Hero ─────────────────────────────────────────────────── */}
-      <section className="relative flex min-h-[92svh] items-end overflow-hidden pt-28 pb-14 md:min-h-screen md:pb-20">
+      <section
+        data-motion="hero"
+        className="relative flex min-h-[92svh] items-end overflow-hidden pt-28 pb-14 md:min-h-screen md:pb-20"
+      >
         <HeroBackdrop />
-        <div className="shell relative w-full">
+        <div data-motion="hero-content" className="shell relative w-full">
           <StatusPill label={settings["brand.statusLabel"]} note={settings["brand.statusNote"]} />
 
           <h1 className="mt-8 max-w-5xl font-display text-[3rem] leading-[0.95] tracking-tight md:text-[6.5rem]">
@@ -89,7 +92,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
       {/* ── 02 · The project ──────────────────────────────────────────── */}
       <section className="relative overflow-hidden py-24 md:py-32">
-        <ContourField className="pointer-events-none absolute -end-1/4 -bottom-24 w-[150%] max-w-none text-fog/[0.06] md:w-[80%]" />
+        <ContourField parallax={0.12} className="pointer-events-none absolute -end-1/4 -bottom-24 w-[150%] max-w-none text-fog/[0.06] md:w-[80%]" />
         <div className="shell relative grid gap-14 md:grid-cols-12">
           <Reveal className="md:col-span-5">
             <SectionHeading kicker="01 — The project" title={theIdea?.heading ?? "The idea"} />
@@ -252,9 +255,9 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
       </section>
 
       {/* ── 09 · Should we really build this house? ───────────────────── */}
-      <section id="community" className="scroll-mt-24 py-24 md:py-32">
+      <section id="community" data-motion="community" className="scroll-mt-24 py-24 md:py-32">
         <div className="shell">
-          <Reveal className="max-w-2xl">
+          <Reveal className="max-w-2xl" motion="community-question">
             <SectionHeading kicker="09 — Community" title={t("community.title")} />
             <p className="prose-valley mt-6 text-fog">{t("community.subtitle")}</p>
           </Reveal>
@@ -328,7 +331,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
         id="follow"
         className="relative overflow-hidden border-y border-fog/10 bg-loam/50 py-24 md:py-32"
       >
-        <ContourField className="pointer-events-none absolute -bottom-32 start-0 w-[140%] max-w-none text-fog/[0.06] md:w-[70%]" />
+        <ContourField parallax={0.12} className="pointer-events-none absolute -bottom-32 start-0 w-[140%] max-w-none text-fog/[0.06] md:w-[70%]" />
         <div className="shell relative grid gap-14 md:grid-cols-12">
           <Reveal className="md:col-span-5">
             <p className="label text-ember">12 — {t("cta.followJourney")}</p>

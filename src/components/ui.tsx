@@ -21,7 +21,7 @@ export function PageHeader({
 }) {
   return (
     <header className="relative overflow-hidden border-b border-fog/10 pt-28 pb-16 md:pt-40 md:pb-24">
-      <ContourField className="pointer-events-none absolute -top-16 right-0 w-[120%] max-w-none text-fog/[0.07] md:w-[70%]" />
+      <ContourField parallax={0.12} className="pointer-events-none absolute -top-16 right-0 w-[120%] max-w-none text-fog/[0.07] md:w-[70%]" />
       <div className="shell relative">
         <p className="label text-ember">{kicker}</p>
         <h1
@@ -81,7 +81,7 @@ export function EmptyState({
 }) {
   return (
     <div className="card-stone relative overflow-hidden px-6 py-14 text-center md:px-12 md:py-20">
-      <ContourField className="pointer-events-none absolute inset-x-0 bottom-0 w-full text-fog/[0.06]" />
+      <ContourField parallax={0.12} className="pointer-events-none absolute inset-x-0 bottom-0 w-full text-fog/[0.06]" />
       <div className="relative mx-auto max-w-xl">
         <p className="label text-ember">Nothing here yet — on purpose</p>
         <h3 className="mt-5 font-display text-2xl md:text-3xl">{title}</h3>
@@ -104,13 +104,13 @@ export function CtaLink({
   className?: string;
 }) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 text-xs font-medium tracking-[0.14em] uppercase transition-colors";
+    "cta-press inline-flex items-center justify-center gap-2 rounded-full px-7 py-4 text-xs font-medium tracking-[0.14em] uppercase";
   const styles =
     variant === "solid"
       ? "bg-snow text-basalt hover:bg-ember"
       : "border border-fog/25 text-snow hover:border-ember hover:text-ember";
   return (
-    <Link href={href} className={`${base} ${styles} ${className}`}>
+    <Link href={href} data-magnetic className={`${base} ${styles} ${className}`}>
       {children}
     </Link>
   );
@@ -151,6 +151,7 @@ export function PhaseTimeline({ phases }: { phases: Phase[] }) {
     <ol className="relative">
       <span
         aria-hidden="true"
+        data-motion="timeline-line"
         className="absolute top-2 bottom-2 left-[7px] w-px bg-gradient-to-b from-moss/50 via-fog/20 to-transparent md:left-[9px]"
       />
       {phases.map((phase, index) => {

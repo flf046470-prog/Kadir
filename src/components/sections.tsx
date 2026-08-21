@@ -107,7 +107,10 @@ export function LandSection({ t }: { t: Translator }) {
         <Reveal className="max-w-2xl">
           <SectionHeading kicker="04 — The land" title={t("land.title")} />
         </Reveal>
-        <div className="mt-14 grid gap-px overflow-hidden border border-fog/10 bg-fog/10 sm:grid-cols-2 lg:grid-cols-3">
+        <div
+          data-motion="stagger"
+          className="mt-14 grid gap-px overflow-hidden border border-fog/10 bg-fog/10 sm:grid-cols-2 lg:grid-cols-3"
+        >
           {LAND_ITEMS.map((item, i) => (
             <Reveal key={item.key} className="bg-basalt" delay={i * 50}>
               <article className="flex h-full flex-col p-6 md:p-8">
@@ -142,7 +145,7 @@ export function CommunityStatsRow({ stats, t }: { stats: CommunityStats; t: Tran
   return (
     <div className="mt-14 border-t border-fog/10 pt-10">
       <p className="label text-fog/60">{t("community.statsTitle")}</p>
-      <dl className="mt-6 grid grid-cols-2 gap-8 lg:grid-cols-4">
+      <dl data-motion="stagger" className="mt-6 grid grid-cols-2 gap-8 lg:grid-cols-4">
         {items.map((item) => (
           <div key={item.label}>
             <dd className="font-display text-4xl text-snow md:text-5xl">{item.value}</dd>
@@ -182,7 +185,10 @@ export function SupportSection({
           <p className="prose-valley mt-6 text-fog">{t("support.body")}</p>
         </Reveal>
 
-        <div className="mt-12 grid gap-px overflow-hidden border border-fog/10 bg-fog/10 sm:grid-cols-2">
+        <div
+          data-motion="stagger"
+          className="mt-12 grid gap-px overflow-hidden border border-fog/10 bg-fog/10 sm:grid-cols-2"
+        >
           {options.map((option, i) => (
             <Reveal key={option.title} className="bg-basalt" delay={i * 50}>
               <Link href={option.href} className="group flex h-full flex-col justify-between p-6 md:p-8">
@@ -246,7 +252,7 @@ export function EarlyGuestSection({
       id="early"
       className="relative overflow-hidden border-y border-fog/10 bg-loam/50 py-24 md:py-32"
     >
-      <ContourField className="pointer-events-none absolute -bottom-24 start-0 w-[140%] max-w-none text-fog/[0.06] md:w-[70%]" />
+      <ContourField parallax={0.12} className="pointer-events-none absolute -bottom-24 start-0 w-[140%] max-w-none text-fog/[0.06] md:w-[70%]" />
       <div className="shell relative grid gap-14 md:grid-cols-12">
         <Reveal className="md:col-span-5">
           <SectionHeading kicker="13 — Early guests" title={t("airbnb.title")} />

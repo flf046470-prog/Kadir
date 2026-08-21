@@ -55,7 +55,7 @@ export function SiteHeader({
             <Link
               key={link.href}
               href={localePath(link.href, locale)}
-              className="text-sm text-fog transition-colors hover:text-snow"
+              className="nav-link text-sm text-fog transition-colors hover:text-snow"
             >
               {t(link.key)}
             </Link>
@@ -70,7 +70,8 @@ export function SiteHeader({
           />
           <Link
             href={localePath("/join", locale)}
-            className="hidden rounded-full bg-snow px-4 py-2 text-xs font-medium tracking-wide text-basalt transition-colors hover:bg-ember sm:inline-block"
+            data-magnetic
+            className="cta-press hidden rounded-full bg-snow px-4 py-2 text-xs font-medium tracking-wide text-basalt hover:bg-ember sm:inline-block"
           >
             {t("cta.join")}
           </Link>
@@ -157,7 +158,7 @@ export function SiteFooter({
   const year = new Date().getFullYear();
 
   return (
-    <footer className="relative mt-24 border-t border-fog/10 bg-loam/40">
+    <footer data-motion="footer" className="relative mt-24 border-t border-fog/10 bg-loam/40">
       <div className="shell grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr] md:py-20">
         <div>
           <div className="flex items-center gap-3 text-snow">

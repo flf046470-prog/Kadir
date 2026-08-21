@@ -36,7 +36,7 @@ export default async function StoryPage({ params }: { params: Promise<{ locale: 
       />
 
       <div className="shell relative overflow-hidden py-20 md:py-28">
-        <ContourField className="pointer-events-none absolute -end-1/3 top-1/3 w-[120%] max-w-none text-fog/[0.05] md:w-[60%]" />
+        <ContourField parallax={0.12} className="pointer-events-none absolute -end-1/3 top-1/3 w-[120%] max-w-none text-fog/[0.05] md:w-[60%]" />
         <div className="relative grid gap-20 md:gap-28">
           {sections.map((section, i) => (
             <Reveal key={section.id} className="grid gap-8 md:grid-cols-12" delay={i * 40}>

@@ -3,6 +3,10 @@ import { notFound } from "next/navigation";
 import { Fraunces, Inter } from "next/font/google";
 import "@/styles/globals.css";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { ScrollMotion } from "@/components/motion/scroll-motion";
+import { SmoothScroll } from "@/components/motion/smooth-scroll";
+import { PointerMotion } from "@/components/motion/pointer-motion";
+import { RouteTransition } from "@/components/motion/route-transition";
 import { getSocialLinks } from "@/lib/content";
 import { getSiteConfig, getSiteUrl } from "@/lib/site";
 import {
@@ -116,6 +120,23 @@ export default async function LocaleLayout({
 
   return (
     <html lang={locale} dir={localeDir(locale)} className={`${fraunces.variable} ${inter.variable}`}>
+      <head>
+        {/* Without scripts nothing can reveal the page, so show it as it is. */}
+        <noscript>
+          <style>{`.reveal{opacity:1!important;transform:none!important}`}</style>
+        </noscript>
+        {/* Holds the hero for its opening beat — and releases it on its own if
+            the animation never loads, so the page can never be left blank. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{var r=document.documentElement;" +
+              "if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;" +
+              "r.dataset.intro='pending';setTimeout(function(){" +
+              "if(r.dataset.intro==='pending')delete r.dataset.intro},2200)}catch(e){}})()",
+          }}
+        />
+      </head>
       <body>
         <a
           href="#main"
@@ -124,7 +145,9 @@ export default async function LocaleLayout({
           {t("nav.skip")}
         </a>
         <SiteHeader projectName={settings["brand.projectName"]} locale={locale} messages={messages} />
-        <main id="main">{children}</main>
+        <main id="main">
+          <RouteTransition>{children}</RouteTransition>
+        </main>
         <SiteFooter
           projectName={settings["brand.projectName"]}
           locationLabel={settings["brand.locationLabel"]}
@@ -133,6 +156,9 @@ export default async function LocaleLayout({
           locale={locale}
           messages={messages}
         />
+        <SmoothScroll />
+        <ScrollMotion />
+        <PointerMotion />
       </body>
     </html>
   );

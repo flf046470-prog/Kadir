@@ -2,7 +2,7 @@
   "name": "patagonia-underground",
   "version": "0.1.0",
   "private": true,
-  "description": "Patagonia Underground \u2014 community-first project site (Trevelin, Chubut, Argentina)",
+  "description": "Patagonia Underground — community-first project site (Trevelin, Chubut, Argentina)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
+    "gsap": "^3.15.0",
+    "lenis": "^1.3.11",
     "next": "^16.3.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
@@ -30,6 +32,7 @@
     "@types/three": "^0.185.4",
     "eslint": "^9.39.0",
     "eslint-config-next": "^16.3.1",
+    "pngjs": "^7.0.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   },
