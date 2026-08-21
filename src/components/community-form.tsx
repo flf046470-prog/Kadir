@@ -120,6 +120,7 @@ export function CommunityForm({
               required
               maxLength={80}
               autoComplete="given-name"
+              defaultValue={state.values?.firstName ?? ""}
               className={fieldClass}
               aria-describedby={state.fieldErrors?.firstName ? id("firstName-error") : undefined}
             />
@@ -137,6 +138,7 @@ export function CommunityForm({
               type="text"
               maxLength={80}
               autoComplete="country-name"
+              defaultValue={state.values?.country ?? ""}
               className={fieldClass}
             />
             <FieldError message={state.fieldErrors?.country} />
@@ -158,6 +160,7 @@ export function CommunityForm({
           maxLength={160}
           autoComplete="email"
           inputMode="email"
+          defaultValue={state.values?.email ?? ""}
           className={fieldClass}
           placeholder="you@example.com"
           aria-describedby={state.fieldErrors?.email ? id("email-error") : undefined}
@@ -178,7 +181,11 @@ export function CommunityForm({
                   type="checkbox"
                   name="interests"
                   value={interest.value}
-                  defaultChecked={interest.value === "updates"}
+                  defaultChecked={
+                    state.values?.interests
+                      ? state.values.interests.includes(interest.value)
+                      : interest.value === "updates"
+                  }
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[#c0603a]"
                 />
                 <span>{interest.label}</span>

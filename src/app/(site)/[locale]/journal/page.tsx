@@ -46,6 +46,7 @@ export default async function JournalPage({ params }: { params: Promise<{ locale
         ) : (
           <Reveal>
             <EmptyState
+              headingLevel={2}
               title="The construction journal will begin when the first phase of the project starts."
               body="There is no site work to photograph and no progress to report, so there are no entries here. Nothing has been invented to fill the page."
               action={<CtaLink href={path("/join")}>{t("cta.keepPosted")}</CtaLink>}

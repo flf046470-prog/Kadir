@@ -46,6 +46,7 @@ export default async function UpdatesPage({ params }: { params: Promise<{ locale
         ) : (
           <Reveal>
             <EmptyState
+              headingLevel={2}
               title="No updates published yet"
               body="The first update will be posted when there is something real to say. Until then this page stays empty on purpose."
               action={<CtaLink href={path("/join")}>{t("cta.keepPosted")}</CtaLink>}

@@ -532,11 +532,31 @@ export function ScrollMotion() {
 
       const rebuild = () => {
         if (cancelled) return;
-        matchMediaInstance?.revert();
-        context?.revert();
-        buildAll();
-        changed();
-        ScrollTrigger.refresh();
+        // Never tear triggers down while ScrollTrigger is measuring: it is
+        // walking the very list this would empty. Wait for it to finish.
+        if ((ScrollTrigger as { isRefreshing?: boolean }).isRefreshing) {
+          window.clearTimeout(idle);
+          idle = window.setTimeout(rebuild, 200);
+          return;
+        }
+        try {
+          matchMediaInstance?.revert();
+          context?.revert();
+          buildAll();
+          changed();
+        } catch {
+          // A rebuild that collides with GSAP's own measuring pass can throw
+          // from inside it. The page is unharmed — the set is simply half
+          // built — so try again on a later tick rather than surfacing it.
+          window.clearTimeout(idle);
+          idle = window.setTimeout(rebuild, 300);
+          return;
+        }
+        // Measure from a fresh task, never from inside an animation frame:
+        // refreshing while the ticker is running is what provokes the above.
+        window.setTimeout(() => {
+          if (!cancelled) ScrollTrigger.refresh();
+        }, 0);
       };
 
       let idle: number | undefined;
@@ -554,7 +574,9 @@ export function ScrollMotion() {
       buildAll();
       changed();
       // Late-loading fonts change element heights; measure again once they land.
-      ScrollTrigger.refresh();
+      window.setTimeout(() => {
+        if (!cancelled) ScrollTrigger.refresh();
+      }, 0);
       document.fonts?.ready.then(() => ScrollTrigger.refresh());
 
       disconnect = () => {

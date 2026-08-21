@@ -59,6 +59,14 @@ export async function subscribeAction(
     website: formData.get("website") ?? "",
   });
 
+  // Handed back with any error so the visitor does not retype what they wrote.
+  const submitted = {
+    firstName: text(formData, "firstName", 80),
+    email: text(formData, "email", 160),
+    country: text(formData, "country", 80),
+    interests: readInterests(formData),
+  };
+
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
     for (const issue of parsed.error.issues) {
@@ -69,7 +77,12 @@ export async function subscribeAction(
     if (fieldErrors.website) {
       return { status: "error", message: "Something went wrong. Please try again." };
     }
-    return { status: "error", message: "Please check the highlighted fields.", fieldErrors };
+    return {
+      status: "error",
+      message: "Please check the highlighted fields.",
+      fieldErrors,
+      values: submitted,
+    };
   }
 
   const key = await getClientKey();
@@ -77,10 +90,11 @@ export async function subscribeAction(
     return {
       status: "error",
       message: "That's a few too many attempts. Please try again in a little while.",
+      values: submitted,
     };
   }
 
-  const interests = readInterests(formData);
+  const interests = submitted.interests;
   const country = normaliseCountry(parsed.data.country);
 
   try {
@@ -159,11 +173,20 @@ export async function ideaAction(_prev: IdeaState, formData: FormData): Promise<
   }
 
   const body = text(formData, "body", 4000);
+  // Handed back with any error: nobody should have to write their idea twice.
+  const submitted = {
+    body,
+    name: text(formData, "name", 80),
+    country: text(formData, "country", 80),
+    email: text(formData, "email", 160),
+  };
+
   if (body.length < 4) {
     return {
       status: "error",
       message: "Please check the highlighted fields.",
       fieldErrors: { body: "Tell us the idea — a sentence is plenty." },
+      values: submitted,
     };
   }
 
@@ -173,6 +196,7 @@ export async function ideaAction(_prev: IdeaState, formData: FormData): Promise<
       status: "error",
       message: "Please check the highlighted fields.",
       fieldErrors: { email: "That email doesn't look right. You can also leave it blank." },
+      values: submitted,
     };
   }
 
@@ -181,6 +205,7 @@ export async function ideaAction(_prev: IdeaState, formData: FormData): Promise<
     return {
       status: "error",
       message: "That's a few too many messages. Please try again in a little while.",
+      values: submitted,
     };
   }
 

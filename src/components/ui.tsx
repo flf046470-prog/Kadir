@@ -74,17 +74,21 @@ export function EmptyState({
   title,
   body,
   action,
+  headingLevel = 3,
 }: {
   title: string;
   body: string;
   action?: ReactNode;
+  /** 2 when this is the page's own heading, 3 when it sits under a section. */
+  headingLevel?: 2 | 3;
 }) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <div className="card-stone relative overflow-hidden px-6 py-14 text-center md:px-12 md:py-20">
       <ContourField parallax={0.12} className="pointer-events-none absolute inset-x-0 bottom-0 w-full text-fog/[0.06]" />
       <div className="relative mx-auto max-w-xl">
         <p className="label text-ember">Nothing here yet — on purpose</p>
-        <h3 className="mt-5 font-display text-2xl md:text-3xl">{title}</h3>
+        <Heading className="mt-5 font-display text-2xl md:text-3xl">{title}</Heading>
         <p className="mt-4 text-fog">{body}</p>
         {action ? <div className="mt-8">{action}</div> : null}
       </div>
@@ -146,7 +150,15 @@ export function PhaseBadge({ status }: { status: PhaseStatus }) {
  * The journey timeline. A progress bar only appears when a real percentage has
  * been recorded — an empty phase shows its status in words instead of a 0% bar.
  */
-export function PhaseTimeline({ phases }: { phases: Phase[] }) {
+export function PhaseTimeline({
+  phases,
+  headingLevel = 3,
+}: {
+  phases: Phase[];
+  /** 2 when the list follows the page heading directly. */
+  headingLevel?: 2 | 3;
+}) {
+  const Heading = headingLevel === 2 ? "h2" : "h3";
   return (
     <ol className="relative">
       <span
@@ -164,7 +176,7 @@ export function PhaseTimeline({ phases }: { phases: Phase[] }) {
               className={`absolute top-1.5 left-0 h-4 w-4 rounded-full border-2 border-basalt ${style.dot} md:h-5 md:w-5`}
             />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-              <h3 className="font-display text-2xl md:text-3xl">{phase.name}</h3>
+              <Heading className="font-display text-2xl md:text-3xl">{phase.name}</Heading>
               <PhaseBadge status={phase.status} />
               {phase.date_label ? (
                 <span className="label text-fog/60">{phase.date_label}</span>

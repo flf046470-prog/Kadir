@@ -43,7 +43,7 @@ export default async function ProgressPage({ params }: { params: Promise<{ local
       />
 
       <div className="shell py-20 md:py-28">
-        <PhaseTimeline phases={phases} />
+        <PhaseTimeline phases={phases} headingLevel={2} />
 
         <Reveal className="mt-20 border-t border-fog/10 pt-16">
           <SectionHeading kicker="Recorded" title="What has actually been published" />

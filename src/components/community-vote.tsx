@@ -176,7 +176,14 @@ function IdeaForm({ labels, locale }: { labels: VoteLabels; locale: string }) {
           <label htmlFor="idea-name" className="label mb-2 block">
             {labels.name} <span className="text-fog/50">({labels.optional})</span>
           </label>
-          <input id="idea-name" name="name" type="text" maxLength={80} className={field} />
+          <input
+            id="idea-name"
+            name="name"
+            type="text"
+            maxLength={80}
+            defaultValue={state.values?.name ?? ""}
+            className={field}
+          />
         </div>
         <div>
           <label htmlFor="idea-country" className="label mb-2 block">
@@ -188,6 +195,7 @@ function IdeaForm({ labels, locale }: { labels: VoteLabels; locale: string }) {
             type="text"
             maxLength={80}
             autoComplete="country-name"
+            defaultValue={state.values?.country ?? ""}
             className={field}
           />
         </div>
@@ -203,6 +211,7 @@ function IdeaForm({ labels, locale }: { labels: VoteLabels; locale: string }) {
           type="email"
           maxLength={160}
           autoComplete="email"
+          defaultValue={state.values?.email ?? ""}
           className={field}
         />
         {state.fieldErrors?.email ? (
@@ -222,6 +231,7 @@ function IdeaForm({ labels, locale }: { labels: VoteLabels; locale: string }) {
           required
           rows={5}
           maxLength={4000}
+          defaultValue={state.values?.body ?? ""}
           className={`${field} resize-y`}
         />
         {state.fieldErrors?.body ? (

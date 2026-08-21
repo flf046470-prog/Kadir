@@ -8,6 +8,8 @@ export type SubscribeState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Record<string, string>;
+  /** What was typed, so a rejected form comes back filled in rather than blank. */
+  values?: { firstName?: string; email?: string; country?: string; interests?: string[] };
 };
 
 export type VoteState = {
@@ -22,6 +24,8 @@ export type IdeaState = {
   status: "idle" | "success" | "error";
   message: string;
   fieldErrors?: Record<string, string>;
+  /** What was written, so a rejected idea is never lost. */
+  values?: { body?: string; name?: string; country?: string; email?: string };
 };
 
 export const initialSubscribeState: SubscribeState = { status: "idle", message: "" };
