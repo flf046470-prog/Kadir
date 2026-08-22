@@ -639,6 +639,19 @@
     "photoTooSmall": "That image is too small (minimum 200×200).",
     "photoTooMany": "You've reached the photo limit.",
     "photoFailed": "Upload failed. Please try again.",
-    "moderationTitle": "Moderation"
+    "moderationTitle": "Moderation",
+    "discoverEmptyFiltered": "No one matches these filters right now. Try widening them.",
+    "filters": "Filters",
+    "filterAge": "Age",
+    "filterAgeMin": "Minimum age",
+    "filterAgeMax": "Maximum age",
+    "filterPlaceHint": "Type a place, or pick one of the suggestions.",
+    "filterLanguages": "Languages spoken",
+    "filterLanguagesHint": "Two-letter codes, comma separated — for example: en, tr. Anything else is ignored.",
+    "filterIntent": "What you're looking for",
+    "filterApply": "Apply filters",
+    "filterReset": "Clear",
+    "filterActive": "Filters on",
+    "filterNone": "No filters"
   }
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
+import { filtersToParams, isDefault, type DiscoveryFilters } from "@/lib/matching/filters";
+import { Filters, type FilterLabels } from "./Filters";
 
 type Reason = { id: string; values: string[]; strength: number };
 type Compatibility =
@@ -20,6 +22,7 @@ type Suggestion = {
 
 type Labels = {
   empty: string;
+  emptyFiltered: string;
   why: string;
   like: string;
   pass: string;
@@ -38,17 +41,30 @@ type Labels = {
  * central claim, so it renders inline rather than behind a tap: if we can't
  * explain a suggestion, we shouldn't be making it.
  */
-export function DiscoverClient({ labels }: { labels: Labels }) {
+export function DiscoverClient({
+  labels,
+  filterLabels,
+  initialFilters
+}: {
+  labels: Labels;
+  filterLabels: FilterLabels;
+  initialFilters: DiscoveryFilters;
+}) {
   const [mode, setMode] = useState<DiscoveryModeId>("local");
+  const [filters, setFilters] = useState<DiscoveryFilters>(initialFilters);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [matchBanner, setMatchBanner] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
 
-  const load = useCallback(async (nextMode: DiscoveryModeId) => {
+  const load = useCallback(async (nextMode: DiscoveryModeId, nextFilters: DiscoveryFilters) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/discover?mode=${nextMode}`);
+      // The same serialiser the server parses with, so what the URL shows and
+      // what the feed asked for cannot drift apart.
+      const params = filtersToParams(nextFilters);
+      params.set("mode", nextMode);
+      const response = await fetch(`/api/discover?${params.toString()}`);
       const body = await response.json();
       setSuggestions(response.ok ? (body.results ?? []) : []);
     } catch {
@@ -59,8 +75,21 @@ export function DiscoverClient({ labels }: { labels: Labels }) {
   }, []);
 
   useEffect(() => {
-    void load(mode);
-  }, [mode, load]);
+    void load(mode, filters);
+  }, [mode, filters, load]);
+
+  /**
+   * Filters live in the address bar rather than in storage: a reload keeps
+   * them, a link carries them, and nothing about a member's search is left
+   * behind on a shared device after they sign out.
+   */
+  function applyFilters(next: DiscoveryFilters) {
+    setFilters(next);
+
+    const params = filtersToParams(next);
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
+  }
 
   async function judge(profileId: string, kind: "like" | "pass" | "super_like") {
     if (acting) return;
@@ -108,6 +137,8 @@ export function DiscoverClient({ labels }: { labels: Labels }) {
         </select>
       </label>
 
+      <Filters value={filters} onChange={applyFilters} labels={filterLabels} />
+
       {matchBanner && (
         <p className="mt-6 rounded-xl bg-bloom-500 p-4 text-center font-semibold text-white" role="status">
           {labels.matched} ❤️
@@ -116,7 +147,13 @@ export function DiscoverClient({ labels }: { labels: Labels }) {
 
       {loading && <p className="mt-10 text-ink/50">{labels.loading}</p>}
 
-      {!loading && !current && <p className="mt-10 text-ink/60">{labels.empty}</p>}
+      {/* An empty feed means something different when filters are on, so it
+          says so — otherwise a narrow filter reads as "nobody is here". */}
+      {!loading && !current && (
+        <p className="mt-10 text-ink/60">
+          {isDefault(filters) ? labels.empty : labels.emptyFiltered}
+        </p>
+      )}
 
       {!loading && current && (
         <article className="mt-6 max-w-xl overflow-hidden rounded-3xl border border-black/10 bg-white shadow-sm">

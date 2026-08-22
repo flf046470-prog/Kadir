@@ -91,15 +91,25 @@ concurrency test, which now guards it.
 - Messaging with read state, message deletion, block, and report
 - Scam Shield running on every message, warning the recipient and queueing
   high-risk cases for human review
+- Photo upload with EXIF/GPS stripping, gated behind moderation review
+- Discovery filters — age, country, city, language, relationship goal, match
+  intent, culture — applied in SQL, with every value checked against a closed
+  vocabulary before it reaches a query
+
+Filters live in the URL rather than in browser storage: a reload keeps them, a
+link carries them, and nothing about a member's search is left behind on a
+shared device. Place ids are slugified on every write, so "Germany" and
+"germany" are one country rather than two — without that, a country filter
+matches almost nobody and looks like an empty product.
 
 Still to build:
 
-- Filters UI: age, country, city, language, interests, intent, distance,
-  gender/preference
+- Distance filter, and gender / preference filtering (needs those fields first)
 - Real-time delivery (the conversation view polls today), typing indicators
 - Photo sharing in messages
-- Photo upload and storage
 - Today's 5 surface
+- Profile detail on the Discover card (name, age, bio) — the card shows the
+  reasons and the photo today
 
 **Design constraint:** the messaging schema must carry a language field per
 message from day one, so AI translation (Phase 5) is additive, not a rewrite.

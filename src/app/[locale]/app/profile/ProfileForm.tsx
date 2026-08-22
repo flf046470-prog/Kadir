@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { relationshipGoals } from "@/lib/domain/taxonomies";
 
@@ -43,6 +44,9 @@ export function ProfileForm({
   locale: string;
 }) {
   const router = useRouter();
+  // Goal ids are language-neutral; their labels are translated like any other
+  // copy, so the select never shows a raw id such as "long_term".
+  const taxonomy = useTranslations("taxonomy");
   const [saved, setSaved] = useState(false);
   const [pending, setPending] = useState(false);
 
@@ -101,7 +105,7 @@ export function ProfileForm({
           >
             {relationshipGoals.map((goal) => (
               <option key={goal.id} value={goal.id}>
-                {goal.id.replace(/_/g, " ")}
+                {taxonomy(`relationshipGoals.${goal.id}`)}
               </option>
             ))}
           </select>

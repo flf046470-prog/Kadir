@@ -32,6 +32,10 @@ export type TestUserOptions = {
   relationshipGoal?: string;
   interests?: string[];
   languagesSpoken?: string[];
+  matchIntents?: string[];
+  cultureInterests?: string[];
+  /** ISO date. Drives the age filter, which reads `users.birthdate`. */
+  birthdate?: string;
   complete?: boolean;
 };
 
@@ -41,7 +45,7 @@ export async function createTestUser(options: TestUserOptions = {}): Promise<str
     email: uniqueEmail(),
     password: "correct-horse-battery",
     displayName: "Test Member",
-    birthdate: "1995-06-15",
+    birthdate: options.birthdate ?? "1995-06-15",
     countryId: options.countryId ?? "turkey"
   });
 
@@ -67,7 +71,12 @@ export async function createTestUser(options: TestUserOptions = {}): Promise<str
   for (const language of options.languagesSpoken ?? ["tr", "en"]) {
     attributes.push({ userId, kind: "language_spoken", value: language });
   }
-  attributes.push({ userId, kind: "match_intent", value: "serious_relationship" });
+  for (const intent of options.matchIntents ?? ["serious_relationship"]) {
+    attributes.push({ userId, kind: "match_intent", value: intent });
+  }
+  for (const culture of options.cultureInterests ?? []) {
+    attributes.push({ userId, kind: "culture_interest", value: culture });
+  }
 
   await db.insert(profileAttributes).values(attributes);
 

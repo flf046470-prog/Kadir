@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { eq, and } from "drizzle-orm";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import { slugifyPlace } from "@/lib/domain/places";
 import { db } from "@/db/client";
 import { profiles, profileAttributes, profileVisibility } from "@/db/schema";
 import { loadMatchProfile } from "@/db/profile-repository";
@@ -87,9 +88,16 @@ export async function PATCH(request: NextRequest) {
   const profileUpdate: Partial<typeof profiles.$inferInsert> = { updatedAt: new Date() };
 
   if (typeof input.bio === "string") profileUpdate.bio = input.bio.trim().slice(0, MAX_BIO);
-  if (typeof input.cityId === "string") profileUpdate.cityId = input.cityId.trim() || null;
-  if (typeof input.countryId === "string" && input.countryId.trim()) {
-    profileUpdate.countryId = input.countryId.trim();
+  /**
+   * Places are stored slugified. Discovery compares country and city ids
+   * directly, so "Germany" and "germany" must not be two different places —
+   * normalising on write is what keeps the LOCAL and COUNTRY modes and the
+   * discovery filters honest.
+   */
+  if (typeof input.cityId === "string") profileUpdate.cityId = slugifyPlace(input.cityId);
+  if (typeof input.countryId === "string") {
+    const countryId = slugifyPlace(input.countryId);
+    if (countryId) profileUpdate.countryId = countryId;
   }
   if (typeof input.relationshipGoal === "string" && VALID_GOALS.has(input.relationshipGoal)) {
     profileUpdate.relationshipGoal = input.relationshipGoal;

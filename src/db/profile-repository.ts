@@ -1,4 +1,4 @@
-import { eq, and, inArray, ne, or, notInArray, sql } from "drizzle-orm";
+import { eq, and, inArray, ne, or, notInArray, sql, gte, lte } from "drizzle-orm";
 import { db } from "./client";
 import {
   profiles,
@@ -8,8 +8,10 @@ import {
   travelPlans,
   likes,
   blocks,
-  matches
+  matches,
+  users
 } from "./schema";
+import { defaultFilters, type DiscoveryFilters } from "@/lib/matching/filters";
 import { defaultVisibility, type MatchProfile, type ProfileVisibility } from "@/lib/domain/profile";
 import type {
   CommunicationStyleId,
@@ -153,9 +155,10 @@ export async function loadMatchProfile(userId: string): Promise<MatchProfile | n
  */
 export async function findCandidateIds(
   viewerId: string,
-  options: { countryId?: string; limit?: number } = {}
+  options: { countryId?: string; limit?: number; filters?: DiscoveryFilters } = {}
 ): Promise<string[]> {
   const limit = options.limit ?? 200;
+  const filters = options.filters ?? defaultFilters;
 
   const judged = db
     .select({ id: likes.toUserId })
@@ -181,11 +184,55 @@ export async function findCandidateIds(
     notInArray(profiles.userId, blockedMe)
   ];
 
-  if (options.countryId) conditions.push(eq(profiles.countryId, options.countryId));
+  // A discovery mode may pin the country; an explicit filter overrides it.
+  const countryId = filters.countryId ?? options.countryId;
+  if (countryId) conditions.push(eq(profiles.countryId, countryId));
+  if (filters.cityId) conditions.push(eq(profiles.cityId, filters.cityId));
+
+  if (filters.relationshipGoals.length > 0) {
+    conditions.push(inArray(profiles.relationshipGoal, filters.relationshipGoals));
+  }
+
+  /**
+   * Age is derived from `users.birthdate` rather than stored, so it cannot go
+   * stale. Comparing against a computed birthdate window keeps the predicate
+   * sargable — `age(birthdate)` on every row would not be.
+   */
+  const today = new Date();
+  const oldestBirthdate = new Date(
+    Date.UTC(today.getUTCFullYear() - filters.maxAge - 1, today.getUTCMonth(), today.getUTCDate() + 1)
+  );
+  const youngestBirthdate = new Date(
+    Date.UTC(today.getUTCFullYear() - filters.minAge, today.getUTCMonth(), today.getUTCDate())
+  );
+
+  conditions.push(gte(users.birthdate, oldestBirthdate.toISOString().slice(0, 10)));
+  conditions.push(lte(users.birthdate, youngestBirthdate.toISOString().slice(0, 10)));
+  // A suspended member never appears in anyone's feed.
+  conditions.push(sql`${users.suspendedAt} is null`);
+  conditions.push(sql`${users.deletedAt} is null`);
+
+  // Attribute filters are AND-of-ORs: a candidate must have at least one of the
+  // requested values in each requested category.
+  for (const [kind, values] of [
+    ["language_spoken", filters.languages],
+    ["match_intent", filters.matchIntents],
+    ["culture_interest", filters.cultureInterests]
+  ] as const) {
+    if (values.length === 0) continue;
+
+    const holders = db
+      .select({ id: profileAttributes.userId })
+      .from(profileAttributes)
+      .where(and(eq(profileAttributes.kind, kind), inArray(profileAttributes.value, values)));
+
+    conditions.push(inArray(profiles.userId, holders));
+  }
 
   const rows = await db
     .select({ id: profiles.userId })
     .from(profiles)
+    .innerJoin(users, eq(users.id, profiles.userId))
     .where(and(...conditions))
     .limit(limit);
 

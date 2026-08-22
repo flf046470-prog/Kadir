@@ -3,6 +3,7 @@ import { db } from "@/db/client";
 import { users, profiles, profileVisibility } from "@/db/schema";
 import { hashPassword, validatePassword, verifyPassword, type PasswordProblem } from "./password";
 import { destroyAllSessions } from "./session";
+import { slugifyPlace } from "@/lib/domain/places";
 
 /**
  * Account creation, authentication, and deletion.
@@ -33,7 +34,8 @@ export type RegistrationError =
   | { field: "email"; code: "invalid" | "taken" }
   | { field: "password"; code: PasswordProblem }
   | { field: "displayName"; code: "invalid" }
-  | { field: "birthdate"; code: "invalid" | "underage" };
+  | { field: "birthdate"; code: "invalid" | "underage" }
+  | { field: "countryId"; code: "invalid" };
 
 export type RegistrationResult =
   | { ok: true; userId: string }
@@ -84,6 +86,13 @@ export function validateRegistration(input: RegistrationInput): RegistrationErro
   if (age === null) errors.push({ field: "birthdate", code: "invalid" });
   else if (age < MINIMUM_AGE) errors.push({ field: "birthdate", code: "underage" });
 
+  // A country that slugifies to nothing (punctuation, an empty string) would
+  // become an id nothing can ever match, so it is rejected at the door rather
+  // than stored and quietly excluded from every feed.
+  if (slugifyPlace(input.countryId) === null) {
+    errors.push({ field: "countryId", code: "invalid" });
+  }
+
   return errors;
 }
 
@@ -92,6 +101,11 @@ export async function register(input: RegistrationInput): Promise<RegistrationRe
   if (errors.length > 0) return { ok: false, errors };
 
   const email = normalizeEmail(input.email);
+  // Validated above; repeated here so the value that reaches the insert is a
+  // slug by type, not by trust.
+  const countryId = slugifyPlace(input.countryId);
+  if (!countryId) return { ok: false, errors: [{ field: "countryId", code: "invalid" }] };
+
   const passwordHash = await hashPassword(input.password);
 
   try {
@@ -109,7 +123,9 @@ export async function register(input: RegistrationInput): Promise<RegistrationRe
 
       // A member always has a profile and a visibility row, so later code never
       // has to handle their absence.
-      await tx.insert(profiles).values({ userId: created.id, countryId: input.countryId });
+      // Stored slugified: discovery compares country ids directly, so this has
+      // to be the same normalisation the profile editor and the filters use.
+      await tx.insert(profiles).values({ userId: created.id, countryId });
       await tx.insert(profileVisibility).values({ userId: created.id });
 
       return { ok: true as const, userId: created.id };

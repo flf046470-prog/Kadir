@@ -639,6 +639,19 @@
     "photoTooSmall": "Bu görsel çok küçük (en az 200×200).",
     "photoTooMany": "Fotoğraf sınırına ulaştın.",
     "photoFailed": "Yükleme başarısız. Lütfen tekrar dene.",
-    "moderationTitle": "Moderasyon"
+    "moderationTitle": "Moderasyon",
+    "discoverEmptyFiltered": "Bu filtrelerle şu anda kimse yok. Filtreleri genişletmeyi deneyin.",
+    "filters": "Filtreler",
+    "filterAge": "Yaş",
+    "filterAgeMin": "En küçük yaş",
+    "filterAgeMax": "En büyük yaş",
+    "filterPlaceHint": "Bir yer yazın veya önerilerden seçin.",
+    "filterLanguages": "Konuştuğu diller",
+    "filterLanguagesHint": "Virgülle ayrılmış iki harfli kodlar — örneğin: en, tr. Diğerleri yok sayılır.",
+    "filterIntent": "Ne arıyorsunuz",
+    "filterApply": "Filtreleri uygula",
+    "filterReset": "Temizle",
+    "filterActive": "Filtreler açık",
+    "filterNone": "Filtre yok"
   }
 }

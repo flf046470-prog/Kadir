@@ -11,6 +11,7 @@ import { listVisiblePhotos } from "@/db/photos";
 import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import type { LocationContext } from "@/lib/matching/signals";
+import { parseFilters } from "@/lib/matching/filters";
 
 /**
  * Discover — the matching engine running against real data.
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
   }
 
   const limit = Math.min(MAX_LIMIT, Number(params.get("limit")) || DEFAULT_LIMIT);
+  // Everything the member supplies is validated against the taxonomies before
+  // any of it reaches a query.
+  const filters = parseFilters(params);
 
   const viewer = await loadMatchProfile(auth.user.id);
   if (!viewer) return apiError("profile_not_found", 404);
@@ -44,6 +48,7 @@ export async function GET(request: NextRequest) {
   const restrictToCountry = mode === "local" || mode === "country";
   const candidateIds = await findCandidateIds(auth.user.id, {
     countryId: restrictToCountry ? viewer.countryId : undefined,
+    filters,
     limit: 200
   });
 
