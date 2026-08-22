@@ -6,6 +6,7 @@ import {
   loadMatchProfiles,
   matchedUserIds
 } from "@/db/profile-repository";
+import { loadProfileCards } from "@/db/profile-cards";
 import { scoreMatch } from "@/lib/matching/score";
 import { listVisiblePhotos } from "@/db/photos";
 import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
@@ -71,6 +72,10 @@ export async function GET(request: NextRequest) {
     )
   );
 
+  // Display fields load separately from matching fields, and already have this
+  // viewer's visibility applied — a hidden field never leaves the server.
+  const cards = await loadProfileCards([...candidates.keys()], matched);
+
   const scored = [...candidates.values()].map((candidate) => {
     const result = scoreMatch({
       viewer,
@@ -83,6 +88,7 @@ export async function GET(request: NextRequest) {
 
     return {
       profileId: candidate.id,
+      profile: cards.get(candidate.id) ?? null,
       score: result.score,
       compatibility: describeCompatibility(result),
       reasons: buildReasons(result),

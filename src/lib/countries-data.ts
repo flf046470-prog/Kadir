@@ -110,3 +110,21 @@ export const cities: Record<string, CityPage> = {
       "Arrondissement-level distance filtering helps a lot in a city this walkable and this dense."
   }
 };
+
+/**
+ * A human-readable name for a place id.
+ *
+ * Members type their own city and country, so the id is often a place we have
+ * no page for. Falling back to the prettified slug keeps the card honest —
+ * showing "kirsehir" as "Kirsehir" is right, and inventing a canonical name we
+ * do not have would not be.
+ */
+export function placeLabel(id: string): string {
+  const known = cities[id]?.name ?? countries[id]?.name;
+  if (known) return known;
+
+  return id
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}

@@ -47,6 +47,8 @@ export default async function DiscoverPage({
           loading: t("loading"),
           modeLabel: t("modeLabel"),
           potential: t("potential"),
+          speaks: t("cardSpeaks"),
+          noBio: t("cardNoBio"),
           bands: {
             strong: t("bandStrong"),
             promising: t("bandPromising"),

@@ -95,6 +95,8 @@ concurrency test, which now guards it.
 - Discovery filters — age, country, city, language, relationship goal, match
   intent, culture — applied in SQL, with every value checked against a closed
   vocabulary before it reaches a query
+- Profile cards on Discover: name, age, city, goal, bio and languages, with
+  each member's visibility settings applied server-side
 
 Filters live in the URL rather than in browser storage: a reload keeps them, a
 link carries them, and nothing about a member's search is left behind on a
@@ -108,8 +110,6 @@ Still to build:
 - Real-time delivery (the conversation view polls today), typing indicators
 - Photo sharing in messages
 - Today's 5 surface
-- Profile detail on the Discover card (name, age, bio) — the card shows the
-  reasons and the photo today
 
 **Design constraint:** the messaging schema must carry a language field per
 message from day one, so AI translation (Phase 5) is additive, not a rewrite.

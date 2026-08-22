@@ -4,6 +4,10 @@ import { users, profiles, profileVisibility } from "@/db/schema";
 import { hashPassword, validatePassword, verifyPassword, type PasswordProblem } from "./password";
 import { destroyAllSessions } from "./session";
 import { slugifyPlace } from "@/lib/domain/places";
+// Re-exported because registration validates age and callers already import it
+// from here; the computation itself is domain logic, not an auth concern.
+export { ageOn } from "@/lib/domain/age";
+import { ageOn } from "@/lib/domain/age";
 
 /**
  * Account creation, authentication, and deletion.
@@ -48,24 +52,6 @@ export function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
-/** Whole years old on `asOf`, computed without date-library rounding surprises. */
-export function ageOn(birthdate: string, asOf: Date = new Date()): number | null {
-  const parts = birthdate.split("-").map(Number);
-  if (parts.length !== 3 || parts.some((part) => !Number.isInteger(part))) return null;
-
-  const [year, month, day] = parts;
-  const born = new Date(Date.UTC(year, month - 1, day));
-  if (Number.isNaN(born.getTime())) return null;
-  // Reject a date that rolled over, e.g. 2000-02-31 becoming March 2nd.
-  if (born.getUTCMonth() !== month - 1 || born.getUTCDate() !== day) return null;
-  if (born.getTime() > asOf.getTime()) return null;
-
-  let age = asOf.getUTCFullYear() - year;
-  const monthDelta = asOf.getUTCMonth() - (month - 1);
-  if (monthDelta < 0 || (monthDelta === 0 && asOf.getUTCDate() < day)) age -= 1;
-
-  return age;
-}
 
 export function validateRegistration(input: RegistrationInput): RegistrationError[] {
   const errors: RegistrationError[] = [];

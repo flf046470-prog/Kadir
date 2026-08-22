@@ -94,9 +94,15 @@ export const defaultVisibility: ProfileVisibility = {
   relationshipGoal: "everyone"
 };
 
-/** Whether `viewer` may see `field` on `subject`. */
+/**
+ * Whether `viewer` may see `field` on `subject`.
+ *
+ * Takes anything carrying visibility settings, not a full `MatchProfile`: the
+ * display loader answers the same question about the same settings, and one
+ * implementation is the only way the two stay consistent.
+ */
 export function canSee(
-  subject: MatchProfile,
+  subject: { visibility: ProfileVisibility },
   field: keyof ProfileVisibility,
   isMutualMatch: boolean
 ): boolean {

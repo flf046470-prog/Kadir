@@ -454,6 +454,19 @@
       "international_dating": "Uluslararası tanışma",
       "friendship": "Arkadaşlık",
       "language_exchange": "Dil değişimi"
+    },
+    "reasons": {
+      "relationship_goal": "İlişki hedefi",
+      "match_intent": "İkinizin de aradığı",
+      "interests": "Ortak ilgi alanları",
+      "lifestyle": "Yaşam tarzı",
+      "communication": "İletişim tarzı",
+      "language": "Ortak dil",
+      "language_exchange": "Dil değişimi",
+      "location": "Konum",
+      "travel": "Seyahat planları",
+      "culture": "Kültür",
+      "ideal_date": "İdeal buluşma"
     }
   },
   "games": {
@@ -652,6 +665,8 @@
     "filterApply": "Filtreleri uygula",
     "filterReset": "Temizle",
     "filterActive": "Filtreler açık",
-    "filterNone": "Filtre yok"
+    "filterNone": "Filtre yok",
+    "cardSpeaks": "Konuştuğu diller",
+    "cardNoBio": "Henüz biyografi yok."
   }
 }

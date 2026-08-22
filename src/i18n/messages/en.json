@@ -454,6 +454,19 @@
       "international_dating": "International dating",
       "friendship": "Friendship",
       "language_exchange": "Language exchange"
+    },
+    "reasons": {
+      "relationship_goal": "Relationship goal",
+      "match_intent": "What you're both looking for",
+      "interests": "Shared interests",
+      "lifestyle": "Lifestyle",
+      "communication": "Communication style",
+      "language": "Shared language",
+      "language_exchange": "Language exchange",
+      "location": "Location",
+      "travel": "Travel plans",
+      "culture": "Culture",
+      "ideal_date": "Ideal date"
     }
   },
   "games": {
@@ -652,6 +665,8 @@
     "filterApply": "Apply filters",
     "filterReset": "Clear",
     "filterActive": "Filters on",
-    "filterNone": "No filters"
+    "filterNone": "No filters",
+    "cardSpeaks": "Speaks",
+    "cardNoBio": "No bio yet."
   }
 }

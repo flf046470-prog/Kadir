@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useLocale, useTranslations } from "next-intl";
+import { placeLabel } from "@/lib/countries-data";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import { filtersToParams, isDefault, type DiscoveryFilters } from "@/lib/matching/filters";
 import { Filters, type FilterLabels } from "./Filters";
@@ -12,8 +14,26 @@ type Compatibility =
 
 type Photo = { id: string; url: string; width: number; height: number };
 
+/**
+ * The display side of a candidate. Fields the member chose to hide arrive as
+ * null or empty — the server applies visibility, so there is nothing here the
+ * viewer is not allowed to see.
+ */
+type ProfileCard = {
+  id: string;
+  displayName: string;
+  age: number | null;
+  bio: string | null;
+  cityId: string | null;
+  countryId: string | null;
+  relationshipGoal: string | null;
+  languagesSpoken: string[];
+  interests: string[];
+};
+
 type Suggestion = {
   profileId: string;
+  profile: ProfileCard | null;
   score: number;
   compatibility: Compatibility;
   reasons: Reason[];
@@ -31,6 +51,8 @@ type Labels = {
   loading: string;
   modeLabel: string;
   potential: string;
+  speaks: string;
+  noBio: string;
   bands: { strong: string; promising: string; exploring: string };
 };
 
@@ -50,6 +72,8 @@ export function DiscoverClient({
   filterLabels: FilterLabels;
   initialFilters: DiscoveryFilters;
 }) {
+  const taxonomy = useTranslations("taxonomy");
+  const locale = useLocale();
   const [mode, setMode] = useState<DiscoveryModeId>("local");
   const [filters, setFilters] = useState<DiscoveryFilters>(initialFilters);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -166,6 +190,10 @@ export function DiscoverClient({
             />
           )}
           <div className="p-8">
+          {current.profile && (
+            <ProfileHeader profile={current.profile} labels={labels} taxonomy={taxonomy} />
+          )}
+
           <CompatibilityLine
             compatibility={current.compatibility}
             potentialLabel={labels.potential}
@@ -180,8 +208,11 @@ export function DiscoverClient({
                   ✓
                 </span>
                 <span>
-                  {reason.id.replace(/_/g, " ")}
-                  {reason.values.length > 0 && `: ${reason.values.join(", ")}`}
+                  {taxonomy(`reasons.${reason.id}`)}
+                  {reason.values.length > 0 &&
+                    `: ${reason.values
+                      .map((value) => reasonValueLabel(reason.id, value, taxonomy, locale))
+                      .join(", ")}`}
                 </span>
               </li>
             ))}
@@ -225,6 +256,96 @@ export function DiscoverClient({
  * confidence is too low — never as a bare percentage implying precision we
  * don't have.
  */
+type Translator = (key: string) => string;
+
+/**
+ * Who the viewer is deciding about.
+ *
+ * A card without a name, an age, or a face is a decision made on statistics
+ * alone — this is the part that makes the reasons underneath mean something.
+ * Location is shown at city level and only when the member publishes it; there
+ * is no precise location anywhere in the payload to show.
+ */
+function ProfileHeader({
+  profile,
+  labels,
+  taxonomy
+}: {
+  profile: ProfileCard;
+  labels: Labels;
+  taxonomy: Translator;
+}) {
+  const locale = useLocale();
+  const place = [profile.cityId, profile.countryId]
+    .filter((id): id is string => Boolean(id))
+    .map(placeLabel)
+    .join(", ");
+
+  return (
+    <header>
+      <h2 className="font-display text-2xl font-semibold text-ink">
+        {profile.displayName}
+        {profile.age !== null && <span className="font-normal text-ink/70">, {profile.age}</span>}
+      </h2>
+
+      {place && <p className="mt-1 text-sm text-ink/60">{place}</p>}
+
+      {profile.relationshipGoal && (
+        <p className="mt-3">
+          <span className="rounded-full bg-bloom-50 px-3 py-1 text-xs font-medium text-bloom-700">
+            {taxonomy(`relationshipGoals.${profile.relationshipGoal}`)}
+          </span>
+        </p>
+      )}
+
+      <p className="mt-4 whitespace-pre-line text-sm text-ink/80">
+        {profile.bio?.trim() ? profile.bio : <span className="text-ink/40">{labels.noBio}</span>}
+      </p>
+
+      {profile.languagesSpoken.length > 0 && (
+        <p className="mt-3 text-xs text-ink/50">
+          {labels.speaks}: {profile.languagesSpoken.map((tag) => languageName(tag, locale)).join(", ")}
+        </p>
+      )}
+
+      <hr className="mt-6 border-black/5" />
+    </header>
+  );
+}
+
+/**
+ * Language tags are stored as codes and read as names, in the viewer's own
+ * language. `Intl.DisplayNames` knows every tag we accept, and an unknown one
+ * falls back to the code rather than to nothing.
+ */
+function languageName(tag: string, locale: string): string {
+  try {
+    return new Intl.DisplayNames([locale], { type: "language" }).of(tag) ?? tag.toUpperCase();
+  } catch {
+    return tag.toUpperCase();
+  }
+}
+
+/**
+ * Reason evidence is stored as ids, so it is translated the same way the rest
+ * of the vocabulary is. Free-text evidence (interests a member typed) has no
+ * translation and is shown as written.
+ */
+function reasonValueLabel(
+  reasonId: string,
+  value: string,
+  taxonomy: Translator,
+  locale: string
+): string {
+  if (reasonId === "relationship_goal") return taxonomy(`relationshipGoals.${value}`);
+  if (reasonId === "match_intent") return taxonomy(`matchIntents.${value}`);
+  if (reasonId === "location") return placeLabel(value);
+  if (reasonId === "language" || reasonId === "language_exchange") {
+    return languageName(value, locale);
+  }
+  return value;
+}
+
 function CompatibilityLine({
   compatibility,
   potentialLabel,
