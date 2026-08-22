@@ -36,6 +36,13 @@ export const users = pgTable(
     birthdate: date("birthdate").notNull(),
     displayName: text("display_name").notNull(),
     locale: text("locale").notNull().default("en"),
+    /**
+     * member | moderator | admin. Granted out of band (a migration or an admin
+     * action), never self-service — a role a member can set is not a role.
+     */
+    role: text("role").notNull().default("member"),
+    /** Set when a moderator suspends the account; blocks login and Discover. */
+    suspendedAt: timestamp("suspended_at", { withTimezone: true }),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     phoneVerifiedAt: timestamp("phone_verified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -330,6 +337,43 @@ export const reports = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [index("reports_stage_idx").on(table.stage)]
+);
+
+/**
+ * Audit log of moderator actions.
+ *
+ * Every enforcement decision writes a row here, including dismissals. A
+ * moderation system where you cannot tell who acted, on whom, and why is not
+ * accountable — this table is what makes an appeal, an internal review, or a
+ * regulator's question answerable.
+ *
+ * Rows are append-only and deliberately survive the *subject's* deletion, so
+ * the record of a decision does not vanish with the account it was about; the
+ * subject reference is nulled instead. Deleting a moderator's own account also
+ * keeps their action history, for the same reason.
+ */
+export const moderationActions = pgTable(
+  "moderation_actions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** Null once the acting moderator's account is deleted. */
+    moderatorId: uuid("moderator_id").references(() => users.id, { onDelete: "set null" }),
+    /** Null once the subject's account is deleted. */
+    subjectUserId: uuid("subject_user_id").references(() => users.id, { onDelete: "set null" }),
+    /** photo | report | risk_assessment | account */
+    targetType: text("target_type").notNull(),
+    /** Id of the photo/report/assessment acted on, when applicable. */
+    targetId: text("target_id"),
+    /** approve | reject | dismiss | suspend | reinstate */
+    action: text("action").notNull(),
+    /** Free-text rationale. Required for anything punitive. */
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    index("moderation_actions_subject_idx").on(table.subjectUserId, table.createdAt),
+    index("moderation_actions_moderator_idx").on(table.moderatorId, table.createdAt)
+  ]
 );
 
 /** Learned signal weight multipliers, from volunteered pass feedback only. */

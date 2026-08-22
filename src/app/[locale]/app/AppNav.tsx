@@ -5,11 +5,19 @@ import { useRouter } from "@/i18n/navigation";
 export function AppNav({
   locale,
   displayName,
+  isModerator = false,
   labels
 }: {
   locale: string;
   displayName: string;
-  labels: { discover: string; matches: string; profile: string; logout: string };
+  isModerator?: boolean;
+  labels: {
+    discover: string;
+    matches: string;
+    profile: string;
+    moderation: string;
+    logout: string;
+  };
 }) {
   const router = useRouter();
 
@@ -30,6 +38,14 @@ export function AppNav({
       <a href={`/${locale}/app/profile`} className="font-medium text-ink/70 hover:text-ink">
         {labels.profile}
       </a>
+      {isModerator && (
+        <a
+          href={`/${locale}/app/moderation`}
+          className="font-medium text-bloom-600 hover:text-bloom-700"
+        >
+          {labels.moderation}
+        </a>
+      )}
       <span className="hidden text-ink/40 sm:inline">{displayName}</span>
       <button type="button" onClick={handleLogout} className="text-ink/60 hover:text-ink">
         {labels.logout}

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/auth/guard";
+import { currentModerator } from "@/auth/moderator";
 import { Logo } from "@/components/Logo";
 import { AppNav } from "./AppNav";
 
@@ -25,6 +26,9 @@ export default async function AppLayout({
   const user = await currentUser();
   if (!user) redirect(`/${locale}/login`);
 
+  // The link only renders for moderators; the page and API enforce it again.
+  const moderator = await currentModerator();
+
   const t = await getTranslations({ locale, namespace: "app" });
 
   return (
@@ -37,10 +41,12 @@ export default async function AppLayout({
           <AppNav
             locale={locale}
             displayName={user.displayName}
+            isModerator={moderator !== null}
             labels={{
               discover: t("discoverTitle"),
               matches: t("matchesTitle"),
               profile: t("profileTitle"),
+              moderation: t("moderationTitle"),
               logout: t("logout")
             }}
           />

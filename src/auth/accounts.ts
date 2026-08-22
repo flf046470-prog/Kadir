@@ -158,15 +158,21 @@ export async function authenticate(
   password: string
 ): Promise<{ userId: string } | null> {
   const rows = await db
-    .select({ id: users.id, passwordHash: users.passwordHash, deletedAt: users.deletedAt })
+    .select({
+      id: users.id,
+      passwordHash: users.passwordHash,
+      deletedAt: users.deletedAt,
+      suspendedAt: users.suspendedAt
+    })
     .from(users)
     .where(eq(users.email, normalizeEmail(email)))
     .limit(1);
 
   const row = rows[0];
 
-  if (!row || row.deletedAt) {
-    // Burn equivalent time so a miss is indistinguishable from a wrong password.
+  // Deleted and suspended accounts fail exactly like a wrong password, and take
+  // the same time to do it — the response must not reveal an account's state.
+  if (!row || row.deletedAt || row.suspendedAt) {
     await verifyPassword(await dummyHash(), password);
     return null;
   }

@@ -638,6 +638,7 @@
     "photoUnsupported": "Lütfen JPEG, PNG veya WebP bir görsel yükle.",
     "photoTooSmall": "Bu görsel çok küçük (en az 200×200).",
     "photoTooMany": "Fotoğraf sınırına ulaştın.",
-    "photoFailed": "Yükleme başarısız. Lütfen tekrar dene."
+    "photoFailed": "Yükleme başarısız. Lütfen tekrar dene.",
+    "moderationTitle": "Moderasyon"
   }
 }
