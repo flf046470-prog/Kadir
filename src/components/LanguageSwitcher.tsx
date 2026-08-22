@@ -39,16 +39,19 @@ function Select({
         aria-label="Select language"
         value={locale}
         onChange={(e) => onChange(e.target.value)}
-        className="cursor-pointer appearance-none rounded-full border border-black/10 bg-white py-2 pl-3 pr-7 text-sm font-medium text-ink hover:border-black/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-bloom-400"
+        /* Inherits the header's colour so it works on both the transparent
+           and the solid state. `bg-transparent` keeps the dark hero visible
+           behind it; the option list is painted by the OS regardless. */
+        className="cursor-pointer appearance-none rounded-full border border-current/25 bg-transparent py-2 pl-3 pr-7 text-sm font-medium text-current transition hover:border-current/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-bloom-400"
       >
         {locales.map((l) => (
-          <option key={l} value={l}>
+          <option key={l} value={l} className="text-ink">
             {compact ? l.toUpperCase() : localeNames[l]}
           </option>
         ))}
       </select>
       <svg
-        className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink/50"
+        className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 opacity-60"
         viewBox="0 0 20 20"
         fill="currentColor"
         aria-hidden="true"

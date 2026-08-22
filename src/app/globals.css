@@ -28,3 +28,126 @@
     @apply text-xs font-semibold uppercase tracking-[0.16em] text-bloom-600;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Atmosphere and cinematic motion.
+
+   The visual register here is atmospheric light rather than flat colour: two
+   large, soft light sources sit behind the content and drift at different rates
+   as the page scrolls, which separates foreground from background the way a
+   camera move does.
+
+   Everything animates only `transform`, `opacity`, and `filter` so it stays on
+   the compositor. Nothing here moves layout, because the marketing pages are
+   the SEO surface and a shifted heading is a failed Core Web Vital.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  .fm-glow {
+    position: absolute;
+    border-radius: 9999px;
+    /* A soft-edged radial reads as light; a hard-edged one reads as a shape. */
+    filter: blur(80px);
+    opacity: 0.5;
+    will-change: transform;
+  }
+
+  .fm-glow--warm {
+    top: -18%;
+    left: -10%;
+    width: 60vw;
+    height: 60vw;
+    max-width: 780px;
+    max-height: 780px;
+    background: radial-gradient(circle, rgba(251, 111, 146, 0.55), rgba(251, 111, 146, 0) 68%);
+    /* The two layers drift at different rates — that difference is the depth. */
+    transform: translate3d(0, calc(var(--drift, 0) * 70px), 0);
+  }
+
+  .fm-glow--cool {
+    right: -14%;
+    bottom: -24%;
+    width: 68vw;
+    height: 68vw;
+    max-width: 860px;
+    max-height: 860px;
+    background: radial-gradient(circle, rgba(131, 96, 245, 0.5), rgba(131, 96, 245, 0) 70%);
+    transform: translate3d(0, calc(var(--drift, 0) * -110px), 0);
+  }
+
+  /* A dark stage for sections that should feel lit rather than printed. */
+  .fm-stage {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(131, 96, 245, 0.28), transparent 60%),
+      linear-gradient(180deg, #1a0f42 0%, #171123 55%, #120d1c 100%);
+    color: #f4f2ff;
+  }
+
+  /* Fine grain. Without it, large gradients band visibly on 8-bit displays —
+     the noise dithers the ramp and is what keeps the light looking filmic. */
+  .fm-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.35;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* Surreal transition: sections dissolve into each other instead of butting
+     up against a hard edge. The mask fades the section's own top and bottom,
+     so no seam is visible whatever colour follows. */
+  .fm-dissolve {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 7%,
+      #000 93%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 93%, transparent 100%);
+  }
+
+  /* Content sits above the atmosphere layer. */
+  .fm-above {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Slow, continuous breathing for a single hero accent. Used once per page at
+     most — repeated, it stops reading as atmosphere and starts as noise. */
+  .fm-breathe {
+    animation: fm-breathe 14s ease-in-out infinite;
+  }
+}
+
+@keyframes fm-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.68;
+  }
+}
+
+/* Reduced motion means none, not less. Drift, breathing, and reveal transitions
+   all stop; the colour and depth remain, because those carry meaning and cause
+   no vestibular problem. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-glow--warm,
+  .fm-glow--cool {
+    transform: none !important;
+  }
+
+  .fm-breathe {
+    animation: none !important;
+  }
+}
