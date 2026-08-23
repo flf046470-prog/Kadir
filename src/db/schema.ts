@@ -406,3 +406,43 @@ export const dailySuggestions = pgTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.forDate, table.suggestedUserId] })]
 );
+
+/**
+ * Match Games.
+ *
+ * One row per session between a matched pair. The rounds live as JSON because
+ * their shape belongs to the game engine, not to the database: a two-option
+ * round, a free-text round and a Two Truths round have genuinely different
+ * fields, and modelling that relationally would mean three tables and a join
+ * to answer "what is the state of this game?".
+ *
+ * Player slots map to the match's own ordered pair — `user_a_id` is always
+ * slot "a" — so a slot means the same thing whoever opened the invite, and a
+ * rematch cannot silently swap the two members' answers.
+ */
+export const gameSessions = pgTable(
+  "game_sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    /** Who opened the invite. The other member is the one who accepts. */
+    invitedBy: uuid("invited_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** this_or_that | would_you_rather | quick_questions | guess_my_answer | two_truths */
+    game: text("game").notNull(),
+    /** invited | active | completed | declined | ended */
+    status: text("status").notNull().default("invited"),
+    targetRounds: integer("target_rounds").notNull(),
+    /** `Round[]` as JSON. The engine owns the shape; this is storage. */
+    rounds: text("rounds").notNull().default("[]"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    // "What is happening on this match?" is the only query the UI makes.
+    index("game_sessions_match_idx").on(table.matchId, table.status)
+  ]
+);
