@@ -319,7 +319,8 @@
     "signUpLink": "Ücretsiz kaydol",
     "logInLink": "Giriş yap",
     "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun.",
-    "countryLabel": "Ülke"
+    "countryLabel": "Ülke",
+    "referredBy": "Davet kodu"
   },
   "matching": {
     "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",
@@ -616,6 +617,29 @@
       "heldForReview": "Bu davet ekibimiz tarafından inceleniyor.",
       "monthlyCapReached": "Bu ayki ödül sınırına ulaştın — ek davetler manuel olarak inceleniyor.",
       "rejected": "Bu davet geçerli değil."
+    },
+    "yourCode": "Kodunuz",
+    "yourLink": "Davet bağlantınız",
+    "copy": "Bağlantıyı kopyala",
+    "copied": "Kopyalandı",
+    "walletEmpty": "Henüz kullanılacak bir ödül yok. Arkadaşınız koşulları tamamlayınca burada görünür.",
+    "statusTitle": "Davetleriniz",
+    "statusEmpty": "Bağlantınızla henüz kimse kaydolmadı.",
+    "capNote": "Bu ay {cap} ödüllü davetin {used} tanesi kullanıldı.",
+    "countGranted": "Ödüllendirilen",
+    "countPending": "Devam eden",
+    "countTotal": "Toplam",
+    "qualifyNote": "Ödül; arkadaşınız e-postasını ve telefonunu doğrulayıp profilini tamamladıktan ve FioreMatch'i birkaç ayrı gün kullandıktan sonra açılır.",
+    "reward": {
+      "superLike": "Super Like",
+      "boost": "Boost",
+      "premiumTrial": "Premium deneme"
+    },
+    "status": {
+      "granted": "Ödüllendirildi",
+      "pendingQualification": "Devam ediyor",
+      "heldForReview": "İncelemede",
+      "rejected": "Uygun değil"
     }
   },
   "app": {
@@ -689,6 +713,7 @@
     "filterActive": "Filtreler açık",
     "filterNone": "Filtre yok",
     "cardSpeaks": "Konuştuğu diller",
-    "cardNoBio": "Henüz biyografi yok."
+    "cardNoBio": "Henüz biyografi yok.",
+    "referralNav": "Davet et"
   }
 }

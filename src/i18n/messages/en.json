@@ -319,7 +319,8 @@
     "signUpLink": "Sign up free",
     "logInLink": "Log in",
     "termsAgree": "By continuing, you agree to our Terms of Service and acknowledge our Privacy Policy.",
-    "countryLabel": "Country"
+    "countryLabel": "Country",
+    "referredBy": "Invited with code"
   },
   "matching": {
     "title": "How FioreMatch matching actually works",
@@ -616,6 +617,29 @@
       "heldForReview": "This referral is being reviewed by our team.",
       "monthlyCapReached": "You've reached this month's reward limit — additional referrals are reviewed manually.",
       "rejected": "This referral doesn't qualify."
+    },
+    "yourCode": "Your code",
+    "yourLink": "Your invite link",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "walletEmpty": "Nothing to spend yet. Rewards appear here once a friend qualifies.",
+    "statusTitle": "Your invites",
+    "statusEmpty": "Nobody has signed up with your link yet.",
+    "capNote": "{used} of {cap} rewarded referrals used this month.",
+    "countGranted": "Rewarded",
+    "countPending": "In progress",
+    "countTotal": "Total",
+    "qualifyNote": "A reward unlocks once your friend has verified their email and phone, completed a profile, and used FioreMatch on a few separate days.",
+    "reward": {
+      "superLike": "Super Like",
+      "boost": "Boost",
+      "premiumTrial": "Premium trial"
+    },
+    "status": {
+      "granted": "Rewarded",
+      "pendingQualification": "In progress",
+      "heldForReview": "Under review",
+      "rejected": "Not eligible"
     }
   },
   "app": {
@@ -689,6 +713,7 @@
     "filterActive": "Filters on",
     "filterNone": "No filters",
     "cardSpeaks": "Speaks",
-    "cardNoBio": "No bio yet."
+    "cardNoBio": "No bio yet.",
+    "referralNav": "Invite"
   }
 }

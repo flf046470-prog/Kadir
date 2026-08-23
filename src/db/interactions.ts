@@ -3,6 +3,7 @@ import { db } from "./client";
 import { likes, matches, blocks } from "./schema";
 import type { PassReasonId } from "@/lib/domain/taxonomies";
 import { recordPassFeedback } from "./signal-weights";
+import { advisoryLockKey } from "./advisory-lock";
 
 /**
  * Like / Pass / Super Like, and the match they can create.
@@ -40,17 +41,7 @@ function orderPair(a: string, b: string): [string, string] {
  * unrelated likes wait briefly on each other, never produce a wrong result.
  */
 function pairLockKey(userAId: string, userBId: string): bigint {
-  const input = `${userAId}:${userBId}`;
-  let hash = 0xcbf29ce484222325n;
-  const prime = 0x100000001b3n;
-  const mask = (1n << 64n) - 1n;
-
-  for (let i = 0; i < input.length; i++) {
-    hash = ((hash ^ BigInt(input.charCodeAt(i))) * prime) & mask;
-  }
-
-  // pg advisory locks take a signed bigint.
-  return hash >= 1n << 63n ? hash - (1n << 64n) : hash;
+  return advisoryLockKey(`${userAId}:${userBId}`);
 }
 
 export async function recordLike(

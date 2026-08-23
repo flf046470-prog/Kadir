@@ -4,6 +4,7 @@ import { register } from "@/auth/accounts";
 import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/auth/session";
 import { apiError } from "@/auth/guard";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { attachReferral } from "@/db/referral";
 
 export async function POST(request: NextRequest) {
   // Registration is the cheapest endpoint to abuse for account farming.
@@ -34,6 +35,18 @@ export async function POST(request: NextRequest) {
 
   if (!result.ok) {
     return NextResponse.json({ error: "validation_failed", errors: result.errors }, { status: 400 });
+  }
+
+  // A referral is credited after the account exists, and never at its expense:
+  // a bad code, a duplicate, or a database hiccup here must not cost someone
+  // the account they just created. The outcome is not reported back either —
+  // whether a code was valid is the referrer's business, not a signup error.
+  if (typeof input.referralCode === "string" && input.referralCode.trim() !== "") {
+    try {
+      await attachReferral(result.userId, input.referralCode);
+    } catch (error) {
+      console.error("Referral attach failed for a new member", error);
+    }
   }
 
   const session = await createSession(result.userId);

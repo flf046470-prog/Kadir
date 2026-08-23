@@ -11,6 +11,7 @@ type Labels = {
   country?: string;
   submit: string;
   termsAgree?: string;
+  referredBy?: string;
 };
 
 type FieldError = { field: string; code: string };
@@ -22,11 +23,21 @@ type FieldError = { field: string; code: string };
 export function AuthForm({
   mode,
   labels,
-  locale
+  locale,
+  /**
+   * A referral code from the invite link, already validated for *shape* on the
+   * server. It travels in the URL only — there is no cookie following someone
+   * around the marketing pages — so a visitor who wanders off the invite link
+   * before signing up simply is not credited. That is the conservative trade,
+   * and it is the reason the code is shown rather than hidden: the referee can
+   * see what is being attributed.
+   */
+  referralCode
 }: {
   mode: "login" | "register";
   labels: Labels;
   locale: string;
+  referralCode?: string;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -53,7 +64,8 @@ export function AuthForm({
             displayName: form.get("name"),
             birthdate: form.get("birthdate"),
             countryId: form.get("country"),
-            locale
+            locale,
+            referralCode
           };
 
     try {
@@ -103,6 +115,13 @@ export function AuthForm({
         autoComplete={mode === "login" ? "current-password" : "new-password"}
         error={errorFor("password")}
       />
+
+      {mode === "register" && referralCode && labels.referredBy && (
+        <p className="rounded-lg bg-bloom-50 px-3 py-2 text-xs text-bloom-700">
+          {labels.referredBy}{" "}
+          <span className="font-mono font-semibold tracking-wider">{referralCode}</span>
+        </p>
+      )}
 
       <button type="submit" className="btn-primary w-full" disabled={pending}>
         {pending ? "…" : labels.submit}

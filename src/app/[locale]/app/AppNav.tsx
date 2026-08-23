@@ -15,6 +15,7 @@ export function AppNav({
     dailyFive: string;
     discover: string;
     matches: string;
+    referral: string;
     profile: string;
     moderation: string;
     logout: string;
@@ -38,6 +39,9 @@ export function AppNav({
       </a>
       <a href={`/${locale}/app/matches`} className="font-medium text-ink/70 hover:text-ink">
         {labels.matches}
+      </a>
+      <a href={`/${locale}/app/referral`} className="font-medium text-ink/70 hover:text-ink">
+        {labels.referral}
       </a>
       <a href={`/${locale}/app/profile`} className="font-medium text-ink/70 hover:text-ink">
         {labels.profile}

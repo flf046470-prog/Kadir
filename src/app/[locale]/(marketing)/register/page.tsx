@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { buildMetadata } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
 import { AuthForm } from "../AuthForm";
+import { normalizeCode } from "@/lib/referral/codes";
 
 export async function generateMetadata({
   params
@@ -21,12 +22,19 @@ export async function generateMetadata({
 }
 
 export default async function RegisterPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "auth" });
+
+  // Normalised here so a code typed with confusable characters, or pasted with
+  // stray spacing, is shown back in the form exactly as it will be stored.
+  const raw = (await searchParams).ref;
+  const referralCode = typeof raw === "string" ? (normalizeCode(raw) ?? undefined) : undefined;
 
   return (
     <section className="bg-aurora flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
@@ -37,6 +45,7 @@ export default async function RegisterPage({
         <AuthForm
           mode="register"
           locale={locale}
+          referralCode={referralCode}
           labels={{
             name: t("nameLabel"),
             email: t("emailLabel"),
@@ -44,7 +53,8 @@ export default async function RegisterPage({
             birthdate: t("birthdateLabel"),
             country: t("countryLabel"),
             submit: t("registerButton"),
-            termsAgree: t("termsAgree")
+            termsAgree: t("termsAgree"),
+            referredBy: t("referredBy")
           }}
         />
 

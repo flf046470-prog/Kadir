@@ -46,6 +46,7 @@ export default async function AppLayout({
               dailyFive: t("dailyFiveNav"),
               discover: t("discoverTitle"),
               matches: t("matchesTitle"),
+              referral: t("referralNav"),
               profile: t("profileTitle"),
               moderation: t("moderationTitle"),
               logout: t("logout")

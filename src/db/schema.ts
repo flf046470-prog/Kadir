@@ -446,3 +446,95 @@ export const gameSessions = pgTable(
     index("game_sessions_match_idx").on(table.matchId, table.status)
   ]
 );
+
+/**
+ * Referral codes. One per member, minted on first request rather than at
+ * registration — most members never open the referral screen, and a code
+ * nobody has seen is a row nobody needs.
+ */
+export const referralCodes = pgTable(
+  "referral_codes",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Crockford Base32, always stored in the normalised (folded) form. */
+    code: text("code").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [uniqueIndex("referral_codes_code_unique").on(table.code)]
+);
+
+/**
+ * Who referred whom.
+ *
+ * Keyed by the *referee*, which is the anti-abuse constraint that matters: a
+ * person can be referred exactly once, ever, and the database enforces it
+ * rather than the application remembering to check. Re-entering a code later,
+ * or two tabs racing the same signup, cannot produce a second payout.
+ *
+ * Both sides cascade. A referral is a relationship between two accounts, so
+ * when either account is erased the relationship goes with it — unlike the
+ * reward ledger below, which is the referrer's own property.
+ */
+export const referrals = pgTable(
+  "referrals",
+  {
+    refereeId: uuid("referee_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    referrerId: uuid("referrer_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** The code as entered, after normalisation. Kept for support and audit. */
+    code: text("code").notNull(),
+    /** granted | pending_qualification | held_for_review | rejected */
+    outcome: text("outcome").notNull().default("pending_qualification"),
+    /** `FraudSignal[]` as JSON — what the decision saw, for a human reviewer. */
+    signals: text("signals").notNull().default("[]"),
+    signedUpAt: timestamp("signed_up_at", { withTimezone: true }).notNull().defaultNow(),
+    /** When the outcome last stopped being provisional. */
+    decidedAt: timestamp("decided_at", { withTimezone: true })
+  },
+  (table) => [
+    // "My referrals", the monthly cap, and the burst signal all read this.
+    index("referrals_referrer_idx").on(table.referrerId, table.signedUpAt),
+    index("referrals_outcome_idx").on(table.outcome)
+  ]
+);
+
+/**
+ * Rewards actually earned.
+ *
+ * A ledger, not a balance: rows are appended when a referral qualifies and
+ * stamped when the reward is spent. A balance column would have to be right
+ * after every concurrent grant and spend; a ledger is right by construction and
+ * can answer "where did this boost come from?" a year later.
+ *
+ * `refereeId` nulls rather than cascades on purpose. The reward belongs to the
+ * referrer and was genuinely earned; if the referee later deletes their
+ * account, erasure should remove the link to them, not confiscate someone
+ * else's boost.
+ */
+export const referralRewards = pgTable(
+  "referral_rewards",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The referrer — whoever the reward is spendable by. */
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    refereeId: uuid("referee_id").references(() => users.id, { onDelete: "set null" }),
+    /** boost | super_like | premium_trial */
+    rewardId: text("reward_id").notNull(),
+    quantity: integer("quantity").notNull(),
+    /** Premium trial only. */
+    trialDays: integer("trial_days"),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true })
+  },
+  (table) => [
+    // "What can I spend?" — the only hot query.
+    index("referral_rewards_wallet_idx").on(table.userId, table.consumedAt)
+  ]
+);
