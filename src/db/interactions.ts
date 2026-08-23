@@ -2,6 +2,7 @@ import { eq, and, sql } from "drizzle-orm";
 import { db } from "./client";
 import { likes, matches, blocks } from "./schema";
 import type { PassReasonId } from "@/lib/domain/taxonomies";
+import { recordPassFeedback } from "./signal-weights";
 
 /**
  * Like / Pass / Super Like, and the match they can create.
@@ -84,7 +85,13 @@ export async function recordLike(
       // Re-judging the same profile keeps the first decision rather than erroring.
       .onConflictDoNothing();
 
-    if (kind === "pass") return { matched: false, matchId: null };
+    if (kind === "pass") {
+      // Smart Match learns only from a reason the member chose to give. This
+      // rides the same transaction as the pass, so the feed can never reflect
+      // feedback for a pass that was rolled back.
+      if (passReason) await recordPassFeedback(fromUserId, passReason, tx);
+      return { matched: false, matchId: null };
+    }
 
     const reciprocal = await tx
       .select({ kind: likes.kind })

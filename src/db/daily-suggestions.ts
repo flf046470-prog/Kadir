@@ -9,6 +9,7 @@ import {
 } from "./profile-repository";
 import { loadProfileCards, type ProfileCard } from "./profile-cards";
 import { listVisiblePhotos } from "./photos";
+import { loadLearnedWeights } from "./signal-weights";
 import { selectTodaysFive } from "@/lib/matching/todays-five";
 import { locationContext } from "@/lib/matching/location-context";
 import type { MatchReason } from "@/lib/matching/reasons";
@@ -98,7 +99,10 @@ async function choose(userId: string, forDate: string): Promise<StoredRow[]> {
     viewer,
     candidates: [...candidates.values()],
     mode: DAILY_MODE,
-    locations
+    locations,
+    // The same learned multipliers Discover uses. A member who has taught the
+    // engine something should not have to teach it twice per screen.
+    learnedAdjustments: await loadLearnedWeights(userId)
   });
 
   const rows = chosen.map((suggestion, index) => ({

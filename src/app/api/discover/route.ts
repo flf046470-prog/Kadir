@@ -7,6 +7,7 @@ import {
   matchedUserIds
 } from "@/db/profile-repository";
 import { loadProfileCards } from "@/db/profile-cards";
+import { loadLearnedWeights } from "@/db/signal-weights";
 import { scoreMatch } from "@/lib/matching/score";
 import { listVisiblePhotos } from "@/db/photos";
 import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
@@ -58,9 +59,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ mode, results: [] });
   }
 
-  const [candidates, matchedIds] = await Promise.all([
+  // Smart Match: the viewer's learned multipliers ride along into scoring, so
+  // a member who keeps passing for one reason sees that dimension weighted
+  // harder — bounded by the engine, never enough to dominate.
+  const [candidates, matchedIds, learnedAdjustments] = await Promise.all([
     loadMatchProfiles(candidateIds),
-    matchedUserIds(auth.user.id)
+    matchedUserIds(auth.user.id),
+    loadLearnedWeights(auth.user.id)
   ]);
   const matched = new Set(matchedIds);
 
@@ -84,7 +89,8 @@ export async function GET(request: NextRequest) {
       mode: mode as DiscoveryModeId,
       location: locationContext(viewer.cityId, candidate.cityId, mode as DiscoveryModeId),
       // Drives whether "matches only" fields are visible to this viewer.
-      isMutualMatch: matched.has(candidate.id)
+      isMutualMatch: matched.has(candidate.id),
+      learnedAdjustments
     });
 
     return {

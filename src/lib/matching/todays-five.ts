@@ -1,6 +1,6 @@
 import type { DiscoveryModeId } from "../domain/taxonomies";
 import type { MatchProfile } from "../domain/profile";
-import { scoreMatch, type MatchScore } from "./score";
+import { scoreMatch, type MatchScore, type SignalWeights } from "./score";
 import { buildReasons, describeCompatibility, type MatchReason } from "./reasons";
 import type { LocationContext } from "./signals";
 
@@ -32,6 +32,12 @@ export type SelectionInput = {
   /** Ids already suggested, liked, passed, or blocked — never resurfaced today. */
   excludeIds?: Set<string>;
   limit?: number;
+  /**
+   * Smart Match multipliers for this viewer. Optional, because the selection
+   * must work for a member who has never given feedback — and because the
+   * engine stays a pure function either way.
+   */
+  learnedAdjustments?: SignalWeights;
 };
 
 export function selectTodaysFive(input: SelectionInput): Suggestion[] {
@@ -51,7 +57,8 @@ export function selectTodaysFive(input: SelectionInput): Suggestion[] {
       location: input.locations[candidate.id] ?? {
         approximateDistanceKm: null,
         maxDistanceKm: 1
-      }
+      },
+      learnedAdjustments: input.learnedAdjustments
     });
 
     if (result.lowConfidence) continue;
