@@ -608,6 +608,12 @@
   },
   "app": {
     "discoverTitle": "Discover",
+    "dailyFiveTitle": "Today's 5",
+    "dailyFiveSubtitle": "Five people chosen for you today — not a feed. Decide on each, and the list refreshes tomorrow.",
+    "dailyFiveEmpty": "No strong suggestions today. We would rather show you nothing than pad the list — check back tomorrow.",
+    "dailyFiveDone": "That's today's five. Come back tomorrow for a new set.",
+    "dailyFiveDecided": "Decided",
+    "dailyFiveNav": "Today's 5",
     "discoverEmpty": "No suggestions right now. Complete your profile, or widen your discovery mode.",
     "why": "Why you may match",
     "like": "Like",

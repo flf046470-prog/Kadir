@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { placeLabel } from "@/lib/countries-data";
+import {
+  languageName,
+  reasonValueLabel,
+  type Translator
+} from "@/lib/matching/reason-label";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import { filtersToParams, isDefault, type DiscoveryFilters } from "@/lib/matching/filters";
 import { Filters, type FilterLabels } from "./Filters";
@@ -256,7 +261,6 @@ export function DiscoverClient({
  * confidence is too low — never as a bare percentage implying precision we
  * don't have.
  */
-type Translator = (key: string) => string;
 
 /**
  * Who the viewer is deciding about.
@@ -311,39 +315,6 @@ function ProfileHeader({
       <hr className="mt-6 border-black/5" />
     </header>
   );
-}
-
-/**
- * Language tags are stored as codes and read as names, in the viewer's own
- * language. `Intl.DisplayNames` knows every tag we accept, and an unknown one
- * falls back to the code rather than to nothing.
- */
-function languageName(tag: string, locale: string): string {
-  try {
-    return new Intl.DisplayNames([locale], { type: "language" }).of(tag) ?? tag.toUpperCase();
-  } catch {
-    return tag.toUpperCase();
-  }
-}
-
-/**
- * Reason evidence is stored as ids, so it is translated the same way the rest
- * of the vocabulary is. Free-text evidence (interests a member typed) has no
- * translation and is shown as written.
- */
-function reasonValueLabel(
-  reasonId: string,
-  value: string,
-  taxonomy: Translator,
-  locale: string
-): string {
-  if (reasonId === "relationship_goal") return taxonomy(`relationshipGoals.${value}`);
-  if (reasonId === "match_intent") return taxonomy(`matchIntents.${value}`);
-  if (reasonId === "location") return placeLabel(value);
-  if (reasonId === "language" || reasonId === "language_exchange") {
-    return languageName(value, locale);
-  }
-  return value;
 }
 
 function CompatibilityLine({

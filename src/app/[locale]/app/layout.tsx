@@ -43,6 +43,7 @@ export default async function AppLayout({
             displayName={user.displayName}
             isModerator={moderator !== null}
             labels={{
+              dailyFive: t("dailyFiveNav"),
               discover: t("discoverTitle"),
               matches: t("matchesTitle"),
               profile: t("profileTitle"),

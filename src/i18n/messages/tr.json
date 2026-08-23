@@ -608,6 +608,12 @@
   },
   "app": {
     "discoverTitle": "Keşfet",
+    "dailyFiveTitle": "Günün 5'i",
+    "dailyFiveSubtitle": "Bugün senin için seçilen beş kişi — akış değil. Her biri için karar ver, liste yarın yenilenir.",
+    "dailyFiveEmpty": "Bugün güçlü bir öneri çıkmadı. Listeyi doldurmaktansa boş bırakmayı tercih ederiz — yarın tekrar bak.",
+    "dailyFiveDone": "Günün beşi bu kadar. Yeni bir set için yarın gel.",
+    "dailyFiveDecided": "Karar verildi",
+    "dailyFiveNav": "Günün 5'i",
     "discoverEmpty": "Şu an öneri yok. Profilini tamamla veya keşfetme modunu genişlet.",
     "why": "Neden eşleşebilirsiniz",
     "like": "Beğen",

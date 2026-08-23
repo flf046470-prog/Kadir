@@ -12,6 +12,7 @@ export function AppNav({
   displayName: string;
   isModerator?: boolean;
   labels: {
+    dailyFive: string;
     discover: string;
     matches: string;
     profile: string;
@@ -29,6 +30,9 @@ export function AppNav({
 
   return (
     <nav className="flex items-center gap-5 text-sm" aria-label="Account">
+      <a href={`/${locale}/app/daily-five`} className="font-medium text-ink/70 hover:text-ink">
+        {labels.dailyFive}
+      </a>
       <a href={`/${locale}/app/discover`} className="font-medium text-ink/70 hover:text-ink">
         {labels.discover}
       </a>

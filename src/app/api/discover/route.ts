@@ -13,6 +13,7 @@ import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import type { LocationContext } from "@/lib/matching/signals";
 import { parseFilters } from "@/lib/matching/filters";
+import { locationContext } from "@/lib/matching/location-context";
 
 /**
  * Discover — the matching engine running against real data.
@@ -99,26 +100,4 @@ export async function GET(request: NextRequest) {
   scored.sort((a, b) => b.score - a.score || a.profileId.localeCompare(b.profileId));
 
   return NextResponse.json({ mode, results: scored.slice(0, limit) });
-}
-
-/**
- * Distance context.
- *
- * We do not store coordinates, so there is no true distance to compute. Until a
- * geocoding service is wired in, "same city" is the only distance fact we
- * actually hold — and the engine is told distance is unknown rather than being
- * handed a fabricated number, which would silently corrupt every LOCAL score.
- */
-function locationContext(
-  viewerCityId: string | null,
-  candidateCityId: string | null,
-  mode: DiscoveryModeId
-): LocationContext {
-  const maxDistanceKm = mode === "local" ? 50 : mode === "country" ? 500 : 20_000;
-
-  if (viewerCityId && candidateCityId && viewerCityId === candidateCityId) {
-    return { approximateDistanceKm: 0, maxDistanceKm };
-  }
-
-  return { approximateDistanceKm: null, maxDistanceKm };
 }
