@@ -4,6 +4,9 @@ import { Link } from "@/i18n/navigation";
 import { JsonLd } from "@/components/JsonLd";
 import { Reveal } from "@/components/motion/Reveal";
 import { Atmosphere } from "@/components/motion/Atmosphere";
+import { ScrollScene } from "@/components/motion/ScrollScene";
+import { ScrubText } from "@/components/motion/ScrubText";
+import { StackCards } from "@/components/motion/StackCards";
 import { buildMetadata, softwareApplicationSchema, faqSchema } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
 
@@ -47,9 +50,12 @@ export default async function HomePage({
       <JsonLd data={softwareApplicationSchema(locale as Locale)} />
       <JsonLd data={faqSchema(faqs)} />
 
-      <section className="fm-stage fm-grain">
+      {/* The hero recedes rather than cuts: as the page leaves it, the whole
+          shot scales back a touch and fades, so the section below arrives over
+          it instead of after it. */}
+      <ScrollScene as="section" className="fm-stage fm-grain">
         <Atmosphere />
-        <div className="container-fm fm-above py-24 sm:py-32">
+        <div className="container-fm fm-above fm-scene-depart py-24 sm:py-32">
           <Reveal direction="none">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-bloom-300">
               {t("heroEyebrow")}
@@ -92,9 +98,24 @@ export default async function HomePage({
             ))}
           </div>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section className="container-fm py-20">
+      {/* The promise, scrubbed. The sentence *is* the section — it lights word
+          by word as you scroll it, so reading and scrolling become one act.
+          `span` finishes the reveal while the line is still centred rather than
+          on its way out of frame. */}
+      <ScrollScene as="section" span={0.62} className="container-fm py-28 sm:py-36">
+        <ScrubText
+          as="p"
+          className="mx-auto max-w-4xl text-center font-display text-3xl font-semibold leading-[1.25] text-ink sm:text-5xl"
+        >
+          {t("heroSubtitle")}
+        </ScrubText>
+      </ScrollScene>
+
+      {/* The three steps become a deck that gathers as you scroll, so the
+          sequence reads as accumulation rather than as three cards going past. */}
+      <section className="container-fm pb-28">
         <Reveal>
           <div className="max-w-2xl">
             <h2 className="font-display text-3xl font-semibold text-ink sm:text-4xl">
@@ -103,42 +124,50 @@ export default async function HomePage({
             <p className="mt-3 text-ink/70">{t("sectionHowSubtitle")}</p>
           </div>
         </Reveal>
-        <div className="mt-12 grid gap-8 md:grid-cols-3">
-          {steps.map((step, index) => (
-            <Reveal key={step.n} delay={index * 90}>
-              <div className="card-fm h-full">
-                <span className="font-display text-3xl text-bloom-300">{step.n}</span>
-                <h3 className="mt-4 text-lg font-semibold text-ink">{step.title}</h3>
-                <p className="mt-2 text-sm text-ink/70">{step.body}</p>
-              </div>
-            </Reveal>
+
+        <StackCards className="mt-12">
+          {steps.map((step) => (
+            <div
+              key={step.n}
+              className="card-fm border-black/[0.07] shadow-lg shadow-black/[0.06] sm:p-8"
+            >
+              <span className="font-display text-3xl text-bloom-300">{step.n}</span>
+              <h3 className="mt-4 text-xl font-semibold text-ink">{step.title}</h3>
+              <p className="mt-2 max-w-2xl text-ink/70">{step.body}</p>
+            </div>
           ))}
-        </div>
+        </StackCards>
       </section>
 
-      <section className="fm-stage fm-grain fm-dissolve py-24 text-white">
+      <ScrollScene as="section" className="fm-stage fm-grain fm-dissolve py-28 text-white">
         <Atmosphere />
-        <div className="container-fm fm-above grid gap-12 lg:grid-cols-2">
+        <div className="container-fm fm-above grid items-center gap-12 lg:grid-cols-2">
           <Reveal direction="right">
             <h2 className="font-display text-3xl font-semibold sm:text-4xl">{t("sectionAiTitle")}</h2>
             <p className="mt-4 text-dusk-100">{t("sectionAiBody")}</p>
           </Reveal>
+
+          {/* The card rides slightly against the scroll. The offset between it
+              and the heading beside it is what the eye reads as depth. */}
           <Reveal direction="left" delay={120}>
-          <div className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-bloom-300">
-              Why we think you may match
-            </p>
-            <ul className="mt-4 space-y-3 text-sm text-dusk-100">
-              <li>• You both speak English and Spanish, and list travel as a top interest.</li>
-              <li>• Same relationship intent: long-term.</li>
-              <li>• Overlapping active hours and a 12km radius.</li>
-            </ul>
-          </div>
+            <div
+              className="fm-scene-depth rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm"
+              style={{ "--depth": "-56px" } as React.CSSProperties}
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-bloom-300">
+                {t("matchCardTitle")}
+              </p>
+              <ul className="mt-4 space-y-3 text-sm text-dusk-100">
+                <li>• {t("matchCardReason1")}</li>
+                <li>• {t("matchCardReason2")}</li>
+                <li>• {t("matchCardReason3")}</li>
+              </ul>
+            </div>
           </Reveal>
         </div>
-      </section>
+      </ScrollScene>
 
-      <section className="container-fm py-20">
+      <section className="container-fm py-24">
         <div className="grid gap-10 md:grid-cols-2">
           <Reveal>
             <div className="card-fm h-full">

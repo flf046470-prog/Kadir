@@ -151,3 +151,86 @@
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Scroll-driven scenes.
+
+   `ScrollScene` publishes one number per section — `--scene`, 0 as it enters
+   from below, 1 as it leaves the top — and everything below is arithmetic on
+   that number. No effect here owns a scroll listener; they all read the one
+   the scene already pays for.
+
+   The same two rules as the atmosphere layer apply and are not negotiable:
+   only `transform`, `opacity` and `filter` are animated, and nothing moves
+   layout. A scrubbed margin would shift a heading mid-scroll, which is a
+   failed Core Web Vital on the pages the whole SEO strategy rests on.
+
+   Every rule defaults `--scene` to 1 — the finished state — so a section that
+   never receives a value renders as arrived rather than as a blank stage.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  /* Text that lights word by word. `--n` is the word count, `--i` the word's
+     index; a word is lit once the scene has travelled past its share of the
+     line. Unlit words stay legible rather than invisible — this is a change of
+     emphasis, not a reveal, and text that flashes in is text a reader loses. */
+  .fm-scrub__word {
+    display: inline-block;
+    opacity: clamp(0.22, calc(var(--scene, 1) * var(--n) - var(--i)), 1);
+    transform: translate3d(0, calc((1 - clamp(0, calc(var(--scene, 1) * var(--n) - var(--i)), 1)) * 6px), 0);
+    will-change: opacity, transform;
+  }
+
+  /* A deck that gathers instead of scrolling away. Each card sticks slightly
+     lower than the one before, so the pile fans. The offset clears the sticky
+     header before the first card lands. */
+  .fm-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .fm-stack__item {
+    position: sticky;
+    top: calc(5.5rem + var(--i) * 0.9rem);
+  }
+
+  /* The hero pulling back as you leave it: a slow scale-down and fade, the
+     shot receding rather than cutting. Scene sits near 0.5 for a hero resting
+     at the top of the page, so the departure is scaled from there. */
+  .fm-scene-depart {
+    opacity: clamp(0, calc((1 - var(--scene, 0.5)) * 2.6), 1);
+    transform: scale(calc(1 - (var(--scene, 0.5) - 0.5) * 0.12));
+    transform-origin: top center;
+    will-change: opacity, transform;
+  }
+
+  /* Depth: a layer that drifts against the scroll. Positive factors trail the
+     scroll, negative ones lead it; the difference between two layers is what
+     the eye reads as distance. */
+  .fm-scene-depth {
+    transform: translate3d(0, calc((var(--scene, 1) - 0.5) * var(--depth, 40px)), 0);
+    will-change: transform;
+  }
+}
+
+/* Reduced motion means none, not less. Every scene rule collapses to its
+   finished state: the words are lit, the deck is a plain column, the hero is
+   simply present. The layout is identical either way, so nothing reflows when
+   a reader flips the preference. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-scrub__word {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .fm-stack__item {
+    position: static !important;
+  }
+
+  .fm-scene-depart,
+  .fm-scene-depth {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
