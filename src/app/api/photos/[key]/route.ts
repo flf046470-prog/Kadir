@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/auth/guard";
 import { canServe } from "@/db/photos";
-import { storage } from "@/lib/storage/local";
+import { storage } from "@/lib/storage";
 
 /**
  * Serves a photo.

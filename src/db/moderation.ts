@@ -8,7 +8,7 @@ import {
   messageRiskAssessments,
   users
 } from "./schema";
-import { storage } from "@/lib/storage/local";
+import { storage } from "@/lib/storage";
 import { canTransition, type ModerationStage } from "@/lib/safety/scam-shield";
 
 /**

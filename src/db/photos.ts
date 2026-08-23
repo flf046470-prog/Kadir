@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import { photos } from "./schema";
-import { storage } from "@/lib/storage/local";
+import { storage } from "@/lib/storage";
 import { contentKey } from "@/lib/storage/driver";
 import { processUpload, type ProcessError } from "@/lib/photos/process";
 

@@ -14,7 +14,8 @@ import {
   MAX_PHOTOS_PER_USER
 } from "./photos";
 import { hasExif, processUpload, sniffFormat, MIN_DIMENSION } from "@/lib/photos/process";
-import { setStorageDriver, LocalStorageDriver } from "@/lib/storage/local";
+import { setStorageDriver } from "@/lib/storage";
+import { LocalStorageDriver } from "@/lib/storage/local";
 
 const TEST_ROOT = join(process.cwd(), ".storage-test");
 

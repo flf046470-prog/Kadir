@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import type { StorageDriver, StoredObject } from "./driver";
 
 /**
@@ -59,16 +59,4 @@ export class LocalStorageDriver implements StorageDriver {
   urlFor(key: string): string {
     return `/api/photos/${encodeURIComponent(key)}`;
   }
-}
-
-let driver: StorageDriver | null = null;
-
-export function storage(): StorageDriver {
-  driver ??= new LocalStorageDriver(process.env.STORAGE_ROOT ?? join(process.cwd(), ".storage"));
-  return driver;
-}
-
-/** Test hook, for swapping in a different driver. */
-export function setStorageDriver(next: StorageDriver | null): void {
-  driver = next;
 }
