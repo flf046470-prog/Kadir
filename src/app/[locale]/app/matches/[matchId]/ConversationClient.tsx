@@ -32,6 +32,11 @@ type Labels = {
   typing: string;
   seen: string;
   sent: string;
+  translate: string;
+  translating: string;
+  showOriginal: string;
+  translatedNote: string;
+  translateFailed: string;
 };
 
 /**
@@ -53,12 +58,15 @@ export function ConversationClient({
   partnerId,
   partnerName,
   locale,
+  translationAvailable,
   labels
 }: {
   matchId: string;
   partnerId: string;
   partnerName: string;
   locale: string;
+  /** False when no provider is configured, in which case there is no control. */
+  translationAvailable: boolean;
   labels: Labels;
 }) {
   const router = useRouter();
@@ -70,6 +78,9 @@ export function ConversationClient({
     partnerTyping: false,
     partnerLastSeenAt: null
   });
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translateOn, setTranslateOn] = useState(false);
+  const [translateState, setTranslateState] = useState<"idle" | "loading" | "failed">("idle");
   const endRef = useRef<HTMLDivElement>(null);
   const lastTypingPing = useRef(0);
 
@@ -142,6 +153,36 @@ export function ConversationClient({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, presence.partnerTyping]);
 
+  const partnerMessageCount = messages.filter((message) => !message.mine).length;
+
+  useEffect(() => {
+    if (!translateOn || partnerMessageCount === 0) return;
+
+    let cancelled = false;
+    setTranslateState("loading");
+
+    void (async () => {
+      try {
+        const response = await fetch(`/api/matches/${matchId}/translate?to=${locale}`);
+        if (!response.ok) throw new Error(String(response.status));
+        const body = await response.json();
+        if (cancelled) return;
+        setTranslations(body.translations ?? {});
+        setTranslateState(body.degraded ? "failed" : "idle");
+      } catch {
+        // The messages are unaffected — only the aid on top of them failed.
+        if (!cancelled) setTranslateState("failed");
+      }
+    })();
+
+    // Keyed on how many of the partner's messages exist rather than on the
+    // array: the poll replaces `messages` every couple of seconds, and
+    // re-running on identity would ask the server on every tick.
+    return () => {
+      cancelled = true;
+    };
+  }, [translateOn, partnerMessageCount, matchId, locale]);
+
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = draft.trim();
@@ -200,6 +241,20 @@ export function ConversationClient({
           <h1 className="mt-1 font-display text-2xl font-semibold text-ink">{partnerName}</h1>
         </div>
         <div className="flex gap-3 text-sm">
+          {translationAvailable && (
+            <button
+              type="button"
+              onClick={() => setTranslateOn((on) => !on)}
+              aria-pressed={translateOn}
+              className={translateOn ? "font-medium text-bloom-600" : "text-ink/60 hover:text-ink"}
+            >
+              {translateState === "loading" && translateOn
+                ? labels.translating
+                : translateOn
+                  ? labels.showOriginal
+                  : labels.translate}
+            </button>
+          )}
           <button type="button" onClick={() => handleReport()} className="text-ink/60 hover:text-ink">
             {labels.report}
           </button>
@@ -208,6 +263,12 @@ export function ConversationClient({
           </button>
         </div>
       </div>
+
+      {translateOn && (
+        <p className="mt-4 rounded-lg bg-dusk-50 p-3 text-xs text-ink/60" role="status">
+          {translateState === "failed" ? labels.translateFailed : labels.translatedNote}
+        </p>
+      )}
 
       {reported && (
         <p className="mt-4 rounded-lg bg-bloom-50 p-3 text-sm text-bloom-700" role="status">
@@ -240,8 +301,15 @@ export function ConversationClient({
                   : "bg-dusk-50 text-ink"
               }`}
             >
-              {message.body}
+              {translateOn && translations[message.id] ? translations[message.id] : message.body}
             </p>
+            {translateOn && translations[message.id] && (
+              // The original stays on screen under the translation. A machine
+              // translation of a message from someone you are getting to know
+              // is a guess, and hiding what they actually wrote makes that
+              // guess unfalsifiable.
+              <p className="mt-1 max-w-[80%] text-xs italic text-ink/45">{message.body}</p>
+            )}
             {message.id === lastMineId && (
               <p className="mt-1 text-right text-[11px] text-ink/45">
                 {message.readAt ? labels.seen : labels.sent}

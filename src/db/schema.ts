@@ -570,3 +570,32 @@ export const matchPresence = pgTable(
   },
   (table) => [primaryKey({ columns: [table.matchId, table.userId] })]
 );
+
+/**
+ * Cached machine translations of messages.
+ *
+ * A cache, not a column on `messages`, for three reasons. The conversation
+ * polls every couple of seconds and would otherwise re-bill a provider for
+ * text that has not changed; one message can be wanted in several languages at
+ * once; and translation is a derived artefact — losing this table costs money
+ * to rebuild, never data.
+ *
+ * Deliberately not part of the moderation surface: a translation is machine
+ * output *about* a message, and Scam Shield reads what the sender actually
+ * wrote.
+ */
+export const messageTranslations = pgTable(
+  "message_translations",
+  {
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    /** BCP-47 target, as the viewer's locale gives it. */
+    targetLanguage: text("target_language").notNull(),
+    body: text("body").notNull(),
+    /** Which provider produced this, so a switch is traceable in the data. */
+    provider: text("provider").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [primaryKey({ columns: [table.messageId, table.targetLanguage] })]
+);

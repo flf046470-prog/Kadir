@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
+import { translationEnabled } from "@/lib/translate";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,9 @@ export default async function ConversationPage({
       partnerId={match.partnerId}
       partnerName={partnerRows[0]?.displayName ?? ""}
       locale={locale}
+      // Resolved on the server: with no provider configured there is no
+      // control at all, rather than a button that fails when pressed.
+      translationAvailable={translationEnabled()}
       labels={{
         placeholder: t("sendPlaceholder"),
         send: t("send"),
@@ -56,7 +60,12 @@ export default async function ConversationPage({
         scamWarningBody: t("scamWarningBody"),
         typing: t("typingIndicator"),
         seen: t("messageSeen"),
-        sent: t("messageSent")
+        sent: t("messageSent"),
+        translate: t("translate"),
+        translating: t("translating"),
+        showOriginal: t("showOriginal"),
+        translatedNote: t("translatedNote"),
+        translateFailed: t("translateFailed")
       }}
       />
 

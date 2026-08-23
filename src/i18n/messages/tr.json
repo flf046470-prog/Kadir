@@ -717,6 +717,11 @@
     "referralNav": "Davet et",
     "typingIndicator": "yazıyor…",
     "messageSeen": "Görüldü",
-    "messageSent": "Gönderildi"
+    "messageSent": "Gönderildi",
+    "translate": "Çevir",
+    "translating": "Çevriliyor…",
+    "showOriginal": "Orijinali göster",
+    "translatedNote": "Makine çevirisi. Mesajlar çeviri için bir çeviri sağlayıcısına gönderilir; orijinali altta gösterilir.",
+    "translateFailed": "Şu anda çevrilemedi. Aşağıdaki mesajlar orijinalleridir."
   }
 }

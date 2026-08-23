@@ -717,6 +717,11 @@
     "referralNav": "Invite",
     "typingIndicator": "typing…",
     "messageSeen": "Seen",
-    "messageSent": "Sent"
+    "messageSent": "Sent",
+    "translate": "Translate",
+    "translating": "Translating…",
+    "showOriginal": "Show original",
+    "translatedNote": "Machine translation. Messages are sent to a translation provider to translate them, and the original is shown underneath.",
+    "translateFailed": "Couldn't translate right now. The messages below are the originals."
   }
 }
