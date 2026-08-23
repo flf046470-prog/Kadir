@@ -57,6 +57,13 @@
       "when": 1787499041881,
       "tag": "0007_black_pandemic",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787499559194,
+      "tag": "0008_sudden_gertrude_yorkes",
+      "breakpoints": true
     }
   ]
 }

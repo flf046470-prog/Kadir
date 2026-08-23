@@ -433,8 +433,13 @@ export async function walletFor(userId: string): Promise<WalletEntry[]> {
  * clause in the update makes this safe to call twice: the second call finds no
  * unspent row of that id and spends nothing.
  */
-export async function spendReward(userId: string, rewardId: RewardId): Promise<boolean> {
-  const spent = await db
+export async function spendReward(
+  userId: string,
+  rewardId: RewardId,
+  /** Pass the caller's transaction to make spending atomic with what it buys. */
+  tx: Pick<typeof db, "update"> = db
+): Promise<boolean> {
+  const spent = await tx
     .update(referralRewards)
     .set({ consumedAt: new Date() })
     .where(

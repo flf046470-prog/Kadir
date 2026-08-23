@@ -722,6 +722,11 @@
     "translating": "Çevriliyor…",
     "showOriginal": "Orijinali göster",
     "translatedNote": "Makine çevirisi. Mesajlar çeviri için bir çeviri sağlayıcısına gönderilir; orijinali altta gösterilir.",
-    "translateFailed": "Şu anda çevrilemedi. Aşağıdaki mesajlar orijinalleridir."
+    "translateFailed": "Şu anda çevrilemedi. Aşağıdaki mesajlar orijinalleridir.",
+    "boost": "Boost",
+    "boostRunning": "Boost aktif",
+    "boostNone": "Boost yok",
+    "likeLimitReached": "Bugünkü beğenileriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını verir.",
+    "filtersDowngraded": "Dil, niyet ve kültür filtreleri PLUS'a dahildir. Sonuçlar bu filtreler olmadan gösteriliyor."
   }
 }

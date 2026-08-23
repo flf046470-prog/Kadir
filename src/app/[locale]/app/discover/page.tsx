@@ -49,6 +49,11 @@ export default async function DiscoverPage({
           potential: t("potential"),
           speaks: t("cardSpeaks"),
           noBio: t("cardNoBio"),
+          boost: t("boost"),
+          boostRunning: t("boostRunning"),
+          boostNone: t("boostNone"),
+          likeLimitReached: t("likeLimitReached"),
+          filtersDowngraded: t("filtersDowngraded"),
           bands: {
             strong: t("bandStrong"),
             promising: t("bandPromising"),

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { recordLike, type LikeKind } from "@/db/interactions";
 import { passReasons, type PassReasonId } from "@/lib/domain/taxonomies";
+import { likeAllowance } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const VALID_KINDS: LikeKind[] = ["like", "pass", "super_like"];
@@ -35,6 +36,26 @@ export async function POST(request: NextRequest) {
     typeof input.passReason === "string" && passReasons.includes(input.passReason as PassReasonId)
       ? (input.passReason as PassReasonId)
       : undefined;
+
+  /**
+   * The daily allowance applies to likes, never to passes.
+   *
+   * Checked after validation and only for the kinds it governs: charging
+   * someone an allowance for saying "no" would push them towards liking
+   * everything, which is exactly the behaviour the limit exists to slow.
+   *
+   * 402 rather than 429 — this is not a rate limit that clears in a minute,
+   * it is a tier boundary, and the two want different handling in the client.
+   */
+  if (kind !== "pass") {
+    const allowance = await likeAllowance(auth.user.id);
+    if (!allowance.allowed) {
+      return NextResponse.json(
+        { error: "like_limit_reached", used: allowance.used, limit: allowance.limit },
+        { status: 402 }
+      );
+    }
+  }
 
   const result = await recordLike(auth.user.id, toUserId, kind as LikeKind, passReason);
 

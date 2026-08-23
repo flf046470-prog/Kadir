@@ -599,3 +599,62 @@ export const messageTranslations = pgTable(
   },
   (table) => [primaryKey({ columns: [table.messageId, table.targetLanguage] })]
 );
+
+/**
+ * A member's paid tier.
+ *
+ * One row per member, not a history: "what may they do right now" is the only
+ * question the app asks on every request, and it should not have to fold a
+ * ledger to answer it. Billing history belongs to the payment provider, which
+ * keeps it properly and is the system of record for money.
+ *
+ * `currentPeriodEnd` is authoritative and `status` is a hint. A webhook that
+ * never arrives must not leave a lapsed subscription running forever, so
+ * access expires on the clock even if nothing told us it had.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    userId: uuid("user_id")
+      .primaryKey()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** plus | vip */
+    tier: text("tier").notNull(),
+    /** active | past_due | canceled | expired */
+    status: text("status").notNull(),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }).notNull(),
+    /** The provider's own id, so a webhook can find this row. Never shown. */
+    providerRef: text("provider_ref"),
+    provider: text("provider"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    // The webhook arrives knowing only the provider's id.
+    uniqueIndex("subscriptions_provider_ref_unique").on(table.providerRef)
+  ]
+);
+
+/**
+ * A running Boost.
+ *
+ * Rows are kept after they expire rather than deleted: "did my boost actually
+ * run?" is the first question anyone asks after paying for one, and a deleted
+ * row cannot answer it. Expiry is a comparison against `expiresAt`, so nothing
+ * has to sweep.
+ */
+export const boosts = pgTable(
+  "boosts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => [
+    // "Who is boosted right now", which Discover asks on every feed build.
+    index("boosts_active_idx").on(table.expiresAt, table.userId)
+  ]
+);

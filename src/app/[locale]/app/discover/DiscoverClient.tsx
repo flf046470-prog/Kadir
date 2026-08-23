@@ -58,6 +58,11 @@ type Labels = {
   potential: string;
   speaks: string;
   noBio: string;
+  boost: string;
+  boostRunning: string;
+  boostNone: string;
+  likeLimitReached: string;
+  filtersDowngraded: string;
   bands: { strong: string; promising: string; exploring: string };
 };
 
@@ -85,6 +90,11 @@ export function DiscoverClient({
   const [loading, setLoading] = useState(true);
   const [matchBanner, setMatchBanner] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
+  const [notice, setNotice] = useState<"like_limit" | "filters_downgraded" | null>(null);
+  const [boost, setBoost] = useState<{ available: number; expiresAt: string | null }>({
+    available: 0,
+    expiresAt: null
+  });
 
   const load = useCallback(async (nextMode: DiscoveryModeId, nextFilters: DiscoveryFilters) => {
     setLoading(true);
@@ -96,6 +106,9 @@ export function DiscoverClient({
       const response = await fetch(`/api/discover?${params.toString()}`);
       const body = await response.json();
       setSuggestions(response.ok ? (body.results ?? []) : []);
+      // The server silently widens a free member's filters rather than
+      // refusing; saying so is the difference between a paywall and a bug.
+      if (body.filtersDowngraded) setNotice("filters_downgraded");
     } catch {
       setSuggestions([]);
     } finally {
@@ -106,6 +119,26 @@ export function DiscoverClient({
   useEffect(() => {
     void load(mode, filters);
   }, [mode, filters, load]);
+
+  const loadBoost = useCallback(async () => {
+    try {
+      const response = await fetch("/api/boost");
+      if (response.ok) setBoost(await response.json());
+    } catch {
+      // Boost state is decoration on the feed; failing to read it must not
+      // stop the feed itself from rendering.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBoost();
+  }, [loadBoost]);
+
+  async function activateBoost() {
+    const response = await fetch("/api/boost", { method: "POST" });
+    await loadBoost();
+    if (response.ok) void load(mode, filters);
+  }
 
   /**
    * Filters live in the address bar rather than in storage: a reload keeps
@@ -130,6 +163,14 @@ export function DiscoverClient({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ toUserId: profileId, kind })
       });
+
+      if (response.status === 402) {
+        // Out of likes for today. The card stays: they have not judged this
+        // person, and silently dropping it would lose them a profile they
+        // could like tomorrow.
+        setNotice("like_limit");
+        return;
+      }
 
       if (response.ok) {
         const body = await response.json();
@@ -167,6 +208,27 @@ export function DiscoverClient({
       </label>
 
       <Filters value={filters} onChange={applyFilters} labels={filterLabels} />
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={activateBoost}
+          disabled={boost.expiresAt !== null || boost.available === 0}
+          className="rounded-full border border-bloom-300 px-4 py-1.5 text-sm font-medium text-bloom-700 disabled:border-black/10 disabled:text-ink/40"
+        >
+          {boost.expiresAt
+            ? labels.boostRunning
+            : boost.available === 0
+              ? labels.boostNone
+              : `${labels.boost} (${boost.available})`}
+        </button>
+      </div>
+
+      {notice && (
+        <p className="mt-4 rounded-xl bg-dusk-50 p-3 text-sm text-ink/70" role="status">
+          {notice === "like_limit" ? labels.likeLimitReached : labels.filtersDowngraded}
+        </p>
+      )}
 
       {matchBanner && (
         <p className="mt-6 rounded-xl bg-bloom-500 p-4 text-center font-semibold text-white" role="status">

@@ -138,3 +138,25 @@ export function isDefault(filters: DiscoveryFilters): boolean {
     filters.cultureInterests.length === 0
   );
 }
+
+/**
+ * The filters a free member may use.
+ *
+ * Age, place and relationship goal are what the pricing page calls "standard";
+ * language, intent and culture are what it sells as "advanced". Stripping the
+ * advanced ones is deliberately silent rather than an error: a member who was
+ * PLUS last month and still has a bookmarked URL should see a slightly wider
+ * feed, not a broken page telling them off.
+ */
+export function standardFiltersOnly(filters: DiscoveryFilters): DiscoveryFilters {
+  return { ...filters, languages: [], matchIntents: [], cultureInterests: [] };
+}
+
+/** Whether a set of filters uses anything that needs PLUS. */
+export function usesAdvancedFilters(filters: DiscoveryFilters): boolean {
+  return (
+    filters.languages.length > 0 ||
+    filters.matchIntents.length > 0 ||
+    filters.cultureInterests.length > 0
+  );
+}

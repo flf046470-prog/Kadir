@@ -15,6 +15,8 @@ import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import type { LocationContext } from "@/lib/matching/signals";
 import { parseFilters } from "@/lib/matching/filters";
 import { locationContext } from "@/lib/matching/location-context";
+import { boostedUserIds, entitlementsOf, tiersOf } from "@/db/entitlements";
+import { standardFiltersOnly, usesAdvancedFilters } from "@/lib/matching/filters";
 
 /**
  * Discover — the matching engine running against real data.
@@ -27,6 +29,18 @@ import { locationContext } from "@/lib/matching/location-context";
 
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 50;
+
+/**
+ * How much paid visibility is worth, on the engine's 0–1 scale.
+ *
+ * Chosen to be smaller than the gap between a good match and a mediocre one,
+ * so a boost reorders within a band rather than across the whole feed. VIP
+ * priority is deliberately a third of a boost: it is a standing perk, and a
+ * standing perk the size of a one-off purchase would make the purchase
+ * pointless.
+ */
+const BOOST_RANK_BONUS = 0.12;
+const VIP_RANK_BONUS = 0.04;
 
 export async function GET(request: NextRequest) {
   const auth = await requireUser();
@@ -41,7 +55,13 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(MAX_LIMIT, Number(params.get("limit")) || DEFAULT_LIMIT);
   // Everything the member supplies is validated against the taxonomies before
   // any of it reaches a query.
-  const filters = parseFilters(params);
+  const requested = parseFilters(params);
+
+  // Advanced filters are a PLUS feature. Enforced here rather than in the UI,
+  // because a hidden control is not a gate — the query string is public.
+  const { entitlements } = await entitlementsOf(auth.user.id);
+  const filters = entitlements.advancedFilters ? requested : standardFiltersOnly(requested);
+  const filtersDowngraded = !entitlements.advancedFilters && usesAdvancedFilters(requested);
 
   const viewer = await loadMatchProfile(auth.user.id);
   if (!viewer) return apiError("profile_not_found", 404);
@@ -56,16 +76,18 @@ export async function GET(request: NextRequest) {
   });
 
   if (candidateIds.length === 0) {
-    return NextResponse.json({ mode, results: [] });
+    return NextResponse.json({ mode, results: [], filtersDowngraded });
   }
 
   // Smart Match: the viewer's learned multipliers ride along into scoring, so
   // a member who keeps passing for one reason sees that dimension weighted
   // harder — bounded by the engine, never enough to dominate.
-  const [candidates, matchedIds, learnedAdjustments] = await Promise.all([
+  const [candidates, matchedIds, learnedAdjustments, boosted, candidateTiers] = await Promise.all([
     loadMatchProfiles(candidateIds),
     matchedUserIds(auth.user.id),
-    loadLearnedWeights(auth.user.id)
+    loadLearnedWeights(auth.user.id),
+    boostedUserIds(candidateIds),
+    tiersOf(candidateIds)
   ]);
   const matched = new Set(matchedIds);
 
@@ -99,11 +121,35 @@ export async function GET(request: NextRequest) {
       score: result.score,
       compatibility: describeCompatibility(result),
       reasons: buildReasons(result),
-      photos: photosByUser.get(candidate.id) ?? []
+      photos: photosByUser.get(candidate.id) ?? [],
+      boosted: boosted.has(candidate.id),
+      vip: candidateTiers.get(candidate.id) === "vip"
     };
   });
 
-  scored.sort((a, b) => b.score - a.score || a.profileId.localeCompare(b.profileId));
+  /**
+   * Paid visibility is a bounded bonus on the ranking, not an override of it.
+   *
+   * Sorting boosted profiles above everything would put a poor match in front
+   * of a good one — selling reach by spending the viewer's patience, which
+   * costs far more than the boost is worth. A bonus of this size reliably
+   * lifts someone within their band and reliably loses to a much better match,
+   * which is what a boost should buy.
+   *
+   * The bonus moves the *ordering* only. `score` stays the real compatibility,
+   * because that number is shown to the viewer and inflating it would make the
+   * product lie about how well two people match.
+   */
+  const ranked = scored
+    .map((result) => ({
+      ...result,
+      rank:
+        result.score +
+        (result.boosted ? BOOST_RANK_BONUS : 0) +
+        (result.vip ? VIP_RANK_BONUS : 0)
+    }))
+    .sort((a, b) => b.rank - a.rank || a.profileId.localeCompare(b.profileId))
+    .map(({ rank: _rank, ...result }) => result);
 
-  return NextResponse.json({ mode, results: scored.slice(0, limit) });
+  return NextResponse.json({ mode, results: ranked.slice(0, limit), filtersDowngraded });
 }

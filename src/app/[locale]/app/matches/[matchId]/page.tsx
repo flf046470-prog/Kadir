@@ -8,6 +8,7 @@ import { eq } from "drizzle-orm";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
 import { translationEnabled } from "@/lib/translate";
+import { entitlementsOf } from "@/db/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +38,11 @@ export default async function ConversationPage({
 
   const gamesT = await getTranslations({ locale, namespace: "games" });
 
+  // Both have to be true: a provider configured for the deployment, and this
+  // member entitled to it. The API checks the same pair — this only decides
+  // whether to draw a control that would otherwise refuse when pressed.
+  const { entitlements } = await entitlementsOf(user.id);
+
   return (
     <>
       <ConversationClient
@@ -46,7 +52,7 @@ export default async function ConversationPage({
       locale={locale}
       // Resolved on the server: with no provider configured there is no
       // control at all, rather than a button that fails when pressed.
-      translationAvailable={translationEnabled()}
+      translationAvailable={translationEnabled() && entitlements.messageTranslation}
       labels={{
         placeholder: t("sendPlaceholder"),
         send: t("send"),

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { translateConversation } from "@/db/translations";
 import { translationEnabled } from "@/lib/translate";
+import { entitlementsOf } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -21,7 +22,13 @@ export async function GET(
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  if (!translationEnabled()) {
+  // Two independent reasons there may be no translation: the deployment has no
+  // provider, or this member has not paid for it. Both answer "unavailable"
+  // rather than distinguishing themselves, because the control is simply
+  // absent in either case and a 402 here would tell a free member that the
+  // feature exists behind a paywall in a place they never asked.
+  const { entitlements } = await entitlementsOf(auth.user.id);
+  if (!translationEnabled() || !entitlements.messageTranslation) {
     return NextResponse.json({ available: false, translations: {}, degraded: false });
   }
 
