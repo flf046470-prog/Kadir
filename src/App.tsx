@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { ArrowDown, ArrowRight, Camera, Download, Menu, Mountain, Play, Send, Video, X } from 'lucide-react'
 import './App.css'
+import { pageMeta, notFoundMeta } from './page-meta'
 
 const images = {
   hero: 'https://images.unsplash.com/photo-1470770841072-f978cf4d019e?auto=format&fit=crop&w=2200&q=85',
@@ -20,17 +21,6 @@ const phases = [
   ['06', 'Interior', 'Making the spaces warm, quiet and connected to the sky.', 'future'],
   ['07', 'Opening', 'One day, welcoming the first guests to Trevelin.', 'future'],
 ] as const
-const pageMeta: Record<string, [string, string]> = {
-  '/': ['Patagonia Underground — Trevelin, Patagonia', 'A unique project taking shape in Trevelin, Chubut, Argentina. Follow the real journey from the beginning.'],
-  '/project': ['The Project — Patagonia Underground', 'Discover the purpose, architectural idea and future accommodation concept behind Patagonia Underground.'],
-  '/transparency': ['Project Transparency — Patagonia Underground', 'See the current stage and future phases of Patagonia Underground without fake progress.'],
-  '/journal': ['Construction Journal — Patagonia Underground', 'A construction journal that will begin when work on the first phase starts.'],
-  '/gallery': ['Gallery — Trevelin and Patagonia Underground', 'Explore Trevelin landscapes and clearly labelled project concept references.'],
-  '/progress': ['Follow the Journey — Patagonia Underground', 'Follow every real phase from idea and planning to a possible future opening.'],
-  '/story': ['Our Story — Patagonia Underground', 'The idea, place, vision and building-in-public principles behind Patagonia Underground.'],
-  '/location': ['Trevelin, Chubut — Patagonia Underground', 'Learn about the natural setting of Trevelin without invented coordinates or travel claims.'],
-  '/updates': ['Project Updates — Patagonia Underground', 'Real project updates will be published here as the journey develops.'],
-}
 
 type Member = { firstName: string; email: string; country: string; consent: boolean; createdAt: string; status: 'active' | 'inactive' }
 const getMembers = (): Member[] => { try { const value = JSON.parse(localStorage.getItem('patagonia-community') || '[]'); return Array.isArray(value) ? value : [] } catch { return [] } }
@@ -44,7 +34,7 @@ function App() {
   const [formMessage, setFormMessage] = useState('')
   const navigate = (to: string) => { window.history.pushState({}, '', to); setPath(to.split('#')[0] || '/'); setMenuOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); if (to.includes('#community')) window.setTimeout(() => document.getElementById('community')?.scrollIntoView({ behavior: 'smooth' }), 0) }
   useEffect(() => { const onPop = () => setPath(window.location.pathname.replace(/\/$/, '') || '/'); window.addEventListener('popstate', onPop); return () => window.removeEventListener('popstate', onPop) }, [])
-  useEffect(() => { const [title, description] = pageMeta[path] || ['Page not found — Patagonia Underground', 'The requested Patagonia Underground page could not be found.']; document.title = title; let meta = document.querySelector('meta[name="description"]'); if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name', 'description'); document.head.appendChild(meta) }; meta.setAttribute('content', description); const canonical = document.querySelector('link[rel="canonical"]'); canonical?.setAttribute('href', `${window.location.origin}${path === '/' ? '/' : path}`) }, [path])
+  useEffect(() => { const [title, description] = pageMeta[path] || notFoundMeta; document.title = title; let meta = document.querySelector('meta[name="description"]'); if (!meta) { meta = document.createElement('meta'); meta.setAttribute('name', 'description'); document.head.appendChild(meta) }; meta.setAttribute('content', description); const canonical = document.querySelector('link[rel="canonical"]'); canonical?.setAttribute('href', `${window.location.origin}${path === '/' ? '/' : path}`) }, [path])
   const join = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); const firstName = String(data.get('firstName') || '').trim().slice(0, 80); const email = String(data.get('email') || '').trim().toLowerCase().slice(0, 160); const country = String(data.get('country') || '').trim().slice(0, 80); if (!firstName || !email || data.get('consent') !== 'on') return; const current = getMembers(); if (current.some(member => member.email.toLowerCase() === email)) { setFormMessage('This email is already on the journey list.'); return } const updated = [...current, { firstName, email, country, consent: true, createdAt: new Date().toISOString(), status: 'active' as const }]; saveMembers(updated); setMembers(updated); event.currentTarget.reset(); setFormMessage("You're in. We'll keep you updated as Patagonia Underground takes shape."); }
   return <div className="site-shell"><Header path={path} navigate={navigate} menuOpen={menuOpen} setMenuOpen={setMenuOpen} /><main>{path === '/' ? <Home navigate={navigate} join={join} formMessage={formMessage} /> : <Page path={path} navigate={navigate} join={join} formMessage={formMessage} />}</main><Footer navigate={navigate} setAdminOpen={setAdminOpen} />{adminOpen && <Admin members={members} setMembers={setMembers} close={() => setAdminOpen(false)} />}</div>
 }

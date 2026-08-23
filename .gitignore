@@ -30,3 +30,7 @@ dist-ssr
 
 # Server build output
 dist-server/
+
+# Next.js
+/.next/
+/next-env.d.ts
