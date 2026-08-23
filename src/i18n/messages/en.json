@@ -568,7 +568,19 @@
       "my_go_to_karaoke_song": "My go-to karaoke song is...",
       "my_dream_city_to_live_in": "The city I'd most like to live in is...",
       "my_useless_talent": "My most useless talent is..."
-    }
+    },
+    "start": "Start a game",
+    "accept": "Accept",
+    "decline": "No thanks",
+    "end": "End this game",
+    "waiting": "Waiting for them to answer.",
+    "yourTurn": "Send",
+    "theirAnswer": "They said",
+    "yourAnswer": "You said",
+    "completed": "You finished a game together.",
+    "declined": "Declined.",
+    "loading": "Loading…",
+    "invitePending": "There is an open game invite on this match."
   },
   "referral": {
     "title": "Invite a friend",

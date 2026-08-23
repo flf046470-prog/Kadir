@@ -568,7 +568,19 @@
       "my_go_to_karaoke_song": "Karaoke şarkım...",
       "my_dream_city_to_live_in": "Yaşamak isteyeceğim şehir...",
       "my_useless_talent": "En işe yaramaz yeteneğim..."
-    }
+    },
+    "start": "Oyun başlat",
+    "accept": "Kabul et",
+    "decline": "Şimdi değil",
+    "end": "Oyunu bitir",
+    "waiting": "Onun cevabı bekleniyor.",
+    "yourTurn": "Gönder",
+    "theirAnswer": "O şöyle dedi",
+    "yourAnswer": "Sen şöyle dedin",
+    "completed": "Birlikte bir oyunu tamamladınız.",
+    "declined": "Reddedildi.",
+    "loading": "Yükleniyor…",
+    "invitePending": "Bu eşleşmede açık bir oyun daveti var."
   },
   "referral": {
     "title": "Bir arkadaşını davet et",
