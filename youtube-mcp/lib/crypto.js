@@ -27,10 +27,6 @@ function key() {
   return cachedKey;
 }
 
-export function b64url(buf) {
-  return Buffer.from(buf).toString('base64url');
-}
-
 export function seal(type, payload, ttlSeconds) {
   const body = JSON.stringify({ ...payload, t: type, exp: Math.floor(Date.now() / 1000) + ttlSeconds });
   const iv = randomBytes(IV_LEN);

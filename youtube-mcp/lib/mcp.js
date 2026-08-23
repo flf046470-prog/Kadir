@@ -28,18 +28,6 @@ function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
 }
 
-/** JSON-RPC methods that are usable before the user has authorized. */
-const PUBLIC_METHODS = new Set([
-  'initialize',
-  'notifications/initialized',
-  'notifications/cancelled',
-  'ping',
-  'tools/list',
-  'resources/list',
-  'resources/templates/list',
-  'prompts/list',
-]);
-
 export function requiresAuth(message) {
   return message?.method === 'tools/call';
 }
@@ -109,10 +97,9 @@ export async function dispatch(message, ctx) {
           content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
         });
       } catch (err) {
-        if (err instanceof YouTubeApiError && (err.status === 401 || err.status === 403)) {
-          // Let the transport turn this into a 401/403 so Claude re-prompts.
-          if (err.status === 401) return AUTH_REQUIRED;
-        }
+        // A revoked Google grant must resurface as a transport 401 so Claude
+        // re-runs OAuth instead of showing the user prose.
+        if (err instanceof YouTubeApiError && err.status === 401) return AUTH_REQUIRED;
         return rpcResult(id, {
           isError: true,
           content: [{ type: 'text', text: describeToolError(err) }],
@@ -131,7 +118,7 @@ function describeToolError(err) {
     if (err.reason === 'quotaExceeded') {
       return 'YouTube API daily quota exceeded for this Google Cloud project. The quota resets at midnight Pacific Time, or request more in the Google Cloud console.';
     }
-    if (err.reason === 'forbidden' || err.status === 403) {
+    if (err.status === 403) {
       return `YouTube refused this operation: ${err.message}. This usually means the granted OAuth scope does not cover it, or the channel is not verified for this feature.`;
     }
     if (err.status === 404) return `Not found: ${err.message}`;
