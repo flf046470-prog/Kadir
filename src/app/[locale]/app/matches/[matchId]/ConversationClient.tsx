@@ -8,8 +8,14 @@ type Message = {
   senderId: string;
   body: string;
   createdAt: string;
+  readAt: string | null;
   mine: boolean;
   warning: { band: string; signals: string[] } | null;
+};
+
+type Presence = {
+  partnerTyping: boolean;
+  partnerLastSeenAt: string | null;
 };
 
 type Labels = {
@@ -23,10 +29,24 @@ type Labels = {
   back: string;
   scamWarningTitle: string;
   scamWarningBody: string;
+  typing: string;
+  seen: string;
+  sent: string;
 };
 
-/** Poll interval. Real-time delivery is a later change; this is honest for now. */
-const POLL_MS = 5000;
+/**
+ * Poll intervals. Real-time delivery is a later change; this is honest for now.
+ *
+ * Two speeds rather than one. A typing indicator that lags five seconds is
+ * worse than none — it says "typing" after they have stopped — so a visible
+ * conversation polls fast. A hidden tab polls slowly, because nobody is
+ * reading it and the only thing a fast poll would buy is load.
+ */
+const POLL_VISIBLE_MS = 2500;
+const POLL_HIDDEN_MS = 15000;
+
+/** Matches TYPING_PING_MS on the server: one write per few keystrokes, not per key. */
+const TYPING_PING_MS = 3000;
 
 export function ConversationClient({
   matchId,
@@ -46,24 +66,81 @@ export function ConversationClient({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [reported, setReported] = useState(false);
+  const [presence, setPresence] = useState<Presence>({
+    partnerTyping: false,
+    partnerLastSeenAt: null
+  });
   const endRef = useRef<HTMLDivElement>(null);
+  const lastTypingPing = useRef(0);
 
   const load = useCallback(async () => {
-    const response = await fetch(`/api/matches/${matchId}/messages`);
+    // Only claim the messages were seen when this tab is actually on screen.
+    // The server trusts this flag for the read receipt the other side sees, so
+    // sending it from a background poll would make that receipt dishonest.
+    const seen = typeof document !== "undefined" && document.visibilityState === "visible";
+    const response = await fetch(
+      `/api/matches/${matchId}/messages${seen ? "?seen=1" : ""}`
+    );
     if (!response.ok) return;
     const body = await response.json();
     setMessages(body.messages ?? []);
+    if (body.presence) setPresence(body.presence);
   }, [matchId]);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+
+    // A self-rescheduling timeout rather than an interval, so the cadence can
+    // change with visibility without tearing the loop down and rebuilding it.
+    function schedule() {
+      const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+      timer = setTimeout(async () => {
+        await load();
+        schedule();
+      }, hidden ? POLL_HIDDEN_MS : POLL_VISIBLE_MS);
+    }
+
+    function onVisibility() {
+      clearTimeout(timer);
+      // Coming back to the tab should show the conversation now, not in two
+      // and a half seconds — and it is the moment the messages are truly read.
+      if (document.visibilityState === "visible") void load();
+      schedule();
+    }
+
     void load();
-    const timer = setInterval(() => void load(), POLL_MS);
-    return () => clearInterval(timer);
+    schedule();
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
   }, [load]);
+
+  const pingTyping = useCallback(
+    (typing: boolean) => {
+      const now = Date.now();
+      // Stopping is always worth a request; starting is throttled, or a fast
+      // typist would be one database write per keystroke.
+      if (typing && now - lastTypingPing.current < TYPING_PING_MS) return;
+      lastTypingPing.current = now;
+
+      void fetch(`/api/matches/${matchId}/typing`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ typing })
+      }).catch(() => {
+        // A dropped typing ping is not worth surfacing: the indicator simply
+        // expires on its own, which is the same thing the member would see.
+      });
+    },
+    [matchId]
+  );
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, presence.partnerTyping]);
 
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -80,6 +157,9 @@ export function ConversationClient({
 
     if (response.ok) {
       setDraft("");
+      // The POST already cleared the indicator server-side; reset the throttle
+      // so the next keystroke pings immediately rather than waiting it out.
+      lastTypingPing.current = 0;
       await load();
     }
   }
@@ -105,6 +185,10 @@ export function ConversationClient({
     });
     setReported(true);
   }
+
+  // Only the newest message I sent carries a receipt. Stamping every outgoing
+  // message would be noise — reading the last one means reading the ones above.
+  const lastMineId = [...messages].reverse().find((message) => message.mine)?.id ?? null;
 
   return (
     <section className="container-fm flex max-w-2xl flex-col py-10">
@@ -158,15 +242,35 @@ export function ConversationClient({
             >
               {message.body}
             </p>
+            {message.id === lastMineId && (
+              <p className="mt-1 text-right text-[11px] text-ink/45">
+                {message.readAt ? labels.seen : labels.sent}
+              </p>
+            )}
           </div>
         ))}
+
+        {presence.partnerTyping && (
+          <p
+            className="w-fit rounded-2xl bg-dusk-50 px-4 py-2.5 text-sm text-ink/55"
+            role="status"
+            aria-live="polite"
+          >
+            {labels.typing}
+          </p>
+        )}
+
         <div ref={endRef} />
       </div>
 
       <form onSubmit={handleSend} className="mt-6 flex gap-3">
         <input
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            pingTyping(event.target.value.trim() !== "");
+          }}
+          onBlur={() => pingTyping(false)}
           placeholder={labels.placeholder}
           aria-label={labels.placeholder}
           maxLength={2000}

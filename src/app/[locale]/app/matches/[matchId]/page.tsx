@@ -53,7 +53,10 @@ export default async function ConversationPage({
         reportSent: t("reportSent"),
         back: t("backToMatches"),
         scamWarningTitle: t("scamWarningTitle"),
-        scamWarningBody: t("scamWarningBody")
+        scamWarningBody: t("scamWarningBody"),
+        typing: t("typingIndicator"),
+        seen: t("messageSeen"),
+        sent: t("messageSent")
       }}
       />
 

@@ -538,3 +538,35 @@ export const referralRewards = pgTable(
     index("referral_rewards_wallet_idx").on(table.userId, table.consumedAt)
   ]
 );
+
+/**
+ * Live state for one member in one conversation: are they typing, and when
+ * were they last actually looking at it.
+ *
+ * There is no socket here, so "live" means a row the other side polls. Keeping
+ * it in its own table rather than on `messages` matters: this row is rewritten
+ * every few seconds while someone types, and putting that write traffic on the
+ * table that holds the conversation itself would churn the index the whole
+ * chat reads through.
+ *
+ * `lastSeenAt` is the honest input for a read receipt. Polling alone must not
+ * mark a conversation read — a tab left open in the background is not someone
+ * reading — so the client says when it is genuinely visible, and this is where
+ * that lands.
+ */
+export const matchPresence = pgTable(
+  "match_presence",
+  {
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Last keystroke. Meaningless once older than the typing window. */
+    typingAt: timestamp("typing_at", { withTimezone: true }),
+    /** Last time the conversation was actually on screen for this member. */
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [primaryKey({ columns: [table.matchId, table.userId] })]
+);

@@ -714,6 +714,9 @@
     "filterNone": "Filtre yok",
     "cardSpeaks": "Konuştuğu diller",
     "cardNoBio": "Henüz biyografi yok.",
-    "referralNav": "Davet et"
+    "referralNav": "Davet et",
+    "typingIndicator": "yazıyor…",
+    "messageSeen": "Görüldü",
+    "messageSent": "Gönderildi"
   }
 }

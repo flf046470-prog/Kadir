@@ -714,6 +714,9 @@
     "filterNone": "No filters",
     "cardSpeaks": "Speaks",
     "cardNoBio": "No bio yet.",
-    "referralNav": "Invite"
+    "referralNav": "Invite",
+    "typingIndicator": "typing…",
+    "messageSeen": "Seen",
+    "messageSent": "Sent"
   }
 }
