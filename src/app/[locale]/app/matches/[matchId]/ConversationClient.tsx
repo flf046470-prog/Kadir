@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
+import { GIFTS, giftById, type GiftId } from "@/lib/gifts/catalogue";
 
 type Message = {
   id: string;
@@ -17,6 +18,22 @@ type Presence = {
   partnerTyping: boolean;
   partnerLastSeenAt: string | null;
 };
+
+type SentGift = {
+  id: string;
+  giftId: GiftId;
+  mine: boolean;
+  createdAt: string;
+};
+
+/**
+ * One entry in the conversation. Messages and gifts live in separate tables
+ * because they are different things, and are merged here — by timestamp, on
+ * the client — because to the two people talking they are one conversation.
+ */
+type TimelineEntry =
+  | { kind: "message"; at: number; message: Message }
+  | { kind: "gift"; at: number; gift: SentGift };
 
 type Labels = {
   placeholder: string;
@@ -37,6 +54,10 @@ type Labels = {
   showOriginal: string;
   translatedNote: string;
   translateFailed: string;
+  sendGift: string;
+  giftAllowanceReached: string;
+  giftSent: string;
+  giftReceived: string;
 };
 
 /**
@@ -78,6 +99,9 @@ export function ConversationClient({
     partnerTyping: false,
     partnerLastSeenAt: null
   });
+  const [gifts, setGifts] = useState<SentGift[]>([]);
+  const [giftPickerOpen, setGiftPickerOpen] = useState(false);
+  const [notice, setNotice] = useState<"gift_allowance" | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
   const [translateOn, setTranslateOn] = useState(false);
   const [translateState, setTranslateState] = useState<"idle" | "loading" | "failed">("idle");
@@ -95,6 +119,7 @@ export function ConversationClient({
     if (!response.ok) return;
     const body = await response.json();
     setMessages(body.messages ?? []);
+    setGifts(body.gifts ?? []);
     if (body.presence) setPresence(body.presence);
   }, [matchId]);
 
@@ -151,7 +176,23 @@ export function ConversationClient({
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, presence.partnerTyping]);
+  }, [messages.length, gifts.length, presence.partnerTyping]);
+
+  async function handleGift(giftId: GiftId) {
+    setGiftPickerOpen(false);
+
+    const response = await fetch(`/api/matches/${matchId}/gifts`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ giftId })
+    });
+
+    if (response.status === 402) {
+      setNotice("gift_allowance");
+      return;
+    }
+    if (response.ok) await load();
+  }
 
   const partnerMessageCount = messages.filter((message) => !message.mine).length;
 
@@ -231,6 +272,21 @@ export function ConversationClient({
   // message would be noise — reading the last one means reading the ones above.
   const lastMineId = [...messages].reverse().find((message) => message.mine)?.id ?? null;
 
+  // Merged by timestamp, then by kind so a gift and a message sent in the same
+  // second land in a stable order rather than swapping places between polls.
+  const timeline: TimelineEntry[] = [
+    ...messages.map<TimelineEntry>((message) => ({
+      kind: "message",
+      at: new Date(message.createdAt).getTime(),
+      message
+    })),
+    ...gifts.map<TimelineEntry>((gift) => ({
+      kind: "gift",
+      at: new Date(gift.createdAt).getTime(),
+      gift
+    }))
+  ].sort((a, b) => a.at - b.at || a.kind.localeCompare(b.kind));
+
   return (
     <section className="container-fm flex max-w-2xl flex-col py-10">
       <div className="flex items-center justify-between">
@@ -276,18 +332,31 @@ export function ConversationClient({
         </p>
       )}
 
-      <div className="mt-6 min-h-[50vh] space-y-3">
-        {messages.length === 0 && <p className="text-ink/50">{labels.noMessages}</p>}
+      {notice === "gift_allowance" && (
+        <p className="mt-4 rounded-lg bg-dusk-50 p-3 text-sm text-ink/70" role="status">
+          {labels.giftAllowanceReached}
+        </p>
+      )}
 
-        {messages.map((message) => (
-          <div key={message.id}>
-            {message.warning && (
+      <div className="mt-6 min-h-[50vh] space-y-3">
+        {timeline.length === 0 && <p className="text-ink/50">{labels.noMessages}</p>}
+
+        {timeline.map((entry) =>
+          entry.kind === "gift" ? (
+            <GiftBubble
+              key={entry.gift.id}
+              gift={entry.gift}
+              label={entry.gift.mine ? labels.giftSent : labels.giftReceived}
+            />
+          ) : (
+          <div key={entry.message.id}>
+            {entry.message.warning && (
               <div className="mb-2 rounded-xl border border-bloom-300 bg-bloom-50 p-4">
                 <p className="text-sm font-semibold text-bloom-700">{labels.scamWarningTitle}</p>
                 <p className="mt-1 text-xs text-ink/75">{labels.scamWarningBody}</p>
                 <button
                   type="button"
-                  onClick={() => handleReport(message.id)}
+                  onClick={() => handleReport(entry.message.id)}
                   className="mt-2 text-xs font-semibold text-bloom-700 hover:underline"
                 >
                   {labels.report}
@@ -296,27 +365,30 @@ export function ConversationClient({
             )}
             <p
               className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
-                message.mine
+                entry.message.mine
                   ? "ml-auto bg-bloom-500 text-white"
                   : "bg-dusk-50 text-ink"
               }`}
             >
-              {translateOn && translations[message.id] ? translations[message.id] : message.body}
+              {translateOn && translations[entry.message.id]
+                ? translations[entry.message.id]
+                : entry.message.body}
             </p>
-            {translateOn && translations[message.id] && (
+            {translateOn && translations[entry.message.id] && (
               // The original stays on screen under the translation. A machine
               // translation of a message from someone you are getting to know
               // is a guess, and hiding what they actually wrote makes that
               // guess unfalsifiable.
-              <p className="mt-1 max-w-[80%] text-xs italic text-ink/45">{message.body}</p>
+              <p className="mt-1 max-w-[80%] text-xs italic text-ink/45">{entry.message.body}</p>
             )}
-            {message.id === lastMineId && (
+            {entry.message.id === lastMineId && (
               <p className="mt-1 text-right text-[11px] text-ink/45">
-                {message.readAt ? labels.seen : labels.sent}
+                {entry.message.readAt ? labels.seen : labels.sent}
               </p>
             )}
           </div>
-        ))}
+          )
+        )}
 
         {presence.partnerTyping && (
           <p
@@ -331,7 +403,37 @@ export function ConversationClient({
         <div ref={endRef} />
       </div>
 
+      {giftPickerOpen && (
+        <div
+          className="mt-6 grid grid-cols-6 gap-2 rounded-2xl border border-black/5 bg-dusk-50 p-3"
+          role="group"
+          aria-label={labels.sendGift}
+        >
+          {GIFTS.map((gift) => (
+            <button
+              key={gift.id}
+              type="button"
+              onClick={() => handleGift(gift.id)}
+              className="rounded-xl bg-white py-2 text-2xl transition hover:scale-110"
+            >
+              <span role="img" aria-label={gift.id}>
+                {gift.emoji}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <form onSubmit={handleSend} className="mt-6 flex gap-3">
+        <button
+          type="button"
+          onClick={() => setGiftPickerOpen((open) => !open)}
+          aria-expanded={giftPickerOpen}
+          aria-label={labels.sendGift}
+          className="shrink-0 rounded-full border border-black/10 px-4 text-lg hover:border-bloom-400"
+        >
+          🎁
+        </button>
         <input
           value={draft}
           onChange={(event) => {
@@ -349,5 +451,28 @@ export function ConversationClient({
         </button>
       </form>
     </section>
+  );
+}
+
+/**
+ * A gift in the timeline.
+ *
+ * Deliberately not shaped like a message bubble. A gift is a gesture, not
+ * something said, and giving it the same chrome as text would make the
+ * conversation read as though someone had spoken when they had not.
+ */
+function GiftBubble({ gift, label }: { gift: SentGift; label: string }) {
+  return (
+    <div className={gift.mine ? "text-right" : "text-left"}>
+      <span
+        className="inline-flex items-center gap-2 rounded-full border border-bloom-200 bg-bloom-50/60 px-4 py-2"
+        title={label}
+      >
+        <span className="text-2xl" role="img" aria-label={gift.giftId}>
+          {giftById(gift.giftId).emoji}
+        </span>
+        <span className="text-xs text-ink/55">{label}</span>
+      </span>
+    </div>
   );
 }

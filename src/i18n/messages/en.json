@@ -727,6 +727,10 @@
     "boostRunning": "Boost running",
     "boostNone": "No boosts",
     "likeLimitReached": "You've used today's likes. They come back through the day, or PLUS and VIP give you more.",
-    "filtersDowngraded": "Language, intent and culture filters are part of PLUS. Showing results without them."
+    "filtersDowngraded": "Language, intent and culture filters are part of PLUS. Showing results without them.",
+    "sendGift": "Send a gift",
+    "giftAllowanceReached": "You've sent today's gifts. More come back through the day, and PLUS and VIP send more.",
+    "giftSent": "You sent this",
+    "giftReceived": "A gift for you"
   }
 }

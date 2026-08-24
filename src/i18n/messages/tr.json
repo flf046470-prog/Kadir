@@ -727,6 +727,10 @@
     "boostRunning": "Boost aktif",
     "boostNone": "Boost yok",
     "likeLimitReached": "Bugünkü beğenileriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını verir.",
-    "filtersDowngraded": "Dil, niyet ve kültür filtreleri PLUS'a dahildir. Sonuçlar bu filtreler olmadan gösteriliyor."
+    "filtersDowngraded": "Dil, niyet ve kültür filtreleri PLUS'a dahildir. Sonuçlar bu filtreler olmadan gösteriliyor.",
+    "sendGift": "Hediye gönder",
+    "giftAllowanceReached": "Bugünkü hediyeleriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını gönderir.",
+    "giftSent": "Gönderdiniz",
+    "giftReceived": "Size bir hediye"
   }
 }

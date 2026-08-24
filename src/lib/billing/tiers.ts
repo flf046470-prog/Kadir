@@ -36,6 +36,8 @@ export type Entitlements = {
   vipBadge: boolean;
   /** Boost runs longer for VIP than the base thirty minutes. */
   boostMinutes: number;
+  /** Gifts per rolling day. `null` means no limit. */
+  dailyGifts: number | null;
 };
 
 export const ENTITLEMENTS: Record<Tier, Entitlements> = {
@@ -48,7 +50,8 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     aiRecommendations: false,
     priorityVisibility: false,
     vipBadge: false,
-    boostMinutes: 30
+    boostMinutes: 30,
+    dailyGifts: 3
   },
   plus: {
     advancedFilters: true,
@@ -59,7 +62,8 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     aiRecommendations: false,
     priorityVisibility: false,
     vipBadge: false,
-    boostMinutes: 30
+    boostMinutes: 30,
+    dailyGifts: 10
   },
   vip: {
     advancedFilters: true,
@@ -70,7 +74,8 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     aiRecommendations: true,
     priorityVisibility: true,
     vipBadge: true,
-    boostMinutes: 60
+    boostMinutes: 60,
+    dailyGifts: null
   }
 };
 

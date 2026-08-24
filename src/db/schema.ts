@@ -658,3 +658,37 @@ export const boosts = pgTable(
     index("boosts_active_idx").on(table.expiresAt, table.userId)
   ]
 );
+
+/**
+ * Gifts sent inside a conversation.
+ *
+ * Its own table rather than a `kind` column on `messages`. A message carries
+ * text that Scam Shield assesses, is editable in principle, and can be
+ * soft-deleted; a gift is a fixed token from a closed catalogue with none of
+ * that machinery. Folding them together would mean every message query
+ * carrying a discriminator, and every gift row carrying five columns it can
+ * never use.
+ *
+ * There is no note column on purpose — see `lib/gifts/catalogue`.
+ */
+export const gifts = pgTable(
+  "gifts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** An id from the closed catalogue, never arbitrary text. */
+    giftId: text("gift_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    // The conversation reads one match's gifts in timeline order.
+    index("gifts_match_idx").on(table.matchId, table.createdAt),
+    // The daily allowance counts a sender's recent gifts.
+    index("gifts_sender_idx").on(table.senderId, table.createdAt)
+  ]
+);

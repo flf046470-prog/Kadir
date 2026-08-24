@@ -71,7 +71,11 @@ export default async function ConversationPage({
         translating: t("translating"),
         showOriginal: t("showOriginal"),
         translatedNote: t("translatedNote"),
-        translateFailed: t("translateFailed")
+        translateFailed: t("translateFailed"),
+        sendGift: t("sendGift"),
+        giftAllowanceReached: t("giftAllowanceReached"),
+        giftSent: t("giftSent"),
+        giftReceived: t("giftReceived")
       }}
       />
 

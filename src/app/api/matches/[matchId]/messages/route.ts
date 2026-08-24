@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { listMessages, markRead, sendMessage } from "@/db/messaging";
 import { presenceFor, touchPresence } from "@/db/presence";
+import { listGifts } from "@/db/gifts";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -33,10 +34,16 @@ export async function GET(
     await touchPresence(auth.user.id, matchId);
   }
 
-  const presence = await presenceFor(auth.user.id, matchId);
+  // Gifts ride along rather than getting their own poll: they belong to the
+  // same timeline, and a second request every 2.5 seconds would double the
+  // conversation's load to fetch something that changes far less often.
+  const [presence, gifts] = await Promise.all([
+    presenceFor(auth.user.id, matchId),
+    listGifts(auth.user.id, matchId)
+  ]);
 
   return NextResponse.json(
-    { messages, presence },
+    { messages, gifts: gifts ?? [], presence },
     { headers: { "cache-control": "private, no-store" } }
   );
 }
