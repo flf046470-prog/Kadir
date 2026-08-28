@@ -1,8 +1,8 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { MemorySaveStore, buildJungleWorld, createIntent, Buttons } from '@kc/core';
-import type { PlayerState } from '@kc/core';
+import type { PlayerSnapshot, PlayerState } from '@kc/core';
 import { SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
-import type { PlayerSnapshot, ServerMessage } from '@kc/net';
+import type { ServerMessage } from '@kc/net';
 import { AccountService } from './accounts.js';
 import { Leaderboard } from './leaderboard.js';
 import { RoomManager } from './rooms.js';
@@ -65,7 +65,7 @@ async function makeHarness(config = testConfig()) {
   return { store, accounts, leaderboard, rooms, config };
 }
 
-async function joinPlayer(rooms: RoomManager, accounts: AccountService, room: Room, id: string, platform: 'pc' | 'mobile' | 'vr' = 'pc') {
+async function joinPlayer(accounts: AccountService, room: Room, id: string, platform: 'pc' | 'mobile' | 'vr' = 'pc') {
   const profile = await accounts.loadOrCreate(id, id);
   const socket = new FakeSocket();
   room.join(socket, profile, platform, {}, true);
@@ -97,11 +97,11 @@ describe('matchmaking', () => {
   it('creates a public room and fills it before opening another', async () => {
     const { rooms, accounts } = await makeHarness(testConfig({ maxPlayersPerRoom: 2 }));
     const first = rooms.matchmake({ modeId: 'kangaroo-chase' }).room as Room;
-    await joinPlayer(rooms, accounts, first, 'a');
+    await joinPlayer(accounts, first, 'a');
     const second = rooms.matchmake({ modeId: 'kangaroo-chase' }).room as Room;
     expect(second.code).toBe(first.code);
 
-    await joinPlayer(rooms, accounts, second, 'b');
+    await joinPlayer(accounts, second, 'b');
     const third = rooms.matchmake({ modeId: 'kangaroo-chase' }).room as Room;
     expect(third.code).not.toBe(first.code);
   });
@@ -112,7 +112,7 @@ describe('matchmaking', () => {
     expect(priv.isPrivate).toBe(true);
     expect(priv.code).toMatch(/^KANG-[2-9A-HJ-NP-Z]{4}$/);
 
-    await joinPlayer(rooms, accounts, priv, 'host');
+    await joinPlayer(accounts, priv, 'host');
     const joined = rooms.matchmake({ roomCode: priv.code });
     expect(joined.room?.code).toBe(priv.code);
 
@@ -131,7 +131,7 @@ describe('matchmaking', () => {
   it('refuses to exceed the room cap', async () => {
     const { rooms, accounts } = await makeHarness(testConfig({ maxRooms: 1, maxPlayersPerRoom: 1 }));
     const room = rooms.matchmake({ modeId: 'kangaroo-chase' }).room as Room;
-    await joinPlayer(rooms, accounts, room, 'a');
+    await joinPlayer(accounts, room, 'a');
     expect(rooms.matchmake({ modeId: 'kangaroo-chase' }).error).toBe('no-capacity');
   });
 });
@@ -146,7 +146,7 @@ describe('Room', () => {
   });
 
   it('welcomes a joining player with everything needed to build the world', async () => {
-    const { socket } = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
+    const { socket } = await joinPlayer(harness.accounts, room, 'a');
     const welcome = socket.last('welcome');
     expect(welcome?.levelId).toBe(level.id);
     expect(welcome?.levelSeed).toBe(level.seed);
@@ -156,15 +156,15 @@ describe('Room', () => {
   });
 
   it('tells existing players about a new arrival', async () => {
-    const a = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    await joinPlayer(harness.rooms, harness.accounts, room, 'b', 'vr');
+    const a = await joinPlayer(harness.accounts, room, 'a');
+    await joinPlayer(harness.accounts, room, 'b', 'vr');
     expect(a.socket.last('joined')?.player.id).toBe('b');
     expect(a.socket.last('joined')?.player.platform).toBe('vr');
     expect(a.socket.last('room')?.playerCount).toBe(2);
   });
 
   it('broadcasts decodable snapshots at the snapshot rate', async () => {
-    const { socket } = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
+    const { socket } = await joinPlayer(harness.accounts, room, 'a');
     for (let i = 0; i < 60; i++) room.tick();
     expect(socket.binary.length).toBe(20); // 60 ticks / 3-tick interval
 
@@ -176,7 +176,7 @@ describe('Room', () => {
   });
 
   it('applies binary intents from clients to the simulation', async () => {
-    await joinPlayer(harness.rooms, harness.accounts, room, 'a');
+    await joinPlayer(harness.accounts, room, 'a');
     const player = room.playerState('a') as PlayerState;
     for (let i = 0; i < 30; i++) room.tick();
     const startZ = player.position.z;
@@ -192,15 +192,15 @@ describe('Room', () => {
   });
 
   it('ignores malformed intent frames without dropping the client', async () => {
-    const { socket } = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
+    const { socket } = await joinPlayer(harness.accounts, room, 'a');
     room.handleIntent('a', new Uint8Array([9, 9, 9]));
     room.tick();
     expect(socket.closed).toBeNull();
   });
 
   it('relays chat but respects mutes and blocks', async () => {
-    const a = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    const b = await joinPlayer(harness.rooms, harness.accounts, room, 'b');
+    await joinPlayer(harness.accounts, room, 'a');
+    const b = await joinPlayer(harness.accounts, room, 'b');
     room.handleChat('a', 'hello jungle');
     expect(b.socket.last('chat')?.text).toBe('hello jungle');
 
@@ -212,8 +212,8 @@ describe('Room', () => {
   });
 
   it('relays voice signalling without inspecting it, and not between blocked players', async () => {
-    const a = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    const b = await joinPlayer(harness.rooms, harness.accounts, room, 'b');
+    const a = await joinPlayer(harness.accounts, room, 'a');
+    const b = await joinPlayer(harness.accounts, room, 'b');
     room.handleVoiceSignal('a', 'b', 'sdp-payload', 'offer');
     expect(b.socket.last('voice')?.payload).toBe('sdp-payload');
     expect(b.socket.last('voice')?.fromId).toBe('a');
@@ -222,12 +222,12 @@ describe('Room', () => {
     b.socket.json.length = 0;
     room.handleVoiceSignal('a', 'b', 'sdp-2', 'offer');
     expect(b.socket.last('voice')).toBeUndefined();
-    void a;
+    expect(a.socket.closed).toBeNull();
   });
 
   it('rate limits reports', async () => {
-    await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    await joinPlayer(harness.rooms, harness.accounts, room, 'b');
+    await joinPlayer(harness.accounts, room, 'a');
+    await joinPlayer(harness.accounts, room, 'b');
     reportLog.length = 0;
     expect(room.handleReport('a', 'b', 'griefing')).toBe(true);
     expect(room.handleReport('a', 'b', 'griefing')).toBe(false); // cooldown
@@ -235,8 +235,8 @@ describe('Room', () => {
   });
 
   it('cleans up when a player leaves', async () => {
-    const a = await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    await joinPlayer(harness.rooms, harness.accounts, room, 'b');
+    const a = await joinPlayer(harness.accounts, room, 'a');
+    await joinPlayer(harness.accounts, room, 'b');
     room.leave('b');
     expect(room.playerCount).toBe(1);
     expect(a.socket.last('left')?.playerId).toBe('b');
@@ -244,8 +244,8 @@ describe('Room', () => {
   });
 
   it('counts mode votes and rotates on the next round', async () => {
-    await joinPlayer(harness.rooms, harness.accounts, room, 'a');
-    await joinPlayer(harness.rooms, harness.accounts, room, 'b');
+    await joinPlayer(harness.accounts, room, 'a');
+    await joinPlayer(harness.accounts, room, 'b');
     room.handleVote('a', 'parkour');
     room.handleVote('b', 'parkour');
     room.startNextRound();
@@ -258,7 +258,7 @@ describe('server-authoritative progression', () => {
   it('pays out a finished round and persists it', async () => {
     const harness = await makeHarness();
     const room = harness.rooms.createRoom('parkour', false);
-    const racer = await joinPlayer(harness.rooms, harness.accounts, room, 'racer');
+    const racer = await joinPlayer(harness.accounts, room, 'racer');
     const coinsBefore = racer.profile.coins;
 
     // Run the countdown, then walk the racer through every checkpoint.

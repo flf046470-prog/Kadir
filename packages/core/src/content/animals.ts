@@ -26,6 +26,19 @@ export interface AnimalAudio {
   emote: string;
 }
 
+/**
+ * Optional authored model. Purely visual: hitboxes, reach and movement come from
+ * `MovementConfig`, never from the mesh — so an art pack can never change balance.
+ */
+export interface AnimalModelRef {
+  url: string;
+  scale?: number;
+  offsetY?: number;
+  sockets?: Record<string, string>;
+  /** Attribution line required by the asset's licence, shown in the credits screen. */
+  credit?: string;
+}
+
 export interface AnimalDef {
   id: string;
   name: string;
@@ -42,6 +55,8 @@ export interface AnimalDef {
    */
   feel: FeelProfile;
   emotes: string[];
+  /** When present the client renders this model; otherwise it builds the animal procedurally. */
+  model?: AnimalModelRef;
   /** Set when the animal is tied to a season or event. */
   seasonId?: string;
   eventId?: string;

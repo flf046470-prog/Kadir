@@ -1,0 +1,11 @@
+{
+  "name": "Kangaroo Chase",
+  "short_name": "Kangaroo",
+  "description": "A physical-movement social tag game for Mobile, PC and VR.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0f1a12",
+  "theme_color": "#0f1a12",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
