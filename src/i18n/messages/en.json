@@ -731,6 +731,9 @@
     "sendGift": "Send a gift",
     "giftAllowanceReached": "You've sent today's gifts. More come back through the day, and PLUS and VIP send more.",
     "giftSent": "You sent this",
-    "giftReceived": "A gift for you"
+    "giftReceived": "A gift for you",
+    "installPitch": "Add FioreMatch to your home screen",
+    "install": "Install",
+    "installDismiss": "Not now"
   }
 }

@@ -731,6 +731,9 @@
     "sendGift": "Hediye gönder",
     "giftAllowanceReached": "Bugünkü hediyeleriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını gönderir.",
     "giftSent": "Gönderdiniz",
-    "giftReceived": "Size bir hediye"
+    "giftReceived": "Size bir hediye",
+    "installPitch": "FioreMatch'i ana ekranınıza ekleyin",
+    "install": "Yükle",
+    "installDismiss": "Şimdi değil"
   }
 }

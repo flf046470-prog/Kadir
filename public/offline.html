@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Offline — FioreMatch</title>
+    <!--
+      Served by the service worker when a navigation cannot reach the network.
+
+      Deliberately a static file rather than a route: at the moment it is
+      needed there is no server to render one, and no reliable way to resolve
+      the member's locale — the URL they were heading to may not carry it, and
+      next-intl's negotiation lives on the server. So it says it in the two
+      languages that are actually translated rather than guessing, and stays
+      under a kilobyte with no external requests of any kind.
+    -->
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1.5rem;
+        background: #fff5f7;
+        color: #1c1523;
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+        text-align: center;
+      }
+      .mark { width: 56px; height: 56px; margin: 0 auto 1.25rem; }
+      h1 { font-size: 1.375rem; margin: 0 0 0.5rem; font-weight: 600; }
+      p { margin: 0 0 1.5rem; color: #1c1523aa; max-width: 30rem; }
+      .tr { border-top: 1px solid #1c152318; padding-top: 1.25rem; margin-top: 0.5rem; }
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 0.75rem 1.75rem;
+        font: inherit;
+        font-weight: 600;
+        color: #fff;
+        background: #fb6f92;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="4.5" y1="4.5" x2="27.5" y2="24.5" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#fb6f92" /><stop offset="1" stop-color="#8360f5" />
+          </linearGradient>
+        </defs>
+        <path d="M14 24.5s-9.5-5.86-9.5-13.02C4.5 7.4 7.55 4.5 11.1 4.5c1.99 0 3.7 1 4.9 2.62A6.02 6.02 0 0 1 20.9 4.5c3.55 0 6.6 2.9 6.6 6.98C27.5 18.64 18 24.5 14 24.5Z" fill="url(#g)" />
+      </svg>
+
+      <h1>You're offline</h1>
+      <p>FioreMatch needs a connection to show you people. Your messages will send once you're back.</p>
+
+      <div class="tr">
+        <h1>Çevrimdışısınız</h1>
+        <p>FioreMatch'in size insanları gösterebilmesi için bağlantı gerekiyor. Mesajlarınız bağlantı gelince gönderilecek.</p>
+      </div>
+
+      <button type="button" onclick="location.reload()">Try again · Tekrar dene</button>
+    </main>
+  </body>
+</html>

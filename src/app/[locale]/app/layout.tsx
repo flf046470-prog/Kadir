@@ -5,6 +5,8 @@ import { currentUser } from "@/auth/guard";
 import { currentModerator } from "@/auth/moderator";
 import { Logo } from "@/components/Logo";
 import { AppNav } from "./AppNav";
+import { MobileTabs } from "./MobileTabs";
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 
 /**
  * Shell for signed-in pages.
@@ -54,7 +56,27 @@ export default async function AppLayout({
           />
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      {/* The padding clears the fixed bottom tabs, which are phone-only. */}
+      <main className="flex-1 pb-20 sm:pb-0">{children}</main>
+
+      <MobileTabs
+        locale={locale}
+        labels={{
+          dailyFive: t("dailyFiveNav"),
+          discover: t("discoverTitle"),
+          matches: t("matchesTitle"),
+          referral: t("referralNav"),
+          profile: t("profileTitle")
+        }}
+      />
+
+      <InstallPrompt
+        labels={{
+          pitch: t("installPitch"),
+          install: t("install"),
+          dismiss: t("installDismiss")
+        }}
+      />
     </div>
   );
 }
