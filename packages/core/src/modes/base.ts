@@ -48,17 +48,17 @@ export abstract class RoundMode implements GameMode {
 
   step(ctx: ModeContext): void {
     this.phaseTicks++;
-    const activePlayers = countActive(ctx);
+    const active = countActive(ctx);
 
     switch (this.phase) {
       case 'waiting':
-        if (activePlayers >= this.def.minPlayers) this.enterPhase('countdown', ctx);
-        else this.headline = `Waiting for players (${activePlayers}/${this.def.minPlayers})`;
+        if (active >= this.def.minPlayers) this.enterPhase('countdown', ctx);
+        else this.headline = `Waiting for players (${active}/${this.def.minPlayers})`;
         break;
       case 'countdown': {
         const remaining = this.def.countdownSeconds - this.phaseTicks * ctx.dt;
         this.headline = `Starting in ${Math.max(0, Math.ceil(remaining))}`;
-        if (activePlayers < this.def.minPlayers) this.enterPhase('waiting', ctx);
+        if (active < this.def.minPlayers) this.enterPhase('waiting', ctx);
         else if (remaining <= 0) this.enterPhase('playing', ctx);
         break;
       }

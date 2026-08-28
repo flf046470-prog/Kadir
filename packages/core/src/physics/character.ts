@@ -274,8 +274,11 @@ function probeGround(
     out.groundColliderIndex = bestIndex;
     out.groundSurface = bestSurface;
     if (wasGrounded && velocity.y <= 0 && snapY > Number.NEGATIVE_INFINITY) {
+      // Snap in both directions. Correcting only downwards leaves a grounded player sinking a
+      // few millimetres per tick (too shallow for the depenetration pass to notice), which both
+      // looks wrong and makes every idle player dirty in the network delta.
       const target = snapY;
-      if (target < position.y && position.y - target <= probe + params.skin) {
+      if (Math.abs(position.y - target) <= probe + params.skin) {
         position.y = target;
         if (velocity.y < 0) velocity.y = 0;
       }

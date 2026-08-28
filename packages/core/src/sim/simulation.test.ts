@@ -38,7 +38,7 @@ describe('Jungle World level', () => {
     expect(stats.colliders).toBeGreaterThan(150);
     expect(stats.props).toBeGreaterThan(150);
     expect(stats.grips).toBeGreaterThan(30);
-    expect(level.zones.map((z) => z.name).sort()).toEqual(['canyon', 'cave', 'jungle']);
+    expect(level.zones.map((z) => z.name).toSorted()).toEqual(['canyon', 'cave', 'jungle']);
     expect(level.spawns.filter((s) => s.tag === 'chaser').length).toBeGreaterThan(0);
     expect(level.checkpoints.length).toBeGreaterThanOrEqual(6);
     expect(level.checkpoints.at(-1)?.finish).toBe(true);

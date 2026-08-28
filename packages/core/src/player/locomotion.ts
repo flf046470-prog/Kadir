@@ -20,6 +20,9 @@ export interface LocomotionContext {
   killPlaneY: number;
 }
 
+/** Below this speed a grounded player is treated as stationary. */
+const REST_SPEED = 0.05;
+
 const _moveResult: MoveResult = makeMoveResult();
 const _surface: SurfaceQueryResult = makeSurfaceQueryResult();
 const _tmp = vec3();
@@ -460,11 +463,16 @@ function applyGroundAndAir(
   } else if (player.grounded) {
     const friction = cfg.friction * cfg.surfaceFriction * frictionOfGround(player) * dt;
     const speed = Math.hypot(player.velocity.x, player.velocity.z);
-    if (speed > 1e-4) {
+    if (speed > REST_SPEED) {
       const drop = Math.min(speed, friction);
       const s = (speed - drop) / speed;
       player.velocity.x *= s;
       player.velocity.z *= s;
+    } else {
+      // Snap to rest. A standing player that never quite stops costs network bandwidth every
+      // snapshot and makes idle animations twitch.
+      player.velocity.x = 0;
+      player.velocity.z = 0;
     }
   }
 
@@ -580,6 +588,7 @@ function applyCollisionResults(
 
 function updateDerived(player: PlayerState, ctx: LocomotionContext): void {
   const cfg = player.config;
+  if (player.grounded && player.velocity.y < 0 && player.velocity.y > -REST_SPEED) player.velocity.y = 0;
   const headY = player.hands[0].tracked || player.hands[1].tracked ? player.headHeight : player.height * cfg.headHeightRatio;
   v3set(player.head, player.position.x, player.position.y + headY, player.position.z);
   if (player.position.y < ctx.killPlaneY) {
