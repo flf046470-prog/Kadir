@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isNative } from "@/lib/native/bridge";
 
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
@@ -35,6 +36,10 @@ export function InstallPrompt({
   const [event, setEvent] = useState<InstallEvent | null>(null);
 
   useEffect(() => {
+    // Already inside the installed app: there is nothing to add to a home
+    // screen, and `beforeinstallprompt` never fires here anyway.
+    if (isNative()) return;
+
     try {
       if (localStorage.getItem(DISMISSED_KEY)) return;
     } catch {

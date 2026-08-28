@@ -692,3 +692,35 @@ export const gifts = pgTable(
     index("gifts_sender_idx").on(table.senderId, table.createdAt)
   ]
 );
+
+/**
+ * Device tokens for push notifications.
+ *
+ * Keyed by the token, not the member: one person has a phone and a tablet, and
+ * the same phone can be handed on or signed into by someone else. A token
+ * therefore points at whoever currently holds that device, and re-registering
+ * it after a different sign-in moves it rather than duplicating it — which is
+ * the difference between a notification reaching the right person and reaching
+ * the previous owner of the handset.
+ *
+ * `lastSeenAt` is what makes pruning possible. Providers reject tokens that
+ * have gone stale, and a table that only ever grows turns every broadcast into
+ * a bill for delivering to devices that no longer exist.
+ */
+export const pushTokens = pgTable(
+  "push_tokens",
+  {
+    token: text("token").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** ios | android */
+    platform: text("platform").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    // "Every device this member is signed in on" — what a send fans out over.
+    index("push_tokens_user_idx").on(table.userId)
+  ]
+);

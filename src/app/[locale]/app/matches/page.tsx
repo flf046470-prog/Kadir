@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/auth/guard";
 import { listConversations } from "@/db/messaging";
+import { PushRegistrar } from "@/components/native/PushRegistrar";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,15 @@ export default async function MatchesPage({
 
   return (
     <section className="container-fm max-w-2xl py-10">
+      {/*
+        The one place notification permission is asked for, and only once the
+        member actually has a match. The OS shows that dialog once per install
+        and a refusal is close to permanent, so spending it on first launch —
+        before there is anything to be notified about — wastes it. No-op on the
+        web and for a member with no matches yet.
+      */}
+      <PushRegistrar enabled={conversations.length > 0} />
+
       <h1 className="font-display text-3xl font-semibold text-ink">{t("matchesTitle")}</h1>
 
       {conversations.length === 0 && <p className="mt-6 text-ink/60">{t("matchesEmpty")}</p>}

@@ -12,9 +12,19 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:normalise-places": "tsx scripts/normalise-places.ts"
+    "db:normalise-places": "tsx scripts/normalise-places.ts",
+    "native:assets": "node scripts/generate-android-assets.mjs",
+    "native:sync": "cap sync",
+    "native:android": "cap open android",
+    "native:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/keyboard": "^8.0.5",
+    "@capacitor/push-notifications": "^8.1.2",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@node-rs/argon2": "^2.1.0",
     "drizzle-orm": "^0.45.2",
     "next": "^15.1.6",
@@ -25,6 +35,8 @@
     "sharp": "^0.35.3"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

@@ -10,6 +10,8 @@ import { JsonLd } from "@/components/JsonLd";
 import { organizationSchema, websiteSchema, buildAlternates } from "@/lib/seo";
 import { siteUrl } from "@/lib/site";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
+import { NativeShell } from "@/components/native/NativeShell";
+import { allowedAppHosts } from "@/lib/site";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -101,6 +103,8 @@ export default async function LocaleLayout({
               shell and the signed-in app shell are genuinely different. */}
           {children}
           <ServiceWorkerRegistrar />
+          {/* No-op in a browser; wires the shell's behaviours on a phone. */}
+          <NativeShell allowedHosts={allowedAppHosts()} />
         </NextIntlClientProvider>
       </body>
     </html>
