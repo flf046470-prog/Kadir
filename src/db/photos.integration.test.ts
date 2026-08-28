@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterAll } from "vitest";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import sharp from "sharp";
+import sharp, { type Sharp } from "sharp";
 import { createTestUser, resetDatabase } from "./test-helpers";
 import {
   approvePhoto,
@@ -34,10 +34,12 @@ async function photoWithGps(size = 800): Promise<Buffer> {
   return sharp({
     create: { width: size, height: size, channels: 3, background: { r: 200, g: 120, b: 150 } }
   })
+    // sharp's `Exif` type names only the IFD blocks, but it passes any group
+    // straight to exiftool, and GPS is the one this test exists to strip.
     .withExif({
       IFD0: { Copyright: "Test" },
       GPS: { GPSLatitudeRef: "N", GPSLongitudeRef: "E" }
-    })
+    } as Parameters<Sharp["withExif"]>[0])
     .jpeg()
     .toBuffer();
 }

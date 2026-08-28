@@ -13,7 +13,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:normalise-places": "tsx scripts/normalise-places.ts",
-    "native:assets": "node scripts/generate-android-assets.mjs",
+    "native:assets": "node mobile/assets/generate.mjs",
     "native:sync": "cap sync",
     "native:android": "cap open android",
     "native:ios": "cap open ios"

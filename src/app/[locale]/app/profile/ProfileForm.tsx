@@ -24,6 +24,7 @@ type Labels = {
   save: string;
   saved: string;
   logout: string;
+  discover: string;
 };
 
 /** Splits a comma-separated field into clean values; the API validates again. */
@@ -143,7 +144,7 @@ export function ProfileForm({
           href={`/${locale}/app/discover`}
           className="ml-6 text-sm font-medium text-bloom-600 hover:underline"
         >
-          Discover →
+          {labels.discover} →
         </a>
       </div>
     </>

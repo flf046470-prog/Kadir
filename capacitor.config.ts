@@ -18,7 +18,7 @@ import { KeyboardResize } from "@capacitor/keyboard";
  *
  * The trade is honest and worth stating: the app needs a connection to start.
  * `errorPath` is what stops that being a raw webview error — see
- * `native/shell/error.html`.
+ * `mobile/shell/error.html`.
  */
 
 const url = process.env.CAPACITOR_SERVER_URL ?? "https://fiorematch.com";
@@ -30,7 +30,7 @@ const config: CapacitorConfig = {
 
   // Required by the CLI even when the app loads a remote URL. It holds the
   // local error page rather than a copy of the site.
-  webDir: "native/shell",
+  webDir: "mobile/shell",
 
   server: {
     url,
@@ -55,10 +55,14 @@ const config: CapacitorConfig = {
   },
 
   android: {
+    // Both native projects live under `mobile/` rather than at the repository
+    // root, so the web app and the two store builds are separable at a glance.
+    path: "mobile/android",
     backgroundColor: "#fff5f7"
   },
 
   ios: {
+    path: "mobile/ios",
     backgroundColor: "#fff5f7",
     // Let the page paint under the status bar so the app looks installed
     // rather than framed; the layout already pays for it with safe-area insets.

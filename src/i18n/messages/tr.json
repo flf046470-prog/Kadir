@@ -475,29 +475,29 @@
     }
   },
   "games": {
-    "title": "Match Games",
+    "title": "Eşleşme Oyunları",
     "subtitle": "İlk sohbeti kolaylaştıran isteğe bağlı mini oyunlar.",
     "fairPlay": "İkiniz de cevap verene kadar hiçbiriniz diğerinin cevabını göremez — bunu uygulamaya güvenerek değil, sunucu zorunlu kılarak sağlıyoruz.",
     "optional": "Oyunlar her zaman isteğe bağlıdır. İkiniz de bir daveti atlayabilir veya oyunu istediğiniz an bitirebilirsiniz; reddetmek gayet normal bir cevaptır.",
     "list": [
       {
-        "name": "This or That",
+        "name": "Bu mu, Şu mu?",
         "desc": "Hızlı ya o ya bu seçimleri. Kahve mi çay mı, her şeyi planlamak mı doğaçlama mı."
       },
       {
-        "name": "Would You Rather",
+        "name": "Hangisini Seçersin?",
         "desc": "İki cazip seçenek, kolay cevap yok. Birinin nasıl düşündüğünü anlamanın hızlı yolu."
       },
       {
-        "name": "Two Truths and a Lie",
+        "name": "İki Doğru Bir Yalan",
         "desc": "Biri yalan olmak üzere üç cümle yaz. Eşleşmen hangisi olduğunu tahmin etsin — tahmin edene kadar yalan gizli kalır."
       },
       {
-        "name": "Quick Questions",
+        "name": "Hızlı Sorular",
         "desc": "Kısa açık uçlu sorular: en iyi seyahat, teselli yemeği, sürekli dinlediğin şarkı."
       },
       {
-        "name": "Guess My Answer",
+        "name": "Cevabımı Tahmin Et",
         "desc": "Eşleşmenin ne diyeceğini tahmin et, sonra karşılaştır. Genelde beşinin en eğlencelisi."
       }
     ],
@@ -734,6 +734,13 @@
     "giftReceived": "Size bir hediye",
     "installPitch": "FioreMatch'i ana ekranınıza ekleyin",
     "install": "Yükle",
-    "installDismiss": "Şimdi değil"
+    "installDismiss": "Şimdi değil",
+    "deleteTitle": "Hesabınızı silin",
+    "deleteBody": "Bu işlem profilinizi, fotoğraflarınızı, eşleşmelerinizi ve mesajlarınızı kaldırır. Geri alınamaz ve sonrasında hiçbirini sizin için geri getiremeyiz.",
+    "deleteConfirmWord": "sil",
+    "deletePrompt": "Onaylamak için “sil” yazın.",
+    "deleteButton": "Hesabı sil",
+    "deleteWorking": "Siliniyor…",
+    "deleteFailed": "İşlem tamamlanamadı. Lütfen tekrar deneyin."
   }
 }

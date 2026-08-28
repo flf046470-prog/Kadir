@@ -424,7 +424,14 @@ export function ConversationClient({
         </div>
       )}
 
-      <form onSubmit={handleSend} className="mt-6 flex gap-3">
+      {/*
+        `min-w-0` on the input is load-bearing, not tidying. A flex item's
+        default `min-width: auto` refuses to shrink past its intrinsic width,
+        and an input's intrinsic width is its `size` — about 20 characters. On a
+        412px phone that pushed the send button 42px off-screen and, because the
+        tab bar is `inset-x-0`, dragged the whole bottom nav out with it.
+      */}
+      <form onSubmit={handleSend} className="mt-6 flex gap-2 sm:gap-3">
         <button
           type="button"
           onClick={() => setGiftPickerOpen((open) => !open)}
@@ -444,9 +451,13 @@ export function ConversationClient({
           placeholder={labels.placeholder}
           aria-label={labels.placeholder}
           maxLength={2000}
-          className="flex-1 rounded-full border border-black/10 px-5 py-3 text-sm focus:border-bloom-400 focus:outline-none"
+          className="min-w-0 flex-1 rounded-full border border-black/10 px-4 py-3 text-sm focus:border-bloom-400 focus:outline-none sm:px-5"
         />
-        <button type="submit" className="btn-primary" disabled={sending || draft.trim() === ""}>
+        <button
+          type="submit"
+          className="btn-primary shrink-0"
+          disabled={sending || draft.trim() === ""}
+        >
           {labels.send}
         </button>
       </form>

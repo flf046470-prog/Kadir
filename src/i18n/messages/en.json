@@ -734,6 +734,13 @@
     "giftReceived": "A gift for you",
     "installPitch": "Add FioreMatch to your home screen",
     "install": "Install",
-    "installDismiss": "Not now"
+    "installDismiss": "Not now",
+    "deleteTitle": "Delete your account",
+    "deleteBody": "This removes your profile, photos, matches and messages. It cannot be undone, and we cannot bring any of it back for you afterwards.",
+    "deleteConfirmWord": "delete",
+    "deletePrompt": "Type “delete” to confirm.",
+    "deleteButton": "Delete account",
+    "deleteWorking": "Deleting…",
+    "deleteFailed": "That didn't go through. Please try again."
   }
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { reasonLine } from "@/lib/matching/reason-label";
 import type { DailySuggestion } from "@/db/daily-suggestions";
+import { placeLabel } from "@/lib/countries-data";
 
 /**
  * The day's five, decided.
@@ -86,9 +87,14 @@ export function DailyFiveClient({
             </div>
 
             {profile?.cityId && (
-              <p className="mt-1 text-sm capitalize text-ink/60">
-                {profile.cityId}
-                {profile.countryId ? `, ${profile.countryId.toUpperCase()}` : ""}
+              // Same renderer as Discover. Hand-rolling the casing here printed
+              // "Istanbul, TURKEY" against Discover's "Istanbul, Turkey" for
+              // the same person, and shouted the country at everyone.
+              <p className="mt-1 text-sm text-ink/60">
+                {[profile.cityId, profile.countryId]
+                  .filter((id): id is string => Boolean(id))
+                  .map(placeLabel)
+                  .join(", ")}
               </p>
             )}
 

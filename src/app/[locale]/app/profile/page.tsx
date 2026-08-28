@@ -4,6 +4,7 @@ import { currentUser } from "@/auth/guard";
 import { loadMatchProfile } from "@/db/profile-repository";
 import { ProfileForm } from "./ProfileForm";
 import { PhotoManager } from "./PhotoManager";
+import { DeleteAccount } from "./DeleteAccount";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,8 @@ export default async function ProfilePage({
           complete: t("complete"),
           save: t("save"),
           saved: t("saved"),
-          logout: t("logout")
+          logout: t("logout"),
+          discover: t("discoverTitle")
         }}
         locale={locale}
       />
@@ -67,6 +69,24 @@ export default async function ProfilePage({
             too_many_pixels: t("photoTooLarge"),
             failed: t("photoFailed")
           }
+        }}
+      />
+
+      {/*
+        Required by both stores: Apple 5.1.1(v) and Google Play's
+        account-deletion policy both say an app that creates accounts must let
+        someone delete one from inside the app. A support address does not
+        satisfy either.
+      */}
+      <DeleteAccount
+        labels={{
+          title: t("deleteTitle"),
+          body: t("deleteBody"),
+          confirmWord: t("deleteConfirmWord"),
+          prompt: t("deletePrompt"),
+          button: t("deleteButton"),
+          working: t("deleteWorking"),
+          failed: t("deleteFailed")
         }}
       />
     </section>
