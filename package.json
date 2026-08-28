@@ -1,40 +1,45 @@
 {
-  "name": "patagonia-underground",
+  "name": "kangaroo-chase",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "description": "Kangaroo Chase - cross-platform (Mobile / PC / VR) physical-movement social tag game",
+  "workspaces": [
+    "packages/core",
+    "packages/net",
+    "packages/server",
+    "packages/client"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "npm run build:client && npm run server:build",
-    "build:client": "tsc -b && vite build",
-    "start": "node dist-server/index.js",
-    "lint": "oxlint",
-    "preview": "vite preview",
-    "server:dev": "tsx server/index.ts",
-    "server:build": "tsc -p tsconfig.server.json",
-    "server:typecheck": "tsc -p tsconfig.server.json --noEmit",
-    "test": "tsx --test server/**/*.test.ts",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "db:migrate": "npm run prisma:migrate"
-  },
-  "dependencies": {
-    "@prisma/client": "^6.7.0",
-    "dotenv": "^16.5.0",
-    "lucide-react": "^1.33.0",
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "dev": "npm run dev --workspace @kc/client",
+    "dev:server": "tsx watch packages/server/src/main.ts",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build --config packages/client/vite.config.ts",
+    "build:server": "vite build --config packages/server/vite.config.ts",
+    "start": "node dist/server/main.js",
+    "typecheck": "npm run typecheck:sim && npm run typecheck:client",
+    "typecheck:sim": "tsc -p tsconfig.sim.json --noEmit",
+    "typecheck:client": "tsc -p tsconfig.client.json --noEmit",
+    "lint": "oxlint packages",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",
-    "@types/react": "^19.2.17",
-    "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.4",
-    "dotenv": "^16.5.0",
+    "@types/three": "^0.182.0",
+    "@types/ws": "^8.18.1",
     "oxlint": "^1.75.0",
-    "prisma": "^6.7.0",
     "tsx": "^4.19.4",
-    "typescript": "~6.0.2",
-    "vite": "^8.2.0"
+    "typescript": "~5.9.3",
+    "vite": "^7.1.7",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "three": "^0.182.0",
+    "ws": "^8.18.3"
+  },
+  "engines": {
+    "node": ">=20.11"
   }
 }

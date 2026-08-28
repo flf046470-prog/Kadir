@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": ["packages/core/src", "packages/net/src", "packages/server/src", "packages/*/vite.config.ts", "vitest.config.ts"]
+}
