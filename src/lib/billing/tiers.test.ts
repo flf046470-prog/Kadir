@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { activeTier, ENTITLEMENTS, entitlementsFor, isTier, TIERS } from "./tiers";
+import {
+  activeTier,
+  ENTITLEMENTS,
+  entitlementsFor,
+  isTier,
+  TIERS,
+  YEARLY_PRICE_CENTS
+} from "./tiers";
 
 const HOUR = 3_600_000;
 const now = new Date("2026-08-23T12:00:00Z");
@@ -14,10 +21,10 @@ describe("the entitlement table", () => {
   it("never takes something away as the tier goes up", () => {
     const booleanKeys = [
       "advancedFilters",
-      "adFree",
-      "seeVisitors",
+      "seeWhoLikedYou",
+      "undoPass",
       "messageTranslation",
-      "aiRecommendations",
+      "profileVisitors",
       "priorityVisibility",
       "vipBadge"
     ] as const;
@@ -35,16 +42,16 @@ describe("the entitlement table", () => {
   });
 
   it("matches the published pricing page on the features it names", () => {
-    // PLUS: advanced filters, more likes, ad-free, visitors, translation.
+    // PLUS sells control over who you see.
     expect(entitlementsFor("plus")).toMatchObject({
       advancedFilters: true,
-      adFree: true,
-      seeVisitors: true,
+      seeWhoLikedYou: true,
+      undoPass: true,
       messageTranslation: true
     });
-    // VIP adds recommendations, priority visibility, a badge, better boosts.
+    // VIP sells control over who sees you.
     expect(entitlementsFor("vip")).toMatchObject({
-      aiRecommendations: true,
+      profileVisitors: true,
       priorityVisibility: true,
       vipBadge: true
     });
@@ -55,8 +62,54 @@ describe("the entitlement table", () => {
     expect(entitlementsFor("free")).toMatchObject({
       advancedFilters: false,
       messageTranslation: false,
-      aiRecommendations: false
+      seeWhoLikedYou: false,
+      profileVisitors: false
     });
+  });
+
+  /**
+   * The regression this file exists to prevent.
+   *
+   * PLUS and VIP once cost the same, and every entitlement that was supposed
+   * to separate them was a flag nothing read — so VIP was the same product at
+   * the same price. Either half of that alone is survivable; together they
+   * make the more expensive tier indefensible.
+   */
+  it("charges more for VIP, and gives something for it", () => {
+    expect(YEARLY_PRICE_CENTS.free).toBe(0);
+    expect(YEARLY_PRICE_CENTS.plus).toBeGreaterThan(YEARLY_PRICE_CENTS.free);
+    expect(YEARLY_PRICE_CENTS.vip).toBeGreaterThan(YEARLY_PRICE_CENTS.plus);
+
+    const plus = entitlementsFor("plus");
+    const vip = entitlementsFor("vip");
+    const different = (Object.keys(vip) as (keyof typeof vip)[]).filter(
+      (key) => plus[key] !== vip[key]
+    );
+
+    expect(different.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /**
+   * Every entitlement has to be read by something. A flag nobody reads is a
+   * promise on the pricing page with no code behind it, which is how `adFree`
+   * came to sell an absence of ads in a product that has never had any.
+   */
+  it("declares no entitlement the product does not implement", () => {
+    expect(Object.keys(entitlementsFor("vip")).sort()).toEqual(
+      [
+        "advancedFilters",
+        "boostMinutes",
+        "dailyGifts",
+        "dailyLikes",
+        "messageTranslation",
+        "monthlyBoostCredits",
+        "priorityVisibility",
+        "profileVisitors",
+        "seeWhoLikedYou",
+        "undoPass",
+        "vipBadge"
+      ].sort()
+    );
   });
 
   it("recognises only real tiers", () => {

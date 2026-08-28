@@ -31,7 +31,7 @@ export default function PricingPage() {
   const faqs = [
     {
       question: "How much do PLUS and VIP cost?",
-      answer: "PLUS and VIP both start at $1.99/year globally, shown in your local currency where supported by the App Store and Google Play."
+      answer: "PLUS is $1.99/year and VIP is $5.99/year globally, shown in your local currency where supported by the App Store and Google Play. Both are annual — at these prices a monthly plan would cost more in payment processing than it collects."
     },
     {
       question: "Is pricing the same in every country?",

@@ -54,6 +54,10 @@ export default async function DiscoverPage({
           boostNone: t("boostNone"),
           likeLimitReached: t("likeLimitReached"),
           filtersDowngraded: t("filtersDowngraded"),
+          undo: t("undoPass"),
+          undoEmpty: t("undoPassEmpty"),
+          undoLocked: t("undoPassLocked"),
+          vipBadge: t("vipBadge"),
           bands: {
             strong: t("bandStrong"),
             promising: t("bandPromising"),

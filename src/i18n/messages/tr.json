@@ -188,24 +188,25 @@
     "plusFeatures": [
       "Ücretsiz paketteki her şey",
       "Gelişmiş filtreler",
-      "Günde daha fazla Beğeni",
-      "Reklamsız deneyim",
-      "Profilini kimlerin ziyaret ettiğini gör",
-      "Sohbet içi mesaj çevirisi"
+      "Günde 200 Beğeni",
+      "Seni kimlerin beğendiğini gör",
+      "Son geçişini geri al",
+      "Sohbet içi mesaj çevirisi",
+      "Günde 10 hediye"
     ],
     "vipName": "VIP",
-    "vipPrice": "$1.99",
+    "vipPrice": "$5.99",
     "vipPeriod": "/ yıl",
-    "vipDesc": "Maksimum görünürlük ve en akıllı eşleştirmemiz.",
+    "vipDesc": "Kimin kendisini bulacağı üzerinde daha fazla kontrol isteyenler için.",
     "vipFeatures": [
-      "PLUS'taki her şey",
-      "Yapay zeka destekli eşleşme önerileri",
-      "Öncelikli profil görünürlüğü",
-      "Profilinde VIP rozeti",
-      "Boost avantajları",
-      "En gelişmiş keşfetme araçlarımız"
+      "PLUS paketteki her şey",
+      "Sınırsız Beğeni ve hediye",
+      "Profilini kimlerin ziyaret ettiğini gör",
+      "Keşfet'te öncelikli görünürlük",
+      "Kartında VIP rozeti",
+      "Her ay 60 dakikalık Boost"
     ],
-    "vipBadge": "En popüler",
+    "vipBadge": "En kapsamlı",
     "localNote": "Yerel fiyatlar, ham bir döviz dönüşümü değil, Apple App Store ve Google Play'in ülke bazlı fiyat kademelerini takip eder ve pazarlara adil şekilde ayarlayabilmemiz için merkezi olarak yönetilir.",
     "addonsTitle": "Tek seferlik boost'lar",
     "addonsSubtitle": "İstediğin ekstra erişimi, tam istediğin zaman satın al.",
@@ -274,7 +275,7 @@
       },
       {
         "name": "Gerçek değer",
-        "desc": "Sömürü yerine uygun fiyat — PLUS ve VIP için yılda $1.99."
+        "desc": "Sömürü yerine uygun fiyat — PLUS yılda $1.99, VIP yılda $5.99."
       }
     ]
   },
@@ -741,6 +742,27 @@
     "deletePrompt": "Onaylamak için “sil” yazın.",
     "deleteButton": "Hesabı sil",
     "deleteWorking": "Siliniyor…",
-    "deleteFailed": "İşlem tamamlanamadı. Lütfen tekrar deneyin."
+    "deleteFailed": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+    "undoPass": "Son geçişi geri al",
+    "undoPassEmpty": "Geri alınacak bir şey yok.",
+    "undoPassLocked": "Geri alma bir PLUS özelliği.",
+    "vipBadge": "VIP",
+    "interestNav": "Sana ilgi gösterenler",
+    "listLoading": "Yükleniyor…",
+    "listUpgrade": "Planlara bak",
+    "listSuperLike": "Süper Beğeni",
+    "listRepeatVisit": "{count} kez baktı",
+    "likesTitle": "Seni beğenenler",
+    "likesIntro": "Seni beğenmiş ve hâlâ cevap bekleyen kişiler. Sen karar verdiğin an — beğen ya da geç — bu listeden çıkarlar.",
+    "likesEmpty": "Şu an cevap bekleyen kimse yok.",
+    "likesLockedTitle": "PLUS kim olduklarını gösterir",
+    "likesLockedBody": "Yukarıdaki sayı gerçek. PLUS bu sayının arkasındaki isimleri ve fotoğrafları açıyor; böylece sana zaten evet demiş kişileri Keşfet'te yeniden aramak yerine doğrudan cevaplayabilirsin.",
+    "visitorsTitle": "Profil ziyaretçileri",
+    "visitorsIntro": "Profilini açan kişiler. Bakan herkes kaydediliyor — abone olmayarak görünmez gezilmiyor.",
+    "visitorsEmpty": "Profilini henüz kimse açmadı.",
+    "visitorsLockedTitle": "VIP kim olduklarını gösterir",
+    "visitorsLockedBody": "Yukarıdaki sayı gerçek. VIP bu sayıya isim veriyor ve birden fazla kez dönenleri gösteriyor.",
+    "likesCount": "{count, plural, other {# kişi cevabını bekliyor}}",
+    "visitorsCount": "{count, plural, other {# kişi profilini açtı}}"
   }
 }

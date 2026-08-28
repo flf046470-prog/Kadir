@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
-import { boosts, likes, subscriptions } from "./schema";
+import { boostGrants, boosts, likes, subscriptions } from "./schema";
 import { advisoryLockKey } from "./advisory-lock";
 import { spendReward } from "./referral";
 import {
@@ -153,6 +153,17 @@ export async function boostedUserIds(
   return new Set(rows.map((row) => row.userId));
 }
 
+/**
+ * The calendar month a grant belongs to, as `YYYY-MM` in UTC.
+ *
+ * UTC rather than the member's local month so the key is stable: deriving it
+ * from a device clock would let someone in one timezone claim December's
+ * credit twice by crossing a boundary.
+ */
+function monthKey(now: Date): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 export type BoostResult =
   | { ok: true; expiresAt: Date }
   | { ok: false; reason: "already_running" | "none_available" };
@@ -188,10 +199,39 @@ export async function startBoost(userId: string, now: Date = new Date()): Promis
 
     if (running[0]) return { ok: false as const, reason: "already_running" as const };
 
+    /**
+     * Pay from the subscription's monthly credit first, then the referral
+     * ledger.
+     *
+     * That order matters: the monthly credit expires at the end of the month
+     * and a referral reward does not, so spending the perishable one first is
+     * the only ordering that never destroys value the member earned. VIP's
+     * sixty-minute Boost was unreachable before this — `startBoost` paid only
+     * from referral rewards, so a VIP who had never referred anyone could not
+     * start one at all, and `boostMinutes: 60` described something that could
+     * not happen.
+     *
+     * The insert is the claim. `boost_grants` is keyed on (user, month), so a
+     * second attempt in the same month inserts nothing and returns no rows —
+     * idempotent without a read-then-write, and safe under the advisory lock
+     * above even if it were not.
+     */
+    let paid = false;
+
+    if (entitlements.monthlyBoostCredits > 0) {
+      const claimed = await tx
+        .insert(boostGrants)
+        .values({ userId, period: monthKey(now) })
+        .onConflictDoNothing()
+        .returning({ period: boostGrants.period });
+
+      paid = claimed.length > 0;
+    }
+
     // Spend, then grant, in that order and in one transaction: if the insert
     // failed after a spend outside a transaction the member would have paid
     // for nothing, and granting first would hand out free boosts on any error.
-    const paid = await spendReward(userId, "boost", tx);
+    if (!paid) paid = await spendReward(userId, "boost", tx);
     if (!paid) return { ok: false as const, reason: "none_available" as const };
 
     const expiresAt = new Date(now.getTime() + entitlements.boostMinutes * 60_000);

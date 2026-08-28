@@ -24,57 +24,87 @@ export type Entitlements = {
   advancedFilters: boolean;
   /** Likes per rolling day. `null` means no limit. */
   dailyLikes: number | null;
-  adFree: boolean;
-  /** Who looked at your profile. */
-  seeVisitors: boolean;
+  /** The names behind "someone liked you", rather than just the count. */
+  seeWhoLikedYou: boolean;
+  /** Take back the last pass, once, while it is still the last one. */
+  undoPass: boolean;
   /** In-chat message translation. */
   messageTranslation: boolean;
-  /** Today's 5 and the learned ranking, rather than plain proximity order. */
-  aiRecommendations: boolean;
-  /** Ranked above equivalent free profiles in Discover. */
+  /** Who opened your profile, and when. */
+  profileVisitors: boolean;
+  /** Ranked above equivalent profiles in Discover. */
   priorityVisibility: boolean;
+  /** Shown on the Discover card and in the conversation header. */
   vipBadge: boolean;
   /** Boost runs longer for VIP than the base thirty minutes. */
   boostMinutes: number;
+  /** Boosts granted per calendar month, so the longer Boost is reachable. */
+  monthlyBoostCredits: number;
   /** Gifts per rolling day. `null` means no limit. */
   dailyGifts: number | null;
+};
+
+/**
+ * Price per year, in whole cents of the base currency.
+ *
+ * Annual only, and deliberately far under the market: the pricing page's claim
+ * is affordability rather than extraction, and a monthly plan at a price this
+ * low would cost more in payment processing than it collects.
+ *
+ * VIP is three times PLUS because it sells a different thing. PLUS buys
+ * control over who *you* see; VIP buys control over who sees *you*, plus the
+ * two surfaces that cost real infrastructure — visitor records and a monthly
+ * Boost. Charging the same for both, as this file did before, meant VIP was
+ * the same product at the same price.
+ *
+ * The store is the source of truth at purchase time. These are the numbers the
+ * App Store and Play price tiers must be configured to match, and what the
+ * pricing page renders when no store price is available.
+ */
+export const YEARLY_PRICE_CENTS: Record<Tier, number> = {
+  free: 0,
+  plus: 199,
+  vip: 599
 };
 
 export const ENTITLEMENTS: Record<Tier, Entitlements> = {
   free: {
     advancedFilters: false,
     dailyLikes: 50,
-    adFree: false,
-    seeVisitors: false,
+    seeWhoLikedYou: false,
+    undoPass: false,
     messageTranslation: false,
-    aiRecommendations: false,
+    profileVisitors: false,
     priorityVisibility: false,
     vipBadge: false,
     boostMinutes: 30,
+    monthlyBoostCredits: 0,
     dailyGifts: 3
   },
   plus: {
     advancedFilters: true,
     dailyLikes: 200,
-    adFree: true,
-    seeVisitors: true,
+    seeWhoLikedYou: true,
+    undoPass: true,
     messageTranslation: true,
-    aiRecommendations: false,
+    profileVisitors: false,
     priorityVisibility: false,
     vipBadge: false,
     boostMinutes: 30,
+    monthlyBoostCredits: 0,
     dailyGifts: 10
   },
   vip: {
     advancedFilters: true,
     dailyLikes: null,
-    adFree: true,
-    seeVisitors: true,
+    seeWhoLikedYou: true,
+    undoPass: true,
     messageTranslation: true,
-    aiRecommendations: true,
+    profileVisitors: true,
     priorityVisibility: true,
     vipBadge: true,
     boostMinutes: 60,
+    monthlyBoostCredits: 1,
     dailyGifts: null
   }
 };

@@ -724,3 +724,62 @@ export const pushTokens = pgTable(
     index("push_tokens_user_idx").on(table.userId)
   ]
 );
+
+/**
+ * Who opened whose profile.
+ *
+ * One row per (viewer, subject) pair rather than one per view: the VIP surface
+ * answers "who has looked at me, and when last", and an append-only log would
+ * grow without bound to answer a question nobody asks. `viewCount` keeps the
+ * "looked more than once" signal that a single timestamp would lose.
+ *
+ * Both sides cascade. Someone who deletes their account disappears from other
+ * members' visitor lists, which is the behaviour a member expects from
+ * deletion and the behaviour the store policies describe.
+ *
+ * Recording is deliberately one-directional and unconditional — a member
+ * cannot browse invisibly by staying on the free tier, because a visitor log
+ * that only records paying viewers would be a lie about who has been looking.
+ * What the tier buys is *reading* the list, not being absent from it.
+ */
+export const profileViews = pgTable(
+  "profile_views",
+  {
+    /** The member whose profile was opened. */
+    subjectUserId: uuid("subject_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewerUserId: uuid("viewer_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    viewCount: integer("view_count").notNull().default(1),
+    firstViewedAt: timestamp("first_viewed_at", { withTimezone: true }).notNull().defaultNow(),
+    lastViewedAt: timestamp("last_viewed_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    primaryKey({ columns: [table.subjectUserId, table.viewerUserId] }),
+    // "Who has looked at me lately" — the only read this table serves.
+    index("profile_views_subject_idx").on(table.subjectUserId, table.lastViewedAt)
+  ]
+);
+
+/**
+ * Boost credits granted by a subscription rather than earned by referral.
+ *
+ * Without this VIP's longer Boost was unreachable: `startBoost` spends from the
+ * referral reward ledger, so a VIP who had never referred anyone could not
+ * start one at all, and `boostMinutes: 60` described a thing that could not
+ * happen. One row per member per month, claimed idempotently.
+ */
+export const boostGrants = pgTable(
+  "boost_grants",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Calendar month the grant belongs to, as `YYYY-MM` in UTC. */
+    period: text("period").notNull(),
+    grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.period] })]
+);

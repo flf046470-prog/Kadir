@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { locales, type Locale } from "@/i18n/locales";
 import { siteUrl } from "./site";
+import { YEARLY_PRICE_CENTS } from "./billing/tiers";
 
 /**
  * Builds canonical + hreflang alternates for a given path across all launch
@@ -93,22 +94,16 @@ export function softwareApplicationSchema(locale: Locale) {
     applicationCategory: "SocialNetworkingApplication",
     operatingSystem: "Web, iOS, Android",
     url: `${siteUrl}/${locale}`,
-    offers: [
-      {
-        "@type": "Offer",
-        name: "PLUS",
-        price: "1.99",
-        priceCurrency: "USD",
-        priceValidUntil: "2027-12-31"
-      },
-      {
-        "@type": "Offer",
-        name: "VIP",
-        price: "1.99",
-        priceCurrency: "USD",
-        priceValidUntil: "2027-12-31"
-      }
-    ],
+    // Derived from the entitlements module rather than restated here. Search
+    // engines quote structured data as the price, so a second copy of these
+    // numbers is a copy that eventually disagrees with the pricing page.
+    offers: (["plus", "vip"] as const).map((tier) => ({
+      "@type": "Offer",
+      name: tier.toUpperCase(),
+      price: (YEARLY_PRICE_CENTS[tier] / 100).toFixed(2),
+      priceCurrency: "USD",
+      priceValidUntil: "2027-12-31"
+    })),
     aggregateRating: undefined
   };
 }

@@ -198,8 +198,25 @@ each page says something actually true and useful about that place.
 
 ## Pricing model
 
-PLUS and VIP are both **$1.99/year** as a global base price. Local prices are
-intended to follow Apple App Store and Google Play country-level pricing
-tiers — not raw currency conversion — managed centrally so they can be tuned
-per market from an admin surface. The pricing page states this; the
-central price management backend is Phase 4 of the roadmap.
+**PLUS $1.99/year, VIP $5.99/year** as a global base price, annual only — at
+these prices a monthly plan would cost more in payment processing than it
+collects. `src/lib/billing/tiers.ts` is the source of truth for both the
+numbers and what each tier gets; the pricing page and the JSON-LD offers are
+rendered from it, so there is no second copy to drift.
+
+The two tiers sell different things rather than different amounts of the same
+thing. PLUS buys control over **who you see** — advanced filters, 200 likes a
+day, who liked you, undo, translation. VIP buys control over **who sees you** —
+priority in Discover, your profile's visitors, the badge, and a 60-minute Boost
+every month.
+
+Local prices are intended to follow Apple App Store and Google Play
+country-level pricing tiers — not raw currency conversion — managed centrally
+so they can be tuned per market from an admin surface. The central price
+management backend is Phase 4 of the roadmap.
+
+**Nothing can be bought yet.** There is no payment integration: the
+`subscriptions` table is written only by tests. For the mobile apps this
+cannot be Stripe — Apple's guideline 3.1.1 and Google Play's billing policy
+both require digital subscriptions to go through in-app purchase — so the work
+is StoreKit plus Play Billing, with server-side receipt validation.

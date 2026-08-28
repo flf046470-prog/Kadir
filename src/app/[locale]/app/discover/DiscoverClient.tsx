@@ -43,6 +43,9 @@ type Suggestion = {
   compatibility: Compatibility;
   reasons: Reason[];
   photos: Photo[];
+  boosted: boolean;
+  /** The subject's VIP badge, not the viewer's. */
+  vip: boolean;
 };
 
 type Labels = {
@@ -63,6 +66,10 @@ type Labels = {
   boostNone: string;
   likeLimitReached: string;
   filtersDowngraded: string;
+  undo: string;
+  undoEmpty: string;
+  undoLocked: string;
+  vipBadge: string;
   bands: { strong: string; promising: string; exploring: string };
 };
 
@@ -90,6 +97,7 @@ export function DiscoverClient({
   const [loading, setLoading] = useState(true);
   const [matchBanner, setMatchBanner] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
+  const [undoState, setUndoState] = useState<"idle" | "done" | "empty" | "locked">("idle");
   const [notice, setNotice] = useState<"like_limit" | "filters_downgraded" | null>(null);
   const [boost, setBoost] = useState<{ available: number; expiresAt: string | null }>({
     available: 0,
@@ -190,6 +198,38 @@ export function DiscoverClient({
 
   const current = suggestions[0];
 
+  /**
+   * Record that this member opened the card now on screen.
+   *
+   * Gated on tab visibility for the same reason read receipts are: a
+   * backgrounded tab polling in the background is not a person looking, and a
+   * visitor list built from those is a list of lies. Fire-and-forget — the
+   * feed must not wait on, or fail because of, a convenience surface.
+   */
+  useEffect(() => {
+    if (!current) return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
+    void fetch("/api/profile-views", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ userId: current.profileId })
+    }).catch(() => {});
+  }, [current]);
+
+  async function undo() {
+    setActing("undo");
+    try {
+      const response = await fetch("/api/likes/undo", { method: "POST" });
+      setUndoState(response.ok ? "done" : response.status === 403 ? "locked" : "empty");
+      if (response.ok) await load(mode, filters);
+    } catch {
+      setUndoState("empty");
+    } finally {
+      setActing(null);
+    }
+  }
+
   return (
     <div className="mt-8">
       <label className="block text-sm font-medium text-ink">
@@ -258,7 +298,12 @@ export function DiscoverClient({
           )}
           <div className="p-8">
           {current.profile && (
-            <ProfileHeader profile={current.profile} labels={labels} taxonomy={taxonomy} />
+            <ProfileHeader
+              profile={current.profile}
+              vip={current.vip}
+              labels={labels}
+              taxonomy={taxonomy}
+            />
           )}
 
           <CompatibilityLine
@@ -311,6 +356,23 @@ export function DiscoverClient({
               {labels.like}
             </button>
           </div>
+
+          {/* Undo is deliberately below the three decisions and quieter than
+              all of them: it corrects a mis-tap, it is not a fourth choice. */}
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={undo}
+              disabled={acting !== null}
+              className="text-sm font-medium text-dusk-600 underline-offset-4 hover:underline disabled:text-ink/30"
+            >
+              {labels.undo}
+            </button>
+            {undoState === "empty" && <span className="text-sm text-ink/50">{labels.undoEmpty}</span>}
+            {undoState === "locked" && (
+              <span className="text-sm text-ink/50">{labels.undoLocked}</span>
+            )}
+          </div>
           </div>
         </article>
       )}
@@ -334,10 +396,12 @@ export function DiscoverClient({
  */
 function ProfileHeader({
   profile,
+  vip,
   labels,
   taxonomy
 }: {
   profile: ProfileCard;
+  vip: boolean;
   labels: Labels;
   taxonomy: Translator;
 }) {
@@ -349,9 +413,18 @@ function ProfileHeader({
 
   return (
     <header>
-      <h2 className="font-display text-2xl font-semibold text-ink">
-        {profile.displayName}
-        {profile.age !== null && <span className="font-normal text-ink/70">, {profile.age}</span>}
+      <h2 className="flex flex-wrap items-center gap-x-2 font-display text-2xl font-semibold text-ink">
+        <span>
+          {profile.displayName}
+          {profile.age !== null && <span className="font-normal text-ink/70">, {profile.age}</span>}
+        </span>
+        {/* A badge, not a ranking claim. It says what someone pays for; the
+            compatibility figure below is still the real one. */}
+        {vip && (
+          <span className="rounded-full bg-dusk-100 px-2.5 py-1 text-[11px] font-semibold uppercase leading-none tracking-wide text-dusk-700">
+            {labels.vipBadge}
+          </span>
+        )}
       </h2>
 
       {place && <p className="mt-1 text-sm text-ink/60">{place}</p>}

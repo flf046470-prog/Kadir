@@ -16,6 +16,7 @@ import type { LocationContext } from "@/lib/matching/signals";
 import { parseFilters } from "@/lib/matching/filters";
 import { locationContext } from "@/lib/matching/location-context";
 import { boostedUserIds, entitlementsOf, tiersOf } from "@/db/entitlements";
+import { entitlementsFor } from "@/lib/billing/tiers";
 import { standardFiltersOnly, usesAdvancedFilters } from "@/lib/matching/filters";
 
 /**
@@ -123,7 +124,10 @@ export async function GET(request: NextRequest) {
       reasons: buildReasons(result),
       photos: photosByUser.get(candidate.id) ?? [],
       boosted: boosted.has(candidate.id),
-      vip: candidateTiers.get(candidate.id) === "vip"
+      // Read through the entitlements table rather than comparing to "vip", so
+      // re-pricing either perk stays the one-line edit that file promises.
+      prioritised: entitlementsFor(candidateTiers.get(candidate.id) ?? "free").priorityVisibility,
+      vip: entitlementsFor(candidateTiers.get(candidate.id) ?? "free").vipBadge
     };
   });
 
@@ -146,10 +150,10 @@ export async function GET(request: NextRequest) {
       rank:
         result.score +
         (result.boosted ? BOOST_RANK_BONUS : 0) +
-        (result.vip ? VIP_RANK_BONUS : 0)
+        (result.prioritised ? VIP_RANK_BONUS : 0)
     }))
     .sort((a, b) => b.rank - a.rank || a.profileId.localeCompare(b.profileId))
-    .map(({ rank: _rank, ...result }) => result);
+    .map(({ rank: _rank, prioritised: _prioritised, ...result }) => result);
 
   return NextResponse.json({ mode, results: ranked.slice(0, limit), filtersDowngraded });
 }

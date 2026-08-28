@@ -34,6 +34,27 @@ export default async function MatchesPage({
 
       <h1 className="font-display text-3xl font-semibold text-ink">{t("matchesTitle")}</h1>
 
+      {/*
+        Interest that has not become a match yet lives one step from the list
+        of ones that have. Not in the tab bar: five tabs is already the width
+        of a phone, and these two are somewhere a member goes on purpose
+        rather than somewhere they live.
+      */}
+      <nav className="mt-5 flex gap-2" aria-label={t("interestNav")}>
+        <a
+          href={`/${locale}/app/interest/likes`}
+          className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-ink/80 transition hover:border-bloom-300"
+        >
+          {t("likesTitle")}
+        </a>
+        <a
+          href={`/${locale}/app/interest/visitors`}
+          className="rounded-full border border-black/10 px-4 py-2 text-sm font-medium text-ink/80 transition hover:border-bloom-300"
+        >
+          {t("visitorsTitle")}
+        </a>
+      </nav>
+
       {conversations.length === 0 && <p className="mt-6 text-ink/60">{t("matchesEmpty")}</p>}
 
       <ul className="mt-8 space-y-3">

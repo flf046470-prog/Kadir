@@ -188,24 +188,25 @@
     "plusFeatures": [
       "Everything in Free",
       "Advanced filters",
-      "More Likes per day",
-      "Ad-free experience",
-      "See who visited your profile",
-      "In-chat message translation"
+      "200 Likes a day",
+      "See who liked you",
+      "Undo your last pass",
+      "In-chat message translation",
+      "10 gifts a day"
     ],
     "vipName": "VIP",
-    "vipPrice": "$1.99",
+    "vipPrice": "$5.99",
     "vipPeriod": "/ year",
-    "vipDesc": "Maximum visibility and our smartest matching.",
+    "vipDesc": "For people who want more control over who finds them.",
     "vipFeatures": [
       "Everything in PLUS",
-      "AI-powered match recommendations",
-      "Priority profile visibility",
-      "VIP badge on your profile",
-      "Boost advantages",
-      "Our most advanced discovery tools"
+      "Unlimited Likes and gifts",
+      "See who visited your profile",
+      "Priority visibility in Discover",
+      "VIP badge on your card",
+      "A 60-minute Boost every month"
     ],
-    "vipBadge": "Most popular",
+    "vipBadge": "Most complete",
     "localNote": "Local pricing follows Apple App Store and Google Play country-level pricing tiers — not a raw currency conversion — and is managed centrally so we can adjust fairly by market.",
     "addonsTitle": "One-time boosts",
     "addonsSubtitle": "Buy exactly the extra reach you want, only when you want it.",
@@ -274,7 +275,7 @@
       },
       {
         "name": "Real value",
-        "desc": "Affordable pricing — $1.99/year for PLUS and VIP — instead of extraction."
+        "desc": "Affordable pricing — PLUS at $1.99/year, VIP at $5.99 — instead of extraction."
       }
     ]
   },
@@ -741,6 +742,27 @@
     "deletePrompt": "Type “delete” to confirm.",
     "deleteButton": "Delete account",
     "deleteWorking": "Deleting…",
-    "deleteFailed": "That didn't go through. Please try again."
+    "deleteFailed": "That didn't go through. Please try again.",
+    "undoPass": "Undo last pass",
+    "undoPassEmpty": "Nothing to undo yet.",
+    "undoPassLocked": "Undo is a PLUS feature.",
+    "vipBadge": "VIP",
+    "interestNav": "Interest in you",
+    "listLoading": "Loading…",
+    "listUpgrade": "See the plans",
+    "listSuperLike": "Super Like",
+    "listRepeatVisit": "Came back {count} times",
+    "likesTitle": "Who liked you",
+    "likesIntro": "People who liked you and are still waiting for an answer. Once you decide either way, they leave this list.",
+    "likesEmpty": "Nobody is waiting for an answer right now.",
+    "likesLockedTitle": "PLUS shows you who they are",
+    "likesLockedBody": "The count above is real. PLUS puts the names and photos behind it, so you can answer the people who already said yes instead of finding them again in Discover.",
+    "visitorsTitle": "Profile visitors",
+    "visitorsIntro": "People who opened your profile. Everyone who looks is recorded — nobody browses invisibly by not subscribing.",
+    "visitorsEmpty": "Nobody has opened your profile yet.",
+    "visitorsLockedTitle": "VIP shows you who they are",
+    "visitorsLockedBody": "The count above is real. VIP puts names to it, and shows who came back more than once.",
+    "likesCount": "{count, plural, one {# person is waiting for an answer} other {# people are waiting for an answer}}",
+    "visitorsCount": "{count, plural, one {# person opened your profile} other {# people opened your profile}}"
   }
 }
