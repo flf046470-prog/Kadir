@@ -16,8 +16,39 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    /**
+     * Release signing, configured entirely from the environment.
+     *
+     * Nothing about the key lives in this file or anywhere else in the
+     * repository — not the path, not the password, not the alias. A signing
+     * key committed once is committed in every clone and fork forever, and
+     * this one cannot be rotated: it *is* the app's identity on Play.
+     *
+     * When the variables are absent the block is skipped and `bundleRelease`
+     * produces an unsigned bundle, which is what a contributor without the key
+     * should get. It builds; it just cannot be uploaded.
+     */
+    signingConfigs {
+        release {
+            def keystore = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS") ?: "upload"
+                // Falls back to the store password: keytool defaults the two to
+                // the same value, and a mismatch here fails at signing time
+                // with an error that does not name which of the two was wrong.
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+                    ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (System.getenv("ANDROID_KEYSTORE_PATH")) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

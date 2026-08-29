@@ -59,19 +59,72 @@ cd mobile/android
 ./gradlew bundleRelease   # app/build/outputs/bundle/release/app-release.aab
 ```
 
-Both succeed with no signing configuration, and what comes out differs in a way
-that matters:
+Both succeed with no signing configuration, and what comes out differs:
 
 - **The debug APK is installable.** Gradle signs it with the shared Android
   debug key, so it sideloads onto a phone (`adb install`, or copy it across and
   allow install from unknown sources). It is a testing artefact: that key is
   public, every debug build in the world shares it, and Play rejects it.
-- **The release AAB is not.** `app/build.gradle` has no `signingConfig`, so the
-  bundle comes out unsigned and Play will refuse the upload. Signing needs a
-  keystore that belongs to whoever publishes the app — generate it once, keep
-  it somewhere it cannot be lost (losing it means never updating the listing
-  again), and add a `signingConfigs` block reading the password from the
-  environment rather than from a file in the repository.
+- **The release build is unsigned** unless the four environment variables below
+  are set, and Play refuses an unsigned upload.
+
+### Signing a release
+
+`app/build.gradle` reads the key entirely from the environment — no path, no
+password, no alias anywhere in the repository. Set them and the same command
+produces a signed artefact:
+
+```bash
+export ANDROID_KEYSTORE_PATH=/secure/path/fiorematch-upload.jks
+export ANDROID_KEYSTORE_PASSWORD='…'
+export ANDROID_KEY_ALIAS=upload
+# ANDROID_KEY_PASSWORD is optional; it falls back to the store password.
+
+./gradlew bundleRelease    # signed .aab — this is what Play takes
+./gradlew assembleRelease  # signed .apk — direct install, not for Play
+```
+
+Generating one, if it ever has to be done again:
+
+```bash
+keytool -genkeypair -v -keystore fiorematch-upload.jks -alias upload \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+Verify before uploading — "BUILD SUCCESSFUL" does not mean "signed", because an
+unsigned release build also succeeds:
+
+```bash
+jarsigner -verify -certs app/build/outputs/bundle/release/app-release.aab
+apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk
+```
+
+### The key is the app's identity
+
+Two separate keys exist once the app is on Play, and confusing them is the
+usual way this goes wrong:
+
+- **The upload key** is the one generated above. It only proves to Google that
+  an upload came from you. If it is lost, support can reset it.
+- **The app signing key** is what actually signs what users install. With Play
+  App Signing (the default for new apps) Google holds it, which is the whole
+  reason a lost upload key is survivable. Without it, losing your key means the
+  listing can never be updated again — there is no recovery, by design.
+
+Enrol in Play App Signing. Keep the upload keystore and its password in a
+password manager, not in the repository: `*.jks`, `*.keystore`, `*.p12` and
+`key.properties` are gitignored, and those lines are not to be re-commented.
+
+`/.well-known/assetlinks.json` needs the SHA-256 fingerprint of **whichever key
+signs what users install** — so under Play App Signing that is Google's app
+signing key, shown under *Release → Setup → App signing*, not the upload key.
+List both in `ANDROID_CERT_FINGERPRINTS` (it is comma-separated for exactly
+this reason): builds you sideload carry the upload key, and half your deep
+links fall back to the chooser if only one is published.
+
+```bash
+keytool -list -v -keystore fiorematch-upload.jks -alias upload
+```
 
 Note what the shell points at. `capacitor.config.json` inside the APK carries
 `server.url`, baked in at `cap sync` time — a build made while
