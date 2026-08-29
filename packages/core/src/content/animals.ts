@@ -101,6 +101,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0xc98a52, accent: 0x8d5a30, belly: 0xf0d3ac, scale: 1, ears: 'tall', tail: 'thick', snout: 'long' },
     audio: { jump: 'roo_jump', land: 'roo_land', voice: 'roo_voice', emote: 'roo_emote' },
     feel: { tailBalance: 0.03 },
+    model: { url: '/models/kangaroo.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
     emotes: ['wave', 'dance', 'taunt', 'sit'],
   },
   {
@@ -113,6 +114,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0x6b7280, accent: 0x374151, belly: 0xd9dde3, scale: 1.02, ears: 'pointed', tail: 'bushy', snout: 'long' },
     audio: { jump: 'wolf_jump', land: 'wolf_land', voice: 'wolf_voice', emote: 'wolf_emote' },
     feel: { acceleration: 0.02, maxSpeed: 0.01 },
+    model: { url: '/models/wolf.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
     emotes: ['howl', 'wave', 'dance', 'taunt'],
   },
   {
@@ -125,6 +127,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0xe07b39, accent: 0xb14e1c, belly: 0xf7e8d5, scale: 0.95, ears: 'pointed', tail: 'bushy', snout: 'long' },
     audio: { jump: 'fox_jump', land: 'fox_land', voice: 'fox_voice', emote: 'fox_emote' },
     feel: { maxSpeed: 0.02, jumpForce: -0.01 },
+    model: { url: '/models/fox.glb', scale: 1, offsetY: 0, credit: 'PixelMannen / tomkranis / @AsoboStudio & @scurest (CC0 + CC-BY 4.0)' },
     emotes: ['yip', 'wave', 'dance', 'spin'],
   },
   {
@@ -137,6 +140,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0xf59e0b, accent: 0x1f2937, belly: 0xfff7ed, scale: 1.06, ears: 'round', tail: 'thick', snout: 'short' },
     audio: { jump: 'tiger_jump', land: 'tiger_land', voice: 'tiger_voice', emote: 'tiger_emote' },
     feel: { acceleration: 0.03, friction: 0.02 },
+    model: { url: '/models/tiger.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
     emotes: ['roar', 'wave', 'dance', 'taunt', 'flex'],
   },
   {
@@ -149,6 +153,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0x4ade80, accent: 0x15803d, belly: 0xecfccb, scale: 0.9, ears: 'none', tail: 'stub', snout: 'flat' },
     audio: { jump: 'frog_jump', land: 'frog_land', voice: 'frog_voice', emote: 'frog_emote' },
     feel: { jumpForce: 0.03, maxSpeed: -0.02 },
+    model: { url: '/models/frog.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
     emotes: ['croak', 'wave', 'dance', 'puff'],
   },
   {
@@ -161,6 +166,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     visual: { body: 0x1f2937, accent: 0xfbbf24, belly: 0xf9fafb, scale: 0.94, ears: 'none', tail: 'stub', snout: 'beak' },
     audio: { jump: 'penguin_jump', land: 'penguin_land', voice: 'penguin_voice', emote: 'penguin_emote' },
     feel: { friction: -0.03, tailBalance: -0.01 },
+    model: { url: '/models/penguin.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
     emotes: ['slide', 'wave', 'dance', 'flap'],
   },
 ];

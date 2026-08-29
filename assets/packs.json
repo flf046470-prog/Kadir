@@ -1,0 +1,75 @@
+{
+  "$comment": [
+    "Art packs installed by `npm run assets:fetch`. The game is fully playable with none of",
+    "them installed — every animal, prop and level surface has procedural geometry, and",
+    "AssetLibrary falls back silently when a file is missing. Installing a pack is a visual",
+    "upgrade, never a gameplay change: colliders, grips, hitboxes and every movement constant",
+    "come from level and player data, so a mesh swap cannot alter balance.",
+    "",
+    "Every entry MUST declare a licence and, for anything that is not CC0, an author — the",
+    "fetch script refuses to install an entry that does not, and packs.test.ts asserts it.",
+    "`sha256` pins the exact bytes we vetted the licence of, so an upstream file being replaced",
+    "fails the build loudly instead of silently shipping something we have no licence for.",
+    "",
+    "Packs behind a click-through (Quaternius, Kenney, Synty) cannot be fetched by URL. Declare",
+    "them with \"source\": \"manual\", download the archive by hand, and run:",
+    "  npm run assets:fetch -- --from ~/Downloads",
+    "The script then resolves each file out of the archives it finds there."
+  ],
+  "installDir": "packages/client/public/models",
+  "packs": [
+    {
+      "id": "gltf-sample-fox",
+      "title": "Fox (glTF sample asset)",
+      "author": "PixelMannen; rigging & animation by tomkranis; glTF conversion by @AsoboStudio and @scurest",
+      "licence": "CC-BY-4.0",
+      "licenceUrl": "https://creativecommons.org/licenses/by/4.0/legalcode",
+      "sourceUrl": "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox",
+      "note": "Model is CC0-1.0; the rigging, animation and glTF conversion are CC-BY-4.0, so the pack as shipped requires attribution.",
+      "source": "url",
+      "files": [
+        {
+          "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb",
+          "install": "fox.glb",
+          "sha256": "d97044e701822bac5a62696459b27d7b375aada5de8574ed4362edbba94771f7",
+          "bytes": 162852
+        }
+      ]
+    },
+    {
+      "id": "quaternius-ultimate-animated-animals",
+      "title": "Ultimate Animated Animals",
+      "author": "Quaternius",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://quaternius.com/packs/ultimateanimatedanimals.html",
+      "note": "12+ rigged animals with walk/run/jump/idle cycles in glTF. CC0, so it can ship in a web build with no attribution obligation — credited anyway. Behind a click-through: download by hand, then `npm run assets:fetch -- --from <dir>`.",
+      "source": "manual",
+      "archiveHints": ["ultimateanimatedanimals", "Ultimate Animated Animals", "quaternius"],
+      "files": [
+        { "from": "**/Kangaroo.gltf", "install": "kangaroo.glb", "optional": true },
+        { "from": "**/Wolf.gltf", "install": "wolf.glb", "optional": true },
+        { "from": "**/Fox.gltf", "install": "fox-quaternius.glb", "optional": true },
+        { "from": "**/Tiger.gltf", "install": "tiger.glb", "optional": true },
+        { "from": "**/Frog.gltf", "install": "frog.glb", "optional": true },
+        { "from": "**/Penguin.gltf", "install": "penguin.glb", "optional": true }
+      ]
+    },
+    {
+      "id": "quaternius-jungle-kit",
+      "title": "Stylised Nature / Jungle kit",
+      "author": "Quaternius",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://quaternius.com/",
+      "note": "Trees, rocks and foliage for the decorative props layer only. LevelDef.props is a separate list from LevelDef.colliders precisely so decoration can never change where a surface can be climbed.",
+      "source": "manual",
+      "archiveHints": ["nature", "jungle", "quaternius"],
+      "files": [
+        { "from": "**/Tree*.gltf", "install": "props/tree.glb", "optional": true },
+        { "from": "**/Rock*.gltf", "install": "props/rock.glb", "optional": true },
+        { "from": "**/Bush*.gltf", "install": "props/bush.glb", "optional": true }
+      ]
+    }
+  ]
+}

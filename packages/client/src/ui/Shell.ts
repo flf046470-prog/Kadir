@@ -1,9 +1,31 @@
-import { COSMETIC_SLOTS } from '@kc/core';
-import type { AnimalDef, CosmeticDef, CosmeticSlot, GameModeDef, MatchResult, PlayerProfile, Settings, StoreItem } from '@kc/core';
+import { COSMETIC_SLOTS, listCredits } from '@kc/core';
+import type {
+  AnimalDef,
+  CosmeticDef,
+  CosmeticSlot,
+  Credit,
+  GameModeDef,
+  LicenceId,
+  MatchResult,
+  PlayerProfile,
+  Settings,
+  StoreItem,
+} from '@kc/core';
 import { button, clear, el, formatPrice } from './dom.js';
 import type { Api, ContentBundle, ProfileBundle } from '../net/Api.js';
 
-export type ScreenId = 'name' | 'menu' | 'modes' | 'room' | 'customize' | 'store' | 'settings' | 'results' | 'tutorial' | 'none';
+export type ScreenId =
+  | 'name'
+  | 'menu'
+  | 'modes'
+  | 'room'
+  | 'customize'
+  | 'store'
+  | 'settings'
+  | 'results'
+  | 'tutorial'
+  | 'credits'
+  | 'none';
 
 export interface ShellCallbacks {
   onQuickPlay(modeId: string): void;
@@ -116,6 +138,9 @@ export class Shell {
         break;
       case 'settings':
         this.element.append(this.settingsScreen());
+        break;
+      case 'credits':
+        this.element.append(this.creditsScreen());
         break;
       case 'tutorial':
         this.element.append(this.tutorialScreen());
@@ -479,7 +504,56 @@ export class Shell {
       }),
     );
 
-    return el('div', { class: 'kc-screen' }, this.header('Settings'), panel, button('Back', () => this.show('menu')));
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Settings'),
+      panel,
+      el('div', { class: 'kc-row' }, button('Credits & licences', () => this.show('credits')), button('Back', () => this.show('menu'))),
+    );
+  }
+
+  /**
+   * Credits screen.
+   *
+   * Generated from the credit registry rather than hand-written: CC-BY assets and MIT libraries
+   * may only ship if they are attributed, so the list has to be derived from what the build
+   * actually contains. `credits.test.ts` fails the build if a pack in `assets/packs.json`
+   * requires attribution and has no entry here.
+   */
+  private creditsScreen(): HTMLElement {
+    const panel = el('div', { class: 'kc-panel' });
+    const grouped = new Map<LicenceId, Credit[]>();
+    for (const credit of listCredits()) {
+      const bucket = grouped.get(credit.licence) ?? [];
+      bucket.push(credit);
+      grouped.set(credit.licence, bucket);
+    }
+
+    for (const [licence, entries] of [...grouped].sort((a, b) => a[0].localeCompare(b[0]))) {
+      panel.append(el('h3', {}, licence));
+      for (const credit of entries) {
+        panel.append(
+          el(
+            'div',
+            { class: 'kc-credit' },
+            el('strong', {}, credit.work),
+            el('span', {}, credit.author ? ` — ${credit.author}` : ''),
+            credit.note ? el('p', { class: 'kc-note' }, credit.note) : null,
+            credit.sourceUrl ? el('p', { class: 'kc-note' }, credit.sourceUrl) : null,
+          ),
+        );
+      }
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Credits & licences', 'Everyone whose work ships inside this build.'),
+      panel,
+      el('p', { class: 'kc-note' }, 'Art packs are optional; the game renders procedurally when none are installed.'),
+      button('Back', () => this.show('settings')),
+    );
   }
 
   private tutorialScreen(): HTMLElement {

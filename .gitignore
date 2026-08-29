@@ -13,3 +13,7 @@ coverage
 *.log
 data/*.json
 !data/.gitkeep
+
+# Art packs are installed by `npm run assets:fetch` from assets/packs.json.
+# Generated output: the manual (click-through) packs cannot be committed at all, so none are.
+packages/client/public/models/

@@ -33,6 +33,33 @@ licence choice a real engineering constraint, not paperwork.
 Freesound and similar CC0 audio libraries are the equivalent choice for sound, if the procedural
 audio is ever replaced.
 
+## Installing a pack
+
+Packs are declared in [`assets/packs.json`](../assets/packs.json) and installed by a script, so
+what ships is always traceable to a licence:
+
+```bash
+npm run assets:check              # validate the manifest, download nothing
+npm run assets:fetch              # install every url-sourced pack
+npm run assets:fetch -- --from ~/Downloads   # also resolve click-through packs from archives there
+npm run assets:fetch -- --clean   # remove installed files
+```
+
+The manifest is enforced, not advisory. `assets:check` runs as part of `npm run verify` and fails
+when a pack declares no licence, uses a licence not cleared for a web build, is attribution-bound
+but names no author, installs outside the install directory, or — for anything fetched over the
+network — has no pinned `sha256`. That last one matters: pinning the bytes means an upstream file
+being swapped fails the build instead of quietly shipping something we never vetted.
+
+Installed files land in `packages/client/public/models/` and are **gitignored**. They are
+generated output, and the click-through packs (Quaternius, Kenney, Synty) cannot legally be
+redistributed through this repo anyway, so none of them are committed.
+
+Attribution lives in `packages/core/src/content/credits.ts` and is rendered by the in-game
+credits screen (Settings → Credits & licences). `credits.test.ts` fails the build if a pack in
+the manifest requires attribution and has no entry there — a CC-BY asset shipped without its
+author named is a licence breach, so it is worth a failing test rather than a code review.
+
 ## Pipeline
 
 Target budgets: **≤ 3 k triangles** per animal, **≤ 1 k** per prop, one 512² atlas per pack,

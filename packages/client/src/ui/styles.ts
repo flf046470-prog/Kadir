@@ -43,6 +43,9 @@ export const UI_CSS = `
 .kc-field input[type=range] { flex: 1; accent-color: #4caf50; }
 .kc-field input[type=text] { background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: 8px; padding: 10px; font: inherit; min-width: 0; }
 .kc-note { font-size: 12px; opacity: .6; line-height: 1.5; }
+.kc-credit { border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 8px; font-size: 13px; line-height: 1.5; }
+.kc-credit:last-child { border-bottom: 0; }
+.kc-credit .kc-note { word-break: break-word; }
 
 .kc-hud { position: absolute; inset: 0; pointer-events: none; }
 .kc-hud > * { pointer-events: none; }
