@@ -41,9 +41,16 @@ To produce the distributable and the Steamworks scripts:
 
 ```bash
 npm run pack:steam -- --appid <appid> --depotid <depotid>
-npx @electron/packager dist/steam-app "Kangaroo Chase" --platform=win32 --arch=x64 --out=dist/steam
+npx @electron/packager dist/steam-app KangarooChase \
+  --platform=win32,linux --arch=x64 --electron-version=44.0.0 --out=dist/steam
+npm run pack:release   # zips dist/steam/* into dist/release
 steamcmd +login <builduser> +run_app_build <abs>/dist/steam-app/steamworks/app_build.vdf +quit
 ```
+
+The app name has to stay `KangarooChase` with no space. It becomes the executable name, and
+`pack-release.mjs` collects `dist/steam/KangarooChase-<platform>-<arch>`; renaming it means the
+release step quietly finds nothing. Steam ships a directory rather than an installer, so the zip
+in `dist/release` is for moving the build around — point the depot at the unzipped folder.
 
 `--appid` / `--depotid` come from the Steamworks app admin page. They are templated rather than
 committed because they are per-app.

@@ -129,8 +129,13 @@ console.log(`  shell   ${((await dirSize(path.join(out, 'resources/shell'))) / 1
 
 console.log(`\nRun it locally:`);
 console.log(`  npx electron dist/steam-app`);
-console.log(`\nBuild the distributable (needs Electron + a code-signing certificate):`);
-console.log(`  npx @electron/packager dist/steam-app "Kangaroo Chase" --platform=win32 --arch=x64 --out=dist/steam`);
+console.log(`\nBuild the distributable (downloads Electron; needs a code-signing certificate to ship):`);
+// The app name must stay "KangarooChase" with no space: it becomes the executable name, and
+// pack-release.mjs collects dist/steam/KangarooChase-<platform>-<arch>. Renaming it here
+// silently breaks the release step.
+console.log(`  npx @electron/packager dist/steam-app KangarooChase \\`);
+console.log(`    --platform=win32,linux --arch=x64 --electron-version=44.0.0 --out=dist/steam`);
+console.log(`  npm run pack:release        # zips each one into dist/release`);
 console.log(`\nThen upload with steamcmd:`);
 console.log(`  steamcmd +login <builduser> +run_app_build <abs path>/dist/steam-app/steamworks/app_build.vdf +quit`);
 console.log(`\nNote: the Electron window is flat-only — Electron builds Chromium with enable_vr=false,`);
