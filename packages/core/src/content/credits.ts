@@ -75,6 +75,39 @@ export const ASSET_PACK_CREDITS: readonly Credit[] = [
     sourceUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox',
     note: 'Model is CC0-1.0; the rigging, animation and glTF conversion are CC-BY-4.0, so the pack as shipped requires attribution.',
   },
+  // CC0 imposes no attribution obligation. These are credited anyway: the packs exist because
+  // their authors chose to give the work away, and a credits screen that lists only what we are
+  // legally forced to list is a worse credits screen.
+  {
+    work: 'Ultimate Animated Animals',
+    author: 'Quaternius',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://quaternius.com/packs/ultimateanimatedanimals.html',
+  },
+  {
+    work: 'Universal Animation Library',
+    author: 'Quaternius',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://quaternius.com/packs/universalanimationlibrary.html',
+  },
+  {
+    work: 'Stylised Nature / Jungle kit',
+    author: 'Quaternius',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://quaternius.com/',
+  },
+  {
+    work: 'Nature Kit',
+    author: 'Kenney',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://kenney.nl/assets/nature-kit',
+  },
+  {
+    work: 'Impact Sounds',
+    author: 'Kenney',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://kenney.nl/assets/impact-sounds',
+  },
 ];
 
 registerCredits(ENGINE_CREDITS);

@@ -26,9 +26,41 @@ licence choice a real engineering constraint, not paperwork.
 
 | Source | Licence | Web build |
 | --- | --- | --- |
-| Quaternius, Kenney, Poly Pizza (CC0 filter) | CC0 / public domain | Safe. No attribution required (crediting is still good manners). |
+| Quaternius, Kenney, Poly Pizza (CC0 filter) | CC0 / public domain | **Safe.** No attribution required (we credit anyway). |
+| Khronos glTF sample assets | CC0 / CC-BY | Safe; check per-model — several are CC0 model + CC-BY rig. |
 | Sketchfab CC-BY models | CC-BY | Usable **with attribution** — add `credit` on the model ref; it appears in the credits screen. |
-| Unity/Unreal asset-store packs (incl. Synty) | Store EULA | Check the EULA first. These usually permit shipping inside a game, but many restrict distributing raw asset files, and a web build serves extractable `.glb`s. Read the specific licence before shipping. |
+| Fab, but only its CC0-licensed listings | CC0 | Safe. Fab hosts both CC and Standard-License content; only the CC0 half is usable here. |
+| Unity Asset Store, Synty, Fab Standard License, Epic marketplace | Store EULA | **Refused by the fetch script.** See below. |
+
+### Why the store EULAs are refused rather than reviewed case by case
+
+These marketplaces permit shipping assets *inside* a product, but not a product "designed to
+allow your end users to extract or download assets separately". This game is web-delivered:
+every `.glb` the server sends is one right-click away in devtools. We cannot honestly claim
+players cannot extract them, so the condition those licences depend on is not satisfiable by
+this build — regardless of whether the asset was free.
+
+That makes it a build-shape problem, not a per-asset judgement call, so it is enforced in code:
+`scripts/fetch-assets.mjs` refuses those hosts outright, and `credits.test.ts` asserts none are
+in the manifest. Refusing by **host** rather than by licence string is deliberate — the failure
+this prevents is somebody pasting a store asset into the manifest labelled `CC0-1.0` and nobody
+noticing.
+
+A native-only build (Steam, packaged, assets inside the binary) is a genuinely different
+question and could use a separate manifest. It is not the build we ship today, and mixing the
+two in one manifest is how the wrong file ends up on the web.
+
+### What is in the manifest today
+
+Six packs, covering the four things a build needs: **characters** (Quaternius Ultimate Animated
+Animals, Khronos Fox), **environment** (Quaternius nature kit, Kenney Nature Kit),
+**animation** (Quaternius Universal Animation Library), and **audio** (Kenney Impact Sounds).
+All CC0 except the Fox, which is CC-BY-4.0 and credited.
+
+Only the Fox is fetchable by URL; the rest are behind click-throughs, so they are declared
+`"source": "manual"` and resolved from downloaded archives with `--from`. That is not a
+limitation of the pipeline — it is what those sites require, and the manifest records exactly
+which file goes where so the install is reproducible once you have the archive.
 
 Freesound and similar CC0 audio libraries are the equivalent choice for sound, if the procedural
 audio is ever replaced.

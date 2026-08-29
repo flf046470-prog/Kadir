@@ -15,11 +15,21 @@ interface PackFile {
 interface Pack {
   id: string;
   title: string;
+  category: string;
   author: string;
   licence: LicenceId;
+  sourceUrl?: string;
   source: 'url' | 'manual';
   files: PackFile[];
 }
+
+/**
+ * Marketplaces whose EULAs permit shipping assets inside a product but not a product that lets
+ * end users extract them. A web build serves every file over HTTP, so we cannot claim players
+ * cannot extract them — which puts these sources out of bounds here regardless of price.
+ * `scripts/fetch-assets.mjs` refuses them by host; this asserts none slipped in.
+ */
+const REFUSED_HOSTS = ['assetstore.unity.com', 'syntystore.com', 'fab.com', 'unrealengine.com'];
 
 const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL('../../../../assets/packs.json', import.meta.url)), 'utf8'),
@@ -56,6 +66,27 @@ describe('asset licensing', () => {
         expect(file.url, `${pack.id}/${file.install}`).toBeTruthy();
         expect(file.sha256, `${pack.id}/${file.install} must pin the bytes we vetted`).toMatch(/^[0-9a-f]{64}$/);
       }
+    }
+  });
+
+  it('sources no pack from a marketplace whose EULA forbids end-user extraction', () => {
+    for (const pack of manifest.packs) {
+      const host = pack.sourceUrl ? new URL(pack.sourceUrl).hostname : '';
+      for (const refused of REFUSED_HOSTS) {
+        expect(host.endsWith(refused), `${pack.id} sources from ${host}`).toBe(false);
+      }
+    }
+  });
+
+  it('categorises every pack, so the roster can be reasoned about', () => {
+    const allowed = new Set(['character', 'environment', 'animation', 'audio', 'ui']);
+    for (const pack of manifest.packs) {
+      expect(allowed.has(pack.category), `${pack.id} category "${pack.category}"`).toBe(true);
+    }
+    // The roster should actually cover the game, not just be a pile of models.
+    const present = new Set(manifest.packs.map((p) => p.category));
+    for (const needed of ['character', 'environment', 'animation', 'audio']) {
+      expect(present.has(needed), `no pack covers "${needed}"`).toBe(true);
     }
   });
 
