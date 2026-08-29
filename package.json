@@ -7,15 +7,17 @@
   "workspaces": [
     "packages/core",
     "packages/net",
+    "packages/shell",
     "packages/server",
     "packages/client"
   ],
   "scripts": {
     "dev": "npm run dev --workspace @kc/client",
     "dev:server": "tsx watch packages/server/src/main.ts",
-    "build": "npm run build:client && npm run build:server",
+    "build": "npm run build:client && npm run build:server && npm run build:shell",
     "build:client": "vite build --config packages/client/vite.config.ts && node scripts/build-precache.mjs",
     "build:server": "vite build --config packages/server/vite.config.ts",
+    "build:shell": "vite build --config packages/shell/vite.config.ts",
     "start": "node dist/server/main.js",
     "typecheck": "npm run typecheck:sim && npm run typecheck:client",
     "typecheck:sim": "tsc -p tsconfig.sim.json --noEmit",
@@ -26,6 +28,7 @@
     "pack:quest": "node scripts/pack-quest.mjs",
     "pack:quest:check": "node scripts/pack-quest.mjs --check",
     "check:pwa": "node scripts/check-pwa.mjs",
+    "pack:steam": "node scripts/pack-steam.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify": "npm run lint && npm run assets:check && npm run pack:quest:check && npm run typecheck && npm run test && npm run build"

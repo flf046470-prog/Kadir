@@ -4,5 +4,5 @@
     "lib": ["ES2023"],
     "types": ["node"]
   },
-  "include": ["packages/core/src", "packages/net/src", "packages/server/src", "packages/*/vite.config.ts", "vitest.config.ts"]
+  "include": ["packages/core/src", "packages/net/src", "packages/server/src", "packages/shell/src", "packages/*/vite.config.ts", "vitest.config.ts"]
 }
