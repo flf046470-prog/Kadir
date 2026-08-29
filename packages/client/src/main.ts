@@ -281,7 +281,23 @@ async function main(): Promise<void> {
   else shell.show('name');
 }
 
-main().catch((error: unknown) => {
+/**
+ * Register the service worker for offline start.
+ *
+ * Deliberately fired after `main()` has resolved and never awaited: a WebXR PWA launches
+ * straight into immersive mode, so anything on the critical path counts against Meta's
+ * startup-time requirement. Registration failing is not fatal — it only costs offline start.
+ */
+function registerServiceWorker(): void {
+  if (!('serviceWorker' in navigator)) return;
+  // file:// (the Steam shell's fallback) cannot host a worker, and dev servers do not need one.
+  if (!location.protocol.startsWith('http')) return;
+  navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+    console.warn('[pwa] service worker registration failed:', error);
+  });
+}
+
+main().then(registerServiceWorker).catch((error: unknown) => {
   console.error(error);
   const root = document.getElementById('app');
   if (root) {

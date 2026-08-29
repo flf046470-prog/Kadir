@@ -17,3 +17,13 @@ data/*.json
 # Art packs are installed by `npm run assets:fetch` from assets/packs.json.
 # Generated output: the manual (click-through) packs cannot be committed at all, so none are.
 packages/client/public/models/
+
+# Store packaging. Rendered per-environment by `npm run pack:quest` (it embeds one origin),
+# and the signing key must never be committed: the store binds a listing to that key forever,
+# so leaking it hands over the ability to publish updates as us.
+packaging/meta-quest/twa-manifest.json
+packaging/**/*.keystore
+packaging/**/*.jks
+packaging/**/*.apk
+packaging/**/*.aab
+packaging/**/assetlinks.json
