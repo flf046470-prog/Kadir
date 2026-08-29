@@ -57,12 +57,42 @@ export async function createStorage(options: { dataDir: string; databaseUrl: str
   const sql = await createSqlClient(options.databaseUrl);
   const saves = new SqlSaveStore(sql);
   const leaderboard = new SqlLeaderboardStore(sql);
-  await saves.migrate();
-  await leaderboard.migrate();
 
   // Never log the URL itself: it carries the password.
   const host = safeHost(options.databaseUrl);
+
+  // `new Pool()` does not connect, so an unreachable or misconfigured database first shows up
+  // here. That is the most common deployment mistake and the moment a connection string is
+  // most likely to end up in a log, so the error is rebuilt from the redacted host rather than
+  // passed through — including the original as `cause` would put it back in the log.
+  try {
+    await saves.migrate();
+    await leaderboard.migrate();
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    // No `cause` on purpose: Node prints the cause chain, which would restore the driver's
+    // unredacted message. The detail is carried across as text, after redaction.
+    // oxlint-disable-next-line preserve-caught-error
+    throw new Error(`Cannot reach the database at ${host}: ${redact(detail, options.databaseUrl)}`);
+  }
+
   return { saves, leaderboard, description: `postgres at ${host} (shared across instances)` };
+}
+
+/**
+ * Strip the connection string's password out of a message.
+ *
+ * The driver decides what goes in its errors, and that is not a promise we can make on its
+ * behalf — so the password is removed by value rather than by trusting any particular format.
+ */
+function redact(message: string, databaseUrl: string): string {
+  let password = '';
+  try {
+    password = new URL(databaseUrl).password;
+  } catch {
+    return message; // unparseable url: there is no password to find
+  }
+  return password ? message.split(password).join('***') : message;
 }
 
 function safeHost(databaseUrl: string): string {

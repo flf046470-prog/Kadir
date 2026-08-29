@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createSqlClient, createStorage } from './storage.js';
+import { createStorage } from './storage.js';
 import { FileLeaderboardStore } from './leaderboard-store.js';
 import { FileSaveStore } from './persistence.js';
 
@@ -43,15 +43,39 @@ describe('storage selection', () => {
 
   it('fails loudly when a database is asked for but unavailable', async () => {
     // Falling back to files here would look like it worked, then lose purchases as soon as a
-    // second instance served the same player.
-    await expect(createStorage({ dataDir: '/tmp', databaseUrl: 'postgres://u:hunter2@db:5432/kc' })).rejects.toThrow(
-      /pg" package is not installed/,
-    );
+    // second instance served the same player. The driver is installed, so this is a real
+    // connection failure rather than a missing module — either way it must not fall back.
+    await expect(
+      createStorage({ dataDir: '/tmp', databaseUrl: 'postgres://u:hunter2@nonexistent.invalid:5432/kc' }),
+    ).rejects.toThrow(/Cannot reach the database at nonexistent\.invalid/);
   });
 
   it('never puts the database password in the error it throws', async () => {
-    const error = await createSqlClient('postgres://user:hunter2@db.internal:5432/kc').catch((e: Error) => e);
+    // The driver decides what goes in its own errors, so this asserts the guarantee we make on
+    // top of it: whatever comes back, the password is not in what reaches a log.
+    const error = await createStorage({
+      dataDir: '/tmp',
+      databaseUrl: 'postgres://user:hunter2@nonexistent.invalid:5432/kc',
+    }).catch((e: Error) => e);
+
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).not.toContain('hunter2');
+    // A `cause` chain would put the driver's own message — and whatever it contains — back into
+    // the default error print.
+    expect((error as Error).cause).toBeUndefined();
+  });
+
+  it('redacts a password that the driver did put in its message', async () => {
+    // The realistic leak: a driver error that echoes the connection string. The password is
+    // removed by value, so it does not depend on the message's shape.
+    const password = 'nonexistent.invalid';
+    const error = await createStorage({
+      dataDir: '/tmp',
+      databaseUrl: `postgres://user:${password}@nonexistent.invalid:5432/kc`,
+    }).catch((e: Error) => e);
+
+    // The host appears in our own prefix; what must not survive is the password occurrence
+    // inside the driver's message, which this URL forces to be the same string.
+    expect((error as Error).message).toContain('***');
   });
 });

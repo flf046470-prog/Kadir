@@ -32,6 +32,33 @@ jobs:
       # have; they are reported as skipped rather than failing the build.
       - run: npm run pack:release -- --require web
 
+  # The other storage tests use a stub client, which proves the SQL is *called* correctly but
+  # not that Postgres accepts it. The concurrency guarantee — "keep the better time" surviving
+  # simultaneous writers — only means something against a real database.
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kangaroo
+          POSTGRES_PASSWORD: kangaroo
+          POSTGRES_DB: kangaroo
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kangaroo -d kangaroo"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        env:
+          KC_TEST_DATABASE_URL: postgres://kangaroo:kangaroo@127.0.0.1:5432/kangaroo
+
   browser:
     runs-on: ubuntu-latest
     steps:

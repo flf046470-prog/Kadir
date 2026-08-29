@@ -6,5 +6,11 @@
   "description": "Authoritative game server (rooms, matchmaking, validation)",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts", "./*": "./src/*" }
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
+  }
 }
