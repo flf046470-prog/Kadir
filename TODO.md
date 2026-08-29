@@ -34,7 +34,9 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
 - [x] **20 · Optimisation** — instanced level + props, quality tiers, adaptive frame governor,
       LOD-style avatar detail budget, snapshot deltas, rest-state velocity snapping
 - [x] **21 · QA** — 107 automated tests; browser smoke test on desktop and mobile viewports
-- [~] **22 · Release preparation** — builds, PWA manifest, CI; store shells still to do
+- [x] **22 · Release preparation** — builds, PWA manifest + service worker, CI, licence-gated
+      art pipeline, Meta Quest (Bubblewrap) and Steam (Electron) packaging, real receipt
+      verification, SQL storage drivers. See `docs/STORES.md`.
 
 ## Known gaps (honest list)
 
@@ -59,7 +61,7 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
 ## Next up (in order)
 
 1. Hardware VR pass: comfort defaults, haptics, hand-tracking (no controllers) support.
-2. Capacitor shell + Quest APK, then real receipt verification.
+2. Capacitor shell for Play/App Store (Quest and Steam are done).
 3. Server: run the SQL drivers against a real Postgres; region sharding.
 4. Content: Waterfall / Tree Village / Ruins sections; the nine roadmap animals.
 5. Ranked mode and tournaments on top of the existing mode registry.

@@ -31,11 +31,28 @@ packages/core     deterministic gameplay: physics, movement, modes, content, pro
 packages/net      binary protocol, delta snapshots, interpolation, prediction
 packages/server   authoritative rooms, matchmaking, persistence, purchases, voice signalling
 packages/client   three.js + WebXR renderer, PC/Mobile/VR platform layers, UI, audio
+packages/shell    desktop-shell logic for the Steam build: OpenXR discovery, VR handoff
 ```
 
 The simulation in `@kc/core` runs **unchanged on the server and on every client**: the server
 is the referee, the client predicts. Platforms only supply an `InputIntent` — that single
 boundary is what makes a phone, a desktop and a headset play the same match.
+
+## Shipping
+
+```bash
+npm run assets:fetch     # optional CC0 art packs (the game renders procedurally without them)
+npm run build            # client + server + desktop shell
+npm run check:smoke      # drive the real game in a browser, desktop + landscape phone
+npm run check:pwa        # prove the PWA still starts with the network gone
+
+npm run pack:quest -- --domain <host>   # Meta Horizon Store (Bubblewrap / immersive WebXR PWA)
+npm run pack:steam                      # Steam (Electron shell, SteamVR via OpenXR)
+```
+
+`docs/STORES.md` covers what each store needs and which constraints are forced by the
+technology rather than chosen — including why the Steam build hands VR off to a browser
+(Electron compiles Chromium with `enable_vr=false`, so it cannot host a WebXR session).
 
 Read `ARCHITECTURE.md` for the design and the reasoning, `ROADMAP.md` for the plan, `TODO.md`
 for honest status, and `docs/ASSETS.md` before adding art.

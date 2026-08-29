@@ -16,6 +16,32 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      # Licence gate: fails if a pack declares no licence, is attribution-bound with no author,
+      # or fetches bytes with no pinned checksum.
+      - run: npm run assets:check
+      # Store gate: fails on a manifest or icon that Horizon would reject.
+      - run: npm run pack:quest:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Packaging the Steam app also proves the built output is self-consistent — a missing
+      # build step otherwise shows up as a blank window rather than an error.
+      - run: npm run pack:steam
+
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm i --no-save playwright
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+      # Drives the real game: boot, session, screens, entering a match, and the credits screen
+      # naming a CC-BY author. Zero console errors is a pass condition.
+      - run: npm run check:smoke
+      # Proves the PWA starts offline, which a headset launch depends on.
+      - run: npm run check:pwa
