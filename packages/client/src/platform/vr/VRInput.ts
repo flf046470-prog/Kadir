@@ -3,10 +3,14 @@ import { Buttons, createHandIntent } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import type { PlatformInput } from '../Platform.js';
 import type { Renderer } from '../../render/Renderer.js';
+import { handScaleFrom, hapticFor, pinchStrength } from './comfort.js';
+import type { HapticEvent } from './comfort.js';
 
 interface HandTracker {
   controller: THREE.Group;
   grip: THREE.Group;
+  /** Populated by three.js when the runtime reports articulated hand joints. */
+  hand: THREE.XRHandSpace;
   source: XRInputSource | null;
   lastWorld: THREE.Vector3;
   velocity: THREE.Vector3;
@@ -65,12 +69,15 @@ export class VRInput implements PlatformInput {
     const xr = this.renderer.renderer.xr;
     const controller = xr.getController(index);
     const grip = xr.getControllerGrip(index);
+    const hand = xr.getHand(index);
     this.renderer.rig.add(controller);
     this.renderer.rig.add(grip);
+    this.renderer.rig.add(hand);
 
     const tracker: HandTracker = {
       controller,
       grip,
+      hand,
       source: null,
       lastWorld: new THREE.Vector3(),
       velocity: new THREE.Vector3(),
@@ -151,8 +158,16 @@ export class VRInput implements PlatformInput {
       hand.lastWorld.copy(WORLD);
 
       const gamepad = hand.source?.gamepad;
-      hand.gripValue = gamepad?.buttons[1]?.value ?? (hand.source?.handedness ? 0 : 0);
-      hand.triggerValue = gamepad?.buttons[0]?.value ?? 0;
+      if (gamepad) {
+        hand.gripValue = gamepad.buttons[1]?.value ?? 0;
+        hand.triggerValue = gamepad.buttons[0]?.value ?? 0;
+      } else {
+        // Hand tracking: an XRInputSource in this mode has no gamepad at all, so reading
+        // button values leaves bare hands connected but unable to grab anything. Pinch is
+        // the equivalent gesture, and it is what the Quest's own UI trains players to use.
+        hand.gripValue = readPinch(hand.hand);
+        hand.triggerValue = hand.gripValue;
+      }
     }
 
     this.updateTurn(dt, settings);
@@ -262,6 +277,25 @@ export class VRInput implements PlatformInput {
     actuator?.pulse?.(Math.min(1, Math.max(0, intensity)), durationMs);
   }
 
+  /**
+   * Play the feedback for a game event.
+   *
+   * Strength per event lives in `comfort.ts` so it is tuned in one place and unit tested; a
+   * pulse that is too long on a frequent event becomes a buzz players switch off entirely.
+   * `hand` selects one controller, or both when the event is not hand-specific (being tagged).
+   * Hand-tracked sources have no actuator, so this is silently a no-op for them.
+   */
+  feedback(event: HapticEvent, hand: 'left' | 'right' | 'both' = 'both', scale = 1): void {
+    const { intensity, durationMs } = hapticFor(event, scale);
+    for (let i = 0; i < this.hands.length; i += 1) {
+      if (hand !== 'both') {
+        const handedness = this.hands[i]?.source?.handedness;
+        if (handedness !== hand) continue;
+      }
+      this.pulse(i, intensity, durationMs);
+    }
+  }
+
   get turn(): number {
     return this.turnOffset;
   }
@@ -279,6 +313,25 @@ export class VRInput implements PlatformInput {
     this.session = null;
     this.onSessionChange?.(false);
   };
+}
+
+/**
+ * Grip strength from articulated hand joints.
+ *
+ * three.js fills `XRHandSpace.joints` from the runtime's joint poses each frame. When the
+ * runtime is not reporting hands — controllers in use, or tracking momentarily lost — the
+ * joints are absent and this returns 0, which reads as an open hand and simply releases
+ * whatever was held rather than freezing the player mid-climb.
+ */
+function readPinch(hand: THREE.XRHandSpace): number {
+  const joints = hand.joints as Record<string, THREE.XRJointSpace | undefined>;
+  const thumb = joints['thumb-tip'];
+  const index = joints['index-finger-tip'];
+  if (!thumb || !index) return 0;
+  const wrist = joints['wrist'];
+  const metacarpal = joints['middle-finger-metacarpal'];
+  const scale = wrist && metacarpal ? handScaleFrom(wrist.position, metacarpal.position) : 1;
+  return pinchStrength(thumb.position, index.position, scale);
 }
 
 /**

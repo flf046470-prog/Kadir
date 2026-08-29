@@ -38,9 +38,11 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
 
 ## Known gaps (honest list)
 
-- **VR is untested on hardware.** All WebXR code paths typecheck and the body-local hand
-  transform is unit tested, but no headset exists in CI. First hardware session should check:
-  session entry, hand tracking fallback, snap-turn comfort, 72 fps hold.
+- **VR is untested on hardware.** Comfort vignette, haptics and hand-tracking pinch are
+  implemented and their maths is unit tested (`comfort.test.ts`), but no headset exists in CI,
+  so the runtime integration is unproven. First hardware session should check: session entry,
+  pinch-to-grab with controllers put down, vignette timing on a fast run, haptic strength,
+  snap-turn comfort, 72 fps hold.
 - **iOS**: WebXR is unavailable in Safari, so iOS ships Mobile only.
 - **Store shells**: Meta Quest (Bubblewrap PWA) and Steam (Electron shell) are set up — see
   `docs/STORES.md`. Capacitor (Play/App Store) is not. Receipt verification is real for Meta,

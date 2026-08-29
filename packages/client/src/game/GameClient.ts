@@ -26,6 +26,7 @@ import { VoiceChat } from '../audio/VoiceChat.js';
 import { NetClient } from '../net/NetClient.js';
 import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
+import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { Renderer } from '../render/Renderer.js';
 import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js';
@@ -82,6 +83,8 @@ export class GameClient {
 
   private localId: string;
   private localAvatar: Avatar | null = null;
+  /** VR comfort vignette. Only constructed in VR; null elsewhere. */
+  private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
@@ -276,10 +279,50 @@ export class GameClient {
 
   private handleEvents(events: SimEvent[]): void {
     for (const event of events) {
-      this.audio.handleEvent(event, event.playerId === this.localId);
-      if (event.playerId === this.localId || event.otherId === this.localId) {
+      const isLocal = event.playerId === this.localId;
+      this.audio.handleEvent(event, isLocal);
+      if (isLocal || event.otherId === this.localId) {
         this.callbacks.onLocalEvent(event);
+        this.playHaptics(event, isLocal);
       }
+    }
+  }
+
+  /**
+   * Translate a gameplay event into controller feedback.
+   *
+   * Only events involving the local player reach here, so a busy room cannot buzz the
+   * controllers on everyone else's landings.
+   */
+  private playHaptics(event: SimEvent, isLocal: boolean): void {
+    const feedback = this.input.feedback?.bind(this.input);
+    if (!feedback) return;
+
+    switch (event.type) {
+      case 'land':
+        // Landing happens on every hop, so only a genuinely hard one gets the heavy pulse.
+        feedback(event.magnitude > 12 ? 'hardLand' : 'land', 'both', Math.min(1, event.magnitude / 14));
+        break;
+      case 'grab':
+        feedback('grab');
+        break;
+      case 'release':
+        feedback('release');
+        break;
+      case 'punch':
+      case 'punchHit':
+        feedback('punch', 'both', Math.min(1, event.magnitude / 6));
+        break;
+      case 'tag':
+        // Being tagged is the moment that most needs to be felt, and it is easy to miss
+        // visually when the tagger comes from behind.
+        feedback(isLocal ? 'tag' : 'tagged');
+        break;
+      case 'stagger':
+        feedback('hardLand', 'both', 0.6);
+        break;
+      default:
+        break;
     }
   }
 
@@ -436,6 +479,18 @@ export class GameClient {
     if (this.input.kind === 'vr') {
       this.renderer.rig.position.set(px, py, pz);
       this.audio.updateListener({ x: px, y: py + 1.6, z: pz }, { x: Math.sin(local.yaw), y: 0, z: Math.cos(local.yaw) });
+
+      // Comfort vignette. Built on first VR frame rather than in the constructor because the
+      // platform is only known once input is wired, and it must never exist on PC/Mobile.
+      this.vignette ??= new Vignette(this.renderer.camera);
+      const turning = Math.abs(local.yaw - this.cameraYaw) > 0.004;
+      this.cameraYaw = local.yaw;
+      this.vignette.update(dt, {
+        speed: Math.hypot(local.velocity.x, local.velocity.z),
+        turning,
+        airborne: !local.grounded,
+        strength: this.settings.comfort.vignette,
+      });
       return;
     }
 
@@ -496,6 +551,8 @@ export class GameClient {
     this.disconnect();
     this.clearRemotes();
     this.localAvatar?.dispose();
+    this.vignette?.dispose();
+    this.vignette = null;
     this.levelRenderer.dispose();
     this.audio.dispose();
     this.voice.dispose();

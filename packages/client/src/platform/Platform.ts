@@ -1,4 +1,5 @@
 import type { InputIntent, Settings, QualityTier } from '@kc/core';
+import type { HapticEvent } from './vr/comfort.js';
 
 export type PlatformKind = 'pc' | 'mobile' | 'vr';
 
@@ -44,6 +45,14 @@ export interface PlatformInput {
   stop(): void;
   /** Platform-specific hint shown by the tutorial. */
   readonly controlHints: { action: string; hint: string }[];
+  /**
+   * Play haptic feedback for a gameplay event.
+   *
+   * Optional so the game loop stays platform-agnostic: it reports what happened and the
+   * platform decides whether it can express it. Only VR implements this today — a phone's
+   * vibrator is too coarse for events this frequent, and a desktop has nothing to buzz.
+   */
+  feedback?(event: HapticEvent, hand?: 'left' | 'right' | 'both', scale?: number): void;
 }
 
 export interface UiHost {
