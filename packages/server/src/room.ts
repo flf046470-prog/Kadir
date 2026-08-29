@@ -317,11 +317,14 @@ export class Room {
   }
 
   private dropTimedOutClients(now: number): void {
-    for (const client of [...this.clients.values()]) {
-      if (now - client.lastIntentAt > 30_000) {
-        client.socket.close(4000, 'timeout');
-        this.leave(client.playerId);
-      }
+    // Collect first, then drop: `leave` mutates the client map.
+    const stale: RoomClient[] = [];
+    for (const client of this.clients.values()) {
+      if (now - client.lastIntentAt > 30_000) stale.push(client);
+    }
+    for (const client of stale) {
+      client.socket.close(4000, 'timeout');
+      this.leave(client.playerId);
     }
   }
 

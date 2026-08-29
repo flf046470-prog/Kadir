@@ -97,6 +97,11 @@ export abstract class RoundMode implements GameMode {
     return e;
   }
 
+  /** Public entry point for ending a round early; `finish` stays the internal hook. */
+  endRound(ctx: ModeContext, reason: string): void {
+    this.finish(ctx, reason);
+  }
+
   protected finish(ctx: ModeContext, reason: string): void {
     if (this.phase === 'ended') return;
     this.winnerIds = this.computeWinners(ctx);

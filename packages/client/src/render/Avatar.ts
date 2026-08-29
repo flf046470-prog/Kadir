@@ -274,8 +274,14 @@ export class Avatar {
     }
   }
 
-  /** Nameplate above the head. Billboarded by `faceCamera`. */
-  setName(name: string, color = '#f2f7f0'): void {
+  /** Nameplate above the head. Pass `show = false` for the local player — you know who you are,
+   * and at third-person distance your own plate covers the middle of the screen. */
+  setName(name: string, color = '#f2f7f0', show = true): void {
+    if (!show) {
+      this.nameSprite?.removeFromParent();
+      this.nameSprite = null;
+      return;
+    }
     this.nameSprite?.removeFromParent();
     const canvas = document.createElement('canvas');
     canvas.width = 256;

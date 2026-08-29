@@ -28,6 +28,19 @@ export class SlotTable {
     return slot;
   }
 
+  /** Adopt the server's numbering verbatim — used by the client on join. */
+  setSlot(id: string, slot: number): void {
+    const previous = this.idToSlot.get(id);
+    if (previous !== undefined) this.slotToId[previous] = undefined;
+    // Fill the gap with real `undefined` entries rather than array holes, so `assign` can find
+    // free slots with indexOf (holes are skipped by indexOf).
+    while (this.slotToId.length < slot) this.slotToId.push(undefined);
+    const occupant = this.slotToId[slot];
+    if (occupant !== undefined && occupant !== id) this.idToSlot.delete(occupant);
+    this.slotToId[slot] = id;
+    this.idToSlot.set(id, slot);
+  }
+
   release(id: string): void {
     const slot = this.idToSlot.get(id);
     if (slot === undefined) return;

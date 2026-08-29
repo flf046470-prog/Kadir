@@ -64,7 +64,13 @@ export function resolvePunches(
   for (let i = 0; i < 2; i++) {
     const hand = attacker.hands[i] as HandState;
     if (hand.punchCooldown > 0) continue;
-    const speed = Math.hypot(hand.velocity.x, hand.velocity.y, hand.velocity.z);
+    // Punch speed is measured *relative to the body*: sprinting past someone must not count as
+    // a punch, and a jab thrown while running should still register at its true speed.
+    const speed = Math.hypot(
+      hand.velocity.x - attacker.velocity.x,
+      hand.velocity.y - attacker.velocity.y,
+      hand.velocity.z - attacker.velocity.z,
+    );
     if (speed < config.punchSpeed) continue;
 
     for (const victim of others) {

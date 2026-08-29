@@ -172,6 +172,11 @@ export class Simulation {
     return this.mode.finished();
   }
 
+  /** End the current round early. Used by host controls, empty-room cleanup and tests. */
+  endRound(reason = 'manual'): void {
+    this.mode.endRound(this.modeCtx, reason);
+  }
+
   /** Place a player at a free spawn point matching `tag`. */
   respawn(player: PlayerState, tag: SpawnPoint['tag'] = 'runner'): void {
     const spawns = findSpawns(this.level, tag);

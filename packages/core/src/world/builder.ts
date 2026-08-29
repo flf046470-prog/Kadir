@@ -124,7 +124,9 @@ export class LevelBuilder {
   tree(x: number, z: number, height: number, zone = 'jungle', tint = 0): void {
     const radius = 0.42 + height * 0.018;
     this.cylinder(vec3(x, height / 2, z), radius, height / 2, 'wood', zone);
-    this.prop('tree', vec3(x, 0, z), this.rand.range(0, Math.PI * 2), height / 12, tint);
+    // The canopy cone is centred on its origin, so it is placed near the top of the trunk
+    // rather than at ground level.
+    this.prop('tree', vec3(x, height * 0.78, z), this.rand.range(0, Math.PI * 2), height / 13, tint);
 
     const branchCount = Math.max(2, Math.floor(height / 3.4));
     for (let i = 0; i < branchCount; i++) {

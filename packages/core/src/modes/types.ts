@@ -83,6 +83,8 @@ export interface GameMode {
   checkpointReached?(ctx: ModeContext, player: PlayerState, index: number, finish: boolean): void;
   state(): ModeStateView;
   finished(): boolean;
+  /** End the round early (host action, empty room, admin tooling, tests). */
+  endRound(ctx: ModeContext, reason: string): void;
   results(ctx: ModeContext): MatchResult;
 }
 

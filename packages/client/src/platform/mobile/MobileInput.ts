@@ -159,7 +159,8 @@ function clamp(v: number, min: number, max: number): number {
   return v < min ? min : v > max ? max : v;
 }
 
+/** Taps that land on a HUD control must not also steer the camera or the joystick. */
 function isUiTarget(target: EventTarget | null): boolean {
   const element = target as HTMLElement | null;
-  return element?.closest?.('[data-ui]') != null;
+  return Boolean(element?.closest?.('[data-ui]'));
 }

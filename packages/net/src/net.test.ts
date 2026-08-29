@@ -288,3 +288,17 @@ describe('control messages', () => {
     expect(decodeJson('{"no":"type"}')).toBeNull();
   });
 });
+
+describe('slot table', () => {
+  it('adopts server-assigned slot numbers verbatim', () => {
+    const slots = new SlotTable();
+    slots.setSlot('c', 5);
+    slots.setSlot('a', 0);
+    expect(slots.slotOf('c')).toBe(5);
+    expect(slots.idOf(5)).toBe('c');
+    expect(slots.assign('b')).toBe(1); // first free slot, not 6
+    slots.setSlot('d', 5); // taking an occupied slot evicts the previous owner
+    expect(slots.slotOf('c')).toBeUndefined();
+    expect(slots.idOf(5)).toBe('d');
+  });
+});

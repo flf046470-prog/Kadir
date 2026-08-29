@@ -12,6 +12,7 @@ export * from './input/index.js';
 export * from './player/index.js';
 export * from './modes/index.js';
 export * from './sim/index.js';
+export * from './ai/index.js';
 export * from './content/index.js';
 export * from './progression/index.js';
 export * from './save/index.js';
