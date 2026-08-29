@@ -35,22 +35,37 @@ Activity.
 ```bash
 npm run build                                   # dist/client + precache.json
 npm run check:pwa                               # prove offline start actually works
-npm run pack:quest -- --domain play.example.net # renders packaging/meta-quest/twa-manifest.json
 
-npm install --global @meta-quest/bubblewrap-cli
-cd packaging/meta-quest
-bubblewrap init --manifest=https://play.example.net/manifest.webmanifest --metaquest
-bubblewrap build                                # -> app-release-signed.apk / .aab
-adb install ./app-release-signed.apk            # sideload onto the headset to test
+export JAVA_HOME=/path/to/jdk-17
+export ANDROID_HOME=/path/to/android-sdk        # build-tools 36.1.0, platform 36
+export KC_KEYSTORE_PASSWORD=…                   # generates the key on first run
+
+npm run build:quest -- --domain play.example.net
+adb install -r packaging/meta-quest/app-release-signed.apk   # sideload to test
 ```
 
-Then bind the app to the domain, or it launches with a browser URL bar and gets rejected:
+`build:quest` runs `pack:quest` first, so the manifest and icon checks still gate the build. It
+then writes `packaging/meta-quest/assetlinks.json` with the signing certificate's SHA-256 already
+filled in — serve that at `https://<host>/.well-known/assetlinks.json`. Without it the app
+launches with a browser URL bar, which the store rejects for an immersive title.
 
-```bash
-keytool -list -v -keystore ./android.keystore -alias android   # copy the SHA-256
-bubblewrap fingerprint add <sha256>
-# serve the generated assetlinks.json at https://<host>/.well-known/assetlinks.json
-```
+Three details in that script are not obvious, and each one cost a failed build:
+
+* **Bubblewrap fetches the icons and web manifest over HTTP at generation time** and bakes them
+  into the APK. Pointed at the real host you cannot build before the site is live, and then you
+  ship whatever that host was serving. `build:quest` serves `dist/client` on loopback instead, so
+  the APK carries the build you just made. `host` still names the real origin — that is what the
+  intent filter and the asset-links check use.
+* **`bubblewrap update --skipVersionUpgrade` writes an empty `versionName`** into `build.gradle`.
+  The build succeeds and the store rejects the upload. The script passes `--appVersionName`.
+* **Bubblewrap's SDK check predates the current SDK layout.** It looks for `<sdk>/tools` or
+  `<sdk>/bin`; a modern install only has `<sdk>/cmdline-tools/latest/bin`, and the error it
+  produces is the unhelpful "the provided androidSdk isn't correct". Symlink it:
+
+  ```bash
+  ln -s "$ANDROID_HOME/cmdline-tools/latest/bin" "$ANDROID_HOME/bin"
+  ln -s "$ANDROID_HOME/cmdline-tools/latest/lib" "$ANDROID_HOME/lib"
+  ```
 
 ### Things that are permanent
 

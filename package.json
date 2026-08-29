@@ -32,7 +32,9 @@
     "pack:steam": "node scripts/pack-steam.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run lint && npm run assets:check && npm run pack:quest:check && npm run typecheck && npm run test && npm run build"
+    "verify": "npm run lint && npm run assets:check && npm run pack:quest:check && npm run typecheck && npm run test && npm run build",
+    "pack:release": "node scripts/pack-release.mjs",
+    "build:quest": "node scripts/build-quest.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

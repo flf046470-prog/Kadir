@@ -27,6 +27,10 @@ jobs:
       # Packaging the Steam app also proves the built output is self-consistent — a missing
       # build step otherwise shows up as a blank window rather than an error.
       - run: npm run pack:steam
+      # The web bundle is the artifact every store package wraps, so it must always be
+      # collectable. The Electron and Android targets need toolchains this runner does not
+      # have; they are reported as skipped rather than failing the build.
+      - run: npm run pack:release -- --require web
 
   browser:
     runs-on: ubuntu-latest

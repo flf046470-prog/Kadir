@@ -35,7 +35,15 @@ try {
 // a static-only host leaves the app stuck on the first screen with nothing logged.
 const PORT = 8871;
 const server = spawn(process.execPath, ['dist/server/main.js'], {
-  env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', KC_DATA_DIR: '/tmp/kc-smoke', KC_PUBLIC_DIR: path.resolve('dist/client') },
+  // KC_SMOKE_PUBLIC_DIR lets the release check point this at an *unpacked release zip* rather
+  // than the build directory, so what gets driven in the browser is the artifact that ships.
+  env: {
+    ...process.env,
+    PORT: String(PORT),
+    HOST: '127.0.0.1',
+    KC_DATA_DIR: '/tmp/kc-smoke',
+    KC_PUBLIC_DIR: path.resolve(process.env.KC_SMOKE_PUBLIC_DIR ?? 'dist/client'),
+  },
   stdio: ['ignore','pipe','pipe'],
 });
 const serverLog = [];
