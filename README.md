@@ -61,3 +61,11 @@ KC_SESSION_SECRET=... KC_PUBLIC_DIR=dist/client node dist/server/main.js
 The server hosts the client and the API, and accepts WebSocket connections on `/ws`.
 Environment: `PORT`, `HOST`, `KC_DATA_DIR`, `KC_SESSION_SECRET` (required in production),
 `KC_MAX_ROOMS`, `KC_MAX_PLAYERS`, `KC_ALLOWED_ORIGINS`.
+
+### Static hosting (Vercel previews)
+
+`vercel.json` builds **only the client** and publishes `dist/client`. That is deliberate: the
+authoritative server is a stateful 60 Hz process with WebSocket connections, which static hosting
+cannot run — it belongs on a container or VM. A static deployment is still playable: with no
+server reachable the client drops into solo practice against bots, which is exactly what the
+preview links show.
