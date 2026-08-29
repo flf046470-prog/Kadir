@@ -42,8 +42,10 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
   transform is unit tested, but no headset exists in CI. First hardware session should check:
   session entry, hand tracking fallback, snap-turn comfort, 72 fps hold.
 - **iOS**: WebXR is unavailable in Safari, so iOS ships Mobile only.
-- **Store shells**: Capacitor (Play/App Store) and Quest APK packaging are not set up; the
-  receipt verifier has a dev implementation and needs the real Play/App Store verifiers.
+- **Store shells**: Meta Quest (Bubblewrap PWA) and Steam (Electron shell) are set up — see
+  `docs/STORES.md`. Capacitor (Play/App Store) is not. Receipt verification is real for Meta,
+  Steam and Google Play; the Play verifier still needs a service-account token provider wired
+  to a deployment.
 - **Voice chat** is a mesh — fine to ~16 players, needs an SFU beyond that.
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
 - **Moderation** has the model, rate limiting and report log, but no review tooling.

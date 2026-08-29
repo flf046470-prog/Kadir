@@ -8,6 +8,7 @@ import { createHttpHandler } from './http.js';
 import { Leaderboard } from './leaderboard.js';
 import { FileSaveStore } from './persistence.js';
 import { DevReceiptVerifier, PurchaseService } from './purchases.js';
+import { createReceiptVerifier } from './receipts.js';
 import { RoomManager } from './rooms.js';
 
 async function main(): Promise<void> {
@@ -26,7 +27,20 @@ async function main(): Promise<void> {
   await leaderboard.load();
 
   const rooms = new RoomManager(config, accounts, leaderboard);
-  const purchases = new PurchaseService(new DevReceiptVerifier(process.env.NODE_ENV !== 'production'));
+  // Store credentials decide which platforms can be verified at all. A store with none
+  // configured is absent from the routing table, so its receipts are refused rather than
+  // accepted unverified.
+  const receiptVerifier = createReceiptVerifier(
+    {
+      metaAppId: config.stores.metaAppId,
+      metaAppSecret: config.stores.metaAppSecret,
+      steamAppId: config.stores.steamAppId,
+      steamWebApiKey: config.stores.steamWebApiKey,
+      playPackageName: config.stores.playPackageName,
+    },
+    config.allowDevPurchases ? new DevReceiptVerifier(true) : null,
+  );
+  const purchases = new PurchaseService(receiptVerifier);
 
   const server = createServer(createHttpHandler({ config, accounts, rooms, leaderboard, purchases }));
   const wss = attachGateway(server, config, accounts, rooms);
@@ -40,6 +54,7 @@ async function main(): Promise<void> {
     console.log(`  websocket : ws://${config.host}:${config.port}/ws`);
     console.log(`  tick rate : ${config.tickRate} Hz, snapshots ${config.snapshotRate} Hz`);
     console.log(`  data dir  : ${config.dataDir}`);
+    console.log(`  receipts  : ${receiptVerifier.platforms.join(', ') || 'NONE — all purchases will be refused'}`);
     if (config.sessionSecret === 'dev-only-insecure-secret') {
       console.warn('  WARNING: using the development session secret. Set KC_SESSION_SECRET in production.');
     }

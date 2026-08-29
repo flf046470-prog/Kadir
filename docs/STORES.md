@@ -88,6 +88,36 @@ mode against the local server, where SteamVR's OpenXR runtime drives WebXR.
 
 ---
 
+## Receipt verification
+
+Every store verifies server-side. The client sends a receipt; the server asks the store that
+took the money whether it is real, and only then grants anything. Receipts carry the platform
+that issued them as a prefix — `meta:<userId>`, `steam:<orderId>`, `play:<purchaseToken>` — and
+are routed to the matching verifier in `packages/server/src/receipts.ts`.
+
+Three properties are enforced there and covered by tests:
+
+* The SKU checked against the store is **the item the server is about to grant**, never
+  anything the client named. Otherwise a receipt for a $0.99 item could be replayed against a
+  $4.99 one.
+* A **store with no credentials configured is absent from the routing table**, so its receipts
+  are refused rather than accepted unverified. Boot logs which platforms are live.
+* A Meta consumable is **consumed before the grant**. A failed consume means the purchase was
+  not spent, so granting anyway would let the same receipt be redeemed again.
+
+Configure with environment variables. None of these may ever reach the client bundle:
+
+| Variable | Store |
+| --- | --- |
+| `KC_META_APP_ID`, `KC_META_APP_SECRET` | Meta Horizon (`graph.oculus.com` verify/consume) |
+| `KC_STEAM_APP_ID`, `KC_STEAM_WEB_API_KEY` | Steam (`ISteamMicroTxn/QueryTxn`) |
+| `KC_PLAY_PACKAGE_NAME` | Google Play (androidpublisher; also needs a service-account token provider) |
+
+`dev:` receipts are accepted only when `NODE_ENV !== 'production'`. In production the dev
+verifier is not registered at all, so a `dev:` receipt is refused like any unknown platform.
+
+---
+
 ## Google Play / App Store
 
 Not set up. Mobile is flat-only in any case — WebXR is unavailable in Safari, so iOS ships

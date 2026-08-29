@@ -32,6 +32,8 @@ const CONFIG: ServerConfig = {
   messageRateLimit: 90,
   allowedOrigins: [],
   publicDir: 'dist/client',
+  stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },
+  allowDevPurchases: true,
 };
 
 class FakeSocket implements ClientSocket {

@@ -19,6 +19,16 @@ export interface ServerConfig {
   /** Allow the built-in dev origin check to be relaxed locally. */
   allowedOrigins: string[];
   publicDir: string;
+  /** Store credentials for server-side receipt verification. Absent store = its receipts refused. */
+  stores: {
+    metaAppId: string;
+    metaAppSecret: string;
+    steamAppId: string;
+    steamWebApiKey: string;
+    playPackageName: string;
+  };
+  /** Whether `dev:` receipts are accepted. Never true in production. */
+  allowDevPurchases: boolean;
 }
 
 function int(name: string, fallback: number): number {
@@ -46,5 +56,13 @@ export function loadConfig(): ServerConfig {
     messageRateLimit: int('KC_MSG_RATE', 90),
     allowedOrigins: (env.KC_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean),
     publicDir: env.KC_PUBLIC_DIR ?? 'dist/client',
+    stores: {
+      metaAppId: env.KC_META_APP_ID ?? '',
+      metaAppSecret: env.KC_META_APP_SECRET ?? '',
+      steamAppId: env.KC_STEAM_APP_ID ?? '',
+      steamWebApiKey: env.KC_STEAM_WEB_API_KEY ?? '',
+      playPackageName: env.KC_PLAY_PACKAGE_NAME ?? '',
+    },
+    allowDevPurchases: env.NODE_ENV !== 'production',
   };
 }
