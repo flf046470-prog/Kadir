@@ -29,6 +29,8 @@ export interface ServerConfig {
   };
   /** Whether `dev:` receipts are accepted. Never true in production. */
   allowDevPurchases: boolean;
+  /** Postgres URL. Empty = file storage, which is correct for a single instance only. */
+  databaseUrl: string;
 }
 
 function int(name: string, fallback: number): number {
@@ -64,5 +66,6 @@ export function loadConfig(): ServerConfig {
       playPackageName: env.KC_PLAY_PACKAGE_NAME ?? '',
     },
     allowDevPurchases: env.NODE_ENV !== 'production',
+    databaseUrl: env.KC_DATABASE_URL ?? '',
   };
 }

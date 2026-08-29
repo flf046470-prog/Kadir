@@ -6,7 +6,7 @@ import { loadConfig } from './config.js';
 import { attachGateway } from './gateway.js';
 import { createHttpHandler } from './http.js';
 import { Leaderboard } from './leaderboard.js';
-import { FileSaveStore } from './persistence.js';
+import { createStorage } from './storage.js';
 import { DevReceiptVerifier, PurchaseService } from './purchases.js';
 import { createReceiptVerifier } from './receipts.js';
 import { RoomManager } from './rooms.js';
@@ -21,10 +21,12 @@ async function main(): Promise<void> {
     throw new Error(`Store catalog invalid (${problems.length} problems)`);
   }
 
-  const saveStore = new FileSaveStore(config.dataDir);
-  const accounts = new AccountService(saveStore, config.sessionSecret);
-  const leaderboard = new Leaderboard(config.dataDir);
-  await leaderboard.load();
+  // File storage is correct for one writer; anything scaled needs the SQL drivers, because a
+  // profile save and a leaderboard submit are both read-modify-write over a file and two
+  // instances doing that concurrently lose one of the writes.
+  const storage = await createStorage({ dataDir: config.dataDir, databaseUrl: config.databaseUrl });
+  const accounts = new AccountService(storage.saves, config.sessionSecret);
+  const leaderboard = new Leaderboard(storage.leaderboard);
 
   const rooms = new RoomManager(config, accounts, leaderboard);
   // Store credentials decide which platforms can be verified at all. A store with none
@@ -53,7 +55,7 @@ async function main(): Promise<void> {
     console.log(`Kangaroo Chase server listening on http://${config.host}:${config.port}`);
     console.log(`  websocket : ws://${config.host}:${config.port}/ws`);
     console.log(`  tick rate : ${config.tickRate} Hz, snapshots ${config.snapshotRate} Hz`);
-    console.log(`  data dir  : ${config.dataDir}`);
+    console.log(`  storage   : ${storage.description}`);
     console.log(`  receipts  : ${receiptVerifier.platforms.join(', ') || 'NONE — all purchases will be refused'}`);
     if (config.sessionSecret === 'dev-only-insecure-secret') {
       console.warn('  WARNING: using the development session secret. Set KC_SESSION_SECRET in production.');

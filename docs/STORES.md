@@ -118,6 +118,33 @@ verifier is not registered at all, so a `dev:` receipt is refused like any unkno
 
 ---
 
+## Storage
+
+Two drivers, chosen by `KC_DATABASE_URL`:
+
+| Unset | Files under `KC_DATA_DIR`. Correct for **one writer only** — local dev and the Steam build's embedded server. |
+| Set | Postgres, shared across instances. Tables are created on boot. |
+
+This is not a size question. A profile save and a leaderboard submit are both read-modify-write
+against shared state when done over a file, so two instances serving the same player each hold
+their own copy and overwrite the other's — silently losing purchases and race times. The SQL
+drivers do each as a single upsert (`ON CONFLICT ... DO UPDATE`), with the leaderboard's guard
+`WHERE EXCLUDED.ticks < parkour_times.ticks` making "keep the better time" the database's
+decision rather than a race between servers.
+
+`pg` is an optional dependency of the *deployment*, not of this package, so the default build
+runs with no database driver present. If `KC_DATABASE_URL` is set and `pg` is missing the server
+refuses to start rather than falling back — a silent fallback would look like it worked and then
+lose data the moment a second instance came up. The error never echoes the connection URL,
+which carries the password.
+
+```bash
+npm install pg
+KC_DATABASE_URL=postgres://user:pass@host:5432/kangaroo npm start
+```
+
+---
+
 ## Google Play / App Store
 
 Not set up. Mobile is flat-only in any case — WebXR is unavailable in Safari, so iOS ships

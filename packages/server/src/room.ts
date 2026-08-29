@@ -355,13 +355,19 @@ export class Room {
     if (result.modeId !== 'parkour') return;
     const entry = result.players.find((p) => p.playerId === client.playerId);
     if (!entry || entry.bestLapTicks <= 0) return;
-    this.leaderboard.submit(this.level.id, {
-      playerId: client.playerId,
-      name: client.profile.name,
-      animalId: client.profile.equipped.animalId,
-      ticks: entry.bestLapTicks,
-      at: Date.now(),
-    });
+    // Not awaited: this runs on the round-end path and a slow datastore must not stall the
+    // room. A failure costs one leaderboard entry, so it is logged rather than thrown.
+    void this.leaderboard
+      .submit(this.level.id, {
+        playerId: client.playerId,
+        name: client.profile.name,
+        animalId: client.profile.equipped.animalId,
+        ticks: entry.bestLapTicks,
+        at: Date.now(),
+      })
+      .catch((error: unknown) => {
+        console.error('[leaderboard] submit failed:', error);
+      });
   }
 
   /** Rotate to the most-voted mode and rebuild the simulation for a fresh round. */

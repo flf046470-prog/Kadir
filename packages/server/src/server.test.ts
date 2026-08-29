@@ -5,6 +5,7 @@ import { SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
 import { AccountService } from './accounts.js';
 import { Leaderboard } from './leaderboard.js';
+import { MemoryLeaderboardStore } from './leaderboard-store.js';
 import { RoomManager } from './rooms.js';
 import { Room, reportLog } from './room.js';
 import type { ClientSocket } from './room.js';
@@ -29,6 +30,7 @@ function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     publicDir: 'dist/client',
     stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },
     allowDevPurchases: true,
+    databaseUrl: '',
     ...overrides,
   };
 }
@@ -62,7 +64,7 @@ class FakeSocket implements ClientSocket {
 async function makeHarness(config = testConfig()) {
   const store = new MemorySaveStore();
   const accounts = new AccountService(store, config.sessionSecret);
-  const leaderboard = new Leaderboard(config.dataDir);
+  const leaderboard = new Leaderboard(new MemoryLeaderboardStore());
   const rooms = new RoomManager(config, accounts, leaderboard);
   return { store, accounts, leaderboard, rooms, config };
 }
@@ -286,7 +288,7 @@ describe('server-authoritative progression', () => {
     expect(racer.profile.stats.parkourFinishes).toBe(1);
 
     // The lap made the leaderboard, submitted by the room and never by the client.
-    expect(harness.leaderboard.best(level.id)?.playerId).toBe('racer');
+    expect((await harness.leaderboard.best(level.id))?.playerId).toBe('racer');
 
     const persisted = await harness.store.load('racer');
     expect(persisted?.coins).toBe(racer.profile.coins);
@@ -324,13 +326,13 @@ describe('purchases', () => {
 });
 
 describe('leaderboard', () => {
-  it('keeps only improvements and ranks by time', () => {
-    const board = new Leaderboard('data-test');
-    expect(board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 6000, at: 1 })).toBe(1);
-    expect(board.submit('jungle-world', { playerId: 'b', name: 'B', animalId: 'fox', ticks: 5000, at: 2 })).toBe(1);
-    expect(board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 7000, at: 3 })).toBe(-1);
-    expect(board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 4000, at: 4 })).toBe(1);
-    expect(board.top('jungle-world').map((e) => e.playerId)).toEqual(['a', 'b']);
-    expect(board.submit('jungle-world', { playerId: 'c', name: 'C', animalId: 'fox', ticks: -5, at: 5 })).toBe(-1);
+  it('keeps only improvements and ranks by time', async () => {
+    const board = new Leaderboard(new MemoryLeaderboardStore());
+    expect(await board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 6000, at: 1 })).toBe(1);
+    expect(await board.submit('jungle-world', { playerId: 'b', name: 'B', animalId: 'fox', ticks: 5000, at: 2 })).toBe(1);
+    expect(await board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 7000, at: 3 })).toBe(-1);
+    expect(await board.submit('jungle-world', { playerId: 'a', name: 'A', animalId: 'kangaroo', ticks: 4000, at: 4 })).toBe(1);
+    expect((await board.top('jungle-world')).map((e) => e.playerId)).toEqual(['a', 'b']);
+    expect(await board.submit('jungle-world', { playerId: 'c', name: 'C', animalId: 'fox', ticks: -5, at: 5 })).toBe(-1);
   });
 });

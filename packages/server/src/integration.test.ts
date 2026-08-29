@@ -11,6 +11,7 @@ import { SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
 import { AccountService } from './accounts.js';
 import { Leaderboard } from './leaderboard.js';
+import { MemoryLeaderboardStore } from './leaderboard-store.js';
 import { RoomManager } from './rooms.js';
 import { Room } from './room.js';
 import type { ClientSocket } from './room.js';
@@ -34,6 +35,7 @@ const CONFIG: ServerConfig = {
   publicDir: 'dist/client',
   stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },
   allowDevPurchases: true,
+  databaseUrl: '',
 };
 
 class FakeSocket implements ClientSocket {
@@ -58,7 +60,7 @@ class FakeSocket implements ClientSocket {
 function harness() {
   const store = new MemorySaveStore();
   const accounts = new AccountService(store, CONFIG.sessionSecret);
-  const leaderboard = new Leaderboard(CONFIG.dataDir);
+  const leaderboard = new Leaderboard(new MemoryLeaderboardStore());
   const rooms = new RoomManager(CONFIG, accounts, leaderboard);
   const purchases = new PurchaseService(new DevReceiptVerifier(true));
   return { store, accounts, leaderboard, rooms, purchases };

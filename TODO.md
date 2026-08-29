@@ -52,13 +52,14 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
 - **Moderation** has the model, rate limiting and report log, but no review tooling.
 - **Level art** is procedural; see `docs/ASSETS.md` for the optional art-pack pipeline.
-- **Leaderboards** are per-server-instance files; a shared datastore is needed for a real
-  global board.
+- **Leaderboards and profiles** have both file and SQL drivers (`KC_DATABASE_URL`). The SQL
+  path is unit tested against a recording client but has not been run against a real Postgres,
+  so the first deployment should verify the migrations apply.
 
 ## Next up (in order)
 
 1. Hardware VR pass: comfort defaults, haptics, hand-tracking (no controllers) support.
 2. Capacitor shell + Quest APK, then real receipt verification.
-3. Server: move profiles and leaderboards to a managed database; region sharding.
+3. Server: run the SQL drivers against a real Postgres; region sharding.
 4. Content: Waterfall / Tree Village / Ruins sections; the nine roadmap animals.
 5. Ranked mode and tournaments on top of the existing mode registry.

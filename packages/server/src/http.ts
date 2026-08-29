@@ -110,7 +110,7 @@ async function handleApi(
 
   if (path.startsWith('/api/leaderboard/') && method === 'GET') {
     const levelId = decodeURIComponent(path.slice('/api/leaderboard/'.length));
-    json(res, 200, { entries: deps.leaderboard.top(levelId, 20) });
+    json(res, 200, { entries: await deps.leaderboard.top(levelId, 20) });
     return;
   }
 
@@ -188,8 +188,8 @@ async function handleApi(
   if (path === '/api/leaderboard/self' && method === 'GET') {
     const levelId = url.searchParams.get('level') ?? deps.rooms.sharedLevel.id;
     json(res, 200, {
-      personal: deps.leaderboard.personalBest(levelId, playerId),
-      world: deps.leaderboard.best(levelId),
+      personal: await deps.leaderboard.personalBest(levelId, playerId),
+      world: await deps.leaderboard.best(levelId),
     });
     return;
   }
