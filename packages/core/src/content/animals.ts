@@ -45,7 +45,13 @@ export interface AnimalDef {
   description: string;
   rarity: Rarity;
   unlock: UnlockKind;
-  /** Price in cents. 0 for free animals. Never randomised, never a loot box. */
+  /**
+   * Kept at 0 for every animal: the whole roster is free.
+   *
+   * The field survives because the renderer, the credits screen and the save format all read
+   * `AnimalDef`, and removing a field from a shipped save shape is a migration nobody needs. It
+   * is validated to stay 0 — see `validateCatalog`.
+   */
   priceCents: number;
   visual: AnimalVisual;
   audio: AnimalAudio;
@@ -128,8 +134,8 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     name: 'Wolf',
     description: 'Lean and low. Looks fast, sounds fierce — plays exactly as fair as everyone else.',
     rarity: 'common',
-    unlock: 'purchase',
-    priceCents: 99,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body: 0x6b7280, accent: 0x374151, belly: 0xd9dde3, scale: 1.02, ears: 'pointed', tail: 'bushy', snout: 'long' },
     audio: { jump: 'wolf_jump', land: 'wolf_land', voice: 'wolf_voice', emote: 'wolf_emote' },
     feel: { acceleration: 0.02, maxSpeed: 0.01 },
@@ -141,8 +147,8 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     name: 'Fox',
     description: 'Small, bright and quick-footed. A crowd favourite in the tree village.',
     rarity: 'common',
-    unlock: 'purchase',
-    priceCents: 99,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body: 0xe07b39, accent: 0xb14e1c, belly: 0xf7e8d5, scale: 0.95, ears: 'pointed', tail: 'bushy', snout: 'long' },
     audio: { jump: 'fox_jump', land: 'fox_land', voice: 'fox_voice', emote: 'fox_emote' },
     feel: { maxSpeed: 0.02, jumpForce: -0.01 },
@@ -154,8 +160,8 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     name: 'Tiger',
     description: 'Striped, heavy-footed and loud. The one everybody spots across the canyon.',
     rarity: 'rare',
-    unlock: 'purchase',
-    priceCents: 149,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body: 0xf59e0b, accent: 0x1f2937, belly: 0xfff7ed, scale: 1.06, ears: 'round', tail: 'thick', snout: 'short' },
     audio: { jump: 'tiger_jump', land: 'tiger_land', voice: 'tiger_voice', emote: 'tiger_emote' },
     feel: { acceleration: 0.03, friction: 0.02 },
@@ -167,8 +173,8 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     name: 'Frog',
     description: 'Wide stance, wet landings, comedy timing built in.',
     rarity: 'common',
-    unlock: 'purchase',
-    priceCents: 99,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body: 0x4ade80, accent: 0x15803d, belly: 0xecfccb, scale: 0.9, ears: 'none', tail: 'stub', snout: 'flat' },
     audio: { jump: 'frog_jump', land: 'frog_land', voice: 'frog_voice', emote: 'frog_emote' },
     feel: { jumpForce: 0.03, maxSpeed: -0.02 },
@@ -180,8 +186,8 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     name: 'Penguin',
     description: 'Slides on landing, waddles on the flat, absolutely commits to every hop.',
     rarity: 'rare',
-    unlock: 'purchase',
-    priceCents: 149,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body: 0x1f2937, accent: 0xfbbf24, belly: 0xf9fafb, scale: 0.94, ears: 'none', tail: 'stub', snout: 'beak' },
     audio: { jump: 'penguin_jump', land: 'penguin_land', voice: 'penguin_voice', emote: 'penguin_emote' },
     feel: { friction: -0.03, tailBalance: -0.01 },
@@ -195,22 +201,22 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
  * the store catalog, which is the whole point of the data-driven design.
  */
 export const FUTURE_ANIMALS: AnimalDef[] = [
-  animal('lion', 'Lion', 'rare', 149, 0xd9a441, 0x8b5a2b, 0xfdf0d5, 'round', 'thick', 'short'),
-  animal('bear', 'Bear', 'rare', 149, 0x7c5231, 0x4a2f1b, 0xd9c3a5, 'round', 'stub', 'short'),
-  animal('panda', 'Panda', 'epic', 199, 0xf5f5f5, 0x111827, 0xffffff, 'round', 'stub', 'short'),
-  animal('raccoon', 'Raccoon', 'common', 99, 0x9ca3af, 0x1f2937, 0xe5e7eb, 'pointed', 'bushy', 'long'),
-  animal('deer', 'Deer', 'common', 99, 0xb98a5a, 0x6b4423, 0xf3e2cf, 'tall', 'stub', 'long'),
-  animal('koala', 'Koala', 'rare', 149, 0x9aa5b1, 0x5b6672, 0xe8edf2, 'round', 'stub', 'flat'),
-  animal('shark', 'Shark', 'epic', 199, 0x64748b, 0x1e293b, 0xf1f5f9, 'fin', 'fin', 'flat'),
-  animal('raptor', 'Raptor', 'epic', 199, 0x84cc16, 0x3f6212, 0xecfccb, 'pointed', 'thin', 'long'),
-  animal('dragon', 'Dragon', 'epic', 299, 0x7c3aed, 0x4c1d95, 0xede9fe, 'pointed', 'thin', 'long'),
+  animal('lion', 'Lion', 'rare', 0xd9a441, 0x8b5a2b, 0xfdf0d5, 'round', 'thick', 'short'),
+  animal('bear', 'Bear', 'rare', 0x7c5231, 0x4a2f1b, 0xd9c3a5, 'round', 'stub', 'short'),
+  animal('panda', 'Panda', 'epic', 0xf5f5f5, 0x111827, 0xffffff, 'round', 'stub', 'short'),
+  animal('raccoon', 'Raccoon', 'common', 0x9ca3af, 0x1f2937, 0xe5e7eb, 'pointed', 'bushy', 'long'),
+  animal('deer', 'Deer', 'common', 0xb98a5a, 0x6b4423, 0xf3e2cf, 'tall', 'stub', 'long'),
+  animal('koala', 'Koala', 'rare', 0x9aa5b1, 0x5b6672, 0xe8edf2, 'round', 'stub', 'flat'),
+  animal('shark', 'Shark', 'epic', 0x64748b, 0x1e293b, 0xf1f5f9, 'fin', 'fin', 'flat'),
+  animal('raptor', 'Raptor', 'epic', 0x84cc16, 0x3f6212, 0xecfccb, 'pointed', 'thin', 'long'),
+  animal('dragon', 'Dragon', 'epic', 0x7c3aed, 0x4c1d95, 0xede9fe, 'pointed', 'thin', 'long'),
 ];
 
+/** Roadmap roster. Free like everything else; `rarity` describes the look, not a price tier. */
 function animal(
   id: string,
   name: string,
   rarity: Rarity,
-  priceCents: number,
   body: number,
   accent: number,
   belly: number,
@@ -223,8 +229,8 @@ function animal(
     name,
     description: `${name} — cosmetic only, same movement as every other animal.`,
     rarity,
-    unlock: 'purchase',
-    priceCents,
+    unlock: 'free',
+    priceCents: 0,
     visual: { body, accent, belly, scale: 1, ears, tail, snout },
     audio: { jump: `${id}_jump`, land: `${id}_land`, voice: `${id}_voice`, emote: `${id}_emote` },
     feel: {},

@@ -20,9 +20,14 @@ starts: it drops into solo practice against bots.
 * **VR Boxing** — physics-driven punches with stamina and knockback.
 * **Parkour Race** — a checkpoint route through jungle, canopy, canyon and cave.
 
-Six animals at launch (Kangaroo free), nine more ready as data. Every animal moves identically
-within a ±3 % feel band that is clamped at load and enforced by a test — **premium content is
-cosmetic, by construction**. Fixed store prices, no loot boxes, no gacha, no randomised rewards.
+Seven animals at launch (Kangaroo and Human), nine more ready as data. Every animal moves
+identically within a ±3 % feel band that is clamped at load and enforced by a test.
+
+**Everything in the game is free.** Every animal, outfit and gadget is unlocked from the moment an
+account is created. There is no store, no currency to buy, no loot boxes and nothing to pay for —
+`validateCatalog()` and `validateGadgets()` refuse to boot the server if anything acquires a
+price, so the rule is enforced rather than remembered. Coins still accrue as a record of play;
+they have nothing to spend on.
 
 ## How it fits together
 

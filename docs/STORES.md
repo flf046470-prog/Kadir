@@ -113,7 +113,7 @@ are routed to the matching verifier in `packages/server/src/receipts.ts`.
 Three properties are enforced there and covered by tests:
 
 * The SKU checked against the store is **the item the server is about to grant**, never
-  anything the client named. Otherwise a receipt for a $0.99 item could be replayed against a
+  anything the client named. Otherwise a receipt for a cheap item could be replayed against a
   $4.99 one.
 * A **store with no credentials configured is absent from the routing table**, so its receipts
   are refused rather than accepted unverified. Boot logs which platforms are live.

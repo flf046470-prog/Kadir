@@ -9,9 +9,8 @@ import type {
   MatchResult,
   PlayerProfile,
   Settings,
-  StoreItem,
 } from '@kc/core';
-import { button, clear, el, formatPrice } from './dom.js';
+import { button, clear, el } from './dom.js';
 import type { TuningStore } from '../game/TuningStore.js';
 import type { Api, ContentBundle, ProfileBundle } from '../net/Api.js';
 
@@ -308,9 +307,13 @@ export class Shell {
       swatch,
       el('h3', {}, animal.name),
       el('p', {}, animal.description),
-      owned
-        ? button(equipped ? 'Equipped' : 'Equip', () => void this.equipAnimal(animal.id), equipped ? 'primary' : 'ghost')
-        : button(`Unlock ${formatPrice(animal.priceCents)}`, () => this.show('store')),
+      // Everything is owned, so there is no third state. `owned` is still consulted rather than
+      // assumed: a save that predates a newly added animal is repaired on load, not here.
+      button(
+        equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
+        () => void this.equipAnimal(animal.id),
+        equipped ? 'primary' : 'ghost',
+      ),
     );
   }
 
@@ -340,61 +343,36 @@ export class Shell {
       swatch,
       el('h3', {}, cosmetic.name),
       el('span', { class: 'kc-tag' }, cosmetic.rarity),
-      owned
-        ? button(equipped ? 'Equipped' : 'Equip', () => void this.equipCosmetic(cosmetic.slot, cosmetic.id), equipped ? 'primary' : 'ghost')
-        : cosmetic.priceCoins >= 0
-          ? button(`🪙 ${cosmetic.priceCoins}`, () => this.show('store'))
-          : button(formatPrice(cosmetic.priceCents), () => this.show('store')),
+      button(
+        equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
+        () => void this.equipCosmetic(cosmetic.slot, cosmetic.id),
+        equipped ? 'primary' : 'ghost',
+      ),
     );
   }
 
+  /**
+   * The former store.
+   *
+   * Kept as a screen rather than deleted, because "Store" was a menu button people learned and a
+   * dead end is worse than a page that explains itself. It now says what is true: there is
+   * nothing to buy, and everything is already yours.
+   */
   private storeScreen(): HTMLElement {
-    const items = this.content?.store ?? [];
-    const grid = el('div', { class: 'kc-grid' });
-    for (const item of items) grid.append(this.storeCard(item));
-
     return el(
       'div',
       { class: 'kc-screen' },
-      this.header('Store', `🪙 ${this.profile?.profile.coins ?? 0} · everything here is cosmetic`),
-      grid,
+      this.header('Everything is free', `🪙 ${this.profile?.profile.coins ?? 0} earned`),
       el(
         'p',
         { class: 'kc-note' },
-        'Fixed prices, no loot boxes, no randomised rewards. Most items can also be earned by playing.',
+        'Every animal, outfit and gadget in Kangaroo Chase is unlocked from the moment you start. ' +
+          'There is no store, no currency to top up, no loot boxes and nothing to pay for. ' +
+          'Coins are a record of what you have played, not something to spend.',
       ),
+      button('Pick an animal or an outfit', () => this.show('customize'), 'primary'),
       this.noticeNode(),
       button('Back', () => this.show('menu')),
-    );
-  }
-
-  private storeCard(item: StoreItem): HTMLElement {
-    const profile = this.profile?.profile;
-    const owned =
-      profile !== undefined &&
-      item.grants.every((id) => profile.ownedAnimals.includes(id) || profile.ownedCosmetics.includes(id));
-    const canAfford = (profile?.coins ?? 0) >= item.priceCoins && item.priceCoins >= 0;
-
-    return el(
-      'div',
-      { class: 'kc-card' },
-      el('h3', {}, item.name),
-      el('p', {}, item.description),
-      item.tag ? el('span', { class: 'kc-tag' }, item.tag) : null,
-      owned
-        ? el('span', { class: 'kc-tag' }, 'Owned')
-        : el(
-            'div',
-            { class: 'kc-row' },
-            item.priceCoins >= 0
-              ? (() => {
-                  const btn = button(`🪙 ${item.priceCoins}`, () => void this.buyWithCoins(item.id));
-                  btn.disabled = !canAfford;
-                  return btn;
-                })()
-              : null,
-            button(formatPrice(item.priceCents), () => void this.buyWithMoney(item.id), 'primary'),
-          ),
     );
   }
 
@@ -746,41 +724,6 @@ export class Shell {
     }
     this.render();
     this.showCosmeticSlot(slot);
-  }
-
-  private async buyWithCoins(itemId: string): Promise<void> {
-    try {
-      const response = await this.options.api.purchaseWithCoins(itemId);
-      if (this.profile) this.profile.profile.coins = response.coins;
-      this.notice = `Unlocked: ${response.granted.join(', ')}`;
-      await this.refreshProfile();
-    } catch (error) {
-      this.notice = `Purchase failed: ${(error as Error).message}`;
-      this.render();
-    }
-  }
-
-  /**
-   * Real-money purchase.
-   *
-   * In a store build this hands off to the platform billing SDK and passes the resulting receipt
-   * to the server, which verifies it before granting anything. The dev receipt below only works
-   * against a development server — production refuses it.
-   */
-  private async buyWithMoney(itemId: string): Promise<void> {
-    if (!this.options.devPurchases) {
-      this.notice = 'Purchases are handled by the platform store in the shipped app.';
-      this.render();
-      return;
-    }
-    try {
-      const response = await this.options.api.purchase(itemId, `dev:${itemId}:${Date.now()}`);
-      this.notice = `Unlocked: ${response.granted.join(', ')}`;
-      await this.refreshProfile();
-    } catch (error) {
-      this.notice = `Purchase failed: ${(error as Error).message}`;
-      this.render();
-    }
   }
 
   private async claimDaily(): Promise<void> {

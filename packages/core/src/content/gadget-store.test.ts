@@ -1,141 +1,138 @@
 import { describe, expect, it } from 'vitest';
 
-import { getGadget, listGadgets } from '../gadgets/catalog.js';
+import { freeGadgetIds, getGadget, listGadgets, validateGadgets } from '../gadgets/catalog.js';
 import { createProfile } from '../progression/profile.js';
-import { applyVerifiedPurchase, equipGadgets, grantContent, purchaseWithCoins } from '../progression/inventory.js';
-import { GADGET_STORE, getStoreItem, listStoreItems, validateCatalog } from './store.js';
+import { equipGadgets, grantContent } from '../progression/inventory.js';
+import { listAnimals } from './animals.js';
+import { listCosmetics } from './cosmetics.js';
+import { LAUNCH_STORE, listStoreItems, validateCatalog } from './store.js';
 
 /**
- * The monetisation rules for gear, as executable statements.
+ * Kangaroo Chase is free, and everything in it is free.
  *
- * Gadgets are the first things sold in this game that actually change a round, which is exactly
- * why they need a test file of their own. The rule the whole design rests on is one sentence:
- * every gadget is reachable by playing, so money buys time and never advantage. If a future
- * change breaks that, it should break here first.
+ * These are the tests that hold that decision in place. They are deliberately blunt: there is no
+ * balance to tune, no price point to argue about and no "cosmetic only" line to police, because
+ * nothing is sold. If a price ever reappears anywhere in the content pipeline, one of these fails
+ * before it reaches a build.
  */
-describe('the gadget shelf', () => {
-  it('passes the catalog validator', () => {
+describe('nothing in this game is sold', () => {
+  it('has an empty storefront', () => {
+    expect(LAUNCH_STORE).toEqual([]);
+    expect(listStoreItems()).toEqual([]);
+  });
+
+  it('passes catalog validation', () => {
     expect(validateCatalog()).toEqual([]);
   });
 
-  it('lists every sellable gadget and nothing else', () => {
-    const sellable = listGadgets()
-      .filter((g) => g.unlockCents > 0)
-      .map((g) => g.id)
-      .toSorted();
-    expect(GADGET_STORE.map((item) => item.grants[0]).toSorted()).toEqual(sellable);
-  });
-
-  it('prices every one of them at $0.99', () => {
-    for (const item of GADGET_STORE) expect(item.priceCents, item.id).toBe(99);
-  });
-
-  it('always offers the coin price beside the cash price', () => {
-    for (const item of GADGET_STORE) {
-      expect(item.priceCoins, `${item.id} must be earnable`).toBeGreaterThan(0);
-    }
-  });
-
-  it('refuses a shelf entry that sells a gadget for money only', () => {
+  it('refuses a store item that has a price', () => {
     const problems = validateCatalog([
       {
-        id: 'gadget_paywalled',
-        kind: 'gadget',
-        name: 'Paywalled',
-        description: 'Money only.',
-        priceCents: 99,
+        id: 'sneaky_bundle',
+        kind: 'bundle',
+        name: 'Sneaky Bundle',
+        description: 'Should never ship.',
+        priceCents: 499,
         priceCoins: -1,
-        grants: ['bear_trap'],
+        grants: ['wolf'],
       },
     ]);
-    expect(problems.map((p) => p.problem).join(' ')).toContain('without a coin price');
+    expect(problems.map((p) => p.problem).join(' ')).toContain('nothing in this game is sold');
   });
 
-  it('never sells anything that changes how fast or how high you move', () => {
-    // Gadgets create situations; they do not touch MovementConfig. This asserts the *shape* of
-    // that promise: every payload is a status, damage, armour or heal — never a stat.
-    const allowed = new Set(['freeze', 'smoke', 'snare', 'damage', 'armour', 'heal', 'reveal']);
-    for (const item of listStoreItems()) {
-      for (const grant of item.grants) {
-        const gadget = getGadget(grant);
-        if (!gadget) continue;
-        expect(allowed.has(gadget.payload.on), `${gadget.id} payload ${gadget.payload.on}`).toBe(true);
-      }
+  it('prices every animal at nothing, premium roster included', () => {
+    for (const animal of listAnimals()) {
+      expect(animal.priceCents, animal.id).toBe(0);
+      expect(animal.unlock, animal.id).toBe('free');
     }
+  });
+
+  it('prices every cosmetic at nothing', () => {
+    for (const cosmetic of listCosmetics()) {
+      expect(cosmetic.priceCents, cosmetic.id).toBe(0);
+      expect(cosmetic.priceCoins, cosmetic.id).toBe(0);
+      expect(cosmetic.unlock, cosmetic.id).toBe('free');
+    }
+  });
+
+  it('prices every gadget at nothing — weapons, smoke, vest and all', () => {
+    for (const gadget of listGadgets()) {
+      expect(gadget.unlockCents, gadget.id).toBe(-1);
+      expect(gadget.unlockCoins, gadget.id).toBe(0);
+    }
+  });
+
+  it('keeps rarity as a look, not a price tier', () => {
+    // "epic" now means flashy. Every rarity is reachable by everyone.
+    const rarities = new Set(listCosmetics().map((c) => c.rarity));
+    expect(rarities.size).toBeGreaterThan(1);
+    for (const cosmetic of listCosmetics()) expect(cosmetic.priceCents, cosmetic.id).toBe(0);
   });
 });
 
-describe('buying a gadget', () => {
-  it('grants it for coins', () => {
+describe('a new account owns everything', () => {
+  it('starts with the whole animal roster', () => {
     const profile = createProfile('p1', 'Roo');
-    profile.coins = 5000;
-
-    const outcome = purchaseWithCoins(profile, 'gadget_bear_trap');
-
-    expect(outcome.ok).toBe(true);
-    expect(profile.ownedGadgets).toContain('bear_trap');
-    expect(profile.coins).toBe(5000 - (getStoreItem('gadget_bear_trap')?.priceCoins ?? 0));
+    for (const animal of listAnimals()) expect(profile.ownedAnimals, animal.id).toContain(animal.id);
   });
 
-  it('refuses when the player cannot afford it, and takes nothing', () => {
+  it('starts with every cosmetic', () => {
     const profile = createProfile('p1', 'Roo');
-    profile.coins = 10;
-
-    const outcome = purchaseWithCoins(profile, 'gadget_bear_trap');
-
-    expect(outcome.ok).toBe(false);
-    expect(outcome.error).toBe('insufficient-coins');
-    expect(profile.coins).toBe(10);
-    expect(profile.ownedGadgets).not.toContain('bear_trap');
+    for (const cosmetic of listCosmetics()) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
   });
 
-  it('grants it for a verified receipt, once, however many times the receipt is replayed', () => {
+  it('starts with every equippable gadget', () => {
     const profile = createProfile('p1', 'Roo');
-
-    const first = applyVerifiedPurchase(profile, 'gadget_bear_trap', 'txn-1');
-    const replay = applyVerifiedPurchase(profile, 'gadget_bear_trap', 'txn-1');
-
-    expect(first.granted).toContain('bear_trap');
-    expect(replay.granted).toEqual([]);
-    expect(profile.ownedGadgets.filter((id) => id === 'bear_trap')).toHaveLength(1);
-    expect(profile.purchases).toHaveLength(1);
+    expect(profile.ownedGadgets.toSorted()).toEqual(freeGadgetIds().toSorted());
+    for (const id of ['freeze_gun', 'smoke_bomb', 'steel_vest', 'steel_helmet', 'bear_trap', 'tripwire_alarm', 'field_kit']) {
+      expect(profile.ownedGadgets, id).toContain(id);
+    }
   });
 
-  it('reaches the same inventory whether it was bought with coins or cash', () => {
-    const grinder = createProfile('a', 'Grinder');
-    grinder.coins = 9999;
-    const spender = createProfile('b', 'Spender');
+  it('does not own the hunter’s issued gear, which belongs to the role', () => {
+    const profile = createProfile('p1', 'Roo');
+    expect(profile.ownedGadgets).not.toContain('hunter_rifle');
+    expect(profile.ownedGadgets).not.toContain('hunter_net');
+  });
 
-    purchaseWithCoins(grinder, 'gadget_bear_trap');
-    applyVerifiedPurchase(spender, 'gadget_bear_trap', 'txn-1');
+  it('starts with a working loadout already equipped', () => {
+    const profile = createProfile('p1', 'Roo');
+    const outcome = equipGadgets(profile, profile.equipped.gadgets);
+    expect(outcome.problems).toEqual([]);
+    expect(outcome.applied.primary).toBe('freeze_gun');
+    expect(outcome.applied.secondary).toBe('smoke_bomb');
+    expect(outcome.applied.armour).toBe('steel_vest');
+  });
 
-    expect(grinder.ownedGadgets.toSorted()).toEqual(spender.ownedGadgets.toSorted());
+  it('can equip anything in the game without unlocking it first', () => {
+    const profile = createProfile('p1', 'Roo');
+    const outcome = equipGadgets(profile, { primary: 'freeze_gun', secondary: 'bear_trap', armour: 'steel_helmet' });
+    expect(outcome.problems).toEqual([]);
+    expect(profile.equipped.gadgets.secondary).toBe('bear_trap');
+    expect(profile.equipped.gadgets.armour).toBe('steel_helmet');
   });
 });
 
 describe('equipping', () => {
-  it('saves a loadout the player owns', () => {
+  it('still refuses a gadget that does not exist', () => {
     const profile = createProfile('p1', 'Roo');
-    grantContent(profile, ['bear_trap']);
-
-    const outcome = equipGadgets(profile, { primary: 'freeze_gun', secondary: 'bear_trap', armour: 'steel_vest' });
-
-    expect(outcome.problems).toEqual([]);
-    expect(profile.equipped.gadgets).toEqual({
-      primary: 'freeze_gun',
-      secondary: 'bear_trap',
-      armour: 'steel_vest',
-    });
+    const outcome = equipGadgets(profile, { primary: 'plasma_cannon' });
+    expect(outcome.problems[0]?.error).toBe('unknown-gadget');
+    expect(profile.equipped.gadgets.primary).toBeUndefined();
   });
 
-  it('drops a slot the player does not own rather than trusting the request', () => {
+  it('still refuses a gadget in the wrong slot', () => {
     const profile = createProfile('p1', 'Roo');
+    const outcome = equipGadgets(profile, { primary: 'steel_vest' });
+    expect(outcome.problems[0]?.error).toBe('wrong-slot');
+  });
 
-    const outcome = equipGadgets(profile, { primary: 'freeze_gun', secondary: 'bear_trap' });
-
-    expect(profile.equipped.gadgets.secondary).toBeUndefined();
-    expect(outcome.problems[0]?.error).toBe('not-owned');
-    expect(profile.equipped.gadgets.primary).toBe('freeze_gun');
+  it('still refuses the hunter rifle, which no lobby loadout may carry', () => {
+    const profile = createProfile('p1', 'Roo');
+    grantContent(profile, ['hunter_rifle']);
+    const outcome = equipGadgets(profile, { primary: 'hunter_rifle' });
+    expect(outcome.problems[0]?.error).toBe('role-locked');
+    expect(profile.equipped.gadgets.primary).toBeUndefined();
   });
 
   it('replaces the whole loadout, so unequipping actually unequips', () => {
@@ -144,13 +141,26 @@ describe('equipping', () => {
     equipGadgets(profile, { primary: 'freeze_gun' });
     expect(profile.equipped.gadgets.armour).toBeUndefined();
   });
+});
 
-  it('starts every new account with a usable free loadout', () => {
-    const profile = createProfile('p1', 'Roo');
-    const outcome = equipGadgets(profile, profile.equipped.gadgets);
-    expect(outcome.problems).toEqual([]);
-    expect(outcome.applied.primary).toBe('freeze_gun');
-    expect(outcome.applied.secondary).toBe('smoke_bomb');
-    expect(outcome.applied.armour).toBe('steel_vest');
+describe('the gadget catalog', () => {
+  it('passes its own validation', () => {
+    expect(validateGadgets()).toEqual([]);
+  });
+
+  it('refuses a gadget that acquired a coin price', () => {
+    const base = getGadget('bear_trap');
+    expect(base).toBeDefined();
+    if (!base) return;
+    const problems = validateGadgets([{ ...base, id: 'priced', unlockCoins: 2500 }]);
+    expect(problems.map((p) => p.problem).join(' ')).toContain('every gadget is free');
+  });
+
+  it('refuses a gadget that acquired a cash price', () => {
+    const base = getGadget('bear_trap');
+    expect(base).toBeDefined();
+    if (!base) return;
+    const problems = validateGadgets([{ ...base, id: 'priced', unlockCents: 99 }]);
+    expect(problems.map((p) => p.problem).join(' ')).toContain('nothing in this game is sold');
   });
 });

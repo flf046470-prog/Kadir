@@ -1,4 +1,6 @@
-import { STARTER_GADGETS, getGadget } from '../gadgets/catalog.js';
+import { DEFAULT_LOADOUT, freeGadgetIds, getGadget } from '../gadgets/catalog.js';
+import { listAnimals } from '../content/animals.js';
+import { listCosmetics } from '../content/cosmetics.js';
 import type { PlayerProfile } from '../progression/profile.js';
 import { SAVE_VERSION, createProfile, emptyStats, levelForXp } from '../progression/profile.js';
 
@@ -19,20 +21,27 @@ export const MIGRATIONS: Record<number, Migration> = {
     ownedAnimals: Array.isArray(raw.ownedAnimals) ? raw.ownedAnimals : ['kangaroo'],
     equipped: raw.equipped ?? { animalId: 'kangaroo', cosmetics: {} },
   }),
-  // 1 → 2: gadgets. Every existing account is granted the free starter set rather than being
-  // dropped into Hunt with empty hands, and the equipped loadout defaults to it.
+  // 1 → 2: gadgets exist. Grant the loadout so an old account is not dropped into Hunt
+  // empty-handed.
   1: (raw) => ({
     ...raw,
     version: 2,
-    ownedGadgets: Array.isArray(raw.ownedGadgets) ? raw.ownedGadgets : [...STARTER_GADGETS],
+    ownedGadgets: Array.isArray(raw.ownedGadgets) ? raw.ownedGadgets : freeGadgetIds(),
     equipped: {
       ...((raw.equipped as Record<string, unknown>) ?? { animalId: 'kangaroo', cosmetics: {} }),
-      gadgets: (raw.equipped as { gadgets?: unknown })?.gadgets ?? {
-        primary: 'freeze_gun',
-        secondary: 'smoke_bomb',
-        armour: 'steel_vest',
-      },
+      gadgets: (raw.equipped as { gadgets?: unknown })?.gadgets ?? { ...DEFAULT_LOADOUT },
     },
+  }),
+  // 2 → 3: the game became free. Every existing account is granted everything, including the
+  // animals and cosmetics it never bought — the alternative is a returning player finding a
+  // locked roster in a game that no longer has locks.
+  2: (raw) => ({
+    ...raw,
+    version: 3,
+    ownedAnimals: listAnimals().map((animal) => animal.id),
+    ownedCosmetics: listCosmetics().map((cosmetic) => cosmetic.id),
+    ownedGadgets: freeGadgetIds(),
+    season: { ...(raw.season as Record<string, unknown>), premiumOwned: true },
   }),
 };
 
@@ -65,7 +74,7 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
     achievements: (raw.achievements as PlayerProfile['achievements']) ?? {},
     ownedAnimals: uniqueStrings(raw.ownedAnimals, ['kangaroo']),
     ownedCosmetics: uniqueStrings(raw.ownedCosmetics, []),
-    ownedGadgets: uniqueStrings(raw.ownedGadgets, [...STARTER_GADGETS]),
+    ownedGadgets: uniqueStrings(raw.ownedGadgets, freeGadgetIds()),
     purchases: Array.isArray(raw.purchases) ? (raw.purchases as PlayerProfile['purchases']) : [],
     mutedPlayerIds: uniqueStrings(raw.mutedPlayerIds, []),
     blockedPlayerIds: uniqueStrings(raw.blockedPlayerIds, []),
@@ -74,11 +83,14 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
   profile.coins = safeNumber(profile.coins, 0);
   profile.xp = safeNumber(profile.xp, 0);
   profile.level = levelForXp(profile.xp);
-  if (!profile.ownedAnimals.includes('kangaroo')) profile.ownedAnimals.push('kangaroo');
+  // Re-granted on every load rather than only on migration: content added after this save was
+  // written is free too, and a player should not have to wait for a migration bump to see it.
+  for (const animal of listAnimals()) if (!profile.ownedAnimals.includes(animal.id)) profile.ownedAnimals.push(animal.id);
+  for (const item of listCosmetics()) if (!profile.ownedCosmetics.includes(item.id)) profile.ownedCosmetics.push(item.id);
+  for (const id of freeGadgetIds()) if (!profile.ownedGadgets.includes(id)) profile.ownedGadgets.push(id);
   if (!profile.ownedAnimals.includes(profile.equipped.animalId)) profile.equipped.animalId = 'kangaroo';
-  for (const id of STARTER_GADGETS) if (!profile.ownedGadgets.includes(id)) profile.ownedGadgets.push(id);
-  // A gadget removed from the catalog since this save was written would otherwise sit in the
-  // loadout forever, silently occupying a slot the player cannot fill.
+  // Content removed from the catalog since this save was written would otherwise sit in the
+  // inventory forever, silently occupying a slot the player cannot fill.
   profile.ownedGadgets = profile.ownedGadgets.filter((id) => getGadget(id) !== undefined);
   return profile;
 }

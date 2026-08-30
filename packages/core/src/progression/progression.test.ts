@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { LAUNCH_ANIMALS, FUTURE_ANIMALS, getAnimal, listAnimals, registerAnimals } from '../content/animals.js';
-import { LAUNCH_COSMETICS, getCosmetic } from '../content/cosmetics.js';
-import { LAUNCH_STORE, PRICE_POINTS, validateCatalog } from '../content/store.js';
+import { LAUNCH_COSMETICS, getCosmetic, listCosmetics } from '../content/cosmetics.js';
+import { LAUNCH_STORE, PRICE_POINTS, registerStoreItems, validateCatalog } from '../content/store.js';
 import { DAILY_REWARDS } from '../content/rewards.js';
 import { applyFeelProfile, DEFAULT_MOVEMENT, FEEL_BAND, FEEL_FIELDS } from '../player/config.js';
 import type { MatchResult } from '../modes/types.js';
-import { STARTER_GADGETS } from '../gadgets/catalog.js';
+import { freeGadgetIds } from '../gadgets/catalog.js';
 import { SAVE_VERSION, createProfile, levelForXp } from './profile.js';
 import { computeMatchAward, grantAward, spendCoins } from './economy.js';
 import { applyVerifiedPurchase, equipAnimal, equipCosmetic, purchaseWithCoins } from './inventory.js';
@@ -93,15 +93,11 @@ describe('store', () => {
     expect(validateCatalog(LAUNCH_STORE)).toEqual([]);
   });
 
-  it('only uses approved price points and sells no randomised content', () => {
-    for (const item of LAUNCH_STORE) {
-      expect(PRICE_POINTS).toContain(item.priceCents as (typeof PRICE_POINTS)[number]);
-      expect(item.grants.length).toBeGreaterThan(0);
-      expect(item.name.toLowerCase()).not.toMatch(/box|crate|gacha|spin|random/);
-    }
+  it('has nothing on the shelf, because the game is free', () => {
+    expect(LAUNCH_STORE).toEqual([]);
   });
 
-  it('rejects a bundle that is not cheaper than its parts', () => {
+  it('rejects an item with a price', () => {
     const problems = validateCatalog([
       {
         id: 'bad_bundle',
@@ -113,52 +109,94 @@ describe('store', () => {
         grants: ['wolf', 'fox'],
       },
     ]);
-    expect(problems).toHaveLength(1);
-    expect(problems[0]?.problem).toMatch(/bundle costs/);
+    expect(problems.map((p) => p.problem).join(' ')).toMatch(/nothing in this game is sold/);
   });
 
-  it('grants content once per verified receipt and is idempotent on replay', () => {
+  it('keeps the approved price points as a constraint, even with nothing to price', () => {
+    // Retained so a future decision to sell anything starts from the agreed list rather than
+    // from scratch — see the module comment in store.ts.
+    expect(PRICE_POINTS).toContain(99);
+  });
+
+  /**
+   * The shipped catalog is empty, but the purchase machinery is not gone — it is the part that
+   * takes real care to get right (verified receipts, idempotent grants, an audit trail), and it
+   * stays covered against a catalog registered here rather than one shipped to players. Coins
+   * are the grant used, because every piece of *content* is already owned.
+   */
+  it('grants once per verified receipt and is idempotent on replay', () => {
+    registerStoreItems([
+      { id: 'test_coins', kind: 'bundle', name: 'Test Coins', description: '', priceCents: 0, priceCoins: 0, grants: ['coins:500'] },
+    ]);
     const profile = createProfile('p1', 'Roo');
-    const first = applyVerifiedPurchase(profile, 'animal_wolf', 'txn-123');
+    const before = profile.coins;
+
+    const first = applyVerifiedPurchase(profile, 'test_coins', 'txn-123');
+    const replay = applyVerifiedPurchase(profile, 'test_coins', 'txn-123');
+
     expect(first.ok).toBe(true);
-    expect(profile.ownedAnimals).toContain('wolf');
-    const replay = applyVerifiedPurchase(profile, 'animal_wolf', 'txn-123');
+    expect(profile.coins).toBe(before + 500);
     expect(replay.granted).toEqual([]);
+    expect(profile.coins, 'a replayed receipt must not grant twice').toBe(before + 500);
     expect(profile.purchases).toHaveLength(1);
   });
 
   it('rejects a purchase without a verified receipt', () => {
+    registerStoreItems([
+      { id: 'test_coins2', kind: 'bundle', name: 'Test Coins', description: '', priceCents: 0, priceCoins: 0, grants: ['coins:500'] },
+    ]);
     const profile = createProfile('p1', 'Roo');
-    const outcome = applyVerifiedPurchase(profile, 'animal_wolf', '');
+    const before = profile.coins;
+
+    const outcome = applyVerifiedPurchase(profile, 'test_coins2', '');
+
     expect(outcome.ok).toBe(false);
     expect(outcome.error).toBe('invalid-receipt');
-    expect(profile.ownedAnimals).not.toContain('wolf');
+    expect(profile.coins).toBe(before);
   });
 
-  it('lets players buy most content with earned coins', () => {
+  it('still refuses a coin purchase the player cannot afford', () => {
+    registerStoreItems([
+      { id: 'test_expensive', kind: 'bundle', name: 'Expensive', description: '', priceCents: 0, priceCoins: 999_999, grants: ['coins:1'] },
+    ]);
     const profile = createProfile('p1', 'Roo');
-    profile.coins = 10_000;
-    const outcome = purchaseWithCoins(profile, 'animal_fox');
-    expect(outcome.ok).toBe(true);
-    expect(profile.ownedAnimals).toContain('fox');
-    expect(profile.coins).toBe(10_000 - 6000);
+    profile.coins = 10;
 
-    const broke = purchaseWithCoins(profile, 'animal_tiger');
-    expect(broke.error).toBe('insufficient-coins');
+    expect(purchaseWithCoins(profile, 'test_expensive').error).toBe('insufficient-coins');
+    expect(profile.coins).toBe(10);
   });
 });
 
 describe('inventory equip validation', () => {
-  it('refuses to equip content the player does not own', () => {
+  it('lets a player equip anything, because they own everything', () => {
     const profile = createProfile('p1', 'Roo');
+    for (const id of ['kangaroo', 'human', 'tiger', 'penguin']) {
+      expect(equipAnimal(profile, id).ok, id).toBe(true);
+    }
+    expect(equipCosmetic(profile, 'hat', 'hat_crown').ok).toBe(true);
+  });
+
+  /**
+   * The ownership check itself still works, and still matters: the server validates every equip
+   * against the profile, and a save that predates a piece of content — or one that lost it —
+   * must not be able to equip it just because the request said so.
+   */
+  it('still refuses to equip something the profile does not list', () => {
+    const profile = createProfile('p1', 'Roo');
+    profile.ownedAnimals = profile.ownedAnimals.filter((id) => id !== 'tiger');
+    profile.ownedCosmetics = profile.ownedCosmetics.filter((id) => id !== 'hat_crown');
+
     expect(equipAnimal(profile, 'tiger').error).toBe('not-owned');
-    expect(equipAnimal(profile, 'kangaroo').ok).toBe(true);
     expect(equipCosmetic(profile, 'hat', 'hat_crown').error).toBe('not-owned');
+  });
+
+  it('refuses content that does not exist at all', () => {
+    const profile = createProfile('p1', 'Roo');
+    expect(equipAnimal(profile, 'dragon').error).toBe('unknown');
   });
 
   it('refuses a cosmetic in the wrong slot', () => {
     const profile = createProfile('p1', 'Roo');
-    profile.ownedCosmetics.push('hat_crown');
     expect(equipCosmetic(profile, 'mask', 'hat_crown').error).toBe('wrong-slot');
     expect(equipCosmetic(profile, 'hat', 'hat_crown').ok).toBe(true);
     expect(profile.equipped.cosmetics.hat).toBe('hat_crown');
@@ -283,17 +321,21 @@ describe('daily rewards', () => {
 });
 
 describe('seasons', () => {
-  it('unlocks free rewards by level and gates premium behind the optional pass', () => {
+  it('unlocks both reward tracks by level, because the premium track is free too', () => {
     const profile = createProfile('p1', 'Roo');
     const now = Date.parse('2026-03-01T00:00:00.000Z');
     profile.season.xp = 5000; // level 6
-    const progress = getSeasonProgress(profile, now);
-    expect(progress.level).toBe(6);
-    expect(progress.claimable.every((c) => c.track === 'free')).toBe(true);
+    expect(profile.season.premiumOwned).toBe(true);
 
-    profile.season.premiumOwned = true;
     const premium = getSeasonProgress(profile, now);
+    expect(premium.level).toBe(6);
     expect(premium.claimable.some((c) => c.track === 'premium')).toBe(true);
+
+    // The two tracks still exist as separate reward lists; only the gate is gone.
+    profile.season.premiumOwned = false;
+    const freeOnly = getSeasonProgress(profile, now);
+    expect(freeOnly.claimable.every((c) => c.track === 'free')).toBe(true);
+    profile.season.premiumOwned = true;
 
     const claimed = claimSeasonRewards(profile, now);
     expect(claimed.ok).toBe(true);
@@ -319,23 +361,39 @@ describe('save system', () => {
     expect(profile.version).toBe(SAVE_VERSION);
     expect(profile.coins).toBe(500);
     expect(profile.ownedAnimals).toContain('kangaroo');
-    expect(profile.ownedCosmetics).toEqual(['hat_leaf']);
+    // The old inventory survives, and the rest of the game is granted alongside it.
+    expect(profile.ownedCosmetics).toContain('hat_leaf');
+    expect(profile.ownedCosmetics.length).toBe(listCosmetics().length);
     expect(profile.level).toBe(levelForXp(4000));
   });
 
-  it('gives an account written before gadgets existed the free starter set', () => {
-    // A save from v1 has no gadget fields at all. Rather than dropping that player into Hunt
-    // empty-handed, the migration hands them what every new account gets for free.
+  it('gives an account written before gadgets existed the whole set', () => {
     const v1 = { version: 1, coins: 100, ownedAnimals: ['kangaroo', 'fox'] };
     const profile = migrateProfile(v1, 'p1');
 
-    for (const id of STARTER_GADGETS) expect(profile.ownedGadgets).toContain(id);
+    expect(profile.ownedGadgets.toSorted()).toEqual(freeGadgetIds().toSorted());
     expect(profile.equipped.gadgets.primary).toBe('freeze_gun');
     expect(profile.ownedAnimals).toContain('fox');
   });
 
+  /**
+   * The migration a returning player actually notices.
+   *
+   * Their old save records exactly what they once bought. The game no longer has purchases, so
+   * finding a locked roster would be strictly worse than before — everything is granted instead.
+   */
+  it('unlocks the whole game for an account that predates it being free', () => {
+    const paid = { version: 2, ownedAnimals: ['kangaroo'], ownedCosmetics: [], ownedGadgets: ['freeze_gun'] };
+    const profile = migrateProfile(paid, 'p1');
+
+    for (const animal of listAnimals()) expect(profile.ownedAnimals, animal.id).toContain(animal.id);
+    for (const cosmetic of listCosmetics()) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
+    for (const id of freeGadgetIds()) expect(profile.ownedGadgets, id).toContain(id);
+    expect(profile.season.premiumOwned).toBe(true);
+  });
+
   it('drops a gadget that no longer exists rather than leaving it in the loadout', () => {
-    const stale = { version: 2, ownedGadgets: ['freeze_gun', 'retired_gadget'] };
+    const stale = { version: 3, ownedGadgets: ['freeze_gun', 'retired_gadget'] };
     const profile = migrateProfile(stale, 'p1');
     expect(profile.ownedGadgets).toContain('freeze_gun');
     expect(profile.ownedGadgets).not.toContain('retired_gadget');

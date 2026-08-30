@@ -19,13 +19,13 @@ Phases are ordered by dependency, not by visibility. A phase is "done" only when
 | 10 | Lobby (social space + private rooms) | Room codes, mode voting, customisation area |
 | 11 | Animals (6 launch animals, data-driven) | Fairness clamp enforced by test |
 | 12 | Cosmetics | Slots, equip validation, no gameplay effect |
-| 13 | Store | Fixed prices, server-validated purchase, no loot boxes |
+| 13 | Store | Empty by design — the game is free; the verified-purchase machinery is retained |
 | 14 | Economy | Earn by playing; wins/playtime/records |
 | 15 | Daily rewards | 7-day cycle, server clock |
 | 16 | Achievements | Progress from server-observed match results |
 | 17 | Private rooms | KANG-XXXX codes, invite, public/private |
 | 18 | Voice chat | WebRTC signalling + spatial gain + mute/block |
-| 19 | Events / seasons | Date-driven activation, free + premium track |
+| 19 | Events / seasons | Date-driven activation; both reward tracks are free |
 | 20 | Optimisation | Quality tiers, pooling, interest management, bandwidth |
 | 21 | QA | Unit + integration coverage of every system above |
 | 22 | Release prep | Build pipeline, store shells, privacy/analytics posture |

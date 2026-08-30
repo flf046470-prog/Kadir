@@ -3,16 +3,14 @@ import type { GadgetDef, GadgetSlot } from './types.js';
 /**
  * The gadget catalog.
  *
- * Two rules are load-bearing and checked by `validateGadgets()` at server boot:
+ * **Every gadget is free and owned by every account from the moment it is created.** Nothing here
+ * costs coins and nothing here costs money — `validateGadgets()` enforces both at server boot, so
+ * a gadget that acquired a price would stop the server rather than reach a player.
  *
- *  1. Every gadget has an `unlockCoins` price. Coins come from playing, so there is always a
- *     free path to every item in the game. Money is a shortcut past the grind and nothing else.
- *  2. `unlockCents` is either `-1` or one of the approved price points. Everything sellable here
- *     is deliberately at the lowest one — $0.99 — because a gadget is a small thing and pricing
- *     it like a small thing is the whole reason it can exist without becoming pay-to-win.
- *
- * The starter loadout (`STARTER_GADGETS`) is owned by every account from creation, so a player
- * who never spends anything still walks into Hunt with a freeze gun, smoke and a vest.
+ * That is a deliberate simplification, and it makes the fairness question disappear rather than
+ * managing it: there is no loadout someone else could not have, so there is nothing to balance
+ * against a wallet. The only price in the game is `roundCost`, paid with cash earned inside the
+ * round it is spent in — see `HuntMode`.
  */
 
 const catalog = new Map<string, GadgetDef>();
@@ -33,8 +31,25 @@ export function gadgetsForSlot(slot: GadgetSlot): GadgetDef[] {
   return listGadgets().filter((g) => g.slot === slot);
 }
 
-/** Owned by every profile at creation. */
-export const STARTER_GADGETS = ['freeze_gun', 'smoke_bomb', 'steel_vest'] as const;
+/**
+ * Every gadget a player may equip, owned by every profile at creation.
+ *
+ * Derived from the catalog rather than listed by hand, so adding a gadget grants it to everyone
+ * automatically and there is no second list to forget. Role-locked gear is excluded: the hunter's
+ * rifle is issued by the mode for the length of the role, not owned.
+ */
+export function freeGadgetIds(): string[] {
+  return listGadgets()
+    .filter((gadget) => gadget.roles.length === 0)
+    .map((gadget) => gadget.id);
+}
+
+/**
+ * The default loadout a new account starts with equipped.
+ *
+ * They own everything; this is just what is in the three slots before they change it.
+ */
+export const DEFAULT_LOADOUT = { primary: 'freeze_gun', secondary: 'smoke_bomb', armour: 'steel_vest' } as const;
 
 export const LAUNCH_GADGETS: GadgetDef[] = [
   {
@@ -97,8 +112,8 @@ export const LAUNCH_GADGETS: GadgetDef[] = [
     action: { act: 'self' },
     payload: { on: 'armour', points: 35 },
     roundCost: 300,
-    unlockCoins: 2500,
-    unlockCents: 99,
+    unlockCoins: 0,
+    unlockCents: -1,
     visual: 'helmet',
   },
   {
@@ -113,8 +128,8 @@ export const LAUNCH_GADGETS: GadgetDef[] = [
     action: { act: 'place', radius: 1.3, armTime: 1, lifetime: 90 },
     payload: { on: 'snare', seconds: 4, slow: 0.5 },
     roundCost: 350,
-    unlockCoins: 2500,
-    unlockCents: 99,
+    unlockCoins: 0,
+    unlockCents: -1,
     visual: 'beacon',
   },
   {
@@ -129,8 +144,8 @@ export const LAUNCH_GADGETS: GadgetDef[] = [
     action: { act: 'place', radius: 3, armTime: 1, lifetime: 90 },
     payload: { on: 'reveal', seconds: 8, radius: 3 },
     roundCost: 200,
-    unlockCoins: 2000,
-    unlockCents: 99,
+    unlockCoins: 0,
+    unlockCents: -1,
     visual: 'beacon',
   },
   {
@@ -145,8 +160,8 @@ export const LAUNCH_GADGETS: GadgetDef[] = [
     action: { act: 'self' },
     payload: { on: 'heal', amount: 45 },
     roundCost: 300,
-    unlockCoins: 2000,
-    unlockCents: 99,
+    unlockCoins: 0,
+    unlockCents: -1,
     visual: 'kit',
   },
   {
@@ -190,21 +205,21 @@ export interface GadgetProblem {
   problem: string;
 }
 
-/** Approved real-money price points, mirroring the storefront. */
-const APPROVED_CENTS = new Set([99, 149, 199, 299, 499]);
-
 /**
- * Run at server boot. A catalog that breaks the fairness rules must never reach players, and
- * "we'll remember" is not a mechanism — this is.
+ * Run at server boot.
+ *
+ * The game ships free, and this is the mechanism that keeps it that way — "we'll remember" is not
+ * one. A gadget that acquired a coin or cash price fails the server's start-up rather than
+ * quietly appearing behind a paywall in a build nobody re-read.
  */
 export function validateGadgets(defs: GadgetDef[] = listGadgets()): GadgetProblem[] {
   const problems: GadgetProblem[] = [];
   for (const def of defs) {
-    if (def.unlockCoins < 0) {
-      problems.push({ gadgetId: def.id, problem: 'has no coin price, so money would be the only way to get it' });
+    if (def.unlockCoins !== 0) {
+      problems.push({ gadgetId: def.id, problem: `costs ${def.unlockCoins} coins; every gadget is free` });
     }
-    if (def.unlockCents !== -1 && !APPROVED_CENTS.has(def.unlockCents)) {
-      problems.push({ gadgetId: def.id, problem: `price ${def.unlockCents} is not an approved price point` });
+    if (def.unlockCents !== -1) {
+      problems.push({ gadgetId: def.id, problem: `is priced at ${def.unlockCents} cents; nothing in this game is sold` });
     }
     if (def.uses === 0 || def.uses < -1) {
       problems.push({ gadgetId: def.id, problem: `uses must be -1 (unlimited) or positive, got ${def.uses}` });
@@ -218,10 +233,10 @@ export function validateGadgets(defs: GadgetDef[] = listGadgets()): GadgetProble
     if (def.payload.on === 'armour' && def.action.act !== 'self') {
       problems.push({ gadgetId: def.id, problem: 'armour is passive and cannot be fired' });
     }
-    // Role-locked gadgets are round equipment, not merchandise: selling the hunter's rifle
-    // would sell the hunter's job.
-    if (def.roles.length > 0 && def.unlockCents !== -1) {
-      problems.push({ gadgetId: def.id, problem: 'role-locked gadgets must not be sold for money' });
+    // Role gear is issued by a mode for the length of a role. Owning it outright would put a
+    // rifle in a survivor's hands the moment they equipped it in the lobby.
+    if (def.roles.length > 0 && freeGadgetIds().includes(def.id)) {
+      problems.push({ gadgetId: def.id, problem: 'role-locked gear must not be in the owned-by-default set' });
     }
   }
   return problems;

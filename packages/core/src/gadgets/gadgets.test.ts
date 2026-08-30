@@ -8,7 +8,7 @@ import { stepPlayer } from '../player/locomotion.js';
 import { SimEventQueue } from '../sim/events.js';
 import { createPlayerState } from '../player/state.js';
 import type { PlayerState } from '../player/state.js';
-import { LAUNCH_GADGETS, STARTER_GADGETS, getGadget, listGadgets, validateGadgets } from './catalog.js';
+import { LAUNCH_GADGETS, freeGadgetIds, getGadget, listGadgets, validateGadgets } from './catalog.js';
 import { applyLoadout, canUse, grantRoleGadgets, resolveLoadout } from './loadout.js';
 import { GadgetRuntime, absorbDamage, aimFrom, applyPayload, tickStatus } from './runtime.js';
 import type { GadgetContext } from './runtime.js';
@@ -44,44 +44,38 @@ describe('catalog', () => {
   });
 
   /**
-   * The fairness rule, as a test rather than a promise. Every gadget in the game is reachable by
-   * playing; money only skips the grind. If someone ever adds a money-only gadget, this fails.
+   * The rule, as a test rather than a promise: nothing in this game costs anything. If a price
+   * ever reappears on a gadget, this fails before the build does.
    */
-  it('gives every gadget a coin price, so money is never the only way in', () => {
+  it('charges nothing for any gadget, in coins or in cash', () => {
     for (const def of listGadgets()) {
-      expect(def.unlockCoins, `${def.id} has no coin price`).toBeGreaterThanOrEqual(0);
+      expect(def.unlockCoins, `${def.id} costs coins`).toBe(0);
+      expect(def.unlockCents, `${def.id} is for sale`).toBe(-1);
     }
   });
 
-  it('prices every purchasable gadget at $0.99', () => {
-    const sold = listGadgets().filter((g) => g.unlockCents !== -1);
-    expect(sold.length).toBeGreaterThan(0);
-    for (const def of sold) expect(def.unlockCents, def.id).toBe(99);
-  });
-
-  it('never sells a role-locked gadget', () => {
-    for (const def of listGadgets()) {
-      if (def.roles.length > 0) expect(def.unlockCents, def.id).toBe(-1);
+  it('hands every account every equippable gadget', () => {
+    const free = freeGadgetIds();
+    for (const id of ['freeze_gun', 'smoke_bomb', 'steel_vest', 'steel_helmet', 'bear_trap']) {
+      expect(free, id).toContain(id);
     }
   });
 
-  it('hands every new account the starter set for free', () => {
-    for (const id of STARTER_GADGETS) {
-      const def = getGadget(id);
-      expect(def, id).toBeDefined();
-      expect(def?.unlockCoins, id).toBe(0);
-    }
+  it('keeps the hunter’s issued gear out of the owned set', () => {
+    // Owning it would let a survivor walk into a lobby holding a rifle.
+    expect(freeGadgetIds()).not.toContain('hunter_rifle');
+    expect(freeGadgetIds()).not.toContain('hunter_net');
   });
 
   it('reports a catalog that breaks the rules instead of shipping it', () => {
     const bad: GadgetDef = {
       ...(LAUNCH_GADGETS[0] as GadgetDef),
       id: 'pay_only',
-      unlockCoins: -1,
+      unlockCoins: 2500,
       unlockCents: 499,
     };
     const problems = validateGadgets([bad]);
-    expect(problems.map((p) => p.problem).join(' ')).toContain('no coin price');
+    expect(problems.map((p) => p.problem).join(' ')).toContain('every gadget is free');
   });
 });
 

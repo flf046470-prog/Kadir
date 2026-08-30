@@ -162,9 +162,25 @@ straight to the progression service inside the server process.
 
 `AnimalDef` carries **cosmetic** fields (model, palette, sounds, emotes, effects) and a
 `feelProfile` of *bounded* modifiers — a `±3 %` clamp applied at load time by
-`clampFeelProfile()`, verified by a unit test. Premium animals differ in look, sound and animation;
-they cannot buy speed, jump height, health or damage. Store is fixed-price, no loot boxes, no
-gacha, no randomised rewards.
+`clampFeelProfile()`, verified by a unit test. Animals differ in look, sound and animation; none
+of them changes speed, jump height, health or damage.
+
+**The game is free, and everything in it is free.** Every animal, cosmetic and gadget is owned by
+every profile from creation, and re-granted on every load so content added later is free too. The
+storefront is empty. This is enforced rather than documented: `validateCatalog()` refuses any item
+with a price, `validateGadgets()` refuses any gadget with a coin or cash price, and the server
+fails to start if either finds one.
+
+Gadgets (`packages/core/src/gadgets/`) are the one thing that changes a round, so they are held to
+the same rule from the other direction: nothing a gadget does touches `MovementConfig`. A gadget
+creates a *situation* — you are frozen, that doorway is full of smoke, there is a trap on the ledge
+— which is visible and counterable. `HuntMode` goes further and clears loadouts at the bell, so
+what a player owns has no bearing on that mode at all; the only price there is round cash, earned
+inside the match it is spent in.
+
+The purchase machinery (verified receipts, idempotent grants, the audit trail in
+`PurchaseRecord`) is retained and still tested against a catalog registered by the tests. An empty
+shelf is a one-line decision to reverse; an unverified grant path bolted on later is not.
 
 ## 8. Performance budget
 

@@ -1,9 +1,11 @@
 import type { CosmeticSlot } from '../content/cosmetics.js';
 import type { AchievementMetric } from '../content/achievements.js';
-import { STARTER_GADGETS } from '../gadgets/catalog.js';
+import { DEFAULT_LOADOUT, freeGadgetIds } from '../gadgets/catalog.js';
+import { listAnimals } from './../content/animals.js';
+import { listCosmetics } from './../content/cosmetics.js';
 import type { GadgetSlot } from '../gadgets/types.js';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 export type StatBlock = Record<AchievementMetric, number>;
 
@@ -88,20 +90,22 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     coins: 250,
     xp: 0,
     level: 1,
-    ownedAnimals: ['kangaroo'],
-    ownedCosmetics: [],
-    // The starter set is free and universal, so a player who never spends anything still walks
-    // into Hunt with a freeze gun, smoke and a vest.
-    ownedGadgets: [...STARTER_GADGETS],
+    // Everything, from the moment the account exists. There is nothing to unlock and nothing to
+    // buy, so an inventory is a list of what the game contains rather than a record of spending.
+    ownedAnimals: listAnimals().map((animal) => animal.id),
+    ownedCosmetics: listCosmetics().map((cosmetic) => cosmetic.id),
+    ownedGadgets: freeGadgetIds(),
     equipped: {
       animalId: 'kangaroo',
       cosmetics: {},
-      gadgets: { primary: 'freeze_gun', secondary: 'smoke_bomb', armour: 'steel_vest' },
+      gadgets: { ...DEFAULT_LOADOUT },
     },
     stats: emptyStats(),
     achievements: {},
     daily: { lastClaimDay: -1, streak: 0 },
-    season: { seasonId: 'season-1', xp: 0, premiumOwned: false, claimedFree: [], claimedPremium: [] },
+    // The premium track is free like everything else; the flag stays so the two reward
+    // tracks remain distinguishable in the season data.
+    season: { seasonId: 'season-1', xp: 0, premiumOwned: true, claimedFree: [], claimedPremium: [] },
     purchases: [],
     mutedPlayerIds: [],
     blockedPlayerIds: [],

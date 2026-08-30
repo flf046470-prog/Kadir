@@ -23,14 +23,15 @@ covered by a passing check (`npm run verify` = lint + typecheck + 107 tests + bo
 - [x] **10 · Lobby** — menu, mode select, practice-with-bots, results screen
 - [x] **11 · Animals** — 6 launch animals, 9 more as ready data, ±3 % feel clamp enforced
 - [x] **12 · Cosmetics** — 9 slots, 20 launch items, socket-based rendering, equip validation
-- [x] **13 · Store** — fixed price points, catalog validator, server-verified purchases
+- [x] **13 · Store** — everything free; catalog validator refuses any price, server-verified
+      purchase machinery retained and tested
 - [x] **14 · Economy** — coins/XP from server-computed match results, coin purchases
 - [x] **15 · Daily rewards** — 7-day cycle on the server clock, streaks
 - [x] **16 · Achievements** — 11 achievements incl. lower-is-better speedrun goal
 - [x] **17 · Private rooms** — KANG-XXXX codes, create/join, invite by code
 - [x] **18 · Voice chat** — WebRTC mesh, spatial panners, server relays signalling only,
       mute/block honoured on both chat and voice
-- [x] **19 · Events & seasons** — season track (free + optional premium), event windows
+- [x] **19 · Events & seasons** — season track (both tiers free), event windows
 - [x] **20 · Optimisation** — instanced level + props, quality tiers, adaptive frame governor,
       LOD-style avatar detail budget, snapshot deltas, rest-state velocity snapping
 - [x] **21 · QA** — 107 automated tests; browser smoke test on desktop and mobile viewports

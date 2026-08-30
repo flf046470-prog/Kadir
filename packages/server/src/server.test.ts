@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { MemorySaveStore, buildJungleWorld, createIntent, Buttons } from '@kc/core';
+import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, registerStoreItems } from '@kc/core';
 import type { PlayerSnapshot, PlayerState } from '@kc/core';
 import { SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
@@ -296,32 +296,48 @@ describe('server-authoritative progression', () => {
 });
 
 describe('purchases', () => {
+  /**
+   * Nothing is sold any more, so this exercises the verifier against a catalog entry registered
+   * for the test. The machinery is worth keeping correct: an unverified grant path is expensive
+   * to add back safely, and an empty shelf is one line to reverse.
+   */
   it('grants only against a verified receipt', async () => {
+    registerStoreItems([
+      { id: 'test_grant', kind: 'bundle', name: 'Test', description: '', priceCents: 0, priceCoins: 0, grants: ['coins:250'] },
+    ]);
     const harness = await makeHarness();
     const purchases = new PurchaseService(new DevReceiptVerifier(true));
     const profile = await harness.accounts.loadOrCreate('buyer', 'Buyer');
+    const before = profile.coins;
 
-    const bad = await purchases.purchase(profile, 'animal_wolf', 'forged');
+    const bad = await purchases.purchase(profile, 'test_grant', 'forged');
     expect(bad.ok).toBe(false);
-    expect(profile.ownedAnimals).not.toContain('wolf');
+    expect(profile.coins).toBe(before);
 
-    const good = await purchases.purchase(profile, 'animal_wolf', 'dev:animal_wolf:1');
+    const good = await purchases.purchase(profile, 'test_grant', 'dev:test_grant:1');
     expect(good.ok).toBe(true);
-    expect(profile.ownedAnimals).toContain('wolf');
+    expect(profile.coins).toBe(before + 250);
 
     // Replaying the same receipt grants nothing further.
-    const replay = await purchases.purchase(profile, 'animal_wolf', 'dev:animal_wolf:1');
+    const replay = await purchases.purchase(profile, 'test_grant', 'dev:test_grant:1');
     expect(replay.granted).toEqual([]);
+    expect(profile.coins).toBe(before + 250);
     expect(profile.purchases).toHaveLength(1);
   });
 
   it('refuses every receipt when the dev verifier is disabled (production posture)', async () => {
+    registerStoreItems([
+      { id: 'test_prod', kind: 'bundle', name: 'Test', description: '', priceCents: 0, priceCoins: 0, grants: ['coins:250'] },
+    ]);
     const harness = await makeHarness();
     const purchases = new PurchaseService(new DevReceiptVerifier(false));
     const profile = await harness.accounts.loadOrCreate('buyer', 'Buyer');
-    const outcome = await purchases.purchase(profile, 'animal_wolf', 'dev:animal_wolf:1');
+    const before = profile.coins;
+
+    const outcome = await purchases.purchase(profile, 'test_prod', 'dev:test_prod:1');
+
     expect(outcome.ok).toBe(false);
-    expect(profile.ownedAnimals).not.toContain('wolf');
+    expect(profile.coins).toBe(before);
   });
 });
 

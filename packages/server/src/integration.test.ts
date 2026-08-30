@@ -4,6 +4,8 @@ import {
   buildJungleWorld,
   createIntent,
   Bot,
+  equipAnimal,
+  equipGadgets,
   getStoreItem,
 } from '@kc/core';
 import type { PlayerState } from '@kc/core';
@@ -131,29 +133,41 @@ describe('lobby → match → results', () => {
 });
 
 describe('store → inventory → match', () => {
-  it('a verified purchase unlocks an animal the player can then equip and play as', async () => {
-    const { accounts, rooms, purchases, store } = harness();
-    const profile = await accounts.loadOrCreate('buyer', 'Buyer');
+  /**
+   * The path a new player actually takes now that the game is free: open the game, pick anything,
+   * play as it. No purchase, no unlock, no receipt — the roster is simply theirs.
+   */
+  it('a brand-new account can equip any animal and the room spawns them as it', async () => {
+    const { accounts, rooms, store } = harness();
+    const profile = await accounts.loadOrCreate('newbie', 'Newbie');
 
-    const item = getStoreItem('animal_tiger');
-    expect(item?.priceCents).toBe(149);
-
-    const outcome = await purchases.purchase(profile, 'animal_tiger', 'dev:animal_tiger:xyz');
-    expect(outcome.ok).toBe(true);
+    expect(getStoreItem('animal_tiger'), 'nothing is sold any more').toBeUndefined();
     expect(profile.ownedAnimals).toContain('tiger');
-    profile.equipped.animalId = 'tiger';
+    expect(profile.ownedCosmetics).toContain('hat_crown');
+
+    expect(equipAnimal(profile, 'tiger').ok).toBe(true);
     await accounts.save(profile);
 
     // The equipped animal is what the room spawns the player as.
     const room = rooms.matchmake({ modeId: 'kangaroo-chase' }).room as Room;
-    const reloaded = await accounts.loadOrCreate('buyer');
+    const reloaded = await accounts.loadOrCreate('newbie');
     room.join(new FakeSocket(), reloaded, 'mobile', { hat: 'hat_crown' }, true);
-    expect(room.playerState('buyer')?.animalId).toBe('tiger');
+    expect(room.playerState('newbie')?.animalId).toBe('tiger');
 
-    // And the purchase survives a round trip through storage.
-    const persisted = await store.load('buyer');
-    expect(persisted?.ownedAnimals).toContain('tiger');
-    expect(persisted?.purchases).toHaveLength(1);
+    // And it survives a round trip through storage without a purchase record.
+    const persisted = await store.load('newbie');
+    expect(persisted?.equipped.animalId).toBe('tiger');
+    expect(persisted?.purchases).toHaveLength(0);
+  });
+
+  it('gives that account the whole gadget shelf too, ready to equip', async () => {
+    const { accounts } = harness();
+    const profile = await accounts.loadOrCreate('newbie', 'Newbie');
+
+    const outcome = equipGadgets(profile, { primary: 'freeze_gun', secondary: 'bear_trap', armour: 'steel_helmet' });
+
+    expect(outcome.problems).toEqual([]);
+    expect(profile.equipped.gadgets.secondary).toBe('bear_trap');
   });
 });
 
