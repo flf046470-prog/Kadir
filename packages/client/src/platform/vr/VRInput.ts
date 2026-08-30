@@ -37,16 +37,30 @@ const WORLD = new THREE.Vector3();
 export class VRInput implements PlatformInput {
   readonly kind = 'vr' as const;
 
-  readonly controlHints = [
-    { action: 'Move', hint: 'Grab a surface and pull — or swing your arms' },
-    { action: 'Climb', hint: 'Grip with either hand and haul yourself up' },
-    { action: 'Push off', hint: 'Shove a wall with an open palm' },
-    { action: 'Hop', hint: 'A button (hold to charge)' },
-    { action: 'Turn', hint: 'Right thumbstick' },
-    { action: 'Punch', hint: 'Throw a real punch' },
-    { action: 'Emote', hint: 'B button' },
-  ];
+  /**
+   * The tutorial must not advertise controls the current mode has switched off — a player told
+   * to press A for a hop that never comes concludes the game is broken, not that they are in
+   * arms-first mode.
+   */
+  get controlHints(): { action: string; hint: string }[] {
+    const shared = [
+      { action: 'Move', hint: 'Grab a surface and pull — or swing your arms' },
+      { action: 'Climb', hint: 'Grip with either hand and haul yourself up' },
+      { action: 'Push off', hint: 'Shove a wall with an open palm' },
+    ];
+    const tail = [
+      { action: 'Turn', hint: 'Right thumbstick' },
+      { action: 'Punch', hint: 'Throw a real punch' },
+      { action: 'Emote', hint: 'B button' },
+    ];
+    return this.armsOnly
+      ? [...shared, { action: 'Jump', hint: 'Push off the ground with a hand — there is no jump button' }, ...tail]
+      : [...shared, { action: 'Hop', hint: 'A button (hold to charge)' }, ...tail];
+  }
 
+  /** Mirrors settings.comfort.vrLocomotion, refreshed each sample so the hints stay honest.
+   * Defaults to the setting's default so the tutorial is right before the first frame. */
+  private armsOnly = true;
   private renderer: Renderer;
   private hands: [HandTracker, HandTracker];
   private turnOffset = 0;
@@ -230,14 +244,30 @@ export class VRInput implements PlatformInput {
     out.lookPitch = this.headPitch;
     out.headHeight = this.headHeight;
 
-    // The left stick stays available as an accessibility fallback (seated mode, limited reach),
-    // but it is deliberately slower than hand locomotion so hands remain the skilful option.
-    const stick = this.readStick('left');
-    const assist = settings.comfort.seated ? 1 : 0.55;
-    out.moveX = (stick?.x ?? 0) * assist;
-    out.moveZ = (stick?.y ? -stick.y : 0) * assist;
+    // Arms-first is the default. The stick and the hop are not merely discouraged here, they
+    // are absent: leaving a cheaper way to travel available means players use it, the hand
+    // locomotion never gets practised, and the one interaction the game is built on stays
+    // shallow. It is also the comfort story — every metre travelled is one the arms asked for,
+    // so there is no vestibular mismatch to make anyone sick.
+    const armsOnly = settings.comfort.vrLocomotion === 'arms';
+    this.armsOnly = armsOnly;
 
-    let buttons = this.buttons;
+    if (armsOnly) {
+      out.moveX = 0;
+      out.moveZ = 0;
+    } else {
+      // Assisted mode: the stick is an accessibility fallback (seated play, limited reach) and
+      // is deliberately slower than hands, so hands stay the fast option even here.
+      const stick = this.readStick('left');
+      const assist = settings.comfort.seated ? 1 : 0.55;
+      out.moveX = (stick?.x ?? 0) * assist;
+      out.moveZ = (stick?.y ? -stick.y : 0) * assist;
+    }
+
+    // Jump is a button-triggered launch: the view moves without the body having asked, which is
+    // the classic nausea source. Arms-first drops it; pushing off the ground with a hand is the
+    // way up. Every other button (interact, emote, sprint) is unaffected.
+    let buttons = armsOnly ? this.buttons & ~Buttons.Jump : this.buttons;
     if (!out.hands) out.hands = [createHandIntent(), createHandIntent()];
 
     for (let i = 0; i < 2; i++) {

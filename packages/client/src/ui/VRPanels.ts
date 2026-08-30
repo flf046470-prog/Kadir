@@ -20,6 +20,9 @@ const CANVAS_W = 512;
 const CANVAS_H = 660;
 const BUTTON_H = 68;
 const BUTTON_TOP = 132;
+/** Below this a row is too small to hit reliably with a controller ray at arm's length. */
+const MIN_BUTTON_H = 42;
+const MAX_BUTTONS = Math.floor((CANVAS_H - BUTTON_TOP - 16) / MIN_BUTTON_H);
 
 /**
  * World-space VR menu.
@@ -41,6 +44,8 @@ export class VRMenu {
   private title = '';
   private subtitle = '';
   private hovered = -1;
+  /** Rows shrink to fit a long list — a tuning page needs more entries than a main menu. */
+  private rowHeight = BUTTON_H;
   private options: VrMenuOptions;
   private visible = false;
 
@@ -78,7 +83,9 @@ export class VRMenu {
   setContent(title: string, subtitle: string, buttons: VrButton[]): void {
     this.title = title;
     this.subtitle = subtitle;
-    this.buttons = buttons.slice(0, 7);
+    this.buttons = buttons.slice(0, MAX_BUTTONS);
+    const available = CANVAS_H - BUTTON_TOP - 16;
+    this.rowHeight = Math.min(BUTTON_H, Math.max(MIN_BUTTON_H, Math.floor(available / Math.max(1, this.buttons.length))));
     this.draw();
   }
 
@@ -108,7 +115,7 @@ export class VRMenu {
       const hit = this.raycaster.intersectObject(this.mesh, false)[0];
       if (!hit?.uv) continue;
       const y = (1 - hit.uv.y) * CANVAS_H;
-      const index = Math.floor((y - BUTTON_TOP) / BUTTON_H);
+      const index = Math.floor((y - BUTTON_TOP) / this.rowHeight);
       if (index >= 0 && index < this.buttons.length) hovered = index;
     }
     if (hovered !== this.hovered) {
@@ -145,24 +152,26 @@ export class VRMenu {
     ctx.fillText(this.subtitle, 32, 88);
 
     this.buttons.forEach((button, index) => {
-      const y = BUTTON_TOP + index * BUTTON_H;
+      const y = BUTTON_TOP + index * this.rowHeight;
       const active = index === this.hovered && !button.disabled;
       ctx.fillStyle = button.disabled
         ? 'rgba(255,255,255,0.06)'
         : active
           ? 'rgba(76,175,80,0.85)'
           : 'rgba(255,255,255,0.12)';
-      roundRect(ctx, 24, y, CANVAS_W - 48, BUTTON_H - 12, 14);
+      roundRect(ctx, 24, y, CANVAS_W - 48, this.rowHeight - 8, 14);
       ctx.fill();
 
       ctx.fillStyle = button.disabled ? 'rgba(242,247,240,0.45)' : '#f2f7f0';
-      ctx.font = '600 26px system-ui, sans-serif';
-      ctx.fillText(button.label, 48, y + 14);
+      const fontSize = this.rowHeight >= 60 ? 26 : 21;
+      const textY = y + Math.round((this.rowHeight - 8 - fontSize) / 2);
+      ctx.font = `600 ${fontSize}px system-ui, sans-serif`;
+      ctx.fillText(button.label, 48, textY);
 
       if (button.value) {
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(242,247,240,0.75)';
-        ctx.fillText(button.value, CANVAS_W - 48, y + 14);
+        ctx.fillText(button.value, CANVAS_W - 48, textY);
         ctx.textAlign = 'left';
       }
     });

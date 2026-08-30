@@ -12,6 +12,7 @@ import type {
   StoreItem,
 } from '@kc/core';
 import { button, clear, el, formatPrice } from './dom.js';
+import type { TuningStore } from '../game/TuningStore.js';
 import type { Api, ContentBundle, ProfileBundle } from '../net/Api.js';
 
 export type ScreenId =
@@ -48,6 +49,11 @@ export interface ShellOptions {
   platform: 'pc' | 'mobile' | 'vr';
   controlHints: { action: string; hint: string }[];
   devPurchases: boolean;
+  tuning: TuningStore;
+  /** True only in solo practice; tuning is refused elsewhere because the server owns movement. */
+  canTune(): boolean;
+  /** Push the current values into the running simulation. */
+  onTuningChanged(): void;
 }
 
 /**
@@ -392,6 +398,90 @@ export class Shell {
     );
   }
 
+  /**
+   * Live movement tuning.
+   *
+   * The same values the VR panel edits, with the two things a headset cannot do well: the full
+   * list, and a copy button. Exporting belongs here because the destination is a source file on
+   * this machine — reading twelve numbers off a floating quad and retyping them is how they get
+   * transcribed wrong.
+   */
+  private tuningRows(): HTMLElement[] {
+    const store = this.options.tuning;
+    const rows: HTMLElement[] = [];
+    // Declared before the sliders because each one refreshes it: a box showing values from
+    // before the last drag is worse than no box, since it looks authoritative.
+    const output = el('textarea', { rows: 6, readOnly: true }) as HTMLTextAreaElement;
+    output.style.width = '100%';
+
+    if (!this.options.canTune()) {
+      rows.push(
+        el(
+          'p',
+          { class: 'kc-note' },
+          'Available in solo practice. In a match the server owns movement, so a tuned client ' +
+            'would only mispredict its own position.',
+        ),
+      );
+    }
+
+    for (const tunable of store.tunables) {
+      const readout = el('span', {}, String(store.value(tunable.field)));
+      const input = el('input', {
+        type: 'range',
+        min: String(tunable.min),
+        max: String(tunable.max),
+        step: String(tunable.step),
+        value: String(store.value(tunable.field)),
+        disabled: !this.options.canTune(),
+      }) as HTMLInputElement;
+
+      input.addEventListener('input', () => {
+        store.set(tunable.field, Number(input.value));
+        // Read back rather than echoing the input: the store clamps and quantises, and the
+        // number shown has to be the number in effect.
+        readout.textContent = String(store.value(tunable.field));
+        output.value = store.exportText();
+        this.options.onTuningChanged();
+      });
+
+      rows.push(
+        el(
+          'div',
+          { class: 'kc-field' },
+          el('span', {}, tunable.label),
+          input,
+          readout,
+        ),
+        el('p', { class: 'kc-note' }, tunable.effect),
+      );
+    }
+
+    output.value = store.exportText();
+
+    rows.push(
+      el(
+        'div',
+        { class: 'kc-row' },
+        button('Copy values', () => {
+          output.value = store.exportText();
+          output.select();
+          void navigator.clipboard?.writeText(output.value).catch(() => {
+            // Clipboard access needs permission the page may not have; the textarea is
+            // selected either way, so Ctrl+C still works.
+          });
+        }),
+        button('Reset all', () => {
+          store.reset();
+          this.options.onTuningChanged();
+          this.render();
+        }),
+      ),
+      output,
+    );
+    return rows;
+  }
+
   private settingsScreen(): HTMLElement {
     const s = this.settings;
     const panel = el('div', { class: 'kc-panel' });
@@ -462,6 +552,18 @@ export class Shell {
       }),
 
       el('h3', {}, 'Comfort (VR)'),
+      // First in the section because it decides what the other comfort options are even for:
+      // arms-only has no artificial locomotion to be uncomfortable about.
+      select('Locomotion', s.comfort.vrLocomotion, ['arms', 'assisted'], (v) => {
+        s.comfort.vrLocomotion = v as Settings['comfort']['vrLocomotion'];
+      }),
+      el(
+        'p',
+        { class: 'kc-note' },
+        'arms — hands only, no stick and no hop button. How the game is meant to be played, and ' +
+          'the reason it does not make people sick. assisted — adds the stick and the hop for ' +
+          'seated play or limited reach.',
+      ),
       toggle('Snap turn', s.comfort.snapTurn, (v) => {
         s.comfort.snapTurn = v;
       }),
@@ -494,6 +596,9 @@ export class Shell {
       toggle('Gamepad', s.controls.gamepadEnabled, (v) => {
         s.controls.gamepadEnabled = v;
       }),
+
+      el('h3', {}, 'Movement tuning'),
+      ...this.tuningRows(),
 
       el('h3', {}, 'Match'),
       toggle('Cross-play (mobile / PC / VR together)', s.crossPlay, (v) => {

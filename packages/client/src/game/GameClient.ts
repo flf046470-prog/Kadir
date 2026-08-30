@@ -21,6 +21,7 @@ import type {
 } from '@kc/core';
 import { InterpolationBuffer, PredictionBuffer } from '@kc/net';
 import type { Platform, RosterEntry } from '@kc/net';
+import { TuningStore } from './TuningStore.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { VoiceChat } from '../audio/VoiceChat.js';
 import { NetClient } from '../net/NetClient.js';
@@ -49,6 +50,8 @@ export interface GameClientOptions {
   profile: { playerId: string; name: string; animalId: string; cosmetics: Record<string, string>; token?: string };
   callbacks: GameCallbacks;
   profileForQuality: PerformanceProfile;
+  /** Shared with the menus: tuning is a persisted user preference, not per-match state. */
+  tuning: TuningStore;
 }
 
 interface RemotePlayer {
@@ -100,6 +103,9 @@ export class GameClient {
   private tmpVec = new THREE.Vector3();
   private tmpVec2 = new THREE.Vector3();
   private bots: Bot[] = [];
+  /** Live movement tuning. Only ever applied in solo practice — see `applyTuning`. */
+  readonly tuning: TuningStore;
+  private soloPractice = false;
   private modeId = 'kangaroo-chase';
   private roomCode = '';
 
@@ -113,6 +119,7 @@ export class GameClient {
     this.settings = options.settings;
     this.callbacks = options.callbacks;
     this.localId = options.profile.playerId;
+    this.tuning = options.tuning;
 
     this.level = buildJungleWorld();
     this.levelRenderer = new LevelRenderer(this.level, options.profileForQuality);
@@ -232,10 +239,31 @@ export class GameClient {
       });
     }
     this.levelRenderer.setCheckpointsVisible(modeId === 'parkour');
+    this.soloPractice = true;
+    this.applyTuning();
     this.callbacks.onNotice('Solo practice — bots only. Reconnecting in the background.');
   }
 
+  /** True while movement tuning may be edited: solo practice, where nobody else is affected. */
+  get canTune(): boolean {
+    return this.soloPractice;
+  }
+
+  /**
+   * Push the tuned movement values into the running simulation.
+   *
+   * Refused outside solo practice. In a networked match the server owns every config and
+   * re-sends it with each snapshot, so a tuned client would predict movement the server never
+   * performs — the visible result is rubber-banding, not an advantage.
+   */
+  applyTuning(): void {
+    if (!this.soloPractice) return;
+    this.tuning.applyTo(this.sim);
+  }
+
   private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelSeed: number }): void {
+    // A real match starts: the server owns the configs from here on.
+    this.soloPractice = false;
     this.localId = message.playerId;
     this.modeId = message.modeId;
     this.roomCode = message.roomCode;

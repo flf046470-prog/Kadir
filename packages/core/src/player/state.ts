@@ -2,7 +2,7 @@ import type { Vec3 } from '../math/vec3.js';
 import { vec3 } from '../math/vec3.js';
 import type { SurfaceMaterial } from '../physics/types.js';
 import type { MovementConfig } from './config.js';
-import { DEFAULT_MOVEMENT } from './config.js';
+import { DEFAULT_MOVEMENT, cloneMovementConfig } from './config.js';
 
 export type PlayerRole = 'runner' | 'chaser' | 'infected' | 'racer' | 'fighter' | 'spectator' | 'idle';
 
@@ -120,7 +120,11 @@ export interface CreatePlayerOptions {
 }
 
 export function createPlayerState(options: CreatePlayerOptions): PlayerState {
-  const config = options.config ?? DEFAULT_MOVEMENT;
+  // Cloned, never aliased. Without this every player created without an explicit config shares
+  // the module-level DEFAULT_MOVEMENT object, so a single in-place write to `player.config`
+  // would rewrite the defaults for every player in the process — on the server, for every room,
+  // until restart. Runtime tuning writes configs, which turns that from latent into likely.
+  const config = cloneMovementConfig(options.config ?? DEFAULT_MOVEMENT);
   const position = options.position ? { ...options.position } : vec3();
   return {
     id: options.id,

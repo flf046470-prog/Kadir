@@ -12,6 +12,7 @@ import { Renderer } from './render/Renderer.js';
 import { LocalStore } from './storage/LocalStore.js';
 import { Hud } from './ui/Hud.js';
 import { Shell } from './ui/Shell.js';
+import { TuningStore } from './game/TuningStore.js';
 import { VRMenu } from './ui/VRPanels.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
@@ -52,6 +53,10 @@ async function main(): Promise<void> {
         ? new MobileInput(root)
         : new PCInput(renderer.renderer.domElement);
 
+  // Created here rather than inside GameClient: tuning is a persisted user preference shared
+  // with the menus, and the menus exist before the first match does.
+  const tuning = new TuningStore();
+
   const shell = new Shell(
     {
       root: shellRoot,
@@ -59,6 +64,9 @@ async function main(): Promise<void> {
       platform: device.kind,
       controlHints: input.controlHints,
       devPurchases: import.meta.env.DEV,
+      tuning,
+      canTune: () => game?.canTune ?? false,
+      onTuningChanged: () => game?.applyTuning(),
       callbacks: {
         onQuickPlay: (modeId) => void startMatch({ modeId }),
         onPractice: (modeId) => startPractice(modeId),
@@ -89,6 +97,9 @@ async function main(): Promise<void> {
   let game: GameClient | null = null;
   let hud: Hud | null = null;
   let vrMenu: VRMenu | null = null;
+  let tuningMenu: VRMenu | null = null;
+  /** Which way a tap on a tuning row moves the value. Flipped from a row in the panel. */
+  let tuningStep = 1;
 
   const serverUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 
@@ -136,6 +147,7 @@ async function main(): Promise<void> {
       settings,
       profile: { playerId: session.playerId, name, animalId, cosmetics, ...(session.token ? { token: session.token } : {}) },
       profileForQuality: profile,
+      tuning,
       callbacks: {
         onModeState: (state) => hud?.update(state, game?.localPlayer),
         onResults: (result, rewards) => {
@@ -169,6 +181,38 @@ async function main(): Promise<void> {
     store.markTutorialSeen();
   }
 
+  /**
+   * Redraw the VR tuning page from the current values.
+   *
+   * Only the first nine tunables are offered here. The panel is a fixed-size quad and a row has
+   * to stay big enough to hit with a controller ray, so the list is capped; `TUNABLES` is
+   * ordered by how much each one changes the feel, and the export lives on the desktop panel
+   * because that is where the numbers get pasted into the source anyway.
+   */
+  function drawTuning(): void {
+    if (!tuningMenu || !game) return;
+    const store = game.tuning;
+    const rows = store.tunables.slice(0, 9).map((tunable) => ({
+      id: tunable.field,
+      label: tunable.label,
+      // A marker beats a colour here: the panel is drawn at a distance on a low-DPI quad.
+      value: `${store.isOverridden(tunable.field) ? '\u2022 ' : ''}${store.value(tunable.field)}`,
+    }));
+
+    tuningMenu.setContent(
+      'Movement tuning',
+      game.canTune
+        ? `Tap a row to move it by ${tuningStep > 0 ? '+' : '-'}1 step · ${store.modifiedCount} changed`
+        : 'Solo practice only — the server owns movement in a match',
+      [
+        ...rows.map((row) => ({ ...row, disabled: !game?.canTune })),
+        { id: 'direction', label: 'Direction', value: tuningStep > 0 ? '+1 step' : '-1 step' },
+        { id: 'reset', label: 'Reset all', disabled: store.modifiedCount === 0 },
+        { id: 'back', label: 'Back' },
+      ],
+    );
+  }
+
   function setupVr(): void {
     const vrInput = input as VRInput;
     vrMenu = new VRMenu({
@@ -178,15 +222,40 @@ async function main(): Promise<void> {
         else if (id === 'practice') startPractice('kangaroo-chase');
         else if (id === 'recenter') vrInput.recenter();
         else if (id === 'exit') void vrInput.exitVr();
+        else if (id === 'tuning') {
+          vrMenu?.hide();
+          drawTuning();
+          tuningMenu?.show();
+          return;
+        }
         vrMenu?.hide();
       },
     });
     vrMenu.setContent('Kangaroo Chase', 'Point and pull the trigger', [
       { id: 'play', label: 'Play' },
       { id: 'practice', label: 'Practice with bots' },
+      { id: 'tuning', label: 'Movement tuning' },
       { id: 'recenter', label: 'Recentre view' },
       { id: 'exit', label: 'Leave VR' },
     ]);
+
+    // Tuning is a separate panel rather than a sub-list of the main one, so leaving it does not
+    // dump you back at the top of the menu after every single adjustment.
+    tuningMenu = new VRMenu({
+      renderer,
+      onSelect: (id) => {
+        if (id === 'back') {
+          tuningMenu?.hide();
+          vrMenu?.show();
+          return;
+        }
+        if (id === 'direction') tuningStep = -tuningStep;
+        else if (id === 'reset') game?.tuning.reset();
+        else game?.tuning.nudge(id as Parameters<NonNullable<typeof game>['tuning']['nudge']>[0], tuningStep);
+        game?.applyTuning();
+        drawTuning();
+      },
+    });
 
     const enterButton = button(
       'Enter VR',
@@ -265,6 +334,7 @@ async function main(): Promise<void> {
         lastTime = time;
         vrInput.updateTracking(dt, settings);
         vrMenu?.update();
+        tuningMenu?.update();
         loop?.(time, frame);
       });
     };

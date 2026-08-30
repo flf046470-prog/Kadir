@@ -24,6 +24,22 @@ export interface AudioSettings {
 
 export type Handedness = 'right' | 'left';
 
+/**
+ * How a VR player moves.
+ *
+ * `arms` is the default and the design the game is built around: hands only, no stick and no
+ * hop button. Two things follow from that. Comfort — nausea in VR comes from the view moving
+ * when the body did not ask it to, and a thumbstick or a button-triggered launch is exactly
+ * that; when every metre of travel is something your arms did, the mismatch disappears. And
+ * skill — if pushing off the world is the only way to move, that one interaction is what
+ * players get good at, which is where the depth in this genre lives.
+ *
+ * `assisted` restores the stick and the hop for players who need to sit, have limited reach, or
+ * simply want them. It is an accessibility option, not the intended way to play, and it is
+ * slower on purpose so hands stay the fast option.
+ */
+export type VrLocomotion = 'arms' | 'assisted';
+
 export interface ComfortSettings {
   snapTurn: boolean;
   snapAngleDegrees: number;
@@ -34,6 +50,7 @@ export interface ComfortSettings {
   seated: boolean;
   handedness: Handedness;
   sensitivity: number;
+  vrLocomotion: VrLocomotion;
 }
 
 export interface ControlSettings {
@@ -81,6 +98,7 @@ export const DEFAULT_SETTINGS: Settings = {
     seated: false,
     handedness: 'right',
     sensitivity: 1,
+    vrLocomotion: 'arms',
   },
   controls: {
     invertY: false,
@@ -125,6 +143,9 @@ export function mergeSettings(stored: unknown): Settings {
   base.comfort.vignette = clamp01(base.comfort.vignette);
   base.comfort.sensitivity = clamp(base.comfort.sensitivity, 0.2, 3);
   base.comfort.heightCalibration = clamp(base.comfort.heightCalibration, 0, 2.4);
+  // comfort is merged with Object.assign, so a stored value reaches here unchecked. An
+  // unrecognised mode would silently disable hand locomotion, so it falls back to the default.
+  if (base.comfort.vrLocomotion !== 'assisted') base.comfort.vrLocomotion = 'arms';
   base.controls.lookSensitivity = clamp(base.controls.lookSensitivity, 0.1, 4);
   base.controls.joystickSize = clamp(base.controls.joystickSize, 60, 220);
   base.controls.hapticStrength = clamp01(base.controls.hapticStrength);
