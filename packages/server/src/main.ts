@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import process from 'node:process';
-import { validateCatalog } from '@kc/core';
+import { validateCatalog, validateGadgets } from '@kc/core';
 import { AccountService } from './accounts.js';
 import { loadConfig } from './config.js';
 import { attachGateway } from './gateway.js';
@@ -19,6 +19,14 @@ async function main(): Promise<void> {
   if (problems.length > 0) {
     for (const problem of problems) console.error(`[store] ${problem.itemId}: ${problem.problem}`);
     throw new Error(`Store catalog invalid (${problems.length} problems)`);
+  }
+
+  // Same for gear. This is the check that keeps "money buys time, not power" true in production
+  // rather than only in the test suite: a gadget with no coin price refuses to boot the server.
+  const gearProblems = validateGadgets();
+  if (gearProblems.length > 0) {
+    for (const problem of gearProblems) console.error(`[gadgets] ${problem.gadgetId}: ${problem.problem}`);
+    throw new Error(`Gadget catalog invalid (${gearProblems.length} problems)`);
   }
 
   // File storage is correct for one writer; anything scaled needs the SQL drivers, because a

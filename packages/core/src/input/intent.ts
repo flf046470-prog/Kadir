@@ -20,6 +20,14 @@ export const Buttons = {
   /** Non-VR platforms map a punch button; VR derives punches from hand velocity. */
   PunchLeft: 1 << 7,
   PunchRight: 1 << 8,
+  /** Fire / throw / place the selected gadget. */
+  UseGadget: 1 << 9,
+  /** Move the selection to the next non-empty, non-armour slot. */
+  CycleGadget: 1 << 10,
+  /** Open the in-round shop (Hunt) or the mode board (Training Room). */
+  Shop: 1 << 11,
+  /** Push-to-talk. Held, not toggled — the sim only relays it, voice audio never touches it. */
+  Talk: 1 << 12,
 } as const;
 
 export type ButtonMask = number;
@@ -57,6 +65,14 @@ export interface InputIntent {
   hands: [HandIntent, HandIntent] | null;
   /** VR: HMD height above the play-space floor, used for crouch detection and calibration. */
   headHeight: number;
+  /**
+   * 0..1 microphone loudness, measured on the speaker's own device.
+   *
+   * It is here rather than on the voice transport because it drives the avatar's mouth, and a
+   * mouth is gameplay-visible state: everyone must see the same one at the same tick, including
+   * a player whose WebRTC connection to the speaker failed.
+   */
+  voice: number;
 }
 
 export function createIntent(): InputIntent {
@@ -69,6 +85,7 @@ export function createIntent(): InputIntent {
     buttons: 0,
     hands: null,
     headHeight: 0,
+    voice: 0,
   };
 }
 
@@ -80,6 +97,7 @@ export function copyIntent(out: InputIntent, src: InputIntent): InputIntent {
   out.lookPitch = src.lookPitch;
   out.buttons = src.buttons;
   out.headHeight = src.headHeight;
+  out.voice = src.voice;
   if (src.hands) {
     if (!out.hands) out.hands = [createHandIntent(), createHandIntent()];
     for (let i = 0; i < 2; i++) {
@@ -115,7 +133,9 @@ export function sanitizeIntent(intent: InputIntent, maxHandReach = 1.2): InputIn
   intent.headHeight = Number.isFinite(intent.headHeight)
     ? Math.max(0.4, Math.min(2.4, intent.headHeight))
     : 1.6;
-  intent.buttons = (intent.buttons | 0) & 0x1ff;
+  // Mask to the buttons that exist. Widen this together with `Buttons` or new bits are dropped.
+  intent.buttons = (intent.buttons | 0) & 0x1fff;
+  intent.voice = Number.isFinite(intent.voice) ? Math.max(0, Math.min(1, intent.voice)) : 0;
   if (intent.hands) {
     for (const hand of intent.hands) {
       hand.grip = Number.isFinite(hand.grip) ? Math.max(0, Math.min(1, hand.grip)) : 0;

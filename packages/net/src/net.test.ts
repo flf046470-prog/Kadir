@@ -22,7 +22,7 @@ describe('intent codec', () => {
     intent.headHeight = 1.62;
 
     const bytes = encodeIntent(intent);
-    expect(bytes.length).toBe(15); // fixed-size PC/mobile frame
+    expect(bytes.length).toBe(16); // fixed-size PC/mobile frame, including the mic-level byte
 
     const out = createIntent();
     decodeIntent(bytes, out);
@@ -46,13 +46,14 @@ describe('intent codec', () => {
     intent.hands[1].grip = 1;
 
     const bytes = encodeIntent(intent);
-    expect(bytes.length).toBe(41); // 15 + 13 bytes per tracked hand
+    expect(bytes.length).toBe(42); // 16 + 13 bytes per tracked hand
 
     const out = createIntent();
     decodeIntent(bytes, out);
     expect(out.hands?.[0].pos.y).toBeCloseTo(1.2, 3);
     expect(out.hands?.[0].vel.z).toBeCloseTo(4, 1);
     expect(out.hands?.[0].grip).toBeCloseTo(0.8, 2);
+
     expect(out.hands?.[1].tracked).toBe(true);
   });
 
@@ -160,7 +161,7 @@ describe('snapshot codec', () => {
     b.hands[0].tracked = true;
 
     const slots = new SlotTable();
-    const snap = { tick: 1, players: [snapshotPlayer(a), snapshotPlayer(b)], mode: sim.mode.state() };
+    const snap = { tick: 1, players: [snapshotPlayer(a), snapshotPlayer(b)], entities: [], mode: sim.mode.state() };
     const near = encodeSnapshot(snap, slots, { viewerId: a.id, nearDistance: NEAR_DISTANCE });
     const all = encodeSnapshot(snap, new SlotTable(), {});
     expect(near.length).toBeLessThan(all.length);
@@ -197,6 +198,9 @@ describe('interpolation', () => {
       stamina: 100,
       score: 0,
       emoteId: 0,
+      armour: 0,
+      voice: 0,
+      gadgetId: '',
       hands: null,
     };
   }

@@ -51,6 +51,11 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
 
   directionsFromYaw(player.yaw);
 
+  // Freezing takes away every way of moving under your own power, and there are three of them:
+  // the assisted climb (gated here), the VR hand grip (gated in `updateHandPoses`, where both
+  // input paths meet), and ground/air locomotion (gated in `applyGroundAndAir`). Missing any one
+  // leaves a platform on which being frozen is merely inconvenient.
+  const frozen = player.gadgets.frozen > 0;
   const grabLeft = hasButton(intent.buttons, Buttons.GrabLeft);
   const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
 
@@ -65,7 +70,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
     applyPalmPush(player, ctx, dt);
   }
 
-  const climbing = updateClimb(player, intent, ctx, dt, grabLeft || grabRight, handDriven);
+  const climbing = updateClimb(player, intent, ctx, dt, !frozen && (grabLeft || grabRight), handDriven);
 
   const wantsJump = hasButton(intent.buttons, Buttons.Jump);
   if (wantsJump) player.jumpBufferTimer = cfg.jumpBufferTime;
@@ -123,6 +128,11 @@ function updateHandPoses(
   grabRight: boolean,
 ): void {
   const cfg = player.config;
+  // Freezing has to reach the hands, and it has to reach them *here*: arms-first VR movement is
+  // driven by the analogue grip rather than the grab button, so gating the buttons alone would
+  // leave a frozen VR player free to pull themselves along — the one platform the effect matters
+  // most on. This is the single place both input paths decide whether a hand is holding on.
+  const frozen = player.gadgets.frozen > 0;
   for (let i = 0; i < 2; i++) {
     const hand = player.hands[i] as HandState;
     const source = intent.hands ? intent.hands[i] : null;
@@ -146,6 +156,8 @@ function updateHandPoses(
       v3set(hand.world, player.position.x + _tmp.x, player.position.y + _tmp.y, player.position.z + _tmp.z);
       hand.gripHeld = i === LEFT ? grabLeft : grabRight;
     }
+
+    if (frozen) hand.gripHeld = false;
 
     if (dt > 0) {
       v3set(
@@ -420,7 +432,22 @@ function applyGroundAndAir(
 ): void {
   const cfg = player.config;
   const staggered = player.staggerTimer > 0;
-  const control = staggered ? cfg.staggerControl : 1;
+  // Freeze removes control outright; a snare only halves it. Both are gadget effects and both
+  // scale the *same* control factor a stagger uses, so they compose instead of fighting: being
+  // snared while staggered is worse than either alone, which is what a player would expect.
+  const status = player.gadgets;
+  const frozen = status.frozen > 0;
+  const snareControl = status.snared > 0 ? 1 - status.snareSlow : 1;
+  const control = frozen ? 0 : (staggered ? cfg.staggerControl : 1) * snareControl;
+
+  if (frozen) {
+    // Not just "no input": a frozen player keeps falling but stops moving horizontally, so
+    // freezing someone mid-jump drops them where they were rather than launching them onward.
+    player.velocity.x = 0;
+    player.velocity.z = 0;
+    player.sprinting = false;
+    return;
+  }
 
   player.crouching = hasButton(intent.buttons, Buttons.Crouch) || (intent.hands !== null && intent.headHeight < 1.15);
   player.sprinting =

@@ -1,6 +1,9 @@
 import { getAnimal } from '../content/animals.js';
 import { getCosmetic } from '../content/cosmetics.js';
 import type { CosmeticSlot } from '../content/cosmetics.js';
+import { getGadget } from '../gadgets/catalog.js';
+import { resolveLoadout } from '../gadgets/loadout.js';
+import type { LoadoutOutcome, LoadoutRequest } from '../gadgets/loadout.js';
 import { getStoreItem } from '../content/store.js';
 import type { PlayerProfile, PurchaseRecord } from './profile.js';
 import { spendCoins } from './economy.js';
@@ -43,6 +46,13 @@ export function grantContent(profile: PlayerProfile, ids: string[]): string[] {
     if (getCosmetic(id)) {
       if (!profile.ownedCosmetics.includes(id)) {
         profile.ownedCosmetics.push(id);
+        granted.push(id);
+      }
+      continue;
+    }
+    if (getGadget(id)) {
+      if (!profile.ownedGadgets.includes(id)) {
+        profile.ownedGadgets.push(id);
         granted.push(id);
       }
     }
@@ -98,8 +108,26 @@ export function ownsAll(profile: PlayerProfile, ids: string[]): boolean {
     (id) =>
       profile.ownedAnimals.includes(id) ||
       profile.ownedCosmetics.includes(id) ||
+      profile.ownedGadgets.includes(id) ||
       (id.startsWith('season:') && profile.season.premiumOwned),
   );
+}
+
+/**
+ * Save a chosen loadout, keeping only what the profile actually owns.
+ *
+ * Returns the outcome so the client can show *why* a slot came back empty. This is the write
+ * path; the room revalidates on join anyway, because a profile can lose a gadget between the
+ * two (a refund, a catalog change) and the round is what matters.
+ */
+export function equipGadgets(profile: PlayerProfile, request: LoadoutRequest): LoadoutOutcome {
+  const outcome = resolveLoadout(request, profile.ownedGadgets);
+  profile.equipped.gadgets = {};
+  for (const [slot, gadgetId] of Object.entries(outcome.applied)) {
+    if (gadgetId) profile.equipped.gadgets[slot as keyof typeof profile.equipped.gadgets] = gadgetId;
+  }
+  profile.updatedAt = Date.now();
+  return outcome;
 }
 
 export type EquipError = 'unknown' | 'not-owned' | 'wrong-slot';

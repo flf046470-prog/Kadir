@@ -15,6 +15,7 @@ import {
   getModeDef,
   createModerationState,
   ReportLimiter,
+  resolveLoadout,
 } from '@kc/core';
 import type {
   InputIntent,
@@ -151,6 +152,10 @@ export class Room {
       id: profile.playerId,
       name: sanitizeName(profile.name),
       animalId: profile.equipped.animalId,
+      // Re-validated here rather than trusted from the profile: the loadout was saved at some
+      // earlier moment, and a refund or a catalog change since then must not put a gadget the
+      // player no longer owns into a live round.
+      loadout: resolveLoadout(profile.equipped.gadgets, profile.ownedGadgets).applied,
     });
 
     socket.sendJson({
@@ -387,6 +392,7 @@ export class Room {
         id: client.playerId,
         name: sanitizeName(client.profile.name),
         animalId: client.profile.equipped.animalId,
+        loadout: resolveLoadout(client.profile.equipped.gadgets, client.profile.ownedGadgets).applied,
       });
     }
     this.broadcastRoomState();
@@ -468,7 +474,8 @@ function mergeBaseline(previous: Snapshot | null, next: Snapshot, skipped: Set<s
     if (!skipped.has(player.id)) return player;
     return previous.players.find((p) => p.id === player.id) ?? player;
   });
-  return { tick: next.tick, players, mode: next.mode };
+  // Entities are never delta-encoded, so the baseline just carries the newest set forward.
+  return { tick: next.tick, players, entities: next.entities, mode: next.mode };
 }
 
 /** In-memory report log. A real deployment ships these to a moderation queue. */

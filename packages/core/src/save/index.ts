@@ -1,3 +1,4 @@
+import { STARTER_GADGETS, getGadget } from '../gadgets/catalog.js';
 import type { PlayerProfile } from '../progression/profile.js';
 import { SAVE_VERSION, createProfile, emptyStats, levelForXp } from '../progression/profile.js';
 
@@ -17,6 +18,21 @@ export const MIGRATIONS: Record<number, Migration> = {
     version: 1,
     ownedAnimals: Array.isArray(raw.ownedAnimals) ? raw.ownedAnimals : ['kangaroo'],
     equipped: raw.equipped ?? { animalId: 'kangaroo', cosmetics: {} },
+  }),
+  // 1 → 2: gadgets. Every existing account is granted the free starter set rather than being
+  // dropped into Hunt with empty hands, and the equipped loadout defaults to it.
+  1: (raw) => ({
+    ...raw,
+    version: 2,
+    ownedGadgets: Array.isArray(raw.ownedGadgets) ? raw.ownedGadgets : [...STARTER_GADGETS],
+    equipped: {
+      ...((raw.equipped as Record<string, unknown>) ?? { animalId: 'kangaroo', cosmetics: {} }),
+      gadgets: (raw.equipped as { gadgets?: unknown })?.gadgets ?? {
+        primary: 'freeze_gun',
+        secondary: 'smoke_bomb',
+        armour: 'steel_vest',
+      },
+    },
   }),
 };
 
@@ -42,12 +58,14 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
     equipped: {
       animalId: (raw.equipped as PlayerProfile['equipped'])?.animalId ?? 'kangaroo',
       cosmetics: (raw.equipped as PlayerProfile['equipped'])?.cosmetics ?? {},
+      gadgets: (raw.equipped as PlayerProfile['equipped'])?.gadgets ?? {},
     },
     daily: { ...fallback.daily, ...(raw.daily as PlayerProfile['daily']) },
     season: { ...fallback.season, ...(raw.season as PlayerProfile['season']) },
     achievements: (raw.achievements as PlayerProfile['achievements']) ?? {},
     ownedAnimals: uniqueStrings(raw.ownedAnimals, ['kangaroo']),
     ownedCosmetics: uniqueStrings(raw.ownedCosmetics, []),
+    ownedGadgets: uniqueStrings(raw.ownedGadgets, [...STARTER_GADGETS]),
     purchases: Array.isArray(raw.purchases) ? (raw.purchases as PlayerProfile['purchases']) : [],
     mutedPlayerIds: uniqueStrings(raw.mutedPlayerIds, []),
     blockedPlayerIds: uniqueStrings(raw.blockedPlayerIds, []),
@@ -58,6 +76,10 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
   profile.level = levelForXp(profile.xp);
   if (!profile.ownedAnimals.includes('kangaroo')) profile.ownedAnimals.push('kangaroo');
   if (!profile.ownedAnimals.includes(profile.equipped.animalId)) profile.equipped.animalId = 'kangaroo';
+  for (const id of STARTER_GADGETS) if (!profile.ownedGadgets.includes(id)) profile.ownedGadgets.push(id);
+  // A gadget removed from the catalog since this save was written would otherwise sit in the
+  // loadout forever, silently occupying a slot the player cannot fill.
+  profile.ownedGadgets = profile.ownedGadgets.filter((id) => getGadget(id) !== undefined);
   return profile;
 }
 

@@ -1,5 +1,7 @@
 import type { ModeStateView } from '../modes/types.js';
 import type { PlayerState } from '../player/state.js';
+import type { GadgetEntity } from '../gadgets/types.js';
+import { selectedGadget, setHeldGadget } from '../gadgets/state.js';
 
 /** Bit flags packed into a snapshot — cheap to send, cheap to compare for delta encoding. */
 export const SnapFlags = {
@@ -13,6 +15,13 @@ export const SnapFlags = {
   HandsTracked: 1 << 7,
   Staggered: 1 << 8,
   Invulnerable: 1 << 9,
+  /** Gadget status effects. Cosmetic on the client — the sim already applied the real thing. */
+  Frozen: 1 << 10,
+  Snared: 1 << 11,
+  Smoked: 1 << 12,
+  Revealed: 1 << 13,
+  /** Push-to-talk is held. Drives the name-plate speaker icon; `voice` drives the mouth. */
+  Talking: 1 << 14,
 } as const;
 
 export interface HandSnapshot {
@@ -40,13 +49,39 @@ export interface PlayerSnapshot {
   stamina: number;
   score: number;
   emoteId: number;
+  /** Damage the armour will still absorb; 0 when it is broken or was never equipped. */
+  armour: number;
+  /** 0..1 mouth openness. Replicated so every viewer sees the same lips on the same tick. */
+  voice: number;
+  /** Gadget currently selected, so remote avatars hold the right prop. Empty when unarmed. */
+  gadgetId: string;
   /** Hands in body-local space; omitted for players whose hands are not tracked. */
   hands: [HandSnapshot, HandSnapshot] | null;
+}
+
+/** A projectile in flight, a placed trap, or a smoke cloud. */
+export interface EntitySnapshot {
+  id: number;
+  gadgetId: string;
+  ownerId: string;
+  kind: 'projectile' | 'placed' | 'cloud';
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
 }
 
 export interface Snapshot {
   tick: number;
   players: PlayerSnapshot[];
+  /**
+   * Gadget entities, sent whole rather than delta-encoded.
+   *
+   * There are rarely more than a dozen and they live for seconds, so a delta would spend more
+   * bytes tracking what changed than it would save — and a missed trap is a player standing on
+   * something they cannot see.
+   */
+  entities: EntitySnapshot[];
   mode: ModeStateView;
 }
 
@@ -61,6 +96,11 @@ export function snapshotPlayer(player: PlayerState): PlayerSnapshot {
   if (player.hands[1].anchored) flags |= SnapFlags.AnchoredRight;
   if (player.staggerTimer > 0) flags |= SnapFlags.Staggered;
   if (player.invulnTimer > 0) flags |= SnapFlags.Invulnerable;
+  if (player.gadgets.frozen > 0) flags |= SnapFlags.Frozen;
+  if (player.gadgets.snared > 0) flags |= SnapFlags.Snared;
+  if (player.gadgets.smoked > 0) flags |= SnapFlags.Smoked;
+  if (player.gadgets.revealed > 0) flags |= SnapFlags.Revealed;
+  if (player.voiceLevel > 0) flags |= SnapFlags.Talking;
 
   const tracked = player.hands[0].tracked || player.hands[1].tracked;
   if (tracked) flags |= SnapFlags.HandsTracked;
@@ -84,6 +124,9 @@ export function snapshotPlayer(player: PlayerState): PlayerSnapshot {
     stamina: player.stamina,
     score: player.score,
     emoteId: player.emoteId,
+    armour: player.gadgets.armour,
+    voice: player.voiceLevel,
+    gadgetId: selectedGadget(player.gadgets) ?? '',
     hands: tracked
       ? [
           {
@@ -98,6 +141,19 @@ export function snapshotPlayer(player: PlayerState): PlayerSnapshot {
           },
         ]
       : null,
+  };
+}
+
+export function snapshotEntity(entity: GadgetEntity): EntitySnapshot {
+  return {
+    id: entity.id,
+    gadgetId: entity.gadgetId,
+    ownerId: entity.ownerId,
+    kind: entity.kind,
+    x: entity.position.x,
+    y: entity.position.y,
+    z: entity.position.z,
+    radius: entity.radius,
   };
 }
 
@@ -123,6 +179,15 @@ export function applySnapshot(player: PlayerState, snap: PlayerSnapshot): void {
   player.score = snap.score;
   player.role = snap.role as PlayerState['role'];
   player.emoteId = snap.emoteId;
+  player.gadgets.armour = snap.armour;
+  player.voiceLevel = snap.voice;
+  // Status timers are not replicated as numbers: the flag says "still affected", and the client
+  // only needs that to draw the effect. The authoritative countdown stays on the server.
+  player.gadgets.frozen = (snap.flags & SnapFlags.Frozen) !== 0 ? 0.2 : 0;
+  player.gadgets.snared = (snap.flags & SnapFlags.Snared) !== 0 ? 0.2 : 0;
+  player.gadgets.smoked = (snap.flags & SnapFlags.Smoked) !== 0 ? 0.2 : 0;
+  player.gadgets.revealed = (snap.flags & SnapFlags.Revealed) !== 0 ? 0.2 : 0;
+  if (snap.gadgetId) setHeldGadget(player.gadgets, snap.gadgetId);
   player.animalId = snap.animalId;
   player.name = snap.name;
   player.head.x = snap.x;

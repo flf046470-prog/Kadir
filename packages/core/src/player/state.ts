@@ -3,8 +3,21 @@ import { vec3 } from '../math/vec3.js';
 import type { SurfaceMaterial } from '../physics/types.js';
 import type { MovementConfig } from './config.js';
 import { DEFAULT_MOVEMENT, cloneMovementConfig } from './config.js';
+import { createGadgetState } from '../gadgets/state.js';
+import type { PlayerGadgetState } from '../gadgets/types.js';
 
-export type PlayerRole = 'runner' | 'chaser' | 'infected' | 'racer' | 'fighter' | 'spectator' | 'idle';
+export type PlayerRole =
+  | 'runner'
+  | 'chaser'
+  | 'infected'
+  | 'racer'
+  | 'fighter'
+  | 'spectator'
+  | 'idle'
+  /** Hunt: the armed kangaroo. */
+  | 'hunter'
+  /** Hunt: a human trying to last the clock. */
+  | 'survivor';
 
 export type HandSide = 0 | 1;
 export const LEFT: HandSide = 0;
@@ -83,6 +96,11 @@ export interface PlayerState {
   climbCollider: number;
 
   hands: [HandState, HandState];
+
+  /** Equipment, charges and status effects. Owned here so a reset clears it with the player. */
+  gadgets: PlayerGadgetState;
+  /** 0..1 mouth openness, driven by the speaker's own voice level. Purely cosmetic. */
+  voiceLevel: number;
 
   role: PlayerRole;
   alive: boolean;
@@ -164,6 +182,9 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
 
     hands: [createHandState(), createHandState()],
 
+    gadgets: createGadgetState(),
+    voiceLevel: 0,
+
     role: options.role ?? 'idle',
     alive: true,
     health: 100,
@@ -207,6 +228,14 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
   player.invulnTimer = 1.5;
   player.tagCooldown = 0;
   player.lastIntentTick = tick;
+  // Status effects die with the life; charges and cash do not, because they are round-scoped
+  // and a player who respawns having spent their smoke has still spent it.
+  player.gadgets.frozen = 0;
+  player.gadgets.snared = 0;
+  player.gadgets.snareSlow = 0;
+  player.gadgets.smoked = 0;
+  player.gadgets.revealed = 0;
+  player.voiceLevel = 0;
   for (const hand of player.hands) {
     hand.anchored = false;
     hand.anchorCollider = -1;

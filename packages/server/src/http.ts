@@ -9,6 +9,8 @@ import {
   achievementProgress,
   equipAnimal,
   equipCosmetic,
+  equipGadgets,
+  listGadgets,
   getSeasonProgress,
   listAnimals,
   listCosmetics,
@@ -96,6 +98,7 @@ async function handleApi(
     json(res, 200, {
       animals: listAnimals(),
       cosmetics: listCosmetics(),
+      gadgets: listGadgets(),
       store: listStoreItems(),
       modes: listModes(),
       level: { id: deps.rooms.sharedLevel.id, seed: deps.rooms.sharedLevel.seed },
@@ -154,6 +157,26 @@ async function handleApi(
     }
     await deps.accounts.save(profile);
     json(res, 200, { equipped: profile.equipped });
+    return;
+  }
+
+  if (path === '/api/loadout' && method === 'POST') {
+    const body = await readJson(req);
+    // `equipGadgets` filters the request against the owned inventory, so a client asking for
+    // something it does not own gets an empty slot and a stated reason — never a 500, and never
+    // the gadget. The room revalidates again on join.
+    const outcome = equipGadgets(profile, {
+      primary: slotValue(body.primary),
+      secondary: slotValue(body.secondary),
+      armour: slotValue(body.armour),
+    });
+    await deps.accounts.save(profile);
+    json(res, 200, { gadgets: profile.equipped.gadgets, rejected: outcome.problems });
+    return;
+  }
+
+  if (path === '/api/gadgets' && method === 'GET') {
+    json(res, 200, { gadgets: listGadgets(), owned: profile.ownedGadgets, equipped: profile.equipped.gadgets });
     return;
   }
 
@@ -282,4 +305,9 @@ async function serveStatic(config: ServerConfig, path: string, res: ServerRespon
       res.writeHead(404).end('not found');
     }
   }
+}
+
+/** One loadout slot from an untyped request body: a string, or nothing. */
+function slotValue(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null;
 }

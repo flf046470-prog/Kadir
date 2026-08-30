@@ -21,7 +21,13 @@ export type SimEventType =
   | 'stagger'
   | 'respawn'
   | 'roleChange'
-  | 'roundState';
+  | 'roundState'
+  | 'gadgetUse'
+  | 'gadgetHit'
+  | 'gadgetExpire'
+  | 'status'
+  | 'chat'
+  | 'voice';
 
 export interface SimEvent {
   type: SimEventType;

@@ -10,6 +10,7 @@ export * from './physics/index.js';
 export * from './world/index.js';
 export * from './input/index.js';
 export * from './player/index.js';
+export * from './gadgets/index.js';
 export * from './modes/index.js';
 export * from './sim/index.js';
 export * from './ai/index.js';

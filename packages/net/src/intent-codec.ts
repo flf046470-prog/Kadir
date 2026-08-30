@@ -4,8 +4,8 @@ import { ByteReader, ByteWriter, dequantize, quantize } from './binary.js';
 import { ANGLE_SCALE, HAND_SCALE, MsgType, VEL_SCALE } from './constants.js';
 
 /**
- * Intent frame: ~12 bytes without hands, ~28 with both hands tracked.
- * At 60 Hz that is roughly 0.7–1.7 KB/s upstream per player.
+ * Intent frame: ~13 bytes without hands, ~29 with both hands tracked.
+ * At 60 Hz that is roughly 0.8–1.8 KB/s upstream per player.
  */
 export function encodeIntent(intent: InputIntent): Uint8Array {
   const w = new ByteWriter(32);
@@ -17,6 +17,9 @@ export function encodeIntent(intent: InputIntent): Uint8Array {
   w.i16(quantize(intent.lookPitch, ANGLE_SCALE));
   w.u16(intent.buttons);
   w.u8(Math.round(Math.max(0, Math.min(2.55, intent.headHeight)) * 100));
+  // One byte of mic loudness. 1/255 precision is far finer than a jaw can show, and it costs
+  // less than the float it replaces.
+  w.u8(Math.round(Math.max(0, Math.min(1, intent.voice)) * 255));
 
   let mask = 0;
   if (intent.hands) {
@@ -53,6 +56,7 @@ export function decodeIntent(data: Uint8Array, out: InputIntent): InputIntent {
   out.lookPitch = dequantize(r.i16(), ANGLE_SCALE);
   out.buttons = r.u16();
   out.headHeight = r.u8() / 100;
+  out.voice = r.u8() / 255;
 
   const mask = r.u8();
   if (mask === 0) {

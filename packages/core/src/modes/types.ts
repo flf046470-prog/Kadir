@@ -3,6 +3,7 @@ import type { SimEventQueue } from '../sim/events.js';
 import type { PlayerState } from '../player/state.js';
 import type { LevelDef } from '../world/level.js';
 import type { PhysicsWorld } from '../physics/world.js';
+import type { GadgetContext, GadgetRuntime } from '../gadgets/runtime.js';
 
 export type ModePhase = 'waiting' | 'countdown' | 'playing' | 'ended';
 
@@ -21,10 +22,16 @@ export interface GameModeDef {
   combat: boolean;
   /** Modes where being tagged changes your role. */
   tagging: boolean;
+  /** Round cash every player starts with, for modes that run an in-round shop. */
+  startingCash?: number;
 }
 
 export interface ModeContext {
   players: Map<string, PlayerState>;
+  /** Live gadget entities. Modes clear these between rounds and place mode-owned ones. */
+  gadgets: GadgetRuntime;
+  /** Ready-made context for `applyPayload` and friends, so a mode never rebuilds one. */
+  gadgetCtx: GadgetContext;
   level: LevelDef;
   world: PhysicsWorld;
   events: SimEventQueue;

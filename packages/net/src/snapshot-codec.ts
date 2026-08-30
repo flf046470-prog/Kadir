@@ -9,9 +9,14 @@ import {
   MsgType,
   POS_SCALE,
   VEL_SCALE,
+  entityKindIndex,
+  entityKindName,
+  gadgetIndex,
+  gadgetName,
   roleIndex,
   roleName,
 } from './constants.js';
+import type { EntitySnapshot } from '@kc/core';
 
 /** Maps stable player ids to compact slot numbers so snapshots never carry strings. */
 export class SlotTable {
@@ -131,6 +136,11 @@ export function encodeSnapshot(snapshot: Snapshot, slots: SlotTable, options: En
     if (mask & Field.Score) w.u16(Math.max(0, Math.min(65535, Math.round(player.score))));
     if (mask & Field.Emote) w.u8(player.emoteId & 0xff);
     if (mask & Field.Role) w.u8(roleIndex(player.role));
+    if (mask & Field.Gear) {
+      w.u8(Math.round(Math.max(0, Math.min(255, player.armour))));
+      w.u8(Math.round(Math.max(0, Math.min(1, player.voice)) * 255));
+      w.u8(gadgetIndex(player.gadgetId));
+    }
     if (mask & Field.Hands) {
       const hands = player.hands;
       w.u8(hands ? 1 : 0);
@@ -143,7 +153,33 @@ export function encodeSnapshot(snapshot: Snapshot, slots: SlotTable, options: En
       }
     }
   }
+
+  writeEntities(w, snapshot.entities);
   return w.finish();
+}
+
+/**
+ * Gadget entities, whole every frame.
+ *
+ * Capped at 64: a room that somehow accumulated more has a bug, and truncating keeps the frame
+ * bounded rather than letting one runaway trap spammer blow up everybody's bandwidth.
+ */
+const MAX_ENTITIES = 64;
+
+function writeEntities(w: ByteWriter, entities: EntitySnapshot[]): void {
+  const included = entities.slice(0, MAX_ENTITIES);
+  w.u8(included.length);
+  for (const entity of included) {
+    w.u16(entity.id & 0xffff);
+    w.u8(gadgetIndex(entity.gadgetId));
+    w.u8(entityKindIndex(entity.kind));
+    w.i16(quantize(entity.x, POS_SCALE));
+    w.i16(quantize(entity.y, POS_SCALE));
+    w.i16(quantize(entity.z, POS_SCALE));
+    // Radius in decimetres: clouds are metres wide and a projectile is centimetres, and 0.1 m
+    // is finer than either needs to be drawn.
+    w.u8(Math.round(Math.max(0, Math.min(25.5, entity.radius)) * 10));
+  }
 }
 
 function diffMask(base: PlayerSnapshot, next: PlayerSnapshot): number {
@@ -176,6 +212,13 @@ function diffMask(base: PlayerSnapshot, next: PlayerSnapshot): number {
   if (Math.round(base.score) !== Math.round(next.score)) mask |= Field.Score;
   if (base.emoteId !== next.emoteId) mask |= Field.Emote;
   if (base.role !== next.role) mask |= Field.Role;
+  if (
+    Math.round(base.armour) !== Math.round(next.armour) ||
+    Math.round(base.voice * 255) !== Math.round(next.voice * 255) ||
+    base.gadgetId !== next.gadgetId
+  ) {
+    mask |= Field.Gear;
+  }
   if (handsDiffer(base.hands, next.hands)) mask |= Field.Hands;
   return mask;
 }
@@ -201,6 +244,7 @@ export interface DecodedSnapshot {
   tick: number;
   baseTick: number;
   players: PlayerSnapshot[];
+  entities: EntitySnapshot[];
 }
 
 /**
@@ -252,6 +296,11 @@ export function decodeSnapshot(
     if (mask & Field.Score) player.score = r.u16();
     if (mask & Field.Emote) player.emoteId = r.u8();
     if (mask & Field.Role) player.role = roleName(r.u8());
+    if (mask & Field.Gear) {
+      player.armour = r.u8();
+      player.voice = r.u8() / 255;
+      player.gadgetId = gadgetName(r.u8());
+    }
     if (mask & Field.Hands) {
       const has = r.u8();
       if (has) {
@@ -265,7 +314,23 @@ export function decodeSnapshot(
     }
     players.push(player);
   }
-  return { tick, baseTick, players };
+
+  const entityCount = r.u8();
+  const entities: EntitySnapshot[] = [];
+  for (let i = 0; i < entityCount; i++) {
+    const id = r.u16();
+    const gadgetId = gadgetName(r.u8());
+    const kind = entityKindName(r.u8());
+    const x = dequantize(r.i16(), POS_SCALE);
+    const y = dequantize(r.i16(), POS_SCALE);
+    const z = dequantize(r.i16(), POS_SCALE);
+    const radius = r.u8() / 10;
+    // The owner is not on the wire: nothing the client draws depends on it, and a name over a
+    // trap would tell the hunter who placed it.
+    entities.push({ id, gadgetId, ownerId: '', kind, x, y, z, radius });
+  }
+
+  return { tick, baseTick, players, entities };
 }
 
 function blankSnapshot(id: string): PlayerSnapshot {
@@ -288,6 +353,9 @@ function blankSnapshot(id: string): PlayerSnapshot {
     stamina: 100,
     score: 0,
     emoteId: 0,
+    armour: 0,
+    voice: 0,
+    gadgetId: '',
     hands: null,
   };
 }

@@ -1,5 +1,6 @@
 import { getAnimal } from './animals.js';
 import { getCosmetic } from './cosmetics.js';
+import { getGadget, listGadgets } from '../gadgets/catalog.js';
 
 /**
  * Fixed-price storefront.
@@ -7,13 +8,15 @@ import { getCosmetic } from './cosmetics.js';
  * Deliberate constraints, enforced by `validateCatalog()` and a unit test:
  *  - every price is one of the approved price points,
  *  - no randomised rewards (no loot boxes, no gacha),
- *  - nothing sold affects gameplay,
+ *  - animals and cosmetics never affect gameplay,
+ *  - gadgets do affect a round, so every one of them is *also* purchasable with coins earned by
+ *    playing — money buys the time, never the advantage,
  *  - bundles must be cheaper than buying their contents separately.
  */
 export const PRICE_POINTS = [99, 149, 199, 299, 499] as const;
 export type PriceCents = (typeof PRICE_POINTS)[number];
 
-export type StoreItemKind = 'animal' | 'cosmetic' | 'bundle' | 'season';
+export type StoreItemKind = 'animal' | 'cosmetic' | 'bundle' | 'season' | 'gadget';
 
 export interface StoreItem {
   id: string;
@@ -60,17 +63,24 @@ export function validateCatalog(items: StoreItem[] = listStoreItems()): CatalogP
       problems.push({ itemId: item.id, problem: 'grants nothing' });
     }
     for (const grant of item.grants) {
-      const known = getAnimal(grant) ?? getCosmetic(grant);
+      const known = getAnimal(grant) ?? getCosmetic(grant) ?? getGadget(grant);
       if (!known && !grant.startsWith('season:') && !grant.startsWith('coins:')) {
         problems.push({ itemId: item.id, problem: `grants unknown content "${grant}"` });
       }
+    }
+    // The fairness rule, enforced at the shelf rather than only at the catalog: a store item
+    // that hands out a gadget must have a coin price, or money becomes the only route to it.
+    if (item.grants.some((grant) => getGadget(grant) !== undefined) && item.priceCoins < 0) {
+      problems.push({ itemId: item.id, problem: 'sells a gadget without a coin price' });
     }
     if (item.kind === 'bundle') {
       const separate = item.grants.reduce((sum, grant) => {
         const animal = getAnimal(grant);
         if (animal) return sum + animal.priceCents;
         const cosmetic = getCosmetic(grant);
-        return sum + (cosmetic?.priceCents ?? 0);
+        if (cosmetic) return sum + cosmetic.priceCents;
+        const gadget = getGadget(grant);
+        return sum + (gadget && gadget.unlockCents > 0 ? gadget.unlockCents : 0);
       }, 0);
       if (separate > 0 && item.priceCents >= separate) {
         problems.push({ itemId: item.id, problem: 'bundle costs at least as much as its contents' });
@@ -179,4 +189,25 @@ export const LAUNCH_STORE: StoreItem[] = [
   },
 ];
 
+/**
+ * One shelf entry per sellable gadget, generated from the gadget catalog itself.
+ *
+ * Written as a derivation rather than a hand-typed list so the two can never disagree: adding a
+ * gadget with `unlockCents: 99` puts it on the shelf, and the coin price comes across with it,
+ * which is what keeps `validateCatalog` satisfiable.
+ */
+export const GADGET_STORE: StoreItem[] = listGadgets()
+  .filter((gadget) => gadget.unlockCents > 0)
+  .map((gadget) => ({
+    id: `gadget_${gadget.id}`,
+    kind: 'gadget' as const,
+    name: gadget.name,
+    description: `${gadget.description} Also unlockable with ${gadget.unlockCoins} coins.`,
+    priceCents: gadget.unlockCents,
+    priceCoins: gadget.unlockCoins,
+    grants: [gadget.id],
+    tag: 'gear',
+  }));
+
 registerStoreItems(LAUNCH_STORE);
+registerStoreItems(GADGET_STORE);

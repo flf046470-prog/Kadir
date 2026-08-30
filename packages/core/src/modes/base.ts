@@ -1,3 +1,4 @@
+import { resetForRound } from '../gadgets/state.js';
 import type { PlayerState } from '../player/state.js';
 import type { GameMode, GameModeDef, MatchResult, ModeContext, ModePhase, ModeStateView, PlayerResult } from './types.js';
 
@@ -39,7 +40,12 @@ export abstract class RoundMode implements GameMode {
 
   playerJoined(ctx: ModeContext, player: PlayerState): void {
     this.entry(player.id);
-    if (this.phase === 'playing') this.onLateJoin(ctx, player);
+    if (this.phase === 'playing') {
+      // A late joiner is armed on arrival; otherwise they would wait out the round holding
+      // gadgets with no charges in them.
+      resetForRound(player.gadgets, this.def.startingCash ?? 0);
+      this.onLateJoin(ctx, player);
+    }
   }
 
   playerLeft(_ctx: ModeContext, playerId: string): void {
@@ -78,6 +84,10 @@ export abstract class RoundMode implements GameMode {
     this.phaseTicks = 0;
     if (phase === 'playing') {
       this.roundTicks = 0;
+      // Every round starts clean: last round's traps are swept and charges refilled. Done here
+      // rather than in each mode so a new mode cannot forget and inherit a minefield.
+      ctx.gadgets.clear();
+      for (const player of ctx.players.values()) resetForRound(player.gadgets, this.def.startingCash ?? 0);
       this.onRoundStart(ctx);
     }
     ctx.events.emit('roundState', 'system', { x: 0, y: 0, z: 0 }, ctx.tick, 0, { data: phase });

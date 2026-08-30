@@ -1,13 +1,17 @@
 import type { CosmeticSlot } from '../content/cosmetics.js';
 import type { AchievementMetric } from '../content/achievements.js';
+import { STARTER_GADGETS } from '../gadgets/catalog.js';
+import type { GadgetSlot } from '../gadgets/types.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 export type StatBlock = Record<AchievementMetric, number>;
 
 export interface EquippedLoadout {
   animalId: string;
   cosmetics: Partial<Record<CosmeticSlot, string>>;
+  /** Chosen before the round. The server re-validates it against `ownedGadgets` every time. */
+  gadgets: Partial<Record<GadgetSlot, string>>;
 }
 
 export interface PurchaseRecord {
@@ -45,6 +49,7 @@ export interface PlayerProfile {
 
   ownedAnimals: string[];
   ownedCosmetics: string[];
+  ownedGadgets: string[];
   equipped: EquippedLoadout;
 
   stats: StatBlock;
@@ -85,7 +90,14 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     level: 1,
     ownedAnimals: ['kangaroo'],
     ownedCosmetics: [],
-    equipped: { animalId: 'kangaroo', cosmetics: {} },
+    // The starter set is free and universal, so a player who never spends anything still walks
+    // into Hunt with a freeze gun, smoke and a vest.
+    ownedGadgets: [...STARTER_GADGETS],
+    equipped: {
+      animalId: 'kangaroo',
+      cosmetics: {},
+      gadgets: { primary: 'freeze_gun', secondary: 'smoke_bomb', armour: 'steel_vest' },
+    },
     stats: emptyStats(),
     achievements: {},
     daily: { lastClaimDay: -1, streak: 0 },

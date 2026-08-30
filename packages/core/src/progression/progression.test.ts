@@ -5,7 +5,8 @@ import { LAUNCH_STORE, PRICE_POINTS, validateCatalog } from '../content/store.js
 import { DAILY_REWARDS } from '../content/rewards.js';
 import { applyFeelProfile, DEFAULT_MOVEMENT, FEEL_BAND, FEEL_FIELDS } from '../player/config.js';
 import type { MatchResult } from '../modes/types.js';
-import { createProfile, levelForXp } from './profile.js';
+import { STARTER_GADGETS } from '../gadgets/catalog.js';
+import { SAVE_VERSION, createProfile, levelForXp } from './profile.js';
 import { computeMatchAward, grantAward, spendCoins } from './economy.js';
 import { applyVerifiedPurchase, equipAnimal, equipCosmetic, purchaseWithCoins } from './inventory.js';
 import { applyMatchStats, evaluateAchievements, addMetric } from './achievements.js';
@@ -306,11 +307,29 @@ describe('save system', () => {
   it('migrates a legacy save without losing content', () => {
     const legacy = { version: 0, coins: 500, ownedCosmetics: ['hat_leaf', 'hat_leaf'], xp: 4000 };
     const profile = migrateProfile(legacy, 'p1');
-    expect(profile.version).toBe(1);
+    expect(profile.version).toBe(SAVE_VERSION);
     expect(profile.coins).toBe(500);
     expect(profile.ownedAnimals).toContain('kangaroo');
     expect(profile.ownedCosmetics).toEqual(['hat_leaf']);
     expect(profile.level).toBe(levelForXp(4000));
+  });
+
+  it('gives an account written before gadgets existed the free starter set', () => {
+    // A save from v1 has no gadget fields at all. Rather than dropping that player into Hunt
+    // empty-handed, the migration hands them what every new account gets for free.
+    const v1 = { version: 1, coins: 100, ownedAnimals: ['kangaroo', 'fox'] };
+    const profile = migrateProfile(v1, 'p1');
+
+    for (const id of STARTER_GADGETS) expect(profile.ownedGadgets).toContain(id);
+    expect(profile.equipped.gadgets.primary).toBe('freeze_gun');
+    expect(profile.ownedAnimals).toContain('fox');
+  });
+
+  it('drops a gadget that no longer exists rather than leaving it in the loadout', () => {
+    const stale = { version: 2, ownedGadgets: ['freeze_gun', 'retired_gadget'] };
+    const profile = migrateProfile(stale, 'p1');
+    expect(profile.ownedGadgets).toContain('freeze_gun');
+    expect(profile.ownedGadgets).not.toContain('retired_gadget');
   });
 
   it('repairs a corrupt save instead of crashing', () => {

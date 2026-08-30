@@ -3,7 +3,12 @@ import { v3distance, vec3 } from '../math/vec3.js';
 import { capsuleFits } from '../physics/character.js';
 import { PhysicsWorld } from '../physics/world.js';
 import type { InputIntent } from '../input/intent.js';
-import { createIntent, copyIntent, sanitizeIntent } from '../input/intent.js';
+import { Buttons, createIntent, copyIntent, hasButton, sanitizeIntent } from '../input/intent.js';
+import { GadgetRuntime } from '../gadgets/runtime.js';
+import type { GadgetContext } from '../gadgets/runtime.js';
+import { applyLoadout } from '../gadgets/loadout.js';
+import { cycleSelection, resetForRound } from '../gadgets/state.js';
+import type { GadgetSlot } from '../gadgets/types.js';
 import type { GameMode, ModeContext, MatchResult } from '../modes/types.js';
 import { createMode } from '../modes/registry.js';
 import type { CombatConfig } from '../player/combat.js';
@@ -18,7 +23,7 @@ import type { LevelDef, SpawnPoint } from '../world/level.js';
 import { findSpawns } from '../world/level.js';
 import { SimEventQueue } from './events.js';
 import type { Snapshot } from './snapshot.js';
-import { snapshotPlayer } from './snapshot.js';
+import { snapshotEntity, snapshotPlayer } from './snapshot.js';
 
 export const TICK_RATE = 60;
 export const TICK_DT = 1 / TICK_RATE;
@@ -36,6 +41,12 @@ export interface AddPlayerOptions {
   animalId?: string;
   config?: MovementConfig;
   role?: PlayerRole;
+  /**
+   * Gadgets this player brings, already validated against what they own. The simulation does
+   * not check ownership — by the time a loadout reaches here the server has decided it, and
+   * accepting an unvalidated one would be the hole the whole gadget economy leaks through.
+   */
+  loadout?: Partial<Record<GadgetSlot, string | null>>;
 }
 
 /**
@@ -52,14 +63,18 @@ export class Simulation {
   readonly events = new SimEventQueue();
   readonly rand: Rand;
   readonly mode: GameMode;
+  readonly gadgets = new GadgetRuntime();
 
   tick = 0;
 
   private intents = new Map<string, InputIntent>();
   private locomotion: LocomotionContext;
   private modeCtx: ModeContext;
+  private gadgetCtx: GadgetContext;
   private combatConfig: CombatConfig;
   private spawnCursor = 0;
+  /** Previous button mask per player, so gadget use fires on the press rather than every tick. */
+  private prevButtons = new Map<string, number>();
 
   constructor(options: SimulationOptions) {
     this.level = options.level;
@@ -75,8 +90,18 @@ export class Simulation {
       killPlaneY: options.level.killPlaneY,
     };
 
+    this.gadgetCtx = {
+      players: this.players,
+      world: this.world,
+      events: this.events,
+      tick: 0,
+      dt: TICK_DT,
+    };
+
     this.modeCtx = {
       players: this.players,
+      gadgets: this.gadgets,
+      gadgetCtx: this.gadgetCtx,
       level: this.level,
       world: this.world,
       events: this.events,
@@ -97,8 +122,11 @@ export class Simulation {
       config: options.config ?? DEFAULT_MOVEMENT,
       role: options.role ?? 'idle',
     });
+    if (options.loadout) applyLoadout(player.gadgets, options.loadout);
+    resetForRound(player.gadgets, this.mode.def.startingCash ?? 0);
     this.players.set(player.id, player);
     this.intents.set(player.id, createIntent());
+    this.prevButtons.set(player.id, 0);
     this.respawn(player, 'runner');
     this.mode.playerJoined(this.modeCtx, player);
     return player;
@@ -107,6 +135,7 @@ export class Simulation {
   removePlayer(id: string): void {
     this.players.delete(id);
     this.intents.delete(id);
+    this.prevButtons.delete(id);
     this.mode.playerLeft(this.modeCtx, id);
   }
 
@@ -129,12 +158,16 @@ export class Simulation {
     this.tick++;
     this.locomotion.tick = this.tick;
     this.modeCtx.tick = this.tick;
+    this.gadgetCtx.tick = this.tick;
 
     for (const player of this.players.values()) {
       if (!player.active) continue;
       const intent = this.intents.get(player.id);
       if (!intent) continue;
       stepPlayer(player, intent, this.locomotion, TICK_DT);
+      // After locomotion, so a gadget is aimed with the head pose it was fired from rather than
+      // last tick's.
+      this.handleGadgetButtons(player, intent);
       this.checkCheckpoints(player);
       if (!player.alive && player.position.y < this.level.killPlaneY) {
         this.respawn(player);
@@ -148,7 +181,29 @@ export class Simulation {
       }
     }
 
+    // Gadgets step after the mode has had a chance to change roles this tick, so a player who
+    // stopped being the hunter this tick no longer has a rifle when their projectiles resolve.
     this.mode.step(this.modeCtx);
+    this.gadgets.step(this.gadgetCtx);
+  }
+
+  /**
+   * Gadget buttons, resolved on the rising edge.
+   *
+   * Holding the fire button must not empty a magazine in one second: cooldowns already gate the
+   * rate, but edge detection is what makes a single press mean a single shot on every platform,
+   * including one whose input layer reports a held touch every frame.
+   */
+  private handleGadgetButtons(player: PlayerState, intent: InputIntent): void {
+    const previous = this.prevButtons.get(player.id) ?? 0;
+    const pressed = intent.buttons & ~previous;
+    this.prevButtons.set(player.id, intent.buttons);
+    if (hasButton(pressed, Buttons.CycleGadget)) cycleSelection(player.gadgets);
+    if (hasButton(pressed, Buttons.UseGadget)) this.gadgets.use(player, this.gadgetCtx);
+    // Lip sync. The number is the speaker's own measured mic amplitude, gated by their
+    // push-to-talk button on the client — routing it through the intent means every viewer sees
+    // the same mouth on the same tick, which a per-listener WebRTC analyser could never promise.
+    player.voiceLevel = hasButton(intent.buttons, Buttons.Talk) ? intent.voice : 0;
   }
 
   /** Run N ticks — used by the server loop's catch-up and by tests. */
@@ -161,7 +216,8 @@ export class Simulation {
     for (const player of this.players.values()) {
       players.push(snapshotPlayer(player));
     }
-    return { tick: this.tick, players, mode: this.mode.state() };
+    const entities = this.gadgets.entities.filter((e) => !e.spent).map(snapshotEntity);
+    return { tick: this.tick, players, entities, mode: this.mode.state() };
   }
 
   results(): MatchResult {
