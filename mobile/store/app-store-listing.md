@@ -35,7 +35,7 @@ Altyazı App Store'da adın hemen altında görünür ve aramada ağırlığı v
 ```
 tanışma,arkadaşlık,ilişki,yurtdışı,çeviri,sohbet,eşleşme,uluslararası,güvenli,dating
 ```
-82 / 100
+84 / 100
 
 Uygulama adında geçen kelimeleri tekrar etme — Apple onları zaten indeksliyor,
 tekrar etmek alanı israf eder.
@@ -47,7 +47,7 @@ tekrar etmek alanı israf eder.
 ```
 Ortak diliniz yoksa mesajlar kendiliğinden çevrilir, orijinali altta durur. Günün 5'i her sabah yenilenir. Neden eşleştiğinizi her kartta okursunuz.
 ```
-147 / 170
+148 / 170
 
 ---
 
@@ -102,7 +102,7 @@ Kimliği > Abonelikler bölümünden yönetebilir veya iptal edebilirsin.
 Gizlilik politikası: https://fiorematch.com/tr/legal/privacy
 Kullanım koşulları: https://fiorematch.com/tr/legal/terms
 ```
-1512 / 4000
+1896 / 4000
 
 **Son paragraf zorunlu.** Apple, otomatik yenilenen abonelik satan
 uygulamalarda süre, ücret, yenileme ve iptal bilgisinin açıklamada bulunmasını
@@ -151,9 +151,10 @@ Toplanan tür / hesapla ilişkili mi / takip için mi:
 Deneme hesabı: (yayına almadan önce doldurulacak)
 Parola: (aynı)
 
-Uygulama, oturum ve veri sunucu tarafında olduğu için yayındaki siteyi yükleyen
+Uygulama, oturum ve veri sunucu tarafında olduğu için kendi sunucusunu yükleyen
 bir kabuktur. Native olan kısımlar: bildirimler, Universal Links, durum çubuğu,
-klavye davranışı.
+klavye davranışı. Ürünün herkese açık bir pazarlama sitesi yok; alan adı yalnızca
+uygulamaya, gizlilik politikasına ve kullanım koşullarına cevap veriyor.
 
 Hesap silme: Profilin > Hesabınızı silin. Onay için "sil" yazılması gerekiyor.
 İşlem profili, fotoğrafları, eşleşmeleri ve mesajları kaldırır.
@@ -203,6 +204,7 @@ simülatör çıktısı daha güvenli.
 - [ ] `mobile/store/PrivacyInfo.xcprivacy` Xcode hedefine eklenmeli
 - [ ] Associated Domains: `applinks:fiorematch.com`
 - [ ] Push Notifications yetkisi + APNs anahtarı
-- [ ] **Site yayında olmalı** — yoksa inceleme uzmanı çevrimdışı ekranı görür
+- [ ] **Dağıtım ayakta olmalı** — yoksa inceleme uzmanı çevrimdışı ekranı görür.
+      Pazarlama sitesi yayınlanmıyor, ama sunucunun çalışması şart.
 - [ ] StoreKit ile abonelik ürünleri tanımlanmalı (1,99 $ ve 5,99 $ yıllık)
 - [ ] 6,9" ve 6,5" ekran görüntüleri simülatörden alınmalı

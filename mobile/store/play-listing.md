@@ -15,7 +15,7 @@ FioreMatch
 ## Kısa açıklama  (80 karakter sınırı)
 
 ```
-Sonsuza kadar kaydırma yok. Günde beş kişi, ve neden eşleştiğinizin açıklaması.
+Sonsuza kadar kaydırma yok. Günde beş kişi, ve neden eşleştiğinizin açıklaması
 ```
 78 / 80
 
@@ -74,7 +74,7 @@ Boost.
 
 Yıllık fiyat. Reklam yok, jeton yok, her tıkta satın alma yok.
 ```
-1487 / 4000
+2043 / 4000
 
 **Not:** Fiyat satırları `src/lib/billing/tiers.ts` içindeki `YEARLY_PRICE_CENTS`
 ile aynı olmalı. Orada değişirse burada da değişmeli — Play'de yanlış fiyat
@@ -92,7 +92,13 @@ yazmak politika ihlali.
 | Web sitesi | https://fiorematch.com |
 | Gizlilik politikası | https://fiorematch.com/tr/legal/privacy |
 
-Gizlilik politikası URL'i **zorunlu** ve site yayında olmadan girilemez.
+Gizlilik politikası URL'i **zorunlu** ve dağıtım ayakta olmadan girilemez.
+
+**Pazarlama sitesi yayınlanmıyor** (`PUBLIC_SITE=off`). Bu iki adresin ikisi de
+yine de cevap veriyor ve vermek zorunda: kök, mağazalara işaret eden bir sayfa
+gösteriyor, gizlilik politikası ve kullanım koşulları ise uygulama kurulu
+olmayan bir tarayıcıya açılıyor. Play, politika URL'i cevap vermezse listeyi
+reddediyor.
 
 ---
 
@@ -182,11 +188,12 @@ Uygulama ikonu için `public/icon-512.png` (512×512).
 
 Bunlar tamamlanmadan gönderme; ilk ikisi kesin ret sebebi.
 
-- [ ] **Site yayında olmalı.** Uygulama `https://fiorematch.com` adresini
+- [ ] **Dağıtım ayakta olmalı.** Uygulama `https://fiorematch.com` adresini
       yüklüyor. Adres cevap vermezse inceleme uzmanı çevrimdışı ekranını görür
-      ve uygulama reddedilir.
-- [ ] **Gizlilik politikası URL'i erişilebilir olmalı.** Sayfa kodda var,
-      canlı adrese ihtiyacı var.
+      ve uygulama reddedilir. Pazarlama sitesi yayınlanmasa da sunucunun
+      çalışıyor olması gerekiyor — kalkan şey site, arkadaki API değil.
+- [ ] **Gizlilik politikası URL'i erişilebilir olmalı.** `PUBLIC_SITE=off`
+      iken bile açık; kapatılmadığını doğrula.
 - [ ] Play App Signing etkinleştirilmeli.
 - [ ] `ANDROID_CERT_FINGERPRINTS` hem upload hem Google app signing anahtarının
       parmak izini içermeli (virgülle).

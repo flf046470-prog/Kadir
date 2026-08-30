@@ -13,14 +13,24 @@ const intl = createMiddleware({
 /**
  * Paths that stay reachable when the marketing site is switched off.
  *
- * Two of these are not optional. Google Play refuses a listing without a
- * publicly accessible privacy policy URL, and Apple asks for terms; both have
- * to answer to a browser with no app installed. Sign-in and registration stay
- * because a deep link — a referral link, a push notification opened on a
- * device without the app — can land there, and a 404 would turn an invitation
- * into a dead end.
+ * None of these are optional. Google Play refuses a listing without a publicly
+ * accessible privacy policy URL, and Apple asks for terms; both have to answer
+ * to a browser with no app installed. Sign-in and registration stay because a
+ * deep link — a referral link, a push notification opened on a device without
+ * the app — can land there, and a 404 would turn an invitation into a dead end.
+ *
+ * Pricing stays because the app links into it: the locked "who liked you" and
+ * "visitors" lists offer an upgrade, and that button pointed at a page this
+ * switch had just made 404. It is also where the subscription terms live,
+ * which both stores expect a buyer to be able to read. It is product, not
+ * marketing.
  */
-const ALWAYS_PUBLIC = [/^\/legal(\/|$)/, /^\/login$/, /^\/register$/];
+const ALWAYS_PUBLIC = [
+  /^\/legal(\/|$)/,
+  /^\/login$/,
+  /^\/register$/,
+  /^\/pricing$/
+];
 
 /** Everything the signed-in product needs, which is the point of the deploy. */
 const APP_PATHS = [/^\/app(\/|$)/];

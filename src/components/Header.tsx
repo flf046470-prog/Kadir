@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { Logo } from "./Logo";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HeaderShell } from "./HeaderShell";
+import { publicSiteEnabled } from "@/lib/site";
 
 /**
  * Marketing header.
@@ -14,13 +15,21 @@ import { HeaderShell } from "./HeaderShell";
 export function Header() {
   const t = useTranslations("nav");
 
-  const links = [
-    { href: "/how-matching-works", label: t("matching") },
-    { href: "/global-match", label: t("globalMatch") },
-    { href: "/features", label: t("features") },
-    { href: "/pricing", label: t("pricing") },
-    { href: "/safety", label: t("safety") }
-  ];
+  /**
+   * With the marketing site off, four of these five answer 404 — and this
+   * header still renders, because it wraps the pages that stay up. Pricing is
+   * the one that survives, since the subscription terms live there and the app
+   * links into it.
+   */
+  const links = publicSiteEnabled()
+    ? [
+        { href: "/how-matching-works", label: t("matching") },
+        { href: "/global-match", label: t("globalMatch") },
+        { href: "/features", label: t("features") },
+        { href: "/pricing", label: t("pricing") },
+        { href: "/safety", label: t("safety") }
+      ]
+    : [{ href: "/pricing", label: t("pricing") }];
 
   return (
     <HeaderShell>

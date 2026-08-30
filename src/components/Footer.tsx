@@ -2,11 +2,41 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Logo } from "./Logo";
 import { countries } from "@/lib/countries-data";
+import { publicSiteEnabled } from "@/lib/site";
 
 export function Footer() {
   const t = useTranslations("footer");
   const nav = useTranslations("nav");
   const year = new Date().getFullYear();
+
+  /**
+   * With the marketing site off, most of what this footer links to answers
+   * 404 — and the footer still renders, because it wraps the pages that stay
+   * up: the app-only home, sign-in, and the legal pages. A column of dead
+   * links under a store listing's domain is worse than no column.
+   *
+   * So it collapses to what still resolves: the legal pages Play and Apple
+   * require, and pricing, where the subscription terms are.
+   */
+  if (!publicSiteEnabled()) {
+    return (
+      <footer className="border-t border-black/5 bg-dusk-900 text-dusk-100">
+        <div className="container-fm flex flex-col gap-4 py-10 sm:flex-row sm:items-center sm:justify-between">
+          <Logo className="text-white" />
+          <ul className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            <li><Link href="/pricing" className="hover:text-white">{nav("pricing")}</Link></li>
+            <li><Link href="/legal/privacy" className="hover:text-white">{t("privacy")}</Link></li>
+            <li><Link href="/legal/terms" className="hover:text-white">{t("terms")}</Link></li>
+          </ul>
+        </div>
+        <div className="border-t border-white/10">
+          <div className="container-fm py-6 text-xs text-dusk-300">
+            <p>© {year} FioreMatch. {t("rights")}</p>
+          </div>
+        </div>
+      </footer>
+    );
+  }
 
   return (
     <footer className="border-t border-black/5 bg-dusk-900 text-dusk-100">
