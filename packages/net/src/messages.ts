@@ -25,6 +25,8 @@ export interface ClientLeave {
 export interface ClientChat {
   t: 'chat';
   text: string;
+  /** Omitted means the whole room. `team` reaches only players sharing your role. */
+  channel?: 'room' | 'team';
 }
 
 export interface ClientEquip {
@@ -139,6 +141,19 @@ export interface ServerChat {
   playerId: string;
   name: string;
   text: string;
+  channel: 'room' | 'team' | 'system';
+}
+
+/**
+ * Why a message of yours was not sent. Delivered only to the sender.
+ *
+ * Everyone else sees nothing at all: telling a room that someone's message was filtered is
+ * itself a delivered message, and a reliable way to make the filter into a game.
+ */
+export interface ServerChatRejected {
+  t: 'chat-rejected';
+  reason: string;
+  message: string;
 }
 
 export interface ServerVoiceSignal {
@@ -189,6 +204,7 @@ export type ServerMessage =
   | ServerModeState
   | ServerResults
   | ServerChat
+  | ServerChatRejected
   | ServerGear
   | ServerVoiceSignal
   | ServerError

@@ -126,7 +126,7 @@ async function handleControl(
       connection.socket.close(1000, 'left');
       break;
     case 'chat':
-      room.handleChat(playerId, String(message.text ?? ''));
+      room.handleChat(playerId, String(message.text ?? ''), message.channel === 'team' ? 'team' : 'room');
       break;
     case 'voice':
       room.handleVoiceSignal(playerId, message.targetId, message.payload, message.kind);

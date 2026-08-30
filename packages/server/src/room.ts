@@ -14,6 +14,9 @@ import {
   evaluateAchievements,
   getModeDef,
   createModerationState,
+  ChatGuard,
+  explainRejection,
+  MemorySanctionStore,
   ReportLimiter,
   resolveLoadout,
 } from '@kc/core';
@@ -24,6 +27,7 @@ import type {
   ModerationState,
   PlayerProfile,
   PlayerState,
+  SanctionStore,
   Snapshot,
 } from '@kc/core';
 import {
@@ -69,6 +73,8 @@ export interface RoomOptions {
   snapshotIntervalTicks: number;
   accounts: AccountService;
   leaderboard: Leaderboard;
+  /** Shared across rooms so a mute follows a player who rejoins somewhere else. */
+  sanctions?: SanctionStore;
   level?: LevelDef;
   seed?: number;
 }
@@ -95,6 +101,8 @@ export class Room {
   private leaderboard: Leaderboard;
   private scratchIntent: InputIntent = createIntent();
   private reports = new ReportLimiter();
+  private chat = new ChatGuard();
+  private sanctions: SanctionStore;
   private resultsSent = false;
   private modeId: string;
   private emptySince: number | null = Date.now();
@@ -106,6 +114,7 @@ export class Room {
     this.snapshotIntervalTicks = options.snapshotIntervalTicks;
     this.accounts = options.accounts;
     this.leaderboard = options.leaderboard;
+    this.sanctions = options.sanctions ?? new MemorySanctionStore();
     this.level = options.level ?? buildJungleWorld();
     this.modeId = options.modeId;
     this.sim = new Simulation({ level: this.level, modeId: options.modeId, seed: options.seed });
@@ -184,6 +193,7 @@ export class Room {
     void this.accounts.save(client.profile);
     this.clients.delete(playerId);
     this.slots.release(playerId);
+    this.chat.forget(playerId);
     this.sim.removePlayer(playerId);
     this.broadcast({ t: 'left', playerId });
     this.broadcastRoomState();
@@ -203,14 +213,48 @@ export class Room {
     client.lastIntentAt = now;
   }
 
-  handleChat(playerId: string, text: string): void {
+  /**
+   * Text chat.
+   *
+   * Every message passes the server's rate limit and filter — there is no client-side path that
+   * skips them. A rejection is answered to the sender alone; the rest of the room sees nothing,
+   * because "X's message was blocked" is still a message from X.
+   */
+  handleChat(playerId: string, text: string, channel: 'room' | 'team' = 'room'): void {
     const client = this.clients.get(playerId);
     if (!client) return;
-    const clean = text.trim().slice(0, 140);
-    if (!clean) return;
+
+    const sanction = this.sanctions.active(playerId);
+    if (sanction && sanction.kind === 'mute') {
+      client.socket.sendJson({ t: 'chat-rejected', reason: 'muted', message: explainRejection('muted') });
+      return;
+    }
+
+    const verdict = this.chat.check(playerId, text);
+    if (!verdict.ok || !verdict.text) {
+      const reason = verdict.reason ?? 'empty';
+      client.socket.sendJson({ t: 'chat-rejected', reason, message: explainRejection(reason) });
+      return;
+    }
+
+    const senderRole = this.sim.players.get(playerId)?.role;
     for (const other of this.clients.values()) {
+      // Mute and block are the listener's decision and apply instantly, without a round trip.
       if (other.moderation.blocked.has(playerId) || other.moderation.muted.has(playerId)) continue;
-      other.socket.sendJson({ t: 'chat', playerId, name: client.profile.name, text: clean });
+      if (channel === 'team') {
+        // Team chat reaches players on your side only. Sent by role because that *is* the team
+        // in every mode here — chasers, survivors, humans — and a separate team id would be a
+        // second source of truth for the same thing.
+        const role = this.sim.players.get(other.playerId)?.role;
+        if (role !== senderRole) continue;
+      }
+      other.socket.sendJson({
+        t: 'chat',
+        playerId,
+        name: client.profile.name,
+        text: verdict.text,
+        channel,
+      });
     }
   }
 

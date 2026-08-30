@@ -21,6 +21,17 @@ export class Avatar {
   private sockets: Record<string, THREE.Group> = {};
   private cosmeticNodes = new Map<string, THREE.Object3D>();
   private tail: THREE.Mesh | null = null;
+  /**
+   * The lower jaw, hinged at the back of the head.
+   *
+   * Lip sync is one bone in a game like this: the avatars are stylised, seen at a distance, and
+   * usually moving fast. A jaw that opens with the speaker's own measured mic level reads as
+   * "that one is talking" from across the map, which is the entire job — phoneme-accurate
+   * visemes would cost a viseme rig, a per-frame analyser per peer, and nobody would notice.
+   */
+  private jaw: THREE.Mesh | null = null;
+  private jawHinge: THREE.Group | null = null;
+  private mouthOpen = 0;
   private nameSprite: THREE.Sprite | null = null;
   private roleRing: THREE.Mesh | null = null;
   private hopPhase = 0;
@@ -90,6 +101,14 @@ export class Avatar {
       eye.position.set(side * 0.09, 0.05, 0.19);
       this.head.add(eye);
     }
+
+    // Jaw. Hinged at the back so it swings down and forward like a mouth rather than sliding.
+    this.jawHinge = new THREE.Group();
+    this.jawHinge.position.set(0, -0.06, 0.02);
+    this.jaw = new THREE.Mesh(this.geo(new THREE.BoxGeometry(0.17, 0.06, 0.2)), bellyMat);
+    this.jaw.position.set(0, -0.03, 0.11);
+    this.jawHinge.add(this.jaw);
+    this.head.add(this.jawHinge);
 
     this.head.position.y = 1.08;
     this.body.add(this.head);
@@ -365,6 +384,13 @@ export class Avatar {
     }
 
     this.head.rotation.x = -snapshot.pitch * 0.5;
+
+    // Lip sync. Smoothed towards the replicated mic level rather than snapped to it: at a 20 Hz
+    // snapshot rate the raw value steps visibly, and a jaw that chatters between two positions
+    // looks worse than one that does not move at all.
+    const target = Math.min(1, Math.max(0, snapshot.voice));
+    this.mouthOpen += (target - this.mouthOpen) * Math.min(1, dt * 18);
+    if (this.jawHinge) this.jawHinge.rotation.x = this.mouthOpen * 0.55;
 
     const hands = snapshot.hands;
     for (let i = 0; i < 2; i++) {

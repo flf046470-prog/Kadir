@@ -20,3 +20,4 @@ export * from './save/index.js';
 export * from './settings/index.js';
 export * from './analytics/index.js';
 export * from './moderation/index.js';
+export * from './chat/index.js';
