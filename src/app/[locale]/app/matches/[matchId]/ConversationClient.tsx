@@ -53,6 +53,7 @@ type Labels = {
   translating: string;
   showOriginal: string;
   translatedNote: string;
+  autoTranslated: string;
   translateFailed: string;
   sendGift: string;
   giftAllowanceReached: string;
@@ -80,6 +81,7 @@ export function ConversationClient({
   partnerName,
   locale,
   translationAvailable,
+  translationAuto,
   labels
 }: {
   matchId: string;
@@ -88,6 +90,8 @@ export function ConversationClient({
   locale: string;
   /** False when no provider is configured, in which case there is no control. */
   translationAvailable: boolean;
+  /** No language in common: translation starts on rather than waiting to be found. */
+  translationAuto: boolean;
   labels: Labels;
 }) {
   const router = useRouter();
@@ -103,7 +107,14 @@ export function ConversationClient({
   const [giftPickerOpen, setGiftPickerOpen] = useState(false);
   const [notice, setNotice] = useState<"gift_allowance" | null>(null);
   const [translations, setTranslations] = useState<Record<string, string>>({});
-  const [translateOn, setTranslateOn] = useState(false);
+  /**
+   * Auto-on, still a toggle.
+   *
+   * A member who prefers the original turns it off; what they no longer have
+   * to do is discover that translation exists while looking at a message they
+   * cannot read.
+   */
+  const [translateOn, setTranslateOn] = useState(translationAvailable && translationAuto);
   const [translateState, setTranslateState] = useState<"idle" | "loading" | "failed">("idle");
   const endRef = useRef<HTMLDivElement>(null);
   const lastTypingPing = useRef(0);
@@ -322,7 +333,17 @@ export function ConversationClient({
 
       {translateOn && (
         <p className="mt-4 rounded-lg bg-dusk-50 p-3 text-xs text-ink/60" role="status">
-          {translateState === "failed" ? labels.translateFailed : labels.translatedNote}
+          {translateState === "failed"
+            ? labels.translateFailed
+            : /*
+                When translation turned itself on, say so and say why. Quietly
+                sending two people's private messages to a third party because
+                the app decided it knew better is not a feature — the member
+                has to be able to see it happened and switch it off.
+              */
+              translationAuto
+              ? `${labels.autoTranslated} ${labels.translatedNote}`
+              : labels.translatedNote}
         </p>
       )}
 

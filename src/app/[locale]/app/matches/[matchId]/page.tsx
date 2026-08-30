@@ -3,8 +3,9 @@ import { redirect, notFound } from "next/navigation";
 import { currentUser } from "@/auth/guard";
 import { resolveMatchFor } from "@/db/messaging";
 import { db } from "@/db/client";
-import { users } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { profileAttributes, users } from "@/db/schema";
+import { and, eq, inArray } from "drizzle-orm";
+import { needsTranslation } from "@/lib/matching/shared-language";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
 import { translationEnabled } from "@/lib/translate";
@@ -27,13 +28,22 @@ export default async function ConversationPage({
   const match = await resolveMatchFor(user.id, matchId);
   if (!match) notFound();
 
-  const [t, partnerRows] = await Promise.all([
+  const [t, partnerRows, languageRows] = await Promise.all([
     getTranslations({ locale, namespace: "app" }),
     db
       .select({ displayName: users.displayName })
       .from(users)
       .where(eq(users.id, match.partnerId))
-      .limit(1)
+      .limit(1),
+    db
+      .select({ userId: profileAttributes.userId, value: profileAttributes.value })
+      .from(profileAttributes)
+      .where(
+        and(
+          inArray(profileAttributes.userId, [user.id, match.partnerId]),
+          eq(profileAttributes.kind, "language_spoken")
+        )
+      )
   ]);
 
   const gamesT = await getTranslations({ locale, namespace: "games" });
@@ -42,6 +52,21 @@ export default async function ConversationPage({
   // member entitled to it. The API checks the same pair — this only decides
   // whether to draw a control that would otherwise refuse when pressed.
   const { entitlements } = await entitlementsOf(user.id);
+
+  /**
+   * Whether these two can read each other at all.
+   *
+   * Matching across languages is a feature here, so a pair with nothing in
+   * common is an expected outcome rather than an edge case — and until now it
+   * produced a conversation neither could read, behind a control that had to
+   * be found and pressed on every visit. Decided on the server because the
+   * partner's language list is not something the client is given.
+   */
+  const mine = languageRows.filter((row) => row.userId === user.id).map((row) => row.value);
+  const theirs = languageRows
+    .filter((row) => row.userId === match.partnerId)
+    .map((row) => row.value);
+  const noSharedLanguage = needsTranslation(mine, theirs);
 
   return (
     <>
@@ -53,6 +78,11 @@ export default async function ConversationPage({
       // Resolved on the server: with no provider configured there is no
       // control at all, rather than a button that fails when pressed.
       translationAvailable={translationEnabled() && entitlements.messageTranslation}
+      // Starts on, rather than merely being offered, when the two of them have
+      // no language in common. Still a toggle: a member who would rather read
+      // the original turns it off, and that is a different thing from never
+      // having been told translation existed.
+      translationAuto={noSharedLanguage}
       labels={{
         placeholder: t("sendPlaceholder"),
         send: t("send"),
@@ -71,6 +101,7 @@ export default async function ConversationPage({
         translating: t("translating"),
         showOriginal: t("showOriginal"),
         translatedNote: t("translatedNote"),
+        autoTranslated: t("autoTranslated"),
         translateFailed: t("translateFailed"),
         sendGift: t("sendGift"),
         giftAllowanceReached: t("giftAllowanceReached"),

@@ -763,6 +763,7 @@
     "visitorsLockedTitle": "VIP kim olduklarını gösterir",
     "visitorsLockedBody": "Yukarıdaki sayı gerçek. VIP bu sayıya isim veriyor ve birden fazla kez dönenleri gösteriyor.",
     "likesCount": "{count, plural, other {# kişi cevabını bekliyor}}",
-    "visitorsCount": "{count, plural, other {# kişi profilini açtı}}"
+    "visitorsCount": "{count, plural, other {# kişi profilini açtı}}",
+    "autoTranslated": "Ortak bir diliniz yok, bu yüzden otomatik çevriliyor."
   }
 }
