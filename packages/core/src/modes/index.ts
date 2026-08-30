@@ -6,4 +6,7 @@ export * from './infection.js';
 export * from './boxing.js';
 export * from './hunt.js';
 export * from './duel.js';
+export * from './freezetag.js';
+export * from './hill.js';
+export * from './social.js';
 export * from './parkour.js';
