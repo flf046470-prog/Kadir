@@ -9,6 +9,8 @@ import { ScrubText } from "@/components/motion/ScrubText";
 import { StackCards } from "@/components/motion/StackCards";
 import { buildMetadata, softwareApplicationSchema, faqSchema } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
+import { publicSiteEnabled } from "@/lib/site";
+import { AppOnlyHome } from "./AppOnlyHome";
 
 export async function generateMetadata({
   params
@@ -31,6 +33,24 @@ export default async function HomePage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+
+  // With the site off this is the only marketing route that still answers, and
+  // it answers with a pointer to the app rather than the marketing home.
+  if (!publicSiteEnabled()) {
+    const appOnly = await getTranslations({ locale, namespace: "appOnly" });
+    return (
+      <AppOnlyHome
+        labels={{
+          tagline: appOnly("tagline"),
+          body: appOnly("body"),
+          privacy: appOnly("privacy"),
+          terms: appOnly("terms"),
+          signIn: appOnly("signIn")
+        }}
+      />
+    );
+  }
+
   const t = await getTranslations("home");
 
   const steps = [

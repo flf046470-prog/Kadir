@@ -765,5 +765,12 @@
     "likesCount": "{count, plural, other {# kişi cevabını bekliyor}}",
     "visitorsCount": "{count, plural, other {# kişi profilini açtı}}",
     "autoTranslated": "Ortak bir diliniz yok, bu yüzden otomatik çevriliyor."
+  },
+  "appOnly": {
+    "tagline": "Sınırların ötesinde tanış.",
+    "signIn": "Giriş yap",
+    "body": "FioreMatch bir mobil uygulama. App Store veya Google Play'den indir — hesabın varsa buradan giriş yapabilirsin.",
+    "privacy": "Gizlilik politikası",
+    "terms": "Kullanım koşulları"
   }
 }

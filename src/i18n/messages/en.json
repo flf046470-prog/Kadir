@@ -765,5 +765,12 @@
     "likesCount": "{count, plural, one {# person is waiting for an answer} other {# people are waiting for an answer}}",
     "visitorsCount": "{count, plural, one {# person opened your profile} other {# people opened your profile}}",
     "autoTranslated": "You have no language in common, so this is translated automatically."
+  },
+  "appOnly": {
+    "tagline": "Meet beyond borders.",
+    "signIn": "Sign in",
+    "body": "FioreMatch is a mobile app. Download it on the App Store or Google Play — or sign in here if you already have an account.",
+    "privacy": "Privacy policy",
+    "terms": "Terms"
   }
 }
