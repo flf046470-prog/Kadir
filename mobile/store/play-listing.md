@@ -170,7 +170,7 @@ Hayır demek dereceyi yükseltir ve yanlış olur.
 | `04-seni-begenenler.png` | 1080×1920 | " |
 | `05-fiyatlandirma.png` | 1080×1920 | " |
 
-Uygulama ikonu için `public/icon-512.png` (512×512).
+Uygulama ikonu için `public/icons/icon-512.png` (512×512).
 
 **Ekran görüntüleri hakkında iki uyarı:**
 
