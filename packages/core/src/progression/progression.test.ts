@@ -71,11 +71,20 @@ describe('animal fairness', () => {
     expect(config.wallPush).toBe(DEFAULT_MOVEMENT.wallPush);
   });
 
-  it('ships six launch animals and keeps the roadmap roster valid', () => {
-    expect(LAUNCH_ANIMALS.map((a) => a.id)).toEqual(['kangaroo', 'wolf', 'fox', 'tiger', 'frog', 'penguin']);
-    expect(LAUNCH_ANIMALS[0]?.priceCents).toBe(0);
+  it('ships seven launch animals and keeps the roadmap roster valid', () => {
+    expect(LAUNCH_ANIMALS.map((a) => a.id)).toEqual(['kangaroo', 'human', 'wolf', 'fox', 'tiger', 'frog', 'penguin']);
     expect(FUTURE_ANIMALS.length).toBeGreaterThanOrEqual(9);
     for (const animal of FUTURE_ANIMALS) expect(Object.keys(animal.feel)).toHaveLength(0);
+  });
+
+  it('keeps both sides of the hunt free to play', () => {
+    // Hunt and Conversion Duel are kangaroo-versus-human. If either body cost money, half of
+    // two whole modes would sit behind a paywall.
+    for (const id of ['kangaroo', 'human']) {
+      const animal = LAUNCH_ANIMALS.find((a) => a.id === id);
+      expect(animal?.priceCents, id).toBe(0);
+      expect(animal?.unlock, id).toBe('free');
+    }
   });
 });
 

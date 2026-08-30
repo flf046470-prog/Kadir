@@ -270,6 +270,34 @@ export class Room {
     if (client) client.ready = ready;
   }
 
+  /**
+   * In-round purchase.
+   *
+   * The mode owns round cash, so the mode decides — the server only routes. A refused buy is
+   * answered with the player's unchanged gear rather than an error, because the usual cause is a
+   * double tap on a button whose cooldown the client has not seen yet.
+   */
+  handleShop(playerId: string, gadgetId: string): void {
+    const client = this.clients.get(playerId);
+    const player = this.sim.players.get(playerId);
+    if (!client || !player) return;
+    this.sim.purchase(playerId, gadgetId);
+    this.sendGear(client);
+  }
+
+  private sendGear(client: RoomClient): void {
+    const player = this.sim.players.get(client.playerId);
+    if (!player) return;
+    client.socket.sendJson({
+      t: 'gear',
+      cash: player.gadgets.cash,
+      slots: [...player.gadgets.slots],
+      selected: player.gadgets.selected,
+      charges: { ...player.gadgets.charges },
+      shop: this.sim.shopStock(),
+    });
+  }
+
   /** Advance the simulation by one tick and broadcast when due. */
   tick(now = Date.now()): void {
     this.sim.step();
@@ -284,6 +312,9 @@ export class Room {
     }
     if (this.sim.tick % 30 === 0) {
       this.broadcast({ t: 'mode', state: this.sim.mode.state() });
+      // Gear is per-player, so it cannot ride the broadcast. Twice a second is enough for a
+      // cash counter and cheap enough not to matter beside the snapshot stream.
+      for (const client of this.clients.values()) this.sendGear(client);
       this.dropTimedOutClients(now);
     }
 

@@ -4,4 +4,6 @@ export * from './base.js';
 export * from './chase.js';
 export * from './infection.js';
 export * from './boxing.js';
+export * from './hunt.js';
+export * from './duel.js';
 export * from './parkour.js';

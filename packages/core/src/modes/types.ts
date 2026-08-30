@@ -88,6 +88,23 @@ export interface GameMode {
   step(ctx: ModeContext): void;
   /** Called by the sim when a checkpoint volume is entered (parkour). */
   checkpointReached?(ctx: ModeContext, player: PlayerState, index: number, finish: boolean): void;
+  /**
+   * In-round shop. Only modes that run one implement it; the server routes a purchase request
+   * here and the mode decides — it owns the round cash, so it is the only thing that can.
+   * Returns false when the buy is refused (wrong role, wrong phase, cannot afford it).
+   */
+  purchase?(ctx: ModeContext, player: PlayerState, gadgetId: string): boolean;
+  /** What that shop sells, for the HUD. Present exactly when `purchase` is. */
+  shopStock?(): { id: string; name: string; cost: number }[];
+  /**
+   * Who may damage whom, for punches and for gadget damage alike.
+   *
+   * Omitted means a free-for-all, which is what Boxing wants. Every other mode with combat has
+   * an opinion — Duel only lets the two fighters in a bout hit each other, Hunt only lets the
+   * hunter and survivors trade — and getting this wrong is not cosmetic: a punch that should not
+   * have landed still grants hit-immunity, which swallows catches and enables team griefing.
+   */
+  canDamage?(attacker: PlayerState, victim: PlayerState): boolean;
   state(): ModeStateView;
   finished(): boolean;
   /** End the round early (host action, empty room, admin tooling, tests). */

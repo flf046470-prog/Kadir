@@ -31,6 +31,11 @@ export interface GadgetContext {
   events: SimEventQueue;
   tick: number;
   dt: number;
+  /**
+   * Who may damage whom. Supplied by the simulation from the active mode; absent in unit tests,
+   * where a free-for-all is the simpler default.
+   */
+  canDamage?: (attacker: PlayerState, victim: PlayerState) => boolean;
 }
 
 /** Height of a player's centre of mass above their feet, for hit tests. */
@@ -340,6 +345,9 @@ export function applyPayload(def: GadgetDef, target: PlayerState, source: Player
       ctx.events.emit('status', target.id, target.position, ctx.tick, def.payload.seconds, { data: 'revealed' });
       break;
     case 'damage': {
+      // A rifle round that the mode says should not land does nothing at all — no damage, no
+      // armour spent, no kill credit. Friendly fire is a mode decision, not a gadget one.
+      if (ctx.canDamage && !ctx.canDamage(source, target)) break;
       const dealt = absorbDamage(target, def.payload.amount);
       target.health = Math.max(0, target.health - dealt);
       // The victim records who hit them last, which is how modes attribute a kill.

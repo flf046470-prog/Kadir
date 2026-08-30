@@ -96,6 +96,9 @@ export class Simulation {
       events: this.events,
       tick: 0,
       dt: TICK_DT,
+      // Read through the mode rather than captured, because `this.mode` is rebuilt on a mode
+      // change and a captured function would keep enforcing the old mode's rules.
+      canDamage: (attacker, victim) => this.mode.canDamage?.(attacker, victim) ?? true,
     };
 
     this.modeCtx = {
@@ -176,8 +179,9 @@ export class Simulation {
     }
 
     if (this.mode.def.combat) {
+      const canHit = this.mode.canDamage?.bind(this.mode);
       for (const player of this.players.values()) {
-        resolvePunches(player, this.players.values(), this.combatConfig, this.events, this.tick);
+        resolvePunches(player, this.players.values(), this.combatConfig, this.events, this.tick, canHit);
       }
     }
 
@@ -226,6 +230,21 @@ export class Simulation {
 
   finished(): boolean {
     return this.mode.finished();
+  }
+
+  /**
+   * Route an in-round purchase to the mode. Returns false when there is no shop, no such player,
+   * or the mode refused the buy.
+   */
+  purchase(playerId: string, gadgetId: string): boolean {
+    const player = this.players.get(playerId);
+    if (!player || !this.mode.purchase) return false;
+    return this.mode.purchase(this.modeCtx, player, gadgetId);
+  }
+
+  /** What the active mode's shop sells, or an empty list when it has none. */
+  shopStock(): { id: string; name: string; cost: number }[] {
+    return this.mode.shopStock?.() ?? [];
   }
 
   /** End the current round early. Used by host controls, empty-room cleanup and tests. */

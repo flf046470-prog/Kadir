@@ -143,6 +143,9 @@ async function handleControl(
     case 'ready':
       room.handleReady(playerId, message.ready === true);
       break;
+    case 'shop':
+      room.handleShop(playerId, String(message.gadgetId ?? ''));
+      break;
     case 'equip':
       // Equipping mid-match only affects the visual roster; inventory changes go through HTTP,
       // where they are validated against the owned inventory.

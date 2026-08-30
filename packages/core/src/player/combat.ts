@@ -51,12 +51,15 @@ export interface PunchHit {
  * a hand thrust when the punch button is pressed, so the same code resolves both. Only the
  * server calls this — clients merely predict the flash.
  */
+export type DamageFilter = (attacker: PlayerState, victim: PlayerState) => boolean;
+
 export function resolvePunches(
   attacker: PlayerState,
   others: Iterable<PlayerState>,
   config: CombatConfig,
   events: SimEventQueue,
   tick: number,
+  canHit?: DamageFilter,
 ): PunchHit[] {
   const hits: PunchHit[] = [];
   if (!attacker.alive || !attacker.active) return hits;
@@ -75,6 +78,11 @@ export function resolvePunches(
 
     for (const victim of others) {
       if (victim.id === attacker.id || !victim.alive || !victim.active) continue;
+      // Who may hit whom is the mode's decision, and it has to be checked *before* the immunity
+      // timer is set: a punch that should never have landed still handed the victim 0.25 s of
+      // immunity, which in Duel silently swallowed catches and in Hunt let survivors beat each
+      // other up. Default is a free-for-all, which is what Boxing wants.
+      if (canHit && !canHit(attacker, victim)) continue;
       if (victim.invulnTimer > 0) continue;
 
       const head = v3distance(hand.world, victim.head) <= config.headRadius + config.punchRadius;

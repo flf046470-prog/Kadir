@@ -64,6 +64,12 @@ export interface ClientReady {
   ready: boolean;
 }
 
+/** Buy a gadget from the in-round shop with round cash. Modes without a shop ignore it. */
+export interface ClientShop {
+  t: 'shop';
+  gadgetId: string;
+}
+
 export type ClientMessage =
   | ClientHello
   | ClientLeave
@@ -73,7 +79,8 @@ export type ClientMessage =
   | ClientVote
   | ClientReport
   | ClientModeration
-  | ClientReady;
+  | ClientReady
+  | ClientShop;
 
 export interface ServerWelcome {
   t: 'welcome';
@@ -141,6 +148,23 @@ export interface ServerVoiceSignal {
   kind: 'offer' | 'answer' | 'ice' | 'leave';
 }
 
+/**
+ * The player's own equipment, sent only to them.
+ *
+ * Cash and remaining charges are private: broadcasting them would tell the hunter exactly what
+ * every survivor can still afford. What everyone *can* see — armour, the gadget in hand — travels
+ * in the snapshot instead.
+ */
+export interface ServerGear {
+  t: 'gear';
+  cash: number;
+  slots: (string | null)[];
+  selected: number;
+  charges: Record<string, number>;
+  /** Priced stock for the in-round shop, empty in modes that do not run one. */
+  shop: { id: string; name: string; cost: number }[];
+}
+
 export interface ServerError {
   t: 'error';
   code: 'protocol' | 'full' | 'banned' | 'rate-limit' | 'bad-request' | 'not-found' | 'name-rejected';
@@ -165,6 +189,7 @@ export type ServerMessage =
   | ServerModeState
   | ServerResults
   | ServerChat
+  | ServerGear
   | ServerVoiceSignal
   | ServerError
   | ServerRoomState;

@@ -105,6 +105,25 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     emotes: ['wave', 'dance', 'taunt', 'sit'],
   },
   {
+    id: 'human',
+    name: 'Human',
+    /**
+     * The other half of the roster.
+     *
+     * Hunt and Conversion Duel are both kangaroos-versus-humans, so a human has to be a real
+     * playable body rather than a re-skinned animal — and free, because a mode that only works
+     * if you bought something is a mode that does not work.
+     */
+    description: 'Two legs, no tail, a great deal to lose. Free, and the other half of every hunt.',
+    rarity: 'free',
+    unlock: 'free',
+    priceCents: 0,
+    visual: { body: 0x4a6fa5, accent: 0x2c4363, belly: 0xe8c9a6, scale: 1, ears: 'none', tail: 'stub', snout: 'flat' },
+    audio: { jump: 'human_jump', land: 'human_land', voice: 'human_voice', emote: 'human_emote' },
+    feel: {},
+    emotes: ['wave', 'dance', 'point', 'surrender'],
+  },
+  {
     id: 'wolf',
     name: 'Wolf',
     description: 'Lean and low. Looks fast, sounds fierce — plays exactly as fair as everyone else.',
