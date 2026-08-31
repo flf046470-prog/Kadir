@@ -21,6 +21,7 @@ jobs:
       - run: npm run assets:check
       # Store gate: fails on a manifest or icon that Horizon would reject.
       - run: npm run pack:quest:check
+      - run: npm run pack:phone:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build

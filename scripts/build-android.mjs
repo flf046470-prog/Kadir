@@ -1,9 +1,17 @@
 #!/usr/bin/env node
 /**
- * Build the signed Meta Quest / Horizon Store package (.aab + .apk).
+ * Build a signed Android package (.aab + .apk) for either store.
  *
- * `pack-quest.mjs` renders and validates the Bubblewrap config; this drives the actual Android
- * build. It is separate because it needs a toolchain CI does not have — a JDK, the Android SDK
+ * Two targets, one script, because the Quest and phone builds differ only in which packaging
+ * directory they use and which store the output goes to. Everything below — the loopback icon
+ * server, the version-name flag, the SDK-layout check, the asset-links emission — was learned
+ * once and applies to both; a second copy would only drift.
+ *
+ *   --target quest   Meta Horizon Store, immersive WebXR   (packaging/meta-quest)
+ *   --target phone   Google Play, landscape touch          (packaging/android-phone)
+ *
+ * `pack-quest.mjs` / `pack-phone.mjs` render and validate the Bubblewrap config; this drives the
+ * actual Android build. It is separate because it needs a toolchain CI does not have — a JDK, the Android SDK
  * and a signing key — and because everything here was learned the hard way:
  *
  *  - Bubblewrap fetches the icons and web manifest over HTTP at generation time and bakes them
@@ -22,6 +30,7 @@
  * Usage:
  *   npm run build
  *   npm run build:quest -- --domain play.example.com
+ *   npm run build:phone -- --domain play.example.com
  *   npm run build:quest -- --domain play.example.com --keystore ~/keys/kangaroo.keystore
  *
  * Environment:
@@ -38,7 +47,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const questDir = path.join(root, 'packaging', 'meta-quest');
 const clientDir = path.join(root, 'dist', 'client');
 
 const args = process.argv.slice(2);
@@ -47,9 +55,33 @@ const value = (name) => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 
+/** Which store this build is for. Everything target-specific hangs off this one table. */
+const TARGETS = {
+  quest: {
+    dir: 'meta-quest',
+    packScript: 'pack-quest.mjs',
+    store: 'Horizon Store',
+    bundleNote: 'upload this to the Horizon Store',
+  },
+  phone: {
+    dir: 'android-phone',
+    packScript: 'pack-phone.mjs',
+    store: 'Google Play',
+    bundleNote: 'upload this to Google Play',
+  },
+};
+
+const TARGET_NAME = value('--target') ?? 'quest';
+const TARGET = TARGETS[TARGET_NAME];
+if (!TARGET) {
+  console.error(`Unknown --target "${TARGET_NAME}". Expected one of: ${Object.keys(TARGETS).join(', ')}`);
+  process.exit(1);
+}
+const outDir = path.join(root, 'packaging', TARGET.dir);
+
 const DOMAIN = value('--domain');
 const PACKAGE_ID = value('--package-id');
-const KEYSTORE = path.resolve(value('--keystore') ?? path.join(questDir, 'android.keystore'));
+const KEYSTORE = path.resolve(value('--keystore') ?? path.join(outDir, 'android.keystore'));
 const ALIAS = value('--alias') ?? 'android';
 const BUBBLEWRAP = value('--bubblewrap') ?? '@bubblewrap/cli@1.25.0';
 
@@ -80,7 +112,7 @@ const exists = async (p) => {
  */
 function run(cmd, argv, opts = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, argv, { stdio: 'inherit', cwd: questDir, ...opts });
+    const child = spawn(cmd, argv, { stdio: 'inherit', cwd: outDir, ...opts });
     child.on('error', reject);
     child.on('close', (code) =>
       code === 0 ? resolve() : reject(new Error(`${cmd} ${argv.join(' ')} exited with ${code}`)),
@@ -152,6 +184,7 @@ async function main() {
   if (!JDK) die('JAVA_HOME is not set; Bubblewrap needs a JDK 17');
   if (!SDK) die('ANDROID_HOME is not set; Bubblewrap needs the Android SDK');
   if (!(await exists(clientDir))) die('dist/client is missing — run `npm run build` first');
+  console.log(`=> target ${TARGET_NAME} (${TARGET.store})`);
   if (!(await exists(path.join(SDK, 'bin'))) && !(await exists(path.join(SDK, 'tools')))) {
     die(
       `Bubblewrap will reject this SDK: it looks for <sdk>/bin or <sdk>/tools, and ${SDK} has neither.\n` +
@@ -164,9 +197,9 @@ async function main() {
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 
   // Render + validate through the existing gate, so the store checks cannot be bypassed here.
-  console.log('=> pack:quest (render + validate)');
+  console.log(`=> ${TARGET.packScript} (render + validate)`);
   await run(process.execPath, [
-    path.join(root, 'scripts', 'pack-quest.mjs'),
+    path.join(root, 'scripts', TARGET.packScript),
     '--domain', DOMAIN,
     ...(PACKAGE_ID ? ['--package-id', PACKAGE_ID] : []),
   ], { cwd: root });
@@ -178,7 +211,7 @@ async function main() {
   await mkdir(path.dirname(bwConfig), { recursive: true });
   await writeFile(bwConfig, `${JSON.stringify({ jdkPath: JDK, androidSdkPath: SDK }, null, 2)}\n`);
 
-  const manifestPath = path.join(questDir, 'twa-manifest.json');
+  const manifestPath = path.join(outDir, 'twa-manifest.json');
   const shipped = JSON.parse(await readFile(manifestPath, 'utf8'));
 
   const { server, port } = await serveClient(clientDir);
@@ -226,8 +259,9 @@ async function main() {
     await writeFile(manifestPath, `${JSON.stringify(shipped, null, 2)}\n`);
   }
 
-  // Without a verified assetlinks.json an immersive TWA launches with a URL bar, which the
-  // Horizon Store rejects — so emit the exact file that has to be served.
+  // Without a verified assetlinks.json a TWA launches with a URL bar across the top. Play
+  // tolerates it and reviewers usually do not; the Horizon Store rejects it outright for an
+  // immersive title. Either way, emit the exact file that has to be served.
   const fingerprint = certFingerprint();
   if (fingerprint) {
     const assetlinks = [
@@ -240,7 +274,7 @@ async function main() {
         },
       },
     ];
-    const out = path.join(questDir, 'assetlinks.json');
+    const out = path.join(outDir, 'assetlinks.json');
     await writeFile(out, `${JSON.stringify(assetlinks, null, 2)}\n`);
     console.log(`\nWrote ${path.relative(root, out)}`);
     console.log(`  serve it at https://${DOMAIN}/.well-known/assetlinks.json`);
@@ -249,10 +283,10 @@ async function main() {
   }
 
   for (const [file, what] of [
-    ['app-release-bundle.aab', 'upload this to the Horizon Store'],
+    ['app-release-bundle.aab', TARGET.bundleNote],
     ['app-release-signed.apk', 'sideload: adb install -r <file>'],
   ]) {
-    const full = path.join(questDir, file);
+    const full = path.join(outDir, file);
     if (await exists(full)) console.log(`  ${file.padEnd(26)} ${what}`);
   }
 

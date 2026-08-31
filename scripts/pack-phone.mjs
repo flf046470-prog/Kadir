@@ -1,20 +1,19 @@
 #!/usr/bin/env node
 /**
- * Prepare the Meta Quest / Horizon Store PWA package.
+ * Prepare the Google Play (phone / tablet) package.
  *
- * Shares its manifest checks, package-id derivation and asset-links advice with the phone
- * package (`pack-phone.mjs`) through `lib/twa.mjs` — the two differ in four lines of Bubblewrap
- * config and in nothing that is hard to get right, so a second copy would only drift.
+ * The same web build the Quest package wraps, wrapped for a phone instead: no immersive WebXR
+ * launch, landscape only, touch controls. It renders the Bubblewrap project config and checks
+ * the things that are cheap to get wrong and expensive to discover after a store rejection.
  *
- * This renders the Bubblewrap project config and checks the things that are cheap to get wrong
- * and expensive to discover after a store rejection. It deliberately stops short of running
- * `bubblewrap build`: that needs the JDK, the Android SDK and — critically — the signing key,
- * which must never live in a repo. The final two commands are printed instead.
+ * Like `pack:quest`, it deliberately stops short of running `bubblewrap build`: that needs the
+ * JDK, the Android SDK and — critically — the signing key, which must never live in a repo. The
+ * final commands are printed instead.
  *
  * Usage:
- *   npm run pack:quest -- --domain kangaroochase.example
- *   npm run pack:quest -- --domain <host> --package-id net.example.kangaroochase
- *   npm run pack:quest -- --check          # validate the manifest/icons only
+ *   npm run pack:phone -- --domain kangaroochase.example
+ *   npm run pack:phone -- --domain <host> --package-id net.example.kangaroochase
+ *   npm run pack:phone -- --check          # validate the manifest/icons only
  */
 
 import { readFile } from 'node:fs/promises';
@@ -25,7 +24,7 @@ import { assetLinksNotes, isBareHost, isValidPackageId, packageIdForHost, render
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const publicDir = path.join(root, 'packages', 'client', 'public');
-const outDir = path.join(root, 'packaging', 'meta-quest');
+const outDir = path.join(root, 'packaging', 'android-phone');
 
 const args = process.argv.slice(2);
 const flag = (n) => args.includes(n);
@@ -61,16 +60,18 @@ async function render() {
 
   const rendered = await renderTwaManifest({ outDir, domain: DOMAIN, packageId, version: pkg.version });
 
-  note(`\nWrote packaging/meta-quest/twa-manifest.json`);
+  note(`\nWrote packaging/android-phone/twa-manifest.json`);
   note(`  host        ${DOMAIN}`);
   note(`  packageId   ${packageId}`);
-  note(`  mode        ${rendered.horizonOSAppMode} (launches straight into WebXR)`);
+  note(`  orientation ${rendered.orientation} (the touch layout assumes it)`);
 
   note(`\nNext, with the JDK + Android SDK installed:`);
-  note(`  npm install --global @meta-quest/bubblewrap-cli`);
-  note(`  cd packaging/meta-quest && bubblewrap init --manifest=https://${DOMAIN}/manifest.webmanifest --metaquest`);
-  note(`  bubblewrap build            # -> app-release-signed.apk / .aab`);
+  note(`  npm install --global @bubblewrap/cli`);
+  note(`  cd packaging/android-phone && bubblewrap init --manifest=https://${DOMAIN}/manifest.webmanifest`);
+  note(`  bubblewrap build            # -> app-release-bundle.aab (Play) + app-release-signed.apk`);
   assetLinksNotes(note, DOMAIN);
+  note(`\nPlay wants the .aab. The .apk is for sideloading and for testing on a real device before`);
+  note(`you upload anything.`);
 }
 
 const manifest = await validateManifest(publicDir, problem);
@@ -81,5 +82,5 @@ if (problems.length > 0) {
   for (const p of problems) console.error(`  - ${p}`);
   process.exitCode = 1;
 } else {
-  note(`\nPWA checks passed — "${manifest.name}", display=${manifest.display}, ${manifest.icons.length} icons.`);
+  note(`\nPhone PWA checks passed — "${manifest.name}", display=${manifest.display}, ${manifest.icons.length} icons.`);
 }

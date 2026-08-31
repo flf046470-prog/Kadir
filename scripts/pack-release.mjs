@@ -179,6 +179,26 @@ async function main() {
     hint: 'npm run pack:quest -- --domain <host>  then  bubblewrap build',
   });
 
+  const phoneDir = value('--phone-dir') ?? path.join(root, 'packaging', 'android-phone');
+  await collect({
+    id: 'phone-aab',
+    title: 'Google Play upload',
+    from: path.join(phoneDir, 'app-release-bundle.aab'),
+    kind: 'file',
+    out: `kangaroo-chase-android-${version}.aab`,
+    note: 'The Play upload. Signed with the key in twa-manifest.json — keep that key forever.',
+    hint: 'npm run build:phone -- --domain <host>',
+  });
+  await collect({
+    id: 'phone-apk',
+    title: 'Android sideload build',
+    from: path.join(phoneDir, 'app-release-signed.apk'),
+    kind: 'file',
+    out: `kangaroo-chase-android-${version}.apk`,
+    note: 'Sideload with: adb install -r <file>. Test on a real phone before uploading anything.',
+    hint: 'npm run build:phone -- --domain <host>',
+  });
+
   if (stale.length > 0) {
     console.error(`\n\x1b[31m${stale.length} artifact(s) older than what they were built from:\x1b[0m`);
     for (const s of stale) {
