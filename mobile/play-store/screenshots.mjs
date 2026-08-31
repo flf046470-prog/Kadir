@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { readdir, mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { markSvg } from "../../scripts/brand-mark.mjs";
 
 /**
  * Play's phone screenshots.
@@ -40,4 +41,20 @@ for (const name of captures) {
   console.log(`  ${name.padEnd(24)} ${width}×${height}`);
 }
 
-console.log(`\n${captures.length} phone screenshots ready in mobile/play-store/assets/`);
+/**
+ * The listing icon Play Console asks for, separately from the launcher icon.
+ *
+ * 512×512, and *not* the one inside the APK: that one is an adaptive icon the
+ * launcher masks, while this is the flat square shown on the store page. Play
+ * accepts alpha here — unlike App Store Connect, which rejects it — so this
+ * uses the ordinary path rather than the flattened one.
+ */
+await writeFile(
+  join(OUT, "app-icon-512.png"),
+  await sharp(Buffer.from(markSvg({ width: 512, scale: 0.62, ground: "square" })))
+    .png({ compressionLevel: 9 })
+    .toBuffer()
+);
+console.log(`  ${"app-icon-512.png".padEnd(24)} 512×512`);
+
+console.log(`\n${captures.length} screenshots + banner + icon ready in mobile/play-store/assets/`);
