@@ -52,6 +52,7 @@ npm run check:smoke      # drive the real game in a browser, desktop + landscape
 npm run check:pwa        # prove the PWA still starts with the network gone
 
 npm run pack:quest -- --domain <host>   # Meta Horizon Store (Bubblewrap / immersive WebXR PWA)
+npm run pack:phone -- --domain <host>   # Google Play (Bubblewrap / landscape touch)
 npm run pack:steam                      # Steam (Electron shell, SteamVR via OpenXR)
 ```
 

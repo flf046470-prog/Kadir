@@ -7,7 +7,8 @@ chosen. The game is one web build; the store packages wrap it differently.
 | --- | --- | --- | --- |
 | Meta Horizon Store | Immersive WebXR PWA via Bubblewrap (TWA → APK/AAB) | Native WebXR | Buildable here; needs a signing key and a developer account |
 | Steam | Desktop shell + bundled-browser VR launch | SteamVR via OpenXR | Buildable here; needs a Steamworks appid |
-| Google Play / App Store | Capacitor shell | — (mobile is flat) | Not set up |
+| Google Play | Landscape TWA via Bubblewrap (APK/AAB) | — (phone is flat) | Buildable here; needs a signing key and a developer account |
+| Apple App Store | — | — | Not set up |
 
 ---
 
@@ -160,7 +161,53 @@ KC_DATABASE_URL=postgres://user:pass@host:5432/kangaroo npm start
 
 ---
 
-## Google Play / App Store
+## Google Play
 
-Not set up. Mobile is flat-only in any case — WebXR is unavailable in Safari, so iOS ships
-Mobile only. A Capacitor shell around the same `dist/client` is the intended route.
+The same web build as the Quest package, wrapped for a phone instead of a headset. There is no
+second codebase and no second deployment: both TWAs point at the same origin, and the touch
+layout is the one the client already switches to when it sees a touchscreen.
+
+```bash
+npm run build
+npm run pack:phone -- --domain kangaroochase.example    # render + validate the config
+npm run build:phone -- --domain kangaroochase.example   # signed .aab + .apk
+```
+
+`build:phone` and `build:quest` are the same script (`scripts/build-android.mjs --target`), and
+`pack:phone` and `pack:quest` share their manifest checks through `scripts/lib/twa.mjs`. That is
+deliberate: the two packages differ in four lines of Bubblewrap config and in nothing that is
+hard to get right, so a second copy would only drift — and the way it would drift is that a fix
+made after a store rejection lands in one of them.
+
+### What differs from the Quest package
+
+| | Quest | Phone |
+| --- | --- | --- |
+| `isMetaQuest` | `true` | `false` |
+| `horizonOSAppMode` | `immersive` | absent — there is no session to launch into |
+| Orientation | landscape | landscape |
+| Controls | hands / controllers | on-screen stick + button clusters |
+| Upload | `.aab` to the Horizon Store | `.aab` to Play |
+
+Orientation is landscape on the phone because the touch layout puts a stick under the left thumb
+and the action cluster under the right. Portrait would need a second layout, and a chase game
+read through a letterbox is worse than no phone build.
+
+### Digital Asset Links
+
+Same as the Quest package, and the same consequence: without a verified
+`.well-known/assetlinks.json` the app launches with a browser URL bar across the top. Play
+tolerates that; reviewers usually do not. `build:phone` writes the exact `assetlinks.json` to
+serve, with the certificate SHA-256 already filled in.
+
+### The package id is permanent
+
+Play binds the listing to the package id *and* the signing key, forever. The id derived from the
+host is the same one the Quest build derives; that is fine today because Play and Horizon are
+separate namespaces, but pass `--package-id` if you ever need them to differ.
+
+## Apple App Store
+
+Not set up. WebXR is unavailable in Safari, so iOS would be flat-only, and Apple does not accept
+a TWA-equivalent — it needs a real native wrapper (Capacitor around the same `dist/client` is the
+intended route). Nothing in the codebase blocks it; it is simply not built.
