@@ -1,5 +1,6 @@
 import sharp from "sharp";
 import { writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { GROUND, markSvg } from "../../scripts/brand-mark.mjs";
 
@@ -20,6 +21,23 @@ const RES = join(process.cwd(), "mobile", "android", "app", "src", "main", "res"
 
 async function png(svg, path) {
   const buffer = await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
+  await writeFile(path, buffer);
+}
+
+/**
+ * The same, with the alpha channel removed rather than merely unused.
+ *
+ * App Store Connect rejects an icon that *has* an alpha channel — "The app icon
+ * can't be transparent nor contain an alpha channel" — and it tests for the
+ * channel, not for transparent pixels. Drawing on an opaque ground is therefore
+ * not enough on its own: sharp still writes RGBA, every pixel at alpha 255, and
+ * the upload fails after the build has already been archived and signed.
+ */
+async function opaquePng(svg, path) {
+  const buffer = await sharp(Buffer.from(svg))
+    .flatten({ background: GROUND })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
   await writeFile(path, buffer);
 }
 
@@ -70,9 +88,36 @@ await writeFile(
  * an icon with transparency — which is why this is the only target drawn on a
  * square ground with no rounding of its own: iOS applies the squircle.
  */
-await png(
-  markSvg({ width: 1024, scale: 0.62, ground: "square" }),
-  join(process.cwd(), "mobile", "assets", "AppIcon-1024.png")
-);
+const iosIcon = markSvg({ width: 1024, scale: 0.62, ground: "square" });
+await opaquePng(iosIcon, join(process.cwd(), "mobile", "assets", "AppIcon-1024.png"));
 
-console.log("Android launcher icons + splash, and the iOS 1024 master, regenerated.");
+/**
+ * The same assets, written into the Xcode project.
+ *
+ * `npx cap add ios` seeds the catalog with Capacitor's own placeholder icon and
+ * a grey splash, and nothing later overwrites them — `cap sync` copies web
+ * assets, not native ones. Without this step the App Store build ships wearing
+ * Capacitor's branding, which is the kind of thing that is only ever noticed
+ * after it is live.
+ *
+ * The three splash files are one square image at 1x/2x/3x rather than a ladder
+ * of device sizes: the launch storyboard scales it aspect-fill, and a centred
+ * mark on a flat ground survives any crop.
+ */
+const IOS_ASSETS = join(process.cwd(), "mobile", "ios", "App", "App", "Assets.xcassets");
+
+if (existsSync(IOS_ASSETS)) {
+  await opaquePng(iosIcon, join(IOS_ASSETS, "AppIcon.appiconset", "AppIcon-512@2x.png"));
+
+  const splash = markSvg({ width: 2732, scale: 0.14, ground: "square" });
+  for (const name of ["splash-2732x2732.png", "splash-2732x2732-1.png", "splash-2732x2732-2.png"]) {
+    await png(splash, join(IOS_ASSETS, "Splash.imageset", name));
+  }
+
+  console.log("Android launcher icons + splash, the iOS 1024 master, and the Xcode catalog, regenerated.");
+} else {
+  // A checkout that has not run `npx cap add ios` yet. Not an error: the
+  // Android half is independent and has already been written.
+  console.log("Android launcher icons + splash, and the iOS 1024 master, regenerated.");
+  console.log("Skipped the Xcode catalog: mobile/ios is not present.");
+}

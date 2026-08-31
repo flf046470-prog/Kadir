@@ -5,12 +5,21 @@ under `src/` does not import anything from here.
 
 ```
 mobile/
-  android/    Capacitor Android project — committed, opens in Android Studio
-  ios/        README only; `npx cap add ios` needs macOS and writes here
-  shell/      error.html — the screen shown when the site cannot be reached
-  assets/     icon + splash generation, and the iOS 1024 master it produces
-  store/      listing metadata, the privacy manifest, submission checklists
+  android/      Capacitor Android project — opens in Android Studio
+  ios/          Capacitor Xcode project — opens in Xcode
+  play-store/   everything you upload to Play Console, and nothing else
+  app-store/    everything you upload to App Store Connect, and nothing else
+  captures/     the raw 1080×1920 app captures both store folders are cut from
+  shell/        error.html — the screen shown when the site cannot be reached
+  assets/       icon + splash generation, for both native projects
 ```
+
+The two store folders are deliberately self-contained: what Play wants and what
+Apple wants are different files at different sizes, and a single mixed folder
+meant reading a table to work out which half to drag into which console. The
+`assets/` and `captures/` folders stay shared because they are *inputs* — one
+mark, one set of captures — and duplicating them would let the two stores drift
+apart on the thing that should be identical.
 
 `capacitor.config.ts` stays at the repository root, because that is where the
 Capacitor CLI looks for it. It points `android.path` and `ios.path` here.
@@ -28,7 +37,8 @@ Android back button.
 npm run native:sync      # copy config + plugins into the native projects
 npm run native:assets    # regenerate launcher icons and splash from the mark
 npm run native:android   # open Android Studio
-npm run native:ios       # open Xcode (after `npx cap add ios` on a Mac)
+npm run native:ios       # open Xcode (macOS)
+npm run store:assets     # regenerate both stores' screenshots from captures/
 ```
 
 `CAPACITOR_SERVER_URL` chooses which deploy the shell loads:

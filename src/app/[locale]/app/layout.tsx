@@ -35,7 +35,17 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-black/5 bg-white">
+      {/*
+        The padding is what keeps the header clear of the status bar. Both
+        shells draw the page edge to edge — Android 15 forces it and ignores a
+        window inset, and the iOS config sets `contentInset: "never"` on
+        purpose — so without this the clock sits on top of the logo. The white
+        stays behind the bar because the padding is inside the header.
+      */}
+      <header
+        className="border-b border-black/5 bg-white"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
         <div className="container-fm flex h-16 items-center justify-between gap-4">
           <a href={`/${locale}/app/discover`}>
             <Logo />

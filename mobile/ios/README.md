@@ -1,75 +1,70 @@
 # iOS
 
-This directory is a placeholder. `npx cap add ios` needs macOS and Xcode, which
-the environment this was built in does not have, so the Xcode project is
-created on a Mac rather than committed half-formed.
+The Xcode project is here and committed. `npx cap add ios` was run on Linux —
+it only copies a template, so it does not need a Mac — which means the things
+that template gets wrong were fixable in the repository rather than left as a
+checklist for whoever opens Xcode first.
 
 ```bash
-npx cap add ios      # writes mobile/ios/App/... (capacitor.config.ts sets the path)
-npx cap sync ios
-npm run native:ios   # opens Xcode
+npx cap sync ios     # config + plugins into the project
+npm run native:ios   # open Xcode (macOS)
 ```
 
-Everything below is the part `cap add` does **not** do. Each one is a store
-rejection or a crash if it is skipped.
+## Already done here
 
-## 1. Photo permissions — this one crashes
+None of these are what `cap add` produces, and each one is a rejection or a
+crash if it is missing. They are listed so nobody re-does them, and so a future
+`cap add ios` that overwrites the project can be repaired against this list.
 
-The app uploads profile photos. In a `WKWebView` that is an
-`<input type="file">`, and iOS terminates the app rather than showing a picker
-when the usage strings are missing. Add to `Info.plist`:
+| | Where |
+|---|---|
+| Photo and camera usage strings | `App/App/Info.plist` |
+| Export-compliance answer (`ITSAppUsesNonExemptEncryption`) | `App/App/Info.plist` |
+| Light appearance lock, matching the Android theme | `App/App/Info.plist` |
+| `arm64` instead of the template's 32-bit `armv7` | `App/App/Info.plist` |
+| Portrait-only on iPhone | `App/App/Info.plist` |
+| Advertised languages — `en` and `tr` only | `App/App/Info.plist` |
+| Privacy manifest, as a member of the App target | `App/App/PrivacyInfo.xcprivacy` |
+| Brand app icon, with **no alpha channel** | `App/App/Assets.xcassets` |
+| Launch screen on the brand ground | `App/App/Base.lproj/LaunchScreen.storyboard` |
 
-```xml
-<key>NSPhotoLibraryUsageDescription</key>
-<string>FioreMatch needs access to your photos so you can add them to your profile.</string>
-<key>NSCameraUsageDescription</key>
-<string>FioreMatch needs the camera so you can take a photo for your profile.</string>
-```
+Two of those deserve their reasons written down.
 
-Apple rejects generic strings ("this app needs photo access"). Say what it is
-for, in the words above or better ones.
+**The icon has no alpha channel, not merely no transparent pixels.** App Store
+Connect rejects an icon that *has* the channel — "The app icon can't be
+transparent nor contain an alpha channel" — and it tests for the channel. An
+icon drawn on an opaque ground still fails, because the encoder writes RGBA with
+every pixel at 255. `mobile/assets/generate.mjs` flattens it deliberately; that
+is what the `opaquePng` path is for, and the rejection arrives only after a
+build has been archived and signed.
 
-## 2. Associated Domains — deep links
+**The launch screen sets its background explicitly** rather than using
+`systemBackgroundColor`, which is dynamic and resolves to black on a phone in
+dark mode.
 
-Signing & Capabilities → **+ Capability** → Associated Domains, then add:
+## Still needs a Mac and an Apple account
 
-```
-applinks:fiorematch.com
-applinks:www.fiorematch.com
-```
+These cannot be committed — they are Xcode capabilities that write to the
+provisioning profile, or they need credentials.
 
-The site side is already built: `/.well-known/apple-app-site-association` is
-served once `APPLE_TEAM_ID` is set. Apple fetches it over HTTPS with no
-redirect, so check it resolves on the apex domain the app declares.
+1. **Associated Domains.** Signing & Capabilities → + Capability → Associated
+   Domains, then `applinks:fiorematch.com` and `applinks:www.fiorematch.com`.
+   The site side already serves `/.well-known/apple-app-site-association` once
+   `APPLE_TEAM_ID` is set. Apple fetches it over HTTPS with no redirect, so
+   check it resolves on the apex domain the app declares.
 
-## 3. Push capability
+2. **Push Notifications.** Signing & Capabilities → + Capability → Push
+   Notifications, then an APNs key in the developer account. `push_tokens`
+   already records devices; nothing sends yet.
 
-Signing & Capabilities → **+ Capability** → Push Notifications. Then create an
-APNs key in the Apple Developer account and upload it wherever the sends will
-originate. `push_tokens` already records devices; nothing sends yet.
+3. **Signing.** A team, a bundle identifier registered to it, and a
+   distribution certificate.
 
-## 4. Privacy manifest
+## Screenshots
 
-Copy `mobile/store/PrivacyInfo.xcprivacy` into the Xcode project (target
-membership: App). Apple has required this since 2024 and rejects builds that
-declare an inaccurate one — read it before shipping, it describes what this
-app actually collects and must stay true as the app changes.
-
-## 5. App icon
-
-`mobile/assets/AppIcon-1024.png` is the master. Xcode 14+ derives every size
-from one 1024×1024 file. It is deliberately opaque with no alpha: the App Store
-rejects an icon with transparency.
-
-## 6. Encryption declaration
-
-The app uses HTTPS only, which is exempt, but the question is asked on every
-submission. In `Info.plist`:
-
-```xml
-<key>ITSAppUsesNonExemptEncryption</key>
-<false/>
-```
-
-Without it, every build waits on a manual compliance answer before it can go to
-TestFlight.
+`mobile/app-store/assets/` holds a compliant set at both required sizes,
+composed from the captures in `mobile/captures/`. They are stand-ins: the
+pixels inside the device frame are real, but they were taken in a browser at
+Play's dimensions and against a seeded database. Re-shoot from the simulator
+once the app runs against real data — `mobile/app-store/screenshots.mjs`
+explains the trade it makes.

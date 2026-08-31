@@ -1,22 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Base application theme. -->
-    <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-        <!-- Customize your theme here. -->
-        <item name="colorPrimary">@color/colorPrimary</item>
-        <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
-        <item name="colorAccent">@color/colorAccent</item>
+    <!--
+        Light, and locked that way.
+
+        The web app has no dark mode — not one `dark:` variant in the whole of
+        `src/` — so a `DayNight` shell would hand a member on a dark phone a
+        dark splash and dark system bars, and then paint a white page inside
+        them. That seam is worse than not having a dark mode at all. When the
+        page gains one, this parent becomes `.DayNight`, a `values-night/`
+        appears beside this file, and the two switches below come out together.
+    -->
+    <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+        <item name="colorPrimary">@color/brand_bloom</item>
+        <item name="colorPrimaryDark">@color/brand_bloom_dark</item>
+        <item name="colorAccent">@color/brand_dusk</item>
+
+        <!--
+            Stops Android 10+ "force dark" from algorithmically inverting the
+            webview. It cannot know that the rose on white is the brand, and
+            what it produces is a muddy near-black with the accent colours
+            shifted off-hue.
+        -->
+        <item name="android:forceDarkAllowed" tools:targetApi="q">false</item>
     </style>
 
-    <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
+    <style name="AppTheme.NoActionBar" parent="AppTheme">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
-        <item name="android:background">@null</item>
+
+        <item name="android:windowBackground">@color/app_chrome</item>
+
+        <!--
+            Honoured below API 35. From Android 15 the platform forces
+            edge-to-edge and ignores both of these, drawing the page under
+            transparent bars instead — so the values are chosen to land on the
+            same picture either way: white behind the bars on old versions,
+            the page's own white showing through on new ones.
+
+            What makes that work is the page: `viewport-fit=cover` is set, the
+            bottom tab row pays `safe-area-inset-bottom`, and the app header
+            pays `safe-area-inset-top`. Without that last one the clock sits on
+            top of the header.
+        -->
+        <item name="android:statusBarColor">@color/app_chrome</item>
+        <item name="android:navigationBarColor">@color/app_chrome</item>
+
+        <!-- Dark icons, because everything behind them is white. -->
+        <item name="android:windowLightStatusBar" tools:targetApi="m">true</item>
+        <item name="android:windowLightNavigationBar" tools:targetApi="o_mr1">true</item>
     </style>
 
+    <!--
+        The launch frame.
 
+        `Theme.SplashScreen` is androidx's backport, so one definition gives the
+        Android 12 treatment — icon centred on a coloured field — all the way
+        down to API 24 instead of a stretched bitmap on old versions and a
+        double splash on new ones. The icon is the adaptive icon's foreground
+        layer, which is already drawn at the 44% the mask expects.
+
+        This is the one place the brand ground appears rather than white: a
+        launch frame is allowed to be a branded moment.
+    -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
-        <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/brand_ground</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

@@ -44,11 +44,16 @@ export function NativeShell({ allowedHosts }: { allowedHosts: string[] }) {
 
       await withPlugin(async () => {
         const { StatusBar, Style } = await import("@capacitor/status-bar");
-        // Dark glyphs: the app's ground is a pale pink, and light glyphs on it
-        // are invisible.
+        // `Style.Light` is the plugin's name for *dark glyphs on a light bar*,
+        // which is what the app needs: `body` is white and so is the header
+        // above it, and light glyphs on that are invisible.
         await StatusBar.setStyle({ style: Style.Light });
         if (nativePlatform() === "android") {
-          await StatusBar.setBackgroundColor({ color: "#fff5f7" });
+          // White, to match the header the bar sits directly above — the pale
+          // pink belongs to the launch frame, not to the running app. Ignored
+          // from Android 15, which forces a transparent bar over the page; the
+          // page under it is white, so the result is the same either way.
+          await StatusBar.setBackgroundColor({ color: "#ffffff" });
         }
       }, "status-bar");
 

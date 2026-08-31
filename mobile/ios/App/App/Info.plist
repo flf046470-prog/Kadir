@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CAPACITOR_DEBUG</key>
+	<string>$(CAPACITOR_DEBUG)</string>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>FioreMatch</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+
+	<!--
+		The languages the App Store will advertise.
+
+		Two, not the twelve the app routes. `fullyTranslatedLocales` in
+		src/i18n/locales.ts is the source of truth, and the other ten currently
+		mirror English. Listing them here would tell someone browsing the store
+		in Japanese that this app speaks Japanese, and the first screen would
+		prove otherwise. Add each one here as its translation actually lands.
+	-->
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>tr</string>
+	</array>
+
+	<!--
+		Photo access. This one is a crash, not a rejection.
+
+		Profile photos are an `<input type="file">` inside a WKWebView, and iOS
+		terminates the process rather than showing a picker when the usage
+		string is missing — so the first member who tries to add a photo would
+		see the app disappear. Apple also rejects generic wording, which is why
+		these name the feature rather than the permission.
+	-->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>FioreMatch needs access to your photos so you can add them to your profile.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>FioreMatch needs the camera so you can take a photo for your profile.</string>
+
+	<!--
+		Export compliance. The app speaks HTTPS and nothing else, which is
+		exempt — but the question is asked on every single upload, and without
+		this answer each build sits in "Waiting for review" until someone
+		answers it by hand.
+	-->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
+	<!--
+		Light, and locked that way — the same decision as the Android theme, for
+		the same reason: the web app has no dark mode, so letting the shell
+		follow the system would put a dark launch screen and dark status bar
+		around a white page. Remove this key when the page gains a dark mode.
+	-->
+	<key>UIUserInterfaceStyle</key>
+	<string>Light</string>
+
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+					<key>UISceneStoryboardFile</key>
+					<string>Main</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIMainStoryboardFile</key>
+	<string>Main</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+
+	<!--
+		arm64, not the armv7 the template ships. armv7 is 32-bit and has not
+		been a device iOS runs on since iOS 11; leaving it in claims a capability
+		no supported phone has.
+	-->
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+	</array>
+
+	<!--
+		Portrait on iPhone. The layout is a fixed header over a fixed bottom tab
+		row, and in landscape those two eat most of a phone's height and leave a
+		letterbox for the profile card. iPad keeps all four, where there is room.
+	-->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<true/>
+</dict>
+</plist>

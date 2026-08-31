@@ -59,11 +59,18 @@ Capacitor's placeholder icons, so run `npm run native:assets` after it.
 
 ### iOS
 
-`mobile/ios/` holds a README and nothing else: `npx cap add ios` needs macOS and
-Xcode, which the environment this was built in does not have. On a Mac, run it
-and then follow `mobile/ios/README.md`, which lists what `cap add` does not
-generate — Associated Domains, the app icon, the privacy manifest and the push
-capability — each with the file it belongs in.
+`mobile/ios/` is committed too. `npx cap add ios` only copies a template, so it
+runs on Linux — what needs macOS is `pod install`, Xcode and the build itself.
+That distinction is worth the effort: everything the template gets wrong is
+fixed in the repository rather than left as a checklist for whoever opens Xcode
+first. The photo and camera usage strings (a crash, not a rejection), the
+export-compliance answer, the appearance lock, `arm64` in place of the
+template's 32-bit `armv7`, the privacy manifest as a target member, and an app
+icon with no alpha channel are all in place.
+
+`mobile/ios/README.md` lists them, and lists the three that genuinely cannot be
+committed because they write to a provisioning profile: Associated Domains,
+Push Notifications, and signing.
 
 `npm run native:assets` already writes `mobile/assets/AppIcon-1024.png` for the
 iOS asset catalogue, from the same mark and the same `#fff5f7` ground as the

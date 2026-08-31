@@ -159,7 +159,7 @@ Hayır demek dereceyi yükseltir ve yanlış olur.
 
 ## Görseller
 
-`mobile/store/assets/` içinde:
+`mobile/play-store/assets/` içinde:
 
 | Dosya | Boyut | Play'in istediği |
 |---|---|---|

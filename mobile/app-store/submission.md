@@ -1,7 +1,8 @@
 # App Store submission
 
-Read `mobile/ios/README.md` first — the Xcode project does not exist yet, and
-four of the steps there are crashes or rejections if skipped.
+Read `mobile/ios/README.md` first. The Xcode project exists and the things the
+Capacitor template gets wrong are already fixed in it; that file lists what is
+done and what still needs a Mac.
 
 ## Blocking on someone else
 
@@ -14,7 +15,7 @@ four of the steps there are crashes or rejections if skipped.
 ## App Privacy answers
 
 Same substance as the Play data-safety table, in Apple's vocabulary. It must
-also match `mobile/store/PrivacyInfo.xcprivacy`, which ships inside the binary
+also match `mobile/ios/App/App/PrivacyInfo.xcprivacy`, which ships inside the binary
 — Apple compares them.
 
 Collected and **linked to the user**; none used for tracking:

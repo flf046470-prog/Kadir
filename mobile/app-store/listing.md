@@ -138,7 +138,7 @@ Toplanan tür / hesapla ilişkili mi / takip için mi:
 | Kaba konum | Evet | Evet | Hayır |
 | Cihaz kimliği | Evet | Evet | Hayır |
 
-**Takip hiçbir türde yok.** Bu, `mobile/store/PrivacyInfo.xcprivacy` içindeki
+**Takip hiçbir türde yok.** Bu, `mobile/ios/App/App/PrivacyInfo.xcprivacy` içindeki
 `NSPrivacyTracking = false` ile aynı beyan; ikisi çelişirse Apple fark eder.
 
 **Kaba konum** — kesin konum değil. Uygulama cihaz konumunu hiç okumuyor.
@@ -183,25 +183,34 @@ satın alma yolu hiç yok** — StoreKit entegre edilmeden abonelik satılamaz.
 
 ## Görseller
 
-App Store, Play'den farklı boyutlar istiyor. `mobile/store/assets/` içindeki
-1080×1920'lik ekran görüntüleri **Play için**; Apple bunları kabul etmez.
+App Store, Play'den farklı boyutlar istiyor — 1080×1920 kabul edilmiyor, ve
+ölçeklenerek de kabul ettirilemiyor: 9:19,5 çerçeve 9:16'dan daha uzun, birini
+diğerinin içine sığdırmak ya üstte altta bant bırakıyor ya da uygulamanın
+kenarlarını kesiyor.
+
+Bu yüzden her yakalama, Apple'ın istediği tuvalin üstüne, ürünün kendi aurora
+zemininde bir cihaz çerçevesi içine **yerleştiriliyor**. `npm run store:appstore`
+ikisini de üretiyor.
 
 | Gerekli | Boyut | Durum |
 |---|---|---|
-| 6,9" iPhone ekran görüntüsü | 1290×2796 | **yok** |
-| 6,5" iPhone ekran görüntüsü | 1242×2688 | **yok** |
-| Uygulama ikonu | 1024×1024 | var — `mobile/assets/AppIcon-1024.png` |
+| 6,9" iPhone ekran görüntüsü | 1290×2796 | var — `assets/6.9-inch/` |
+| 6,5" iPhone ekran görüntüsü | 1242×2688 | var — `assets/6.5-inch/` |
+| Uygulama ikonu | 1024×1024 | var — `mobile/assets/AppIcon-1024.png`, alfa kanalsız |
 
-iPhone ekran görüntüleri bir Mac'te simülatörden alınmalı; bu boyutlar
-tarayıcıdan üretilebilir ama Apple gerçek cihaz oranlarını bekliyor ve
-simülatör çıktısı daha güvenli.
+**Bunlar vekil.** Çerçevenin içindeki pikseller gerçek, ama tarayıcıda Play
+boyutlarında ve tohumlanmış bir veritabanına karşı alındılar. İki tanesinin
+içeriği yayına uygun değil: fiyatlandırma ekranı "$0"ın ortasında kesiliyor ve
+Günün 5'i ekranında "Nur profili." tohum metni görünüyor. Sunucu ayağa
+kalktığında simülatörden yeniden çekilmeli — o zaman bu betiğe hiç gerek
+kalmaz, çünkü simülatör zaten doğru boyutta çıktı verir.
 
 ---
 
 ## Yüklemeden önce
 
 - [ ] **iOS projesi oluşturulmalı** (`npx cap add ios`, macOS gerekiyor)
-- [ ] `mobile/store/PrivacyInfo.xcprivacy` Xcode hedefine eklenmeli
+- [ ] `mobile/ios/App/App/PrivacyInfo.xcprivacy` Xcode hedefine eklenmeli
 - [ ] Associated Domains: `applinks:fiorematch.com`
 - [ ] Push Notifications yetkisi + APNs anahtarı
 - [ ] **Dağıtım ayakta olmalı** — yoksa inceleme uzmanı çevrimdışı ekranı görür.

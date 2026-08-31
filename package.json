@@ -16,7 +16,10 @@
     "native:assets": "node mobile/assets/generate.mjs",
     "native:sync": "cap sync",
     "native:android": "cap open android",
-    "native:ios": "cap open ios"
+    "native:ios": "cap open ios",
+    "store:play": "node mobile/play-store/screenshots.mjs",
+    "store:appstore": "node mobile/app-store/screenshots.mjs",
+    "store:assets": "npm run store:play && npm run store:appstore"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -37,6 +40,7 @@
   "devDependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/cli": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@types/node": "^22.10.7",
     "@types/react": "^19.0.7",
     "@types/react-dom": "^19.0.3",

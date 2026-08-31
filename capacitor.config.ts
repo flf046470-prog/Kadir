@@ -58,12 +58,18 @@ const config: CapacitorConfig = {
     // Both native projects live under `mobile/` rather than at the repository
     // root, so the web app and the two store builds are separable at a glance.
     path: "mobile/android",
-    backgroundColor: "#fff5f7"
+    /**
+     * What shows behind the webview before the page paints — so it is the
+     * page's colour, white, not the brand ground. The tinted ground belongs to
+     * the launch frame; using it here puts a pink flash between the splash and
+     * a white app.
+     */
+    backgroundColor: "#ffffff"
   },
 
   ios: {
     path: "mobile/ios",
-    backgroundColor: "#fff5f7",
+    backgroundColor: "#ffffff",
     // Let the page paint under the status bar so the app looks installed
     // rather than framed; the layout already pays for it with safe-area insets.
     contentInset: "never"
@@ -75,13 +81,21 @@ const config: CapacitorConfig = {
       // rather than on a timer that is either too short (white flash) or too
       // long (a splash screen nobody needs).
       launchAutoHide: false,
+      // The one place the brand ground is right: a launch frame is a held,
+      // branded moment. Everything after it is white.
       backgroundColor: "#fff5f7",
       androidSplashResourceName: "splash",
       showSpinner: false
     },
     StatusBar: {
+      /**
+       * `LIGHT` is the plugin's name for a *light bar with dark glyphs*, which
+       * is what sits above a white header. The colour matches that header
+       * rather than the launch ground, so there is no pink stripe under the
+       * clock.
+       */
       style: "LIGHT",
-      backgroundColor: "#fff5f7"
+      backgroundColor: "#ffffff"
     },
     PushNotifications: {
       // A notification that arrives while the app is open should still be
