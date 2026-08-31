@@ -16,6 +16,13 @@ export interface MobileButtonState {
   interact: boolean;
   emote: boolean;
   punch: boolean;
+  /** Fire / throw / place the selected gadget. */
+  gadget: boolean;
+  /** Cycle to the next gadget. Edge-detected server-side, so a held tap is one cycle. */
+  cycle: boolean;
+  shop: boolean;
+  /** Push-to-talk. Held, not toggled — a toggle is how a phone ends up broadcasting a bus. */
+  talk: boolean;
 }
 
 /**
@@ -36,9 +43,23 @@ export class MobileInput implements PlatformInput {
     { action: 'Grab / climb', hint: 'Grab button' },
     { action: 'Interact', hint: 'Interact button' },
     { action: 'Emote', hint: 'Emote button' },
+    { action: 'Use gadget', hint: 'Gadget button' },
+    { action: 'Next gadget', hint: 'Tap the gadget name' },
+    { action: 'Shop / board', hint: 'Shop button' },
+    { action: 'Talk', hint: 'Hold the mic button' },
   ];
 
-  readonly buttons: MobileButtonState = { jump: false, grab: false, interact: false, emote: false, punch: false };
+  readonly buttons: MobileButtonState = {
+    jump: false,
+    grab: false,
+    interact: false,
+    emote: false,
+    punch: false,
+    gadget: false,
+    cycle: false,
+    shop: false,
+    talk: false,
+  };
 
   private stick: TouchStick | null = null;
   private lookPointer: number | null = null;
@@ -93,6 +114,10 @@ export class MobileInput implements PlatformInput {
     if (this.buttons.interact) buttons |= Buttons.Interact;
     if (this.buttons.emote) buttons |= Buttons.Emote;
     if (this.buttons.punch) buttons |= Buttons.PunchRight;
+    if (this.buttons.gadget) buttons |= Buttons.UseGadget;
+    if (this.buttons.cycle) buttons |= Buttons.CycleGadget;
+    if (this.buttons.shop) buttons |= Buttons.Shop;
+    if (this.buttons.talk) buttons |= Buttons.Talk;
     // Sprint is automatic on touch: holding the stick at full deflection sprints, so the player
     // never has to find a second button while running for their life.
     if (Math.hypot(out.moveX, out.moveZ) > 0.92) buttons |= Buttons.Sprint;

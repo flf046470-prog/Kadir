@@ -51,7 +51,11 @@ export class VRInput implements PlatformInput {
     const tail = [
       { action: 'Turn', hint: 'Right thumbstick' },
       { action: 'Punch', hint: 'Throw a real punch' },
-      { action: 'Emote', hint: 'B button' },
+      { action: 'Emote', hint: 'B / Y button' },
+      { action: 'Use gadget', hint: 'Right trigger' },
+      { action: 'Next gadget', hint: 'Left trigger' },
+      { action: 'Shop / board', hint: 'X button' },
+      { action: 'Talk', hint: 'Hold the left thumbstick in' },
     ];
     return this.armsOnly
       ? [...shared, { action: 'Jump', hint: 'Push off the ground with a hand — there is no jump button' }, ...tail]
@@ -216,10 +220,17 @@ export class VRInput implements PlatformInput {
       const gamepad = hand.source?.gamepad;
       if (!gamepad) continue;
       const handedness = hand.source?.handedness;
-      // Standard OpenXR mapping: 4 = A/X, 5 = B/Y.
-      if (gamepad.buttons[4]?.pressed) buttons |= handedness === 'right' ? Buttons.Jump : Buttons.Interact;
+      // Standard OpenXR mapping: 0 = trigger, 3 = thumbstick click, 4 = A/X, 5 = B/Y.
+      const right = handedness === 'right';
+      if (gamepad.buttons[4]?.pressed) buttons |= right ? Buttons.Jump : Buttons.Shop;
       if (gamepad.buttons[5]?.pressed) buttons |= Buttons.Emote;
-      if (gamepad.buttons[3]?.pressed) buttons |= Buttons.Sprint; // thumbstick click
+      // Thumbstick click: sprint on the right, push-to-talk on the left. Talk is on a stick
+      // rather than a face button because it is *held*, and a held face button is the one your
+      // thumb needs for everything else.
+      if (gamepad.buttons[3]?.pressed) buttons |= right ? Buttons.Sprint : Buttons.Talk;
+      // Triggers, not grips: grip is how you hold the world in arms-first mode, and taking it
+      // for the gadget would make firing and climbing the same gesture.
+      if (gamepad.buttons[0]?.pressed) buttons |= right ? Buttons.UseGadget : Buttons.CycleGadget;
     }
     // Crouching is physical: ducking your head is the crouch input, no button needed.
     this.buttons = buttons;

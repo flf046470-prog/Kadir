@@ -57,8 +57,22 @@ export const UI_CSS = `
 .kc-scores { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); font-size: 13px; text-align: right; background: rgba(0,0,0,.35); padding: 8px 12px; border-radius: 10px; min-width: 130px; }
 .kc-scores div { display: flex; justify-content: space-between; gap: 12px; }
 .kc-status { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); font-size: 11px; opacity: .6; font-variant-numeric: tabular-nums; }
-.kc-chat { position: absolute; bottom: 70px; left: max(12px, env(safe-area-inset-left)); max-width: 46vw; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
-.kc-chat span { background: rgba(0,0,0,.45); padding: 4px 8px; border-radius: 8px; }
+.kc-chat { position: absolute; bottom: 70px; left: max(12px, env(safe-area-inset-left)); width: min(420px, 46vw); font-size: 13px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+.kc-chat-log { display: flex; flex-direction: column; gap: 3px; max-height: 30vh; overflow-y: auto; scrollbar-width: none; }
+.kc-chat-log::-webkit-scrollbar { display: none; }
+.kc-chat-line { transition: opacity .4s linear; align-self: flex-start; background: rgba(0,0,0,.45); padding: 4px 8px; border-radius: 8px; max-width: 100%; word-break: break-word; }
+.kc-chat-line b { color: #a5b4fc; font-weight: 600; }
+.kc-chat-line--team b { color: #6ee7b7; }
+.kc-chat-line--own b { color: #fcd34d; }
+.kc-chat-line--system { background: rgba(120,20,20,.55); font-style: italic; }
+/* The composer only exists while it is open: an invisible-but-present input steals taps on
+   touch and tab-focus on desktop, both of which look like the game freezing. */
+.kc-chat-form { display: none; gap: 6px; pointer-events: auto; }
+.kc-chat[data-open='true'] .kc-chat-form { display: flex; }
+.kc-chat[data-open='true'] .kc-chat-log { background: rgba(0,0,0,.25); border-radius: 8px; }
+.kc-chat-input { flex: 1; min-width: 0; background: rgba(0,0,0,.72); color: #f8fafc; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; padding: 7px 10px; font: inherit; }
+.kc-chat-input:focus { outline: 2px solid #818cf8; outline-offset: 1px; }
+.kc-chat-channel { background: rgba(99,102,241,.85); color: #fff; border: 0; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 700; cursor: pointer; }
 .kc-toast { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); padding: 10px 18px; border-radius: 12px; font-weight: 600; }
 .kc-charge { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(240px, 46vw); height: 8px; background: rgba(0,0,0,.45); border-radius: 999px; overflow: hidden; }
 .kc-charge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#ffd166,#ef476f); }
@@ -67,6 +81,9 @@ export const UI_CSS = `
 .kc-stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255,255,255,.28); background: rgba(0,0,0,.22); opacity: 0; transition: opacity .12s; }
 .kc-stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,.4); }
 .kc-touchbtns { position: absolute; right: max(16px, env(safe-area-inset-right)); bottom: max(20px, env(safe-area-inset-bottom)); display: grid; grid-template-columns: repeat(2, 76px); gap: 12px; }
+/* Gear cluster: top-right, away from the movement pad so a thumb reaching for HOP mid-chase
+   cannot fire a freeze gun by accident. Smaller, because it is used deliberately, not in a panic. */
+.kc-touchbtns--gear { top: max(64px, env(safe-area-inset-top)); bottom: auto; grid-template-columns: repeat(2, 62px); gap: 10px; }
 .kc-touchbtn { width: 76px; height: 76px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(20,40,24,.72); color: #fff; font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; user-select: none; }
 .kc-touchbtn--big { width: 92px; height: 92px; grid-column: 2; background: rgba(46,110,52,.8); }
 .kc-touchbtn:active, .kc-touchbtn[data-active="true"] { background: rgba(90,180,96,.9); transform: scale(.96); }
@@ -87,11 +104,12 @@ export const UI_CSS = `
    overlap. A control the player cannot reach is worse than a control they cannot read. */
 @media (max-height: 480px) {
   .kc-touchbtns { grid-template-columns: repeat(3, 60px); gap: 8px; }
+  .kc-touchbtns--gear { grid-template-columns: repeat(2, 52px); gap: 6px; }
   .kc-touchbtn { width: 60px; height: 60px; font-size: 11px; }
   .kc-touchbtn--big { width: 72px; height: 72px; grid-column: 3; grid-row: 1 / span 2; align-self: end; }
   .kc-scores { font-size: 11px; padding: 6px 9px; min-width: 108px; max-height: 34vh; overflow: hidden; }
   .kc-headline { font-size: 20px; }
-  .kc-chat { bottom: 96px; font-size: 11px; }
+  .kc-chat { bottom: 96px; font-size: 11px; width: 62vw; }
 }
 `;
 

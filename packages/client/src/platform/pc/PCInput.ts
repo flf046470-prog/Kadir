@@ -21,6 +21,10 @@ export class PCInput implements PlatformInput {
     { action: 'Punch', hint: 'Left mouse' },
     { action: 'Interact', hint: 'E' },
     { action: 'Emote', hint: 'X' },
+    { action: 'Use gadget', hint: 'F' },
+    { action: 'Next gadget', hint: 'Q' },
+    { action: 'Shop / board', hint: 'B' },
+    { action: 'Push to talk', hint: 'V' },
   ];
 
   private keys = new Set<string>();
@@ -89,6 +93,10 @@ export class PCInput implements PlatformInput {
     if (this.keys.has('ControlLeft') || this.keys.has('KeyC')) buttons |= Buttons.Crouch;
     if (this.keys.has('KeyE')) buttons |= Buttons.Interact;
     if (this.keys.has('KeyX')) buttons |= Buttons.Emote;
+    if (this.keys.has('KeyF')) buttons |= Buttons.UseGadget;
+    if (this.keys.has('KeyQ')) buttons |= Buttons.CycleGadget;
+    if (this.keys.has('KeyB')) buttons |= Buttons.Shop;
+    if (this.keys.has('KeyV')) buttons |= Buttons.Talk;
     if (this.mouseButtons.has(2)) buttons |= Buttons.GrabRight | Buttons.GrabLeft;
     if (this.mouseButtons.has(0)) buttons |= Buttons.PunchRight;
 
@@ -138,6 +146,12 @@ export class PCInput implements PlatformInput {
     if (pressed(2)) buttons |= Buttons.Interact;
     if (pressed(3)) buttons |= Buttons.Emote;
     if (pressed(7)) buttons |= Buttons.PunchRight;
+    // Gamepad: right bumper fires the gadget, D-pad up cycles, D-pad down opens the shop, and
+    // the right stick click is push-to-talk — the same shape as the VR controller mapping.
+    if (pressed(5)) buttons |= Buttons.UseGadget;
+    if (pressed(12)) buttons |= Buttons.CycleGadget;
+    if (pressed(13)) buttons |= Buttons.Shop;
+    if (pressed(11)) buttons |= Buttons.Talk;
 
     return { moveX: axis(0), moveZ: -axis(1), buttons };
   }

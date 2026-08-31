@@ -17,7 +17,9 @@ export interface NetHandlers {
   onEvents(events: SimEvent[]): void;
   onModeState(state: ModeStateView): void;
   onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
-  onChat(playerId: string, name: string, text: string): void;
+  onChat(playerId: string, name: string, text: string, channel: 'room' | 'team' | 'system'): void;
+  /** Only the sender is told why a message of theirs was not delivered. */
+  onChatRejected(message: string): void;
   onVoiceSignal(fromId: string, payload: string, kind: 'offer' | 'answer' | 'ice' | 'leave'): void;
   onRoomState(state: Extract<ServerMessage, { t: 'room' }>): void;
   onError(code: string, message: string): void;
@@ -187,7 +189,10 @@ export class NetClient {
         this.handlers.onResults(message.result, message.rewards);
         break;
       case 'chat':
-        this.handlers.onChat(message.playerId, message.name, message.text);
+        this.handlers.onChat(message.playerId, message.name, message.text, message.channel ?? 'room');
+        break;
+      case 'chat-rejected':
+        this.handlers.onChatRejected(message.message);
         break;
       case 'voice':
         this.handlers.onVoiceSignal(message.fromId, message.payload, message.kind);

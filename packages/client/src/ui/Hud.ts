@@ -1,6 +1,7 @@
 import type { ModeStateView, PlayerState, SimEvent } from '@kc/core';
 import { clear, el, formatTime } from './dom.js';
-import type { MobileInput } from '../platform/mobile/MobileInput.js';
+import type { MobileButtonState, MobileInput } from '../platform/mobile/MobileInput.js';
+import { ChatPanel } from './ChatPanel.js';
 
 export interface HudOptions {
   root: HTMLElement;
@@ -8,6 +9,15 @@ export interface HudOptions {
   localId: string;
   onMenu(): void;
   onEmote(): void;
+  /** Send a chat line. Absent in contexts with no server to send it to. */
+  onChat?(text: string, channel: 'room' | 'team'): void;
+  /**
+   * The composer took or released the keyboard.
+   *
+   * The game must stop reading keys while it has focus, or typing "hey" hops three times — the
+   * single most common way in-game chat is broken.
+   */
+  onChatFocus?(focused: boolean): void;
 }
 
 /**
@@ -21,7 +31,7 @@ export class Hud {
   private role: HTMLElement;
   private scores: HTMLElement;
   private status: HTMLElement;
-  private chat: HTMLElement;
+  private chat: ChatPanel;
   private toast: HTMLElement;
   private chargeFill: HTMLElement;
   private touchLayer: HTMLElement | null = null;
@@ -36,7 +46,10 @@ export class Hud {
     this.role = el('div', { class: 'kc-role kc-role--other' }, '');
     this.scores = el('div', { class: 'kc-scores' });
     this.status = el('div', { class: 'kc-status' }, '');
-    this.chat = el('div', { class: 'kc-chat' });
+    this.chat = new ChatPanel({
+      send: (text, channel) => options.onChat?.(text, channel),
+      onFocusChange: (focused) => options.onChatFocus?.(focused),
+    });
     this.toast = el('div', { class: 'kc-toast kc-hidden' }, '');
     this.chargeFill = el('i');
 
@@ -46,7 +59,7 @@ export class Hud {
       el('div', { class: 'kc-hud-top' }, this.headline, this.timer, this.role),
       this.scores,
       this.status,
-      this.chat,
+      this.chat.element,
       this.toast,
       el('div', { class: 'kc-charge' }, this.chargeFill),
       el(
@@ -63,7 +76,7 @@ export class Hud {
     if (this.options.platform !== 'mobile') return;
     this.stick = el('div', { class: 'kc-stick' }, el('i'));
 
-    const makeButton = (label: string, key: 'jump' | 'grab' | 'interact' | 'emote' | 'punch', big = false): HTMLElement => {
+    const makeButton = (label: string, key: keyof MobileButtonState, big = false): HTMLElement => {
       const node = el('div', {
         class: `kc-touchbtn${big ? ' kc-touchbtn--big' : ''}`,
         dataset: { ui: 'true' },
@@ -95,6 +108,26 @@ export class Hud {
         makeButton('PUNCH', 'punch'),
         makeButton('USE', 'interact'),
         makeButton('EMOTE', 'emote'),
+      ),
+      // Second cluster, top-right: the equipment controls. Kept apart from the movement pad so a
+      // thumb reaching for HOP mid-chase cannot fire a freeze gun by accident.
+      el(
+        'div',
+        { class: 'kc-touchbtns kc-touchbtns--gear' },
+        makeButton('🎙', 'talk'),
+        // Not a MobileButtonState key: this opens a text field rather than pressing a game
+        // button, so it is a plain tap handler.
+        (() => {
+          const node = el('div', { class: 'kc-touchbtn', dataset: { ui: 'true' } }, '💬');
+          node.addEventListener('pointerdown', (event) => {
+            event.preventDefault();
+            this.chat.toggle();
+          });
+          return node;
+        })(),
+        makeButton('SHOP', 'shop'),
+        makeButton('NEXT', 'cycle'),
+        makeButton('FIRE', 'gadget', true),
       ),
     );
     this.element.append(this.touchLayer);
@@ -139,11 +172,21 @@ export class Hud {
     this.status.textContent = text;
   }
 
-  pushChat(name: string, text: string): void {
-    const line = el('span', {}, `${name}: ${text}`);
-    this.chat.append(line);
-    while (this.chat.childElementCount > 5) this.chat.firstElementChild?.remove();
-    setTimeout(() => line.remove(), 12_000);
+  pushChat(name: string, text: string, channel: 'room' | 'team' | 'system' = 'room', own = false): void {
+    this.chat.push({ name, text, channel, own });
+  }
+
+  /** Open or close the composer. Bound to Enter on PC and to a button on touch. */
+  toggleChat(): void {
+    this.chat.toggle();
+  }
+
+  get chatFocused(): boolean {
+    return this.chat.isOpen;
+  }
+
+  clearChat(): void {
+    this.chat.clear();
   }
 
   showToast(text: string, ms = 2200): void {

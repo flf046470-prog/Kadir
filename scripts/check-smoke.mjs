@@ -96,7 +96,50 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   const played = await page.evaluate(() => document.querySelectorAll('canvas').length > 0);
   const inMatch = !((await page.textContent('body')) ?? '').includes('Practice with bots');
 
+  // Chat. The thing worth proving is not that a box appears — it is that while the box has the
+  // keyboard, the letters go into the box and not into the kangaroo. Typing "wasd" is the test:
+  // every one of those is a movement key.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(250);
+  const chatOpen = await page.locator('.kc-chat[data-open="true"]').count() > 0;
+  await page.keyboard.type('wasd hello');
+  await page.waitForTimeout(150);
+  const typed = await page.locator('.kc-chat-input').inputValue();
+  const keysWentToChat = typed === 'wasd hello';
+
+  // Escape closes the composer rather than opening the menu — the nearer thing first.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  const chatClosed = await page.locator('.kc-chat[data-open="true"]').count() === 0;
+  const stillInMatch = !((await page.textContent('body')) ?? '').includes('Practice with bots');
+
+  // Sending closes it again, so the next key goes back to the game.
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  await page.keyboard.type('gg');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(250);
+  const closedAfterSend = await page.locator('.kc-chat[data-open="true"]').count() === 0;
+
+  // Touch builds reach the same composer through a button, since there is no Enter key.
+  let touchChat = 'n/a';
+  if (label !== 'desktop') {
+    const button = page.locator('.kc-touchbtn', { hasText: '💬' }).first();
+    touchChat = (await button.count()) > 0 ? 'present' : 'MISSING';
+    if (touchChat === 'present') {
+      await button.dispatchEvent('pointerdown');
+      await page.waitForTimeout(250);
+      touchChat = (await page.locator('.kc-chat[data-open="true"]').count()) > 0 ? 'opens' : 'NO-OPEN';
+      await page.keyboard.press('Escape');
+    }
+  }
+
   console.log(`${label.padEnd(16)} tutorial=${sawTutorial} menu=${sawMenu} credits=${sawCredits} canvas=${played} inMatch=${inMatch}`);
+  console.log(`${''.padEnd(16)} chat: open=${chatOpen} keysCaptured=${keysWentToChat} esc=${chatClosed} stillInMatch=${stillInMatch} closedAfterSend=${closedAfterSend} touch=${touchChat}`);
+  if (!chatOpen || !keysWentToChat || !chatClosed || !stillInMatch || !closedAfterSend) {
+    errors.push(`[${label}] chat composer misbehaved (typed=${JSON.stringify(typed)})`);
+  }
+  if (touchChat !== 'n/a' && touchChat !== 'opens') errors.push(`[${label}] touch chat button ${touchChat}`);
   await page.close();
 }
 await browser.close();

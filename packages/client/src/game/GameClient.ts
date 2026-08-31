@@ -36,7 +36,7 @@ export interface GameCallbacks {
   onModeState(state: ModeStateView): void;
   onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
   onNetStatus(status: NetStatus): void;
-  onChat(name: string, text: string): void;
+  onChat(name: string, text: string, channel: 'room' | 'team' | 'system', own: boolean): void;
   onNotice(text: string): void;
   onRoomState(code: string, isPrivate: boolean, playerCount: number): void;
   onLocalEvent(event: SimEvent): void;
@@ -92,6 +92,8 @@ export class GameClient {
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
+  /** True while a text field owns the keyboard; see `setInputSuspended`. */
+  private inputSuspended = false;
 
   private accumulator = 0;
   private lastFrameTime = 0;
@@ -144,7 +146,9 @@ export class GameClient {
         this.levelRenderer.setCheckpointsVisible(state.modeId === 'parkour');
       },
       onResults: (result, rewards) => this.callbacks.onResults(result, rewards),
-      onChat: (_playerId, name, text) => this.callbacks.onChat(name, text),
+      onChat: (playerId, name, text, channel) =>
+        this.callbacks.onChat(name, text, channel, playerId === this.localId),
+      onChatRejected: (message) => this.callbacks.onChat('', message, 'system', true),
       onVoiceSignal: (fromId, payload, kind) => void this.voice.handleSignal(fromId, payload, kind),
       onRoomState: (state) => {
         this.roomCode = state.roomCode;
@@ -395,7 +399,16 @@ export class GameClient {
     this.stats.fps = this.stats.fps * 0.9 + (1000 / Math.max(1, dtMs)) * 0.1;
 
     this.renderer.governFrame(dtMs, time);
-    this.input.sample(this.intent, dt, this.settings);
+    if (this.inputSuspended) {
+      // Look is still sampled so the camera does not lurch when the composer closes; movement
+      // and buttons stay zeroed by `setInputSuspended`.
+      this.intent.tick = this.sim.tick;
+    } else {
+      this.input.sample(this.intent, dt, this.settings);
+    }
+    // Mic loudness rides the intent so every viewer sees the same mouth on the same tick. The
+    // platform layer owns the Talk button; this only supplies the level behind it.
+    this.intent.voice = this.inputSuspended ? 0 : this.voice.level;
 
     // Fixed-step simulation with a bounded catch-up, so a hitch cannot spiral.
     this.accumulator += dt;
@@ -566,8 +579,24 @@ export class GameClient {
     this.localAvatar?.setCosmetics(cosmetics);
   }
 
-  sendChat(text: string): void {
-    this.net.sendJson({ t: 'chat', text });
+  sendChat(text: string, channel: 'room' | 'team' = 'room'): void {
+    this.net.sendJson({ t: 'chat', text, channel });
+  }
+
+  /**
+   * Stop feeding input to the simulation while a text field has the keyboard.
+   *
+   * The intent is zeroed rather than merely ignored: a key held when the composer opened would
+   * otherwise stay held in the last-sent intent, and the player would walk into a wall for as
+   * long as they typed.
+   */
+  setInputSuspended(suspended: boolean): void {
+    this.inputSuspended = suspended;
+    if (!suspended) return;
+    this.intent.moveX = 0;
+    this.intent.moveZ = 0;
+    this.intent.buttons = 0;
+    this.intent.voice = 0;
   }
 
   voteMode(modeId: string): void {

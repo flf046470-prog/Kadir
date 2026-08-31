@@ -29,6 +29,17 @@ export class VoiceChat {
   private muted = false;
   private localId = '';
   private blocked = new Set<string>();
+  /**
+   * Local microphone loudness, 0..1.
+   *
+   * Measured here rather than in the renderer because this is the only place that holds the
+   * local stream. It drives the avatar's jaw for *everyone* — the value travels in the intent,
+   * so a listener whose peer connection to this player failed still sees the right mouth.
+   */
+  private analyser: AnalyserNode | null = null;
+  private analyserSource: MediaStreamAudioSourceNode | null = null;
+  private levelBuffer = new Uint8Array(new ArrayBuffer(0));
+  private smoothedLevel = 0;
 
   constructor(
     private readonly audio: AudioSystem,
@@ -60,6 +71,7 @@ export class VoiceChat {
         video: false,
       });
       this.enabled = true;
+      this.startLevelMeter();
       return true;
     } catch (error) {
       console.warn('[voice] microphone unavailable:', (error as Error).message);
@@ -70,9 +82,70 @@ export class VoiceChat {
 
   disable(): void {
     for (const [id] of this.peers) this.closePeer(id);
+    this.stopLevelMeter();
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.enabled = false;
+  }
+
+  /**
+   * Attach an analyser to the local microphone.
+   *
+   * Non-fatal on failure: a missing AudioContext costs lip sync, not voice, and a browser that
+   * refuses the node should not take the microphone down with it.
+   */
+  private startLevelMeter(): void {
+    const context = this.audio.context;
+    if (!context || !this.localStream) return;
+    try {
+      this.analyserSource = context.createMediaStreamSource(this.localStream);
+      this.analyser = context.createAnalyser();
+      // 512 is enough resolution for an amplitude envelope and cheap to read every frame.
+      this.analyser.fftSize = 512;
+      this.levelBuffer = new Uint8Array(new ArrayBuffer(this.analyser.fftSize));
+      this.analyserSource.connect(this.analyser);
+      // Deliberately not connected onward: this branch is for measurement, and routing the
+      // microphone to the speakers is how you give someone feedback howl in a headset.
+    } catch (error) {
+      console.warn('[voice] level meter unavailable:', (error as Error).message);
+      this.analyser = null;
+    }
+  }
+
+  private stopLevelMeter(): void {
+    this.analyserSource?.disconnect();
+    this.analyser?.disconnect();
+    this.analyserSource = null;
+    this.analyser = null;
+    this.smoothedLevel = 0;
+  }
+
+  /**
+   * Current mic loudness, 0..1, smoothed.
+   *
+   * RMS of the time-domain samples rather than a peak, because a peak follows consonants and
+   * makes the jaw snap; RMS follows the envelope of speech, which is what a mouth does. Returns
+   * 0 while muted or disabled, so a muted player's avatar keeps its mouth shut.
+   */
+  get level(): number {
+    if (!this.analyser || this.muted || !this.enabled) {
+      this.smoothedLevel = 0;
+      return 0;
+    }
+    this.analyser.getByteTimeDomainData(this.levelBuffer);
+    let sum = 0;
+    for (const sample of this.levelBuffer) {
+      const centred = (sample - 128) / 128;
+      sum += centred * centred;
+    }
+    const rms = Math.sqrt(sum / Math.max(1, this.levelBuffer.length));
+    // Speech RMS sits well below 1; scale it into a usable range and clamp.
+    const scaled = Math.min(1, rms * 4);
+    // Asymmetric smoothing: open quickly, close slowly. A mouth that shuts between syllables
+    // reads as a glitch, and one that opens late reads as bad sync.
+    const rate = scaled > this.smoothedLevel ? 0.55 : 0.15;
+    this.smoothedLevel += (scaled - this.smoothedLevel) * rate;
+    return this.smoothedLevel;
   }
 
   setMuted(muted: boolean): void {

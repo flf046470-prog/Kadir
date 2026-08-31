@@ -155,7 +155,7 @@ async function main(): Promise<void> {
           shell.showResults(result, rewards, session?.playerId ?? '');
         },
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
-        onChat: (from, text) => hud?.pushChat(from, text),
+        onChat: (from, text, channel, own) => hud?.pushChat(from, text, channel, own),
         onNotice: (text) => shell.setNotice(text),
         onRoomState: (code, isPrivate, playerCount) =>
           hud?.setStatus(`${code}${isPrivate ? ' (private)' : ''} · ${playerCount} players`),
@@ -169,6 +169,10 @@ async function main(): Promise<void> {
       localId: session.playerId,
       onMenu: () => openMenu(),
       onEmote: () => undefined,
+      onChat: (text, channel) => game?.sendChat(text, channel),
+      // While the composer has the keyboard the game must stop reading it, or typing "hey" hops
+      // three times. The input layer is detached rather than filtered, so no key can leak through.
+      onChatFocus: (focused) => game?.setInputSuspended(focused),
     });
     if (input instanceof MobileInput) hud.attachTouchControls(input);
     hud.setVisible(false);
@@ -341,7 +345,20 @@ async function main(): Promise<void> {
   }
 
   document.addEventListener('keydown', (event) => {
+    // Enter opens the chat composer, and T does the same — Enter is the reflex, T is the habit
+    // from every other game. Both are ignored while a menu is up, where Enter means "confirm".
+    if ((event.code === 'Enter' || event.code === 'KeyT') && shell.currentScreen === 'none' && hud) {
+      event.preventDefault();
+      hud.toggleChat();
+      return;
+    }
     if (event.code !== 'Escape') return;
+    // Escape closes the composer before it opens the menu: the nearer thing first, which is what
+    // a player pressing it while typing means.
+    if (hud?.chatFocused) {
+      hud.toggleChat();
+      return;
+    }
     if (shell.currentScreen === 'none') openMenu();
     else closeMenu();
   });
