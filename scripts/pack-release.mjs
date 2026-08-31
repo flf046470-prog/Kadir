@@ -66,12 +66,46 @@ async function sha256(file) {
 
 const collected = [];
 const skipped = [];
+const stale = [];
 
-async function collect({ id, title, from, kind, out, note, hint }) {
+/**
+ * Newest mtime anywhere under a path. Used to compare an artifact against its source.
+ */
+async function newestMtime(target) {
+  const info = await stat(target);
+  if (!info.isDirectory()) return info.mtimeMs;
+  let newest = info.mtimeMs;
+  for (const entry of await readdir(target, { withFileTypes: true })) {
+    newest = Math.max(newest, await newestMtime(path.join(target, entry.name)));
+  }
+  return newest;
+}
+
+/**
+ * Refuse to ship an artifact older than what it was built from.
+ *
+ * This exists because it actually happened: `@electron/packager` writes `resources/app.asar`,
+ * and Electron resolves that *before* `resources/app/`. Refreshing the unpacked directory
+ * therefore changes nothing, the distributable keeps running a build from days earlier, and
+ * `pack:release` cheerfully zips 150 MB of it with a checksum that looks authoritative. The
+ * failure is silent in every direction — the zip is valid, the app runs, it is simply the wrong
+ * game. A date comparison is a cheap way to never be fooled by it twice.
+ */
+async function checkFreshness(id, artifact, source) {
+  if (!(await exists(source))) return true;
+  const [artifactAt, sourceAt] = [await newestMtime(artifact), await newestMtime(source)];
+  if (artifactAt >= sourceAt) return true;
+  const hours = ((sourceAt - artifactAt) / 3_600_000).toFixed(1);
+  stale.push({ id, hours, artifact: path.relative(root, artifact), source: path.relative(root, source) });
+  return false;
+}
+
+async function collect({ id, title, from, kind, out, note, hint, freshAgainst }) {
   if (!(await exists(from))) {
     skipped.push({ id, title, hint });
     return;
   }
+  if (freshAgainst && !(await checkFreshness(id, from, freshAgainst))) return;
   const target = path.join(releaseDir, out);
   await rm(target, { force: true });
 
@@ -120,6 +154,8 @@ async function main() {
       out: `kangaroo-chase-steam-${label}-${version}.zip`,
       note: 'Unzip and point the depot at the folder. Steam ships a directory, not an installer.',
       hint: `npx @electron/packager dist/steam-app KangarooChase --platform=${platform.split('-')[0]} --arch=${platform.split('-')[1]} --electron-version=<v> --out=dist/steam`,
+      // The packaged app embeds an app.asar; refreshing dist/steam-app alone does not update it.
+      freshAgainst: path.join(dist, 'steam-app'),
     });
   }
 
@@ -142,6 +178,15 @@ async function main() {
     note: 'Sideload with: adb install -r <file>. Same binary as the .aab, packaged for direct install.',
     hint: 'npm run pack:quest -- --domain <host>  then  bubblewrap build',
   });
+
+  if (stale.length > 0) {
+    console.error(`\n\x1b[31m${stale.length} artifact(s) older than what they were built from:\x1b[0m`);
+    for (const s of stale) {
+      console.error(`  - ${s.id}: ${s.artifact} is ${s.hours}h older than ${s.source}`);
+      console.error(`      rebuild it, or it ships the wrong game with a convincing checksum`);
+    }
+    process.exitCode = 1;
+  }
 
   if (collected.length === 0) {
     console.error('\nNothing to package — run `npm run build` first.');
