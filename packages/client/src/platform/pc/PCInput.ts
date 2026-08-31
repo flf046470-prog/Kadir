@@ -8,6 +8,9 @@ import type { PlatformInput } from '../Platform.js';
  * Look is accumulated locally and sent as an absolute yaw/pitch, exactly like VR sends the
  * headset's orientation — which is why the server needs only one intent format.
  */
+/** Pixels of drag that turn a held mouse button from an attack into a look. */
+const DRAG_LOOK_SLOP = 8;
+
 export class PCInput implements PlatformInput {
   readonly kind = 'pc' as const;
 
@@ -34,6 +37,10 @@ export class PCInput implements PlatformInput {
   private pointerLocked = false;
   private canvas: HTMLElement;
   private attached = false;
+  /** Set once the browser has refused pointer lock, so the drag fallback takes over for good. */
+  private pointerLockBlocked = false;
+  private dragging = false;
+  private dragDistance = 0;
 
   constructor(canvas: HTMLElement) {
     this.canvas = canvas;
@@ -65,10 +72,34 @@ export class PCInput implements PlatformInput {
     this.canvas.removeEventListener('contextmenu', this.onContextMenu);
     this.keys.clear();
     this.mouseButtons.clear();
+    this.dragging = false;
   }
 
+  /**
+   * Ask for pointer lock, and remember if the browser says no.
+   *
+   * It says no whenever the game is embedded in a frame that was not granted `allow-pointer-lock`
+   * — an artifact viewer, an itch.io page, any kiosk embed. The call throws a `SecurityError`
+   * synchronously *and* rejects, and an unhandled one of those is a red line in the player's
+   * console for something that is not their problem. Swallow it and fall back to drag-look, which
+   * is why `pointerLockBlocked` is sticky: once refused, asking again on every click only
+   * produces more errors.
+   */
   requestPointerLock(): void {
-    if (!this.pointerLocked) void this.canvas.requestPointerLock?.();
+    if (this.pointerLocked || this.pointerLockBlocked) return;
+    try {
+      const result = this.canvas.requestPointerLock?.() as Promise<void> | undefined;
+      result?.catch(() => {
+        this.pointerLockBlocked = true;
+      });
+    } catch {
+      this.pointerLockBlocked = true;
+    }
+  }
+
+  /** True when look is coming from dragging rather than from a locked pointer. */
+  get isDragLooking(): boolean {
+    return this.pointerLockBlocked;
   }
 
   releasePointerLock(): void {
@@ -171,28 +202,49 @@ export class PCInput implements PlatformInput {
   private onBlur = (): void => {
     this.keys.clear();
     this.mouseButtons.clear();
+    this.dragging = false;
   };
 
   private onMouseDown = (event: MouseEvent): void => {
     if (isTextInput(event.target)) return;
     this.mouseButtons.add(event.button);
+    this.dragging = true;
+    this.dragDistance = 0;
     this.requestPointerLock();
   };
 
   private onMouseUp = (event: MouseEvent): void => {
     this.mouseButtons.delete(event.button);
+    this.dragging = false;
   };
 
   private onMouseMove = (event: MouseEvent): void => {
-    if (!this.pointerLocked) return;
     const sensitivity = 0.0022;
+    if (this.pointerLocked) {
+      this.yaw -= event.movementX * sensitivity;
+      this.pitch = clamp(this.pitch - event.movementY * sensitivity, -1.45, 1.45);
+      return;
+    }
+    // Without pointer lock the mouse cannot be recentred, so a bare mouse-move would let you
+    // turn only until the cursor hit the edge of the window. Dragging can be repeated, so look
+    // is driven by held-button movement instead.
+    if (!this.dragging) return;
     this.yaw -= event.movementX * sensitivity;
     this.pitch = clamp(this.pitch - event.movementY * sensitivity, -1.45, 1.45);
+
+    // A drag is a look, not an attack. Past a few pixels the held button stops counting as a
+    // punch or a grab, so turning around does not swing at whoever is in front of you — while a
+    // click that barely moves still lands, which is how punching works in this mode.
+    this.dragDistance += Math.abs(event.movementX) + Math.abs(event.movementY);
+    if (this.dragDistance > DRAG_LOOK_SLOP) this.mouseButtons.clear();
   };
 
   private onPointerLockChange = (): void => {
     this.pointerLocked = document.pointerLockElement === this.canvas;
-    if (!this.pointerLocked) this.mouseButtons.clear();
+    if (!this.pointerLocked) {
+      this.mouseButtons.clear();
+      this.dragging = false;
+    }
   };
 
   private onContextMenu = (event: Event): void => {
