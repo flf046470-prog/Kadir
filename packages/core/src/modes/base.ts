@@ -87,7 +87,12 @@ export abstract class RoundMode implements GameMode {
       // Every round starts clean: last round's traps are swept and charges refilled. Done here
       // rather than in each mode so a new mode cannot forget and inherit a minefield.
       ctx.gadgets.clear();
-      for (const player of ctx.players.values()) resetForRound(player.gadgets, this.def.startingCash ?? 0);
+      for (const player of ctx.players.values()) {
+        // A custom mode with gadgets off is a pure movement match: the loadout is emptied so a
+        // player who equipped a freeze gun in the lobby does not walk in holding one.
+        if (this.def.gadgetsEnabled === false) player.gadgets.slots = [null, null, null];
+        resetForRound(player.gadgets, this.def.startingCash ?? 0);
+      }
       this.onRoundStart(ctx);
     }
     ctx.events.emit('roundState', 'system', { x: 0, y: 0, z: 0 }, ctx.tick, 0, { data: phase });
@@ -188,6 +193,19 @@ export abstract class RoundMode implements GameMode {
   protected abstract computeWinners(ctx: ModeContext): string[];
   protected abstract winnerHeadline(ctx: ModeContext): string;
   protected onLateJoin(_ctx: ModeContext, _player: PlayerState): void {}
+}
+
+/**
+ * How many of `total` players start as chasers.
+ *
+ * One shared helper because every chase-shaped mode had its own arithmetic, and a custom config
+ * that changed the ratio would otherwise only reach whichever of them remembered to ask. Always
+ * at least one — a chase with no chaser is not a round — and never everyone, because a round
+ * where nobody is being chased ends the same way.
+ */
+export function chaserCount(def: GameModeDef, total: number, fallbackRatio: number): number {
+  const ratio = def.chaserRatio ?? fallbackRatio;
+  return Math.max(1, Math.min(total - 1, Math.round(total * ratio)));
 }
 
 export function countActive(ctx: ModeContext): number {

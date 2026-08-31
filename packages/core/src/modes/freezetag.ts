@@ -1,7 +1,7 @@
 import { v3distance } from '../math/vec3.js';
 import { DEFAULT_TAG_RULES, findTags } from '../player/tag.js';
 import type { PlayerState } from '../player/state.js';
-import { RoundMode, activePlayers } from './base.js';
+import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
 import type { GameModeDef, ModeContext } from './types.js';
 
@@ -49,11 +49,11 @@ export class FreezeTagMode extends RoundMode {
   protected override onRoundStart(ctx: ModeContext): void {
     this.thawing.clear();
     const players = ctx.rand.shuffle([...activePlayers(ctx)]);
-    const chaserCount = Math.max(1, Math.floor(players.length / 5));
-    this.chaserIds = players.slice(0, chaserCount).map((p) => p.id);
+    const chasers = chaserCount(this.def, players.length, 0.2);
+    this.chaserIds = players.slice(0, chasers).map((p) => p.id);
 
     players.forEach((player, index) => {
-      const chaser = index < chaserCount;
+      const chaser = index < chasers;
       player.role = chaser ? 'chaser' : 'runner';
       player.roleTicks = 0;
       player.gadgets.frozen = 0;
@@ -61,7 +61,7 @@ export class FreezeTagMode extends RoundMode {
       ctx.events.emit('roleChange', player.id, player.position, ctx.tick, 0, { data: player.role });
     });
 
-    this.headline = chaserCount > 1 ? `${chaserCount} chasers — stay warm` : 'Stay warm';
+    this.headline = chasers > 1 ? `${chasers} chasers — stay warm` : 'Stay warm';
   }
 
   protected override onPlaying(ctx: ModeContext): void {

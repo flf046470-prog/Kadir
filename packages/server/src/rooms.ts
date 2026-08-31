@@ -1,5 +1,5 @@
-import { Rand, isValidRoomCode, listModes } from '@kc/core';
-import type { LevelDef } from '@kc/core';
+import { Rand, isValidRoomCode, listModes, sanitiseModeConfig } from '@kc/core';
+import type { LevelDef, ModeConfig } from '@kc/core';
 import { buildJungleWorld } from '@kc/core';
 import type { AccountService } from './accounts.js';
 import type { Leaderboard } from './leaderboard.js';
@@ -10,6 +10,12 @@ export interface MatchmakeRequest {
   modeId?: string;
   roomCode?: string;
   createPrivate?: boolean;
+  /**
+   * House rules for a player-authored variant. Only honoured with `createPrivate`: a custom mode
+   * in a public room would drop strangers into a match whose rules they never agreed to, and it
+   * would break the "join the fullest room running this mode" assumption matchmaking is built on.
+   */
+  modeConfig?: unknown;
 }
 
 export type MatchmakeError = 'not-found' | 'full' | 'bad-code' | 'no-capacity' | 'unknown-mode';
@@ -50,13 +56,14 @@ export class RoomManager {
     return this.rooms.size;
   }
 
-  list(): { code: string; modeId: string; players: number; max: number; isPrivate: boolean }[] {
+  list(): { code: string; modeId: string; players: number; max: number; isPrivate: boolean; rules?: string }[] {
     return [...this.rooms.values()].map((room) => ({
       code: room.code,
       modeId: room.currentModeId,
       players: room.playerCount,
       max: room.maxPlayers,
       isPrivate: room.isPrivate,
+      ...(room.houseRules ? { rules: room.houseRules } : {}),
     }));
   }
 
@@ -73,6 +80,10 @@ export class RoomManager {
     const modeId = request.modeId ?? 'kangaroo-chase';
     if (!listModes().some((m) => m.id === modeId)) return { error: 'unknown-mode' };
 
+    // Sanitised here rather than at the HTTP edge, so every path into a room goes through it.
+    const modeConfig =
+      request.createPrivate && request.modeConfig !== undefined ? sanitiseModeConfig(request.modeConfig) : undefined;
+
     if (!request.createPrivate) {
       // Prefer the fullest room that still has space: players want a busy lobby, not an empty one.
       let best: Room | null = null;
@@ -84,10 +95,10 @@ export class RoomManager {
     }
 
     if (this.rooms.size >= this.config.maxRooms) return { error: 'no-capacity' };
-    return { room: this.createRoom(modeId, request.createPrivate === true) };
+    return { room: this.createRoom(modeId, request.createPrivate === true, modeConfig) };
   }
 
-  createRoom(modeId: string, isPrivate: boolean): Room {
+  createRoom(modeId: string, isPrivate: boolean, modeConfig?: ModeConfig): Room {
     let code = Room.newCode(this.rand);
     let guard = 0;
     while (this.rooms.has(code) && guard++ < 50) code = Room.newCode(this.rand);
@@ -102,6 +113,7 @@ export class RoomManager {
       leaderboard: this.leaderboard,
       level: this.level,
       seed: this.rand.int(0, 2 ** 30),
+      ...(modeConfig ? { modeConfig } : {}),
     });
     this.rooms.set(code, room);
     return room;

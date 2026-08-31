@@ -1,6 +1,6 @@
 import { DEFAULT_TAG_RULES, applyTagCooldowns, findTags } from '../player/tag.js';
 import type { PlayerState } from '../player/state.js';
-import { RoundMode, activePlayers } from './base.js';
+import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
 import type { GameModeDef, ModeContext } from './types.js';
 
@@ -34,7 +34,8 @@ export class ChaseMode extends RoundMode {
 
   protected override onRoundStart(ctx: ModeContext): void {
     const players = activePlayers(ctx);
-    this.chaserCount = Math.max(1, Math.floor(players.length / 5));
+    // One in five by default; a player-authored config can change the ratio.
+    this.chaserCount = chaserCount(this.def, players.length, 0.2);
     const shuffled = ctx.rand.shuffle([...players]);
     shuffled.forEach((player, index) => {
       const chaser = index < this.chaserCount;

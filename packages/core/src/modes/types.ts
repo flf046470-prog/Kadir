@@ -24,6 +24,13 @@ export interface GameModeDef {
   tagging: boolean;
   /** Round cash every player starts with, for modes that run an in-round shop. */
   startingCash?: number;
+  /**
+   * Fraction of the lobby that starts as chasers/hunters. Modes fall back to their own default
+   * when it is absent; a player-authored config is what usually supplies it.
+   */
+  chaserRatio?: number;
+  /** When false, loadouts are cleared at the bell and the shop is closed. Defaults to true. */
+  gadgetsEnabled?: boolean;
 }
 
 export interface ModeContext {

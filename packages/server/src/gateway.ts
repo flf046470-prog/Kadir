@@ -101,6 +101,8 @@ async function handleControl(
       modeId: message.modeId,
       roomCode: message.roomCode,
       createPrivate: message.roomCode === 'new-private',
+      // Passed through raw; `matchmake` sanitises, and only for a private room.
+      ...(message.modeConfig === undefined ? {} : { modeConfig: message.modeConfig }),
     });
     if (!match.room) {
       send(client, { t: 'error', code: match.error === 'not-found' ? 'not-found' : 'full', message: match.error ?? 'no room' });

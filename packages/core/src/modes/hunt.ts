@@ -2,7 +2,7 @@ import { getGadget, listGadgets } from '../gadgets/catalog.js';
 import { grantRoleGadgets } from '../gadgets/loadout.js';
 import { setSlot } from '../gadgets/state.js';
 import type { PlayerState } from '../player/state.js';
-import { RoundMode, activePlayers } from './base.js';
+import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
 import type { GameModeDef, ModeContext } from './types.js';
 
@@ -53,8 +53,9 @@ export class HuntMode extends RoundMode {
     this.downTimers.clear();
     this.cashCarry.clear();
     const players = ctx.rand.shuffle([...activePlayers(ctx)]);
-    // One hunter per six players, so a big lobby is not a formality for the survivors.
-    const hunterCount = Math.max(1, Math.floor(players.length / 6));
+    // One hunter per six players by default, so a big lobby is not a formality for the
+    // survivors; a player-authored config can change the ratio.
+    const hunterCount = chaserCount(this.def, players.length, 1 / 6);
     this.hunterIds = players.slice(0, hunterCount).map((p) => p.id);
 
     players.forEach((player, index) => {
@@ -133,6 +134,9 @@ export class HuntMode extends RoundMode {
    * `Math.floor(12 / 60)` is zero and a survivor would earn nothing for the entire round.
    */
   private accrueCash(player: PlayerState, dt: number): void {
+    // A variant with gadgets off has no shop, so cash would be a counter that only ever went up
+    // and never bought anything — a HUD element promising something that does not exist.
+    if (this.def.gadgetsEnabled === false) return;
     const carry = (this.cashCarry.get(player.id) ?? 0) + CASH_PER_SECOND * dt;
     const whole = Math.floor(carry);
     if (whole > 0) player.gadgets.cash += whole;
@@ -175,6 +179,8 @@ export class HuntMode extends RoundMode {
    */
   purchase(ctx: ModeContext, player: PlayerState, gadgetId: string): boolean {
     if (this.phase !== 'playing') return false;
+    // A custom variant with gadgets off has no shop at all, not an empty one.
+    if (this.def.gadgetsEnabled === false) return false;
     if (player.role !== 'survivor' || !player.alive) return false;
     const def = getGadget(gadgetId);
     if (!def || def.roles.length > 0) return false;
@@ -244,7 +250,7 @@ export class HuntMode extends RoundMode {
 
   /** What the in-round shop offers, in the order a survivor would want to read it. */
   shopStock(): { id: string; name: string; cost: number }[] {
-    return HuntMode.stock();
+    return this.def.gadgetsEnabled === false ? [] : HuntMode.stock();
   }
 
   /** Static twin, so the shelf can be inspected without a running round (HUD previews, tests). */

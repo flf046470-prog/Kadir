@@ -15,6 +15,7 @@ import {
   getModeDef,
   createModerationState,
   ChatGuard,
+  describeModeConfig,
   explainRejection,
   MemorySanctionStore,
   ReportLimiter,
@@ -25,6 +26,7 @@ import type {
   LevelDef,
   MatchResult,
   ModerationState,
+  ModeConfig,
   PlayerProfile,
   PlayerState,
   SanctionStore,
@@ -77,6 +79,8 @@ export interface RoomOptions {
   sanctions?: SanctionStore;
   level?: LevelDef;
   seed?: number;
+  /** House rules for a private room. Sanitised by the caller before it gets here. */
+  modeConfig?: ModeConfig;
 }
 
 /**
@@ -105,6 +109,8 @@ export class Room {
   private sanctions: SanctionStore;
   private resultsSent = false;
   private modeId: string;
+  /** Non-null only in a room running player-authored house rules. */
+  private modeConfig: ModeConfig | null;
   private emptySince: number | null = Date.now();
 
   constructor(options: RoomOptions) {
@@ -117,7 +123,13 @@ export class Room {
     this.sanctions = options.sanctions ?? new MemorySanctionStore();
     this.level = options.level ?? buildJungleWorld();
     this.modeId = options.modeId;
-    this.sim = new Simulation({ level: this.level, modeId: options.modeId, seed: options.seed });
+    this.modeConfig = options.modeConfig ?? null;
+    this.sim = new Simulation({
+      level: this.level,
+      modeId: options.modeId,
+      seed: options.seed,
+      ...(this.modeConfig ? { modeConfig: this.modeConfig } : {}),
+    });
   }
 
   get playerCount(): number {
@@ -130,6 +142,11 @@ export class Room {
 
   get currentModeId(): string {
     return this.modeId;
+  }
+
+  /** A one-line summary of this room's house rules, or null when it runs a shipped mode. */
+  get houseRules(): string | null {
+    return this.modeConfig ? describeModeConfig(this.modeConfig) : null;
   }
 
   /** How long the room has been empty, in ms. Used by the manager to reap idle rooms. */
@@ -452,13 +469,16 @@ export class Room {
 
   /** Rotate to the most-voted mode and rebuild the simulation for a fresh round. */
   startNextRound(): void {
-    const nextMode = this.winningVote() ?? this.modeId;
+    // A room with house rules keeps them: a vote there would be a vote to leave the variant the
+    // host set up, which is not what "next round" means in a private room.
+    const nextMode = this.modeConfig ? this.modeId : (this.winningVote() ?? this.modeId);
     this.modeId = nextMode;
     this.resultsSent = false;
     this.sim = new Simulation({
       level: this.level,
       modeId: nextMode,
       seed: new Rand(hashString(`${this.code}:${Date.now()}`)).int(0, 2 ** 30),
+      ...(this.modeConfig ? { modeConfig: this.modeConfig } : {}),
     });
     for (const client of this.clients.values()) {
       client.baseline = null;

@@ -11,6 +11,8 @@ import { cycleSelection, resetForRound } from '../gadgets/state.js';
 import type { GadgetSlot } from '../gadgets/types.js';
 import type { GameMode, ModeContext, MatchResult } from '../modes/types.js';
 import { createMode } from '../modes/registry.js';
+import { createCustomMode } from '../modes/custom.js';
+import type { ModeConfig } from '../modes/custom.js';
 import type { CombatConfig } from '../player/combat.js';
 import { DEFAULT_COMBAT, resolvePunches } from '../player/combat.js';
 import type { MovementConfig } from '../player/config.js';
@@ -33,6 +35,14 @@ export interface SimulationOptions {
   modeId: string;
   seed?: number;
   combat?: CombatConfig;
+  /**
+   * A player-authored variant to run instead of the registered mode.
+   *
+   * Already sanitised by the time it reaches here — `sanitiseModeConfig` is the trust boundary
+   * and it lives on the server. The simulation builds the shipped mode class with the config's
+   * numbers in its def, so every code path below this line is the audited one.
+   */
+  modeConfig?: ModeConfig;
 }
 
 export interface AddPlayerOptions {
@@ -80,7 +90,7 @@ export class Simulation {
     this.level = options.level;
     this.world = new PhysicsWorld(options.level.colliders);
     this.rand = new Rand(options.seed ?? hashString(options.level.id));
-    this.mode = createMode(options.modeId);
+    this.mode = options.modeConfig ? createCustomMode(options.modeConfig) : createMode(options.modeId);
     this.combatConfig = options.combat ?? DEFAULT_COMBAT;
 
     this.locomotion = {

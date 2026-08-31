@@ -71,7 +71,8 @@ async function main(): Promise<void> {
         onQuickPlay: (modeId) => void startMatch({ modeId }),
         onPractice: (modeId) => startPractice(modeId),
         onJoinRoom: (code) => void startMatch({ roomCode: code }),
-        onCreatePrivate: () => void startMatch({ roomCode: 'new-private' }),
+        onCreatePrivate: (modeConfig) =>
+          void startMatch({ roomCode: 'new-private', ...(modeConfig === undefined ? {} : { modeConfig }) }),
         onAnimalChanged: (animalId) => game?.setAnimal(animalId),
         onCosmeticsChanged: (cosmetics) => game?.setCosmetics(cosmetics),
         onSettingsChanged: (next) => {
@@ -288,7 +289,7 @@ async function main(): Promise<void> {
     };
   }
 
-  async function startMatch(options: { modeId?: string; roomCode?: string }): Promise<void> {
+  async function startMatch(options: { modeId?: string; roomCode?: string; modeConfig?: unknown }): Promise<void> {
     if (!game) return;
     shell.hide();
     hud?.setVisible(true);

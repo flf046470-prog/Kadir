@@ -37,6 +37,8 @@ export interface ConnectOptions {
   token?: string;
   roomCode?: string;
   modeId?: string;
+  /** House rules for a private room. The server sanitises it; nothing here is trusted. */
+  modeConfig?: unknown;
   crossPlay: boolean;
 }
 
@@ -106,6 +108,7 @@ export class NetClient {
         ...(options.token ? { token: options.token } : {}),
         ...(options.roomCode ? { roomCode: options.roomCode } : {}),
         ...(options.modeId ? { modeId: options.modeId } : {}),
+        ...(options.modeConfig === undefined ? {} : { modeConfig: options.modeConfig }),
       };
       this.sendJson(hello);
       this.setStatus('connected');

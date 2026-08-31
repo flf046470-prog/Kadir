@@ -189,7 +189,7 @@ export class GameClient {
     this.input.stop();
   }
 
-  connect(serverUrl: string, options: { roomCode?: string; modeId?: string } = {}): void {
+  connect(serverUrl: string, options: { roomCode?: string; modeId?: string; modeConfig?: unknown } = {}): void {
     this.modeId = options.modeId ?? this.modeId;
     this.net.connect({
       url: serverUrl,
@@ -201,6 +201,7 @@ export class GameClient {
       ...(this.options.profile.token ? { token: this.options.profile.token } : {}),
       ...(options.roomCode ? { roomCode: options.roomCode } : {}),
       ...(options.modeId ? { modeId: options.modeId } : {}),
+      ...(options.modeConfig === undefined ? {} : { modeConfig: options.modeConfig }),
     });
   }
 

@@ -1,5 +1,6 @@
-import { COSMETIC_SLOTS, listCredits } from '@kc/core';
+import { COSMETIC_SLOTS, CUSTOM_BASES, DEFAULT_MODE_CONFIG, listCredits } from '@kc/core';
 import type {
+  ModeConfig,
   AnimalDef,
   CosmeticDef,
   CosmeticSlot,
@@ -19,6 +20,7 @@ export type ScreenId =
   | 'menu'
   | 'modes'
   | 'room'
+  | 'houseRules'
   | 'customize'
   | 'store'
   | 'settings'
@@ -31,7 +33,11 @@ export interface ShellCallbacks {
   onQuickPlay(modeId: string): void;
   onPractice(modeId: string): void;
   onJoinRoom(code: string): void;
-  onCreatePrivate(): void;
+  /**
+   * Create a private room. `modeConfig` carries house rules when the host set any; the server
+   * sanitises it, so the shape sent here is a suggestion rather than a contract.
+   */
+  onCreatePrivate(modeConfig?: unknown): void;
   onAnimalChanged(animalId: string): void;
   onCosmeticsChanged(cosmetics: Record<string, string>): void;
   onSettingsChanged(settings: Settings): void;
@@ -71,6 +77,11 @@ export class Shell {
   private currentModeId = 'kangaroo-chase';
   private notice = '';
   private noticeElement: HTMLElement | null = null;
+  /**
+   * The house rules being edited, kept on the shell so a re-render — which the base and gadget
+   * buttons trigger — does not reset sliders someone just moved.
+   */
+  private houseRules: ModeConfig = { ...DEFAULT_MODE_CONFIG };
 
   constructor(options: ShellOptions, settings: Settings) {
     this.options = options;
@@ -134,6 +145,9 @@ export class Shell {
         break;
       case 'room':
         this.element.append(this.roomScreen());
+        break;
+      case 'houseRules':
+        this.element.append(this.houseRulesScreen());
         break;
       case 'customize':
         this.element.append(this.customizeScreen());
@@ -260,9 +274,112 @@ export class Shell {
         button('Join room', () => this.options.callbacks.onJoinRoom(input.value.trim()), 'primary'),
         el('hr', { style: { opacity: '0.15', width: '100%' } }),
         button('Create a private room', () => this.options.callbacks.onCreatePrivate()),
+        button('Create with your own rules', () => this.show('houseRules')),
       ),
       this.noticeNode(),
       button('Back', () => this.show('menu')),
+    );
+  }
+
+  /**
+   * House rules — a player-authored mode.
+   *
+   * Every control is bounded here *and* on the server, and the two are allowed to disagree: this
+   * screen's job is to make a sensible config easy to build, the server's job is to make an
+   * insensible one harmless. What the panel deliberately does not offer is anything that changes
+   * how a body moves; that is what keeps a friend's room the same game as everyone else's.
+   */
+  private houseRulesScreen(): HTMLElement {
+    const rules = { ...this.houseRules };
+    const summary = el('p', { class: 'kc-note' }, '');
+
+    const refresh = (): void => {
+      const base = (this.content?.modes ?? []).find((m) => m.id === rules.base);
+      summary.textContent = `${base?.name ?? rules.base} · ${Math.round(rules.roundSeconds / 60)} min · ${Math.round(
+        rules.chaserRatio * 100,
+      )}% chasers${rules.gadgetsEnabled ? '' : ' · no gadgets'}`;
+    };
+
+    const baseRow = el('div', { class: 'kc-row' });
+    for (const id of CUSTOM_BASES) {
+      const mode = (this.content?.modes ?? []).find((m) => m.id === id);
+      if (!mode) continue;
+      const btn = button(mode.name, () => {
+        rules.base = id;
+        this.houseRules = { ...rules };
+        this.render();
+      }, rules.base === id ? 'primary' : 'ghost');
+      baseRow.append(btn);
+    }
+
+    const slider = (
+      label: string,
+      value: number,
+      min: number,
+      max: number,
+      step: number,
+      format: (v: number) => string,
+      apply: (v: number) => void,
+    ): HTMLElement => {
+      const readout = el('span', { class: 'kc-tag' }, format(value));
+      const range = el('input', { type: 'range', min: String(min), max: String(max), step: String(step) }) as HTMLInputElement;
+      range.value = String(value);
+      range.addEventListener('input', () => {
+        const next = Number(range.value);
+        apply(next);
+        readout.textContent = format(next);
+        refresh();
+      });
+      return el('div', { class: 'kc-field' }, el('span', {}, label), range, readout);
+    };
+
+    const gadgetToggle = button(
+      rules.gadgetsEnabled ? 'Gadgets: on' : 'Gadgets: off',
+      () => {
+        rules.gadgetsEnabled = !rules.gadgetsEnabled;
+        this.houseRules = { ...rules };
+        this.render();
+      },
+      rules.gadgetsEnabled ? 'primary' : 'ghost',
+    );
+
+    refresh();
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Your rules', 'Set up a room the way you want it. Only you and the people you invite play it.'),
+      el(
+        'div',
+        { class: 'kc-panel' },
+        el('span', {}, 'Based on'),
+        baseRow,
+        slider('Round length', rules.roundSeconds, 60, 900, 30, (v) => `${Math.round(v / 60)} min`, (v) => {
+          rules.roundSeconds = v;
+        }),
+        slider('Countdown', rules.countdownSeconds, 3, 30, 1, (v) => `${v}s`, (v) => {
+          rules.countdownSeconds = v;
+        }),
+        slider('Chasers', rules.chaserRatio, 0.05, 0.5, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => {
+          rules.chaserRatio = v;
+        }),
+        gadgetToggle,
+        summary,
+      ),
+      el(
+        'div',
+        { class: 'kc-row' },
+        button(
+          'Create room',
+          () => {
+            this.houseRules = { ...rules };
+            this.options.callbacks.onCreatePrivate({ ...rules, name: 'House Rules' });
+          },
+          'primary',
+        ),
+        button('Back', () => this.show('room')),
+      ),
+      this.noticeNode(),
     );
   }
 

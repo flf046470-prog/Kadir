@@ -9,4 +9,5 @@ export * from './duel.js';
 export * from './freezetag.js';
 export * from './hill.js';
 export * from './social.js';
+export * from './custom.js';
 export * from './parkour.js';

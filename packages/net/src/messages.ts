@@ -13,6 +13,13 @@ export interface ClientHello {
   /** Join a specific room, or omit for matchmaking. */
   roomCode?: string;
   modeId?: string;
+  /**
+   * House rules for a player-authored variant, sent when creating a private room.
+   *
+   * Deliberately `unknown` on the wire: the server sanitises it into a `ModeConfig`, and typing
+   * it here would invite a client to believe its shape was trusted.
+   */
+  modeConfig?: unknown;
   /** Opaque session token issued by the account service; the server resolves the player id. */
   token?: string;
   crossPlay: boolean;

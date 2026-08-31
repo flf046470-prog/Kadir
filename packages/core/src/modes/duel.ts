@@ -2,7 +2,7 @@ import { v3distance } from '../math/vec3.js';
 import { regenerateStamina } from '../player/combat.js';
 import { DEFAULT_TAG_RULES, findTags } from '../player/tag.js';
 import type { PlayerState } from '../player/state.js';
-import { RoundMode, activePlayers } from './base.js';
+import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
 import type { GameModeDef, ModeContext } from './types.js';
 
@@ -63,8 +63,9 @@ export class DuelMode extends RoundMode {
     this.bouts = [];
     this.fighterSpecies.clear();
     const players = ctx.rand.shuffle([...activePlayers(ctx)]);
-    // A third start as kangaroos: enough pressure to matter, few enough that humans have a game.
-    const kangarooCount = Math.max(1, Math.round(players.length / 3));
+    // A third start as kangaroos by default: enough pressure to matter, few enough that the
+    // humans have a game. A player-authored config can change the ratio.
+    const kangarooCount = chaserCount(this.def, players.length, 1 / 3);
 
     players.forEach((player, index) => {
       this.setSpecies(ctx, player, index < kangarooCount ? 'kangaroo' : 'human');

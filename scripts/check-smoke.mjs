@@ -90,6 +90,40 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   await page.locator('button', { hasText: 'Back' }).first().click();
   await page.waitForTimeout(400);
 
+  // House rules: a player-authored mode has to be reachable, not just implemented. This walks
+  // the real path a host takes — Private room → your own rules → move a slider → create — and
+  // asserts the summary line updates, because a panel whose readout lies is worse than none.
+  let houseRules = 'skipped';
+  await page.locator('button', { hasText: 'Private room' }).first().click();
+  await page.waitForTimeout(400);
+  if (await page.locator('button', { hasText: 'Create with your own rules' }).count()) {
+    await page.locator('button', { hasText: 'Create with your own rules' }).first().click();
+    await page.waitForTimeout(500);
+    const sliders = page.locator('.kc-screen input[type=range]');
+    const sliderCount = await sliders.count();
+    const before = (await page.textContent('.kc-panel .kc-note')) ?? '';
+    // Round length is the first slider; drag it to the minimum.
+    await sliders.first().fill('60');
+    await sliders.first().dispatchEvent('input');
+    await page.waitForTimeout(250);
+    const after = (await page.textContent('.kc-panel .kc-note')) ?? '';
+    // Switching gadgets off must show in the same summary.
+    await page.locator('button', { hasText: 'Gadgets: on' }).first().click();
+    await page.waitForTimeout(400);
+    const withoutGadgets = (await page.textContent('.kc-panel .kc-note')) ?? '';
+    houseRules = `sliders=${sliderCount} changed=${before !== after} says1min=${after.includes('1 min')} noGadgets=${withoutGadgets.includes('no gadgets')}`;
+    if (sliderCount < 3 || before === after || !after.includes('1 min') || !withoutGadgets.includes('no gadgets')) {
+      errors.push(`[${label}] house rules panel: ${houseRules} (before=${JSON.stringify(before)} after=${JSON.stringify(after)})`);
+    }
+    await page.locator('button', { hasText: 'Back' }).first().click();
+    await page.waitForTimeout(300);
+  } else {
+    errors.push(`[${label}] house rules entry point missing`);
+  }
+  await page.locator('button', { hasText: 'Back' }).first().click();
+  await page.waitForTimeout(400);
+  console.log(`${''.padEnd(16)} house rules: ${houseRules}`);
+
   // Practice with bots exercises the sim, renderer, avatars and the touched GameClient paths.
   await page.locator('button', { hasText: 'Practice with bots' }).first().click();
   await page.waitForTimeout(4000);
