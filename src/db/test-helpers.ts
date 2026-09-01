@@ -21,7 +21,8 @@ export function uniqueEmail(): string {
 export async function resetDatabase(): Promise<void> {
   await db.execute(
     sql`truncate table users, sessions, profiles, profile_attributes, profile_visibility,
-        quiz_answers, travel_plans, likes, matches, blocks, signal_weights, daily_suggestions
+        quiz_answers, travel_plans, likes, matches, blocks, signal_weights, daily_suggestions,
+        message_translations, translation_usage
         restart identity cascade`
   );
 }
