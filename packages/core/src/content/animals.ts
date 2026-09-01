@@ -15,6 +15,19 @@ export interface AnimalVisual {
   ears: 'tall' | 'round' | 'pointed' | 'none' | 'fin';
   tail: 'thick' | 'bushy' | 'thin' | 'stub' | 'fin';
   snout: 'short' | 'long' | 'flat' | 'beak';
+  /**
+   * Body plan. Decides how the renderer articulates the skeleton — where the knees bend, how far
+   * the torso leans, how the tail is carried.
+   *
+   * It exists because a kangaroo is not a standing capsule with ears on it: what makes one
+   * readable at forty metres is the Z-folded leg and the counterweight tail, and those cannot be
+   * expressed by colours and an ear shape. Optional so every animal already in the catalogue —
+   * including the roadmap ones — stays valid data; `upright` is the fallback.
+   *
+   * Purely visual, like everything else in `AnimalVisual`. A body plan changes no hitbox, no
+   * reach and no movement constant.
+   */
+  build?: 'hopper' | 'upright' | 'waddler';
   /** Optional trailing particle effect id. */
   trail?: string;
 }
@@ -104,7 +117,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     rarity: 'free',
     unlock: 'free',
     priceCents: 0,
-    visual: { body: 0xc98a52, accent: 0x8d5a30, belly: 0xf0d3ac, scale: 1, ears: 'tall', tail: 'thick', snout: 'long' },
+    visual: { body: 0xc98a52, accent: 0x8d5a30, belly: 0xf0d3ac, scale: 1, ears: 'tall', tail: 'thick', snout: 'long', build: 'hopper' },
     audio: { jump: 'roo_jump', land: 'roo_land', voice: 'roo_voice', emote: 'roo_emote' },
     feel: { tailBalance: 0.03 },
     model: { url: '/models/kangaroo.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
@@ -124,7 +137,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     rarity: 'free',
     unlock: 'free',
     priceCents: 0,
-    visual: { body: 0x4a6fa5, accent: 0x2c4363, belly: 0xe8c9a6, scale: 1, ears: 'none', tail: 'stub', snout: 'flat' },
+    visual: { body: 0x4a6fa5, accent: 0x2c4363, belly: 0xe8c9a6, scale: 1, ears: 'none', tail: 'stub', snout: 'flat', build: 'upright' },
     audio: { jump: 'human_jump', land: 'human_land', voice: 'human_voice', emote: 'human_emote' },
     feel: {},
     emotes: ['wave', 'dance', 'point', 'surrender'],
@@ -175,7 +188,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     rarity: 'common',
     unlock: 'free',
     priceCents: 0,
-    visual: { body: 0x4ade80, accent: 0x15803d, belly: 0xecfccb, scale: 0.9, ears: 'none', tail: 'stub', snout: 'flat' },
+    visual: { body: 0x4ade80, accent: 0x15803d, belly: 0xecfccb, scale: 0.9, ears: 'none', tail: 'stub', snout: 'flat', build: 'hopper' },
     audio: { jump: 'frog_jump', land: 'frog_land', voice: 'frog_voice', emote: 'frog_emote' },
     feel: { jumpForce: 0.03, maxSpeed: -0.02 },
     model: { url: '/models/frog.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
@@ -188,7 +201,7 @@ export const LAUNCH_ANIMALS: AnimalDef[] = [
     rarity: 'rare',
     unlock: 'free',
     priceCents: 0,
-    visual: { body: 0x1f2937, accent: 0xfbbf24, belly: 0xf9fafb, scale: 0.94, ears: 'none', tail: 'stub', snout: 'beak' },
+    visual: { body: 0x1f2937, accent: 0xfbbf24, belly: 0xf9fafb, scale: 0.94, ears: 'none', tail: 'stub', snout: 'beak', build: 'waddler' },
     audio: { jump: 'penguin_jump', land: 'penguin_land', voice: 'penguin_voice', emote: 'penguin_emote' },
     feel: { friction: -0.03, tailBalance: -0.01 },
     model: { url: '/models/penguin.glb', scale: 1, offsetY: 0, credit: 'Quaternius (CC0)' },
