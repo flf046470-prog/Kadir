@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "./client";
-import { messageTranslations, messages } from "./schema";
+import { messageTranslations, messages, translationUsage } from "./schema";
 import { resolveMatchFor } from "./messaging";
 import { translationEnabled, translator } from "@/lib/translate";
 
@@ -34,9 +34,19 @@ export type TranslateResult = {
   translations: TranslationMap;
   /** True when the provider was reached for something and failed. */
   degraded: boolean;
+  /**
+   * True when there was more to translate than the member's allowance allowed.
+   *
+   * Distinct from `degraded`, because the two mean opposite things to the
+   * reader: degraded is "we tried and it broke, try again", and this is "you
+   * have used today's free translations". Collapsing them would either nag a
+   * paying member about a limit they do not have, or tell a free member to
+   * retry something that will not change until tomorrow.
+   */
+  limitReached: boolean;
 };
 
-const EMPTY: TranslateResult = { translations: {}, degraded: false };
+const EMPTY: TranslateResult = { translations: {}, degraded: false, limitReached: false };
 
 /**
  * Translates the partner's messages in one conversation into `targetLanguage`.
@@ -48,7 +58,15 @@ const EMPTY: TranslateResult = { translations: {}, degraded: false };
 export async function translateConversation(
   userId: string,
   matchId: string,
-  targetLanguage: string
+  targetLanguage: string,
+  /**
+   * How many *new* translations this member may buy on this call.
+   *
+   * `null` is unlimited. Cached messages are always returned whatever the
+   * budget: they have already been paid for, and hiding them would mean a free
+   * member watching yesterday's conversation go untranslated as they scroll.
+   */
+  budget: number | null = null
 ): Promise<TranslateResult | null> {
   const match = await resolveMatchFor(userId, matchId);
   if (!match) return null;
@@ -82,8 +100,21 @@ export async function translateConversation(
   const translations: TranslationMap = {};
   for (const row of cached) translations[row.messageId] = row.body;
 
-  const missing = recent.filter((row) => !(row.id in translations));
-  if (missing.length === 0) return { translations, degraded: false };
+  const allMissing = recent.filter((row) => !(row.id in translations));
+  if (allMissing.length === 0) return { translations, degraded: false, limitReached: false };
+
+  /**
+   * Spend the allowance on the newest messages.
+   *
+   * A member near their limit gets the end of the conversation translated
+   * rather than the start of it — the part they are reading right now. Taking
+   * from the front would translate messages that have already scrolled away and
+   * leave the live ones in a language they cannot read.
+   */
+  const missing = budget === null ? allMissing : allMissing.slice(-Math.max(budget, 0));
+  const limitReached = missing.length < allMissing.length;
+
+  if (missing.length === 0) return { translations, degraded: false, limitReached };
 
   const provider = translator();
 
@@ -125,8 +156,23 @@ export async function translateConversation(
     // wins; the other's identical result is discarded rather than erroring.
     await db.insert(messageTranslations).values(rowsToCache).onConflictDoNothing();
 
+    /**
+     * The allowance ledger, written only for translations actually bought.
+     *
+     * This sits after the provider call rather than before it, so a member is
+     * not charged an allowance for a translation the provider failed to
+     * return — the `continue` above skips this along with the cache write.
+     */
+    await db.insert(translationUsage).values(
+      rowsToCache.map((row) => ({
+        userId,
+        messageId: row.messageId,
+        targetLanguage
+      }))
+    );
+
     for (const row of rowsToCache) translations[row.messageId] = row.body;
   }
 
-  return { translations, degraded };
+  return { translations, degraded, limitReached };
 }

@@ -21,21 +21,22 @@ FioreMatch
 ### Altyazı  (30 karakter)
 
 ```
-Günde beş kişi, gerekçeli
+Dil engeli olmadan tanışın
 ```
-25 / 30
+26 / 30
 
 Altyazı App Store'da adın hemen altında görünür ve aramada ağırlığı var.
-"Gerekçeli" kelimesi burada duruyor çünkü ürünü tek kelimede ayıran şey o.
+Ürünü rakiplerinden ayıran tek şeyi söylüyor. "Günde beş kişi" iyi bir
+cümleydi ama Hinge de benzerini söylüyor; dil engeli kimsenin söylemediği şey.
 
 ---
 
 ## Anahtar kelimeler  (100 karakter, virgülle, boşluksuz)
 
 ```
-tanışma,arkadaşlık,ilişki,yurtdışı,çeviri,sohbet,eşleşme,uluslararası,güvenli,dating
+tanışma,arkadaşlık,ilişki,çeviri,yurtdışı,expat,gurbetçi,uluslararası,sohbet,dating
 ```
-84 / 100
+83 / 100
 
 Uygulama adında geçen kelimeleri tekrar etme — Apple onları zaten indeksliyor,
 tekrar etmek alanı israf eder.
@@ -45,16 +46,26 @@ tekrar etmek alanı israf eder.
 ## Tanıtım metni  (170 karakter, sürüm çıkmadan güncellenebilir)
 
 ```
-Ortak diliniz yoksa mesajlar kendiliğinden çevrilir, orijinali altta durur. Günün 5'i her sabah yenilenir. Neden eşleştiğinizi her kartta okursunuz.
+Ortak diliniz olmasa da tanışın: mesajlar sohbetin içinde çevrilir, orijinali altta durur. Günün 5'i her sabah yenilenir, ve neden eşleştiğinizi okursunuz.
 ```
-148 / 170
+155 / 170
 
 ---
 
 ## Açıklama  (4000 karakter)
 
 ```
-FioreMatch, sonsuz kaydırma üzerine kurulmamış bir tanışma uygulaması.
+FioreMatch, ortak bir diliniz olmadan da tanışabileceğiniz bir uygulama.
+
+DİL ENGELİ DİYE BİR ŞEY YOK
+İkinizin de konuştuğu bir dil yoksa mesajlar sohbetin içinde otomatik çevrilir
+ve sana bunun neden olduğu söylenir. Orijinal metin her zaman çevirinin altında
+durur — ne yazdığını göremediğin bir şey gönderilmez. Kapatmak bir dokunuş.
+Arayüz 12 dilde.
+
+Diğer uygulamalar seni pratikte kendi dilinin içine kapatıyor. Burada
+Türkiye'deki biri Almanya'daki biriyle, ikisi de karşısındakinin dilini
+bilmeden tanışabiliyor.
 
 GÜNÜN 5'İ
 Her gün senin için seçilmiş beş kişi. Akış değil, liste değil — beş karar.
@@ -64,20 +75,18 @@ NEDEN EŞLEŞTİĞİNİZİ GÖRÜRSÜN
 Her kartta eşleşmenin gerekçesi yazılı: ortak dil, aynı ilişki hedefi,
 paylaşılan ilgi alanları, konum. Gizli bir puanın arkasına saklanmıyor.
 
-ORTAK DİLİNİZ YOKSA ÇEVİRİ KENDİLİĞİNDEN AÇILIR
-İkinizin de konuştuğu bir dil yoksa mesajlar otomatik çevrilir ve sana bunun
-neden olduğu söylenir. Orijinal metin her zaman altta durur. Kapatmak bir
-dokunuş.
-
 DÜNYAYA AÇIK EŞLEŞME
-Yakınındakiler, ülken, ya da sınır tanımayan mod. 12 dilde arayüz.
+Yakınındakiler, ülken, ya da sınır tanımayan mod. Taşınmayı planlıyorsan
+gelecekteki şehrini de yazabilirsin.
 
 GÜVENLİK PAZARLAMA CÜMLESİ DEĞİL
-Her mesaj dolandırıcılık açısından değerlendirilir. Fotoğraflar diğer üyeler
-görmeden önce incelenir ve her yüklemeden konum bilgisi silinir. Engelleme ve
-bildirme her ekranda ve hiçbir zaman ücretli değil. Hesabını uygulamanın
-içinden silebilirsin — profilin, fotoğrafların, eşleşmelerin ve mesajların
-birlikte gider.
+- Her mesaj dolandırıcılık açısından değerlendirilir; şüpheli olan sana
+  uyarıyla gösterilir.
+- Fotoğraflar diğer üyeler görmeden önce incelenir.
+- Yüklediğin her fotoğraftan konum bilgisi silinir.
+- Engelleme ve bildirme her ekranda, ve hiçbir zaman ücretli değil.
+- Hesabını uygulamanın içinden silebilirsin; profilin, fotoğrafların,
+  eşleşmelerin ve mesajların birlikte gider.
 
 EŞLEŞME OYUNLARI
 İlk sohbeti kolaylaştıran beş kısa oyun. İkiniz de cevaplayana kadar hiçbiriniz
@@ -87,22 +96,18 @@ diğerinin cevabını göremez.
 Profil, Keşfet, eşleşme, mesajlaşma, standart filtreler, engelleme ve bildirme.
 Günde 50 beğeni, 3 hediye.
 
-PLUS — yılda 1,99 $
-Gelişmiş filtreler, günde 200 beğeni, seni kimlerin beğendiği, son geçişi geri
-alma, sohbet içi çeviri, günde 10 hediye.
+PLUS — ayda 4,99 $
+Gelişmiş filtreler, günde 200 beğeni, seni kimlerin beğendiğini görmek,
+son geçişini geri almak, sohbet içi çeviri, günde 10 hediye.
 
-VIP — yılda 5,99 $
+VIP — ayda 9,99 $
 PLUS'taki her şey, artı sınırsız beğeni ve hediye, profil ziyaretçilerin,
-öncelikli görünürlük, VIP rozeti ve her ay 60 dakikalık Boost.
+Keşfet'te öncelikli görünürlük, kartında VIP rozeti ve her ay 60 dakikalık
+Boost.
 
-Abonelikler yıllıktır ve otomatik yenilenir. Yenilemeyi dönem bitiminden en az
-24 saat önce kapatmazsan aynı ücretle uzatılır. Aboneliğini Ayarlar > Apple
-Kimliği > Abonelikler bölümünden yönetebilir veya iptal edebilirsin.
-
-Gizlilik politikası: https://fiorematch.com/tr/legal/privacy
-Kullanım koşulları: https://fiorematch.com/tr/legal/terms
+Aylık abonelik, istediğin zaman iptal edilir. Reklam yok, jeton yok.
 ```
-1896 / 4000
+1997 / 4000
 
 **Son paragraf zorunlu.** Apple, otomatik yenilenen abonelik satan
 uygulamalarda süre, ücret, yenileme ve iptal bilgisinin açıklamada bulunmasını
@@ -215,5 +220,5 @@ kalmaz, çünkü simülatör zaten doğru boyutta çıktı verir.
 - [ ] Push Notifications yetkisi + APNs anahtarı
 - [ ] **Dağıtım ayakta olmalı** — yoksa inceleme uzmanı çevrimdışı ekranı görür.
       Pazarlama sitesi yayınlanmıyor, ama sunucunun çalışması şart.
-- [ ] StoreKit ile abonelik ürünleri tanımlanmalı (1,99 $ ve 5,99 $ yıllık)
+- [ ] StoreKit ile abonelik ürünleri tanımlanmalı (4,99 $ ve 9,99 $ aylık)
 - [ ] 6,9" ve 6,5" ekran görüntüleri simülatörden alınmalı

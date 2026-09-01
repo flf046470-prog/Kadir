@@ -28,8 +28,22 @@ export type Entitlements = {
   seeWhoLikedYou: boolean;
   /** Take back the last pass, once, while it is still the last one. */
   undoPass: boolean;
-  /** In-chat message translation. */
-  messageTranslation: boolean;
+  /**
+   * Messages translated per rolling day. `null` means no limit.
+   *
+   * A count rather than the boolean this used to be, because the boolean made
+   * the product's central promise a paid feature. "Meet people you have no
+   * language in common with" is what the listing leads on, and a free member
+   * who matched across a language gap could not exchange a single sentence —
+   * so the app's one distinguishing claim was false for everyone who had not
+   * paid, which is both dishonest and, as a store description, a policy
+   * problem.
+   *
+   * Free gets enough to have a real conversation and find out whether it is
+   * worth paying for. PLUS removes the ceiling. The thing being sold is the
+   * limit, not the feature.
+   */
+  dailyTranslations: number | null;
   /** Who opened your profile, and when. */
   profileVisitors: boolean;
   /** Ranked above equivalent profiles in Discover. */
@@ -45,26 +59,41 @@ export type Entitlements = {
 };
 
 /**
- * Price per year, in whole cents of the base currency.
+ * Price per month, in whole cents of the base currency.
  *
- * Annual only, and deliberately far under the market: the pricing page's claim
- * is affordability rather than extraction, and a monthly plan at a price this
- * low would cost more in payment processing than it collects.
+ * Monthly, and priced against the market rather than under it. The previous
+ * numbers — $1.99 and $5.99 *per year* — could not fund the product they sold.
+ * A member costs real money to serve: photo storage and delivery, the database,
+ * translation calls charged per character, and moderation, which is a person's
+ * time rather than a line item that scales down. At $5.09 a year net of the
+ * store's cut, the arithmetic ran the wrong way at every size — more members
+ * meant a larger loss, so growth made things worse rather than better. That is
+ * a pricing fault, not a scaling one, and no amount of engineering fixes it.
  *
- * VIP is three times PLUS because it sells a different thing. PLUS buys
+ * Monthly also matches how the product is actually used. People subscribe to a
+ * dating app while they are actively dating and stop when they are not, and an
+ * annual charge asks for a year's commitment at the moment someone trusts the
+ * product least — the first week.
+ *
+ * Still well under the majors, which sit around $20–30 a month. The claim on
+ * the pricing page is that the price is fair and legible, not that it is the
+ * lowest number anyone has ever printed.
+ *
+ * VIP is roughly twice PLUS because it sells a different thing. PLUS buys
  * control over who *you* see; VIP buys control over who sees *you*, plus the
  * two surfaces that cost real infrastructure — visitor records and a monthly
- * Boost. Charging the same for both, as this file did before, meant VIP was
- * the same product at the same price.
+ * Boost.
  *
  * The store is the source of truth at purchase time. These are the numbers the
  * App Store and Play price tiers must be configured to match, and what the
- * pricing page renders when no store price is available.
+ * pricing page renders when no store price is available. Both stores convert
+ * to local currency from this base, so a member in Istanbul is charged a
+ * regional equivalent rather than these dollars.
  */
-export const YEARLY_PRICE_CENTS: Record<Tier, number> = {
+export const MONTHLY_PRICE_CENTS: Record<Tier, number> = {
   free: 0,
-  plus: 199,
-  vip: 599
+  plus: 499,
+  vip: 999
 };
 
 export const ENTITLEMENTS: Record<Tier, Entitlements> = {
@@ -73,7 +102,10 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     dailyLikes: 50,
     seeWhoLikedYou: false,
     undoPass: false,
-    messageTranslation: false,
+    // Enough for a real first conversation across a language gap — roughly a
+    // dozen messages — so the promise the listing makes is true before anyone
+    // has paid anything.
+    dailyTranslations: 15,
     profileVisitors: false,
     priorityVisibility: false,
     vipBadge: false,
@@ -86,7 +118,7 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     dailyLikes: 200,
     seeWhoLikedYou: true,
     undoPass: true,
-    messageTranslation: true,
+    dailyTranslations: null,
     profileVisitors: false,
     priorityVisibility: false,
     vipBadge: false,
@@ -99,7 +131,7 @@ export const ENTITLEMENTS: Record<Tier, Entitlements> = {
     dailyLikes: null,
     seeWhoLikedYou: true,
     undoPass: true,
-    messageTranslation: true,
+    dailyTranslations: null,
     profileVisitors: true,
     priorityVisibility: true,
     vipBadge: true,

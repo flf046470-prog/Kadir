@@ -5,8 +5,9 @@ import {
   entitlementsFor,
   isTier,
   TIERS,
-  YEARLY_PRICE_CENTS
+  MONTHLY_PRICE_CENTS
 } from "./tiers";
+import { PRODUCT_IDS } from "./purchase";
 
 const HOUR = 3_600_000;
 const now = new Date("2026-08-23T12:00:00Z");
@@ -23,7 +24,6 @@ describe("the entitlement table", () => {
       "advancedFilters",
       "seeWhoLikedYou",
       "undoPass",
-      "messageTranslation",
       "profileVisitors",
       "priorityVisibility",
       "vipBadge"
@@ -46,8 +46,7 @@ describe("the entitlement table", () => {
     expect(entitlementsFor("plus")).toMatchObject({
       advancedFilters: true,
       seeWhoLikedYou: true,
-      undoPass: true,
-      messageTranslation: true
+      undoPass: true
     });
     // VIP sells control over who sees you.
     expect(entitlementsFor("vip")).toMatchObject({
@@ -61,10 +60,22 @@ describe("the entitlement table", () => {
     // Free gets none of the paid ones.
     expect(entitlementsFor("free")).toMatchObject({
       advancedFilters: false,
-      messageTranslation: false,
       seeWhoLikedYou: false,
       profileVisitors: false
     });
+
+    /**
+     * Translation is the exception, and deliberately so.
+     *
+     * It is the one paid feature free members still get, because it is the one
+     * the listing leads on. Selling the ceiling rather than the feature is what
+     * keeps "meet people you share no language with" true for someone who has
+     * not paid — and a listing that promised it while the code withheld it
+     * would be a false store description, not merely a stingy free tier.
+     */
+    expect(entitlementsFor("free").dailyTranslations).toBeGreaterThan(0);
+    expect(entitlementsFor("plus").dailyTranslations).toBeNull();
+    expect(entitlementsFor("vip").dailyTranslations).toBeNull();
   });
 
   /**
@@ -76,9 +87,9 @@ describe("the entitlement table", () => {
    * make the more expensive tier indefensible.
    */
   it("charges more for VIP, and gives something for it", () => {
-    expect(YEARLY_PRICE_CENTS.free).toBe(0);
-    expect(YEARLY_PRICE_CENTS.plus).toBeGreaterThan(YEARLY_PRICE_CENTS.free);
-    expect(YEARLY_PRICE_CENTS.vip).toBeGreaterThan(YEARLY_PRICE_CENTS.plus);
+    expect(MONTHLY_PRICE_CENTS.free).toBe(0);
+    expect(MONTHLY_PRICE_CENTS.plus).toBeGreaterThan(MONTHLY_PRICE_CENTS.free);
+    expect(MONTHLY_PRICE_CENTS.vip).toBeGreaterThan(MONTHLY_PRICE_CENTS.plus);
 
     const plus = entitlementsFor("plus");
     const vip = entitlementsFor("vip");
@@ -87,6 +98,26 @@ describe("the entitlement table", () => {
     );
 
     expect(different.length).toBeGreaterThanOrEqual(4);
+  });
+
+  /**
+   * The period the price is quoted in, and the period the stores sell in, have
+   * to be the same period.
+   *
+   * Nothing else in the codebase connects them: `MONTHLY_PRICE_CENTS` is a
+   * number, and the product ids are strings the stores match on. Repricing to
+   * an annual plan while leaving `.monthly` ids — or the reverse — produces a
+   * listing that charges one thing and a store that sells another, and neither
+   * side is wrong on its own, so nothing fails until a member is billed.
+   *
+   * This is the failure the old pricing hid: $1.99 read as a plausible monthly
+   * price and was in fact annual, and the constant's name was the only thing
+   * that said so.
+   */
+  it("quotes prices in the same period the store products are sold in", () => {
+    for (const id of PRODUCT_IDS) {
+      expect(id.endsWith(".monthly")).toBe(true);
+    }
   });
 
   /**
@@ -101,7 +132,7 @@ describe("the entitlement table", () => {
         "boostMinutes",
         "dailyGifts",
         "dailyLikes",
-        "messageTranslation",
+        "dailyTranslations",
         "monthlyBoostCredits",
         "priorityVisibility",
         "profileVisitors",

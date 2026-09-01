@@ -15,17 +15,29 @@ FioreMatch
 ## Kısa açıklama  (80 karakter sınırı)
 
 ```
-Sonsuza kadar kaydırma yok. Günde beş kişi, ve neden eşleştiğinizin açıklaması
+Ortak diliniz olmasa da tanışın — mesajlar sohbetin içinde çevrilir
 ```
-78 / 80
+67 / 80
 
-**Neden bu cümle:** Kısa açıklama arama sonucunda başlığın altında görünen tek
-satır. Rakiplerin hepsi "milyonlarca kişi" diyor; ayrışma, sayı vermemekte.
+**Neden bu cümle:** Kısa açıklama, arama sonucunda başlığın altında görünen
+tek satır. Rakiplerin hepsi ölçek satıyor — "milyonlarca kişi". Bu cümle
+bunun yerine kimsenin çözmediği somut bir engeli söylüyor, ve nasıl
+çözüldüğünü aynı satırda veriyor.
 
 ## Tam açıklama  (4000 karakter sınırı)
 
 ```
-FioreMatch, sonsuz kaydırma üzerine kurulmamış bir tanışma uygulaması.
+FioreMatch, ortak bir diliniz olmadan da tanışabileceğiniz bir uygulama.
+
+DİL ENGELİ DİYE BİR ŞEY YOK
+İkinizin de konuştuğu bir dil yoksa mesajlar sohbetin içinde otomatik çevrilir,
+ve sana bunun neden olduğu söylenir. Orijinal metin her zaman çevirinin altında
+durur — ne yazdığını göremediğin bir şey gönderilmez. Kapatmak bir dokunuş.
+Arayüz 12 dilde.
+
+Diğer uygulamalar seni pratikte kendi dilinin içine kapatıyor. Burada
+Türkiye'deki biri Almanya'daki biriyle, ikisi de karşısındakinin dilini
+bilmeden tanışabiliyor.
 
 GÜNÜN 5'İ
 Her gün senin için seçilmiş beş kişi. Akış değil, liste değil — beş karar.
@@ -36,14 +48,9 @@ Her kartta eşleşmenin gerekçesi yazılı: ortak dil, aynı ilişki hedefi,
 paylaşılan ilgi alanları, konum. Bir yüzdenin arkasına saklanan gizli bir
 algoritma değil — ne gördüğünü ve neden gördüğünü okuyabilirsin.
 
-ORTAK DİLİNİZ YOKSA ÇEVİRİ KENDİLİĞİNDEN AÇILIR
-İkinizin de konuştuğu bir dil yoksa mesajlar otomatik çevrilir ve sana bunun
-neden olduğu söylenir. Orijinal metin her zaman çevirinin altında durur.
-Kapatmak bir dokunuş.
-
 DÜNYAYA AÇIK EŞLEŞME
-Yakınındakiler, ülken, ya da sınır tanımayan mod. 12 dilde arayüz.
-Taşınmayı planlıyorsan gelecekteki şehrini de yazabilirsin.
+Yakınındakiler, ülken, ya da sınır tanımayan mod. Taşınmayı planlıyorsan
+gelecekteki şehrini de yazabilirsin.
 
 GÜVENLİK PAZARLAMA CÜMLESİ DEĞİL
 - Her mesaj dolandırıcılık açısından değerlendirilir ve şüpheli olan sana
@@ -63,20 +70,21 @@ kılarak sağlanıyor. Oynamamak da gayet normal bir cevap.
 Profil, Keşfet, eşleşme, mesajlaşma, standart filtreler, engelleme ve bildirme.
 Günde 50 beğeni, 3 hediye. Tanışmak için ödeme gerekmiyor.
 
-PLUS — yılda 1,99 $
+PLUS — ayda 4,99 $
 Gelişmiş filtreler, günde 200 beğeni, seni kimlerin beğendiğini görmek,
 son geçişini geri almak, sohbet içi çeviri, günde 10 hediye.
 
-VIP — yılda 5,99 $
+VIP — ayda 9,99 $
 PLUS'taki her şey, artı sınırsız beğeni ve hediye, profil ziyaretçilerin,
 Keşfet'te öncelikli görünürlük, kartında VIP rozeti ve her ay 60 dakikalık
 Boost.
 
-Yıllık fiyat. Reklam yok, jeton yok, her tıkta satın alma yok.
+Aylık, istediğin zaman iptal edilir. Reklam yok, jeton yok, her tıkta satın
+alma yok.
 ```
-2043 / 4000
+2277 / 4000
 
-**Not:** Fiyat satırları `src/lib/billing/tiers.ts` içindeki `YEARLY_PRICE_CENTS`
+**Not:** Fiyat satırları `src/lib/billing/tiers.ts` içindeki `MONTHLY_PRICE_CENTS`
 ile aynı olmalı. Orada değişirse burada da değişmeli — Play'de yanlış fiyat
 yazmak politika ihlali.
 

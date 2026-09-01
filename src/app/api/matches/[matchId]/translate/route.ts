@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { translateConversation } from "@/db/translations";
 import { translationEnabled } from "@/lib/translate";
-import { entitlementsOf } from "@/db/entitlements";
+import { translationAllowance } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 /**
@@ -22,23 +22,37 @@ export async function GET(
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  // Two independent reasons there may be no translation: the deployment has no
-  // provider, or this member has not paid for it. Both answer "unavailable"
-  // rather than distinguishing themselves, because the control is simply
-  // absent in either case and a 402 here would tell a free member that the
-  // feature exists behind a paywall in a place they never asked.
-  const { entitlements } = await entitlementsOf(auth.user.id);
-  if (!translationEnabled() || !entitlements.messageTranslation) {
-    return NextResponse.json({ available: false, translations: {}, degraded: false });
+  // Only one reason left for translation to be absent: the deployment has no
+  // provider configured. Paying is no longer the gate — every member has an
+  // allowance, and what a subscription buys is the removal of its ceiling.
+  if (!translationEnabled()) {
+    return NextResponse.json({
+      available: false,
+      translations: {},
+      degraded: false,
+      limitReached: false
+    });
   }
 
   const limit = checkRateLimit(`translate:${auth.user.id}`, { max: 30, windowMs: 60_000 });
   if (!limit.allowed) return apiError("rate_limited", 429);
 
+  /**
+   * What this call may buy from the provider, resolved before the work.
+   *
+   * A member already at zero still reaches the translation rather than a 402:
+   * everything already cached is theirs to read, and the response says the
+   * limit was reached so the conversation can state it once instead of quietly
+   * showing untranslated text and looking broken.
+   */
+  const allowance = await translationAllowance(auth.user.id);
+  const budget =
+    allowance.limit === null ? null : Math.max(allowance.limit - allowance.used, 0);
+
   const { matchId } = await params;
   const target = request.nextUrl.searchParams.get("to") ?? auth.user.locale ?? "en";
 
-  const result = await translateConversation(auth.user.id, matchId, target);
+  const result = await translateConversation(auth.user.id, matchId, target, budget);
   if (result === null) return apiError("not_found", 404);
 
   return NextResponse.json(

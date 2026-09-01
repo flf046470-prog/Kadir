@@ -42,7 +42,7 @@
     "trustBar": "Built with global safety, privacy, and moderation standards from day one.",
     "statCountries": "190+ countries reachable",
     "statLanguages": "12 launch languages",
-    "statPrice": "PLUS & VIP from $1.99/year",
+    "statPrice": "PLUS & VIP from $4.99/month",
     "sectionHowTitle": "How FioreMatch works",
     "sectionHowSubtitle": "No gimmicks. Three steps between you and a real connection.",
     "step1Title": "Build a real profile",
@@ -182,8 +182,8 @@
       "Block & report tools"
     ],
     "plusName": "PLUS",
-    "plusPrice": "$1.99",
-    "plusPeriod": "/ year",
+    "plusPrice": "$4.99",
+    "plusPeriod": "/ month",
     "plusDesc": "For people who want more control over who they meet.",
     "plusFeatures": [
       "Everything in Free",
@@ -195,8 +195,8 @@
       "10 gifts a day"
     ],
     "vipName": "VIP",
-    "vipPrice": "$5.99",
-    "vipPeriod": "/ year",
+    "vipPrice": "$9.99",
+    "vipPeriod": "/ month",
     "vipDesc": "For people who want more control over who finds them.",
     "vipFeatures": [
       "Everything in PLUS",
@@ -275,7 +275,7 @@
       },
       {
         "name": "Real value",
-        "desc": "Affordable pricing — PLUS at $1.99/year, VIP at $5.99 — instead of extraction."
+        "desc": "Clear pricing — PLUS at $4.99/month, VIP at $9.99 — with no paid extras hidden behind a second paywall."
       }
     ]
   },

@@ -42,7 +42,7 @@
     "trustBar": "İlk günden itibaren global güvenlik, gizlilik ve moderasyon standartlarıyla inşa edildi.",
     "statCountries": "190+ ülkeye erişim",
     "statLanguages": "12 lansman dili",
-    "statPrice": "PLUS & VIP yılda $1.99'dan başlıyor",
+    "statPrice": "PLUS & VIP ayda $4.99'dan başlıyor",
     "sectionHowTitle": "FioreMatch nasıl çalışır",
     "sectionHowSubtitle": "Numara yok. Seninle gerçek bir bağlantı arasında sadece üç adım var.",
     "step1Title": "Gerçek bir profil oluştur",
@@ -182,8 +182,8 @@
       "Engelleme ve bildirme araçları"
     ],
     "plusName": "PLUS",
-    "plusPrice": "$1.99",
-    "plusPeriod": "/ yıl",
+    "plusPrice": "$4.99",
+    "plusPeriod": "/ ay",
     "plusDesc": "Kiminle tanışacağı üzerinde daha fazla kontrol isteyenler için.",
     "plusFeatures": [
       "Ücretsiz paketteki her şey",
@@ -195,8 +195,8 @@
       "Günde 10 hediye"
     ],
     "vipName": "VIP",
-    "vipPrice": "$5.99",
-    "vipPeriod": "/ yıl",
+    "vipPrice": "$9.99",
+    "vipPeriod": "/ ay",
     "vipDesc": "Kimin kendisini bulacağı üzerinde daha fazla kontrol isteyenler için.",
     "vipFeatures": [
       "PLUS paketteki her şey",
@@ -275,7 +275,7 @@
       },
       {
         "name": "Gerçek değer",
-        "desc": "Sömürü yerine uygun fiyat — PLUS yılda $1.99, VIP yılda $5.99."
+        "desc": "Açık fiyat — PLUS ayda $4.99, VIP ayda $9.99 — ikinci bir ödeme duvarının arkasına saklanan ek yok."
       }
     ]
   },

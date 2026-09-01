@@ -783,3 +783,35 @@ export const boostGrants = pgTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.period] })]
 );
+
+/**
+ * Who caused a translation, so a per-member allowance can be counted.
+ *
+ * `message_translations` cannot answer this. It is keyed on
+ * (message, target language) because it is a *cache* — the second person to
+ * read the same message in the same language is served the stored row and
+ * costs the provider nothing — so it has no member column and never will.
+ *
+ * Only translations actually bought from the provider are recorded here. A
+ * cache hit is free, and charging someone's daily allowance for re-reading a
+ * conversation they have already paid to translate would punish the ordinary
+ * act of scrolling back.
+ *
+ * Rows are a rolling window's worth of accounting, not history: nothing reads
+ * beyond the last day, and they carry no message text.
+ */
+export const translationUsage = pgTable(
+  "translation_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    messageId: uuid("message_id")
+      .notNull()
+      .references(() => messages.id, { onDelete: "cascade" }),
+    targetLanguage: text("target_language").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("translation_usage_user_time_idx").on(table.userId, table.createdAt)]
+);

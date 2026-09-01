@@ -9,7 +9,6 @@ import { needsTranslation } from "@/lib/matching/shared-language";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
 import { translationEnabled } from "@/lib/translate";
-import { entitlementsOf } from "@/db/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -48,11 +47,6 @@ export default async function ConversationPage({
 
   const gamesT = await getTranslations({ locale, namespace: "games" });
 
-  // Both have to be true: a provider configured for the deployment, and this
-  // member entitled to it. The API checks the same pair — this only decides
-  // whether to draw a control that would otherwise refuse when pressed.
-  const { entitlements } = await entitlementsOf(user.id);
-
   /**
    * Whether these two can read each other at all.
    *
@@ -76,8 +70,10 @@ export default async function ConversationPage({
       partnerName={partnerRows[0]?.displayName ?? ""}
       locale={locale}
       // Resolved on the server: with no provider configured there is no
-      // control at all, rather than a button that fails when pressed.
-      translationAvailable={translationEnabled() && entitlements.messageTranslation}
+      // control at all, rather than a button that fails when pressed. The
+      // member's tier is no longer part of this — everyone can translate, and
+      // the response says when the day's allowance has run out.
+      translationAvailable={translationEnabled()}
       // Starts on, rather than merely being offered, when the two of them have
       // no language in common. Still a toggle: a member who would rather read
       // the original turns it off, and that is a different thing from never

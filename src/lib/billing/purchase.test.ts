@@ -101,8 +101,8 @@ describe("turning a purchase into a subscription", () => {
 
 describe("mapping store products to tiers", () => {
   it("maps the configured products", () => {
-    expect(tierForProduct("com.fiorematch.app.plus.yearly")).toBe("plus");
-    expect(tierForProduct("com.fiorematch.app.vip.yearly")).toBe("vip");
+    expect(tierForProduct("com.fiorematch.app.plus.monthly")).toBe("plus");
+    expect(tierForProduct("com.fiorematch.app.vip.monthly")).toBe("vip");
   });
 
   /**
@@ -113,14 +113,14 @@ describe("mapping store products to tiers", () => {
    * gives VIP away.
    */
   it("refuses a product it does not know", () => {
-    expect(tierForProduct("com.fiorematch.app.gold.yearly")).toBeNull();
+    expect(tierForProduct("com.fiorematch.app.gold.monthly")).toBeNull();
     expect(tierForProduct("")).toBeNull();
   });
 
   it("exposes exactly the ids that have to be configured in both stores", () => {
     expect(PRODUCT_IDS.sort()).toEqual([
-      "com.fiorematch.app.plus.yearly",
-      "com.fiorematch.app.vip.yearly"
+      "com.fiorematch.app.plus.monthly",
+      "com.fiorematch.app.vip.monthly"
     ]);
   });
 });

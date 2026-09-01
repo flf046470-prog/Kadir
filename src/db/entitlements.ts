@@ -1,6 +1,6 @@
 import { and, count, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
-import { boostGrants, boosts, likes, subscriptions } from "./schema";
+import { boostGrants, boosts, likes, subscriptions, translationUsage } from "./schema";
 import { advisoryLockKey } from "./advisory-lock";
 import { spendReward } from "./referral";
 import {
@@ -133,6 +133,37 @@ export async function likeAllowance(
         sql`${likes.kind} <> 'pass'`
       )
     );
+
+  const used = rows[0]?.total ?? 0;
+  return { allowed: used < limit, used, limit };
+}
+
+/**
+ * How many translations are left today.
+ *
+ * The same rolling window as likes, for the same reason: a calendar day resets
+ * at a different local hour for every member, and whichever timezone the server
+ * picks is wrong for most of the world.
+ *
+ * What is counted is translations *bought from the provider*, recorded by
+ * `translateConversation` when it writes a new cache row. Re-reading a
+ * conversation costs nothing and so costs nothing here — a member who scrolls
+ * back through yesterday's messages is not spending today's allowance.
+ */
+export async function translationAllowance(
+  userId: string,
+  now: Date = new Date()
+): Promise<LikeAllowance> {
+  const { entitlements } = await entitlementsOf(userId, now);
+  const limit = entitlements.dailyTranslations;
+  if (limit === null) return { allowed: true, used: 0, limit: null };
+
+  const since = new Date(now.getTime() - 24 * 3_600_000);
+
+  const rows = await db
+    .select({ total: count() })
+    .from(translationUsage)
+    .where(and(eq(translationUsage.userId, userId), gte(translationUsage.createdAt, since)));
 
   const used = rows[0]?.total ?? 0;
   return { allowed: used < limit, used, limit };

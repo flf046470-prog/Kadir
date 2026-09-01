@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { messageTranslations, messages } from "./schema";
+import { messageTranslations, messages, translationUsage } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
 import { recordLike } from "./interactions";
 import { sendMessage } from "./messaging";
@@ -103,7 +103,7 @@ describe("what gets translated", () => {
 
     const result = await translateConversation(a, matchId, "tr");
 
-    expect(result).toEqual({ translations: {}, degraded: false });
+    expect(result).toEqual({ translations: {}, degraded: false, limitReached: false });
     expect(stub.calls).toHaveLength(0);
   });
 });
@@ -203,7 +203,7 @@ describe("when the provider fails", () => {
 
     const result = await translateConversation(a, matchId, "tr");
 
-    expect(result).toEqual({ translations: {}, degraded: true });
+    expect(result).toEqual({ translations: {}, degraded: true, limitReached: false });
     expect(await db.select().from(messageTranslations)).toHaveLength(0);
   });
 
@@ -217,5 +217,102 @@ describe("when the provider fails", () => {
 
     expect(second!.degraded).toBe(false);
     expect(Object.values(second!.translations)).toEqual(["[tr] Hello"]);
+  });
+});
+
+/**
+ * The allowance that makes the product's central claim true for free members.
+ *
+ * The listing leads on meeting people you share no language with. Before this,
+ * translation was a paid flag, so a free member who matched across a language
+ * gap could not exchange one sentence — the headline was false for everyone who
+ * had not paid. What is sold now is the ceiling, not the feature, and these
+ * tests pin the difference.
+ */
+describe("the translation allowance", () => {
+  async function withMessages(count: number) {
+    const { a, b, matchId } = await conversation();
+    for (let i = 0; i < count; i += 1) await sendMessage(b, matchId, `mesaj ${i}`);
+    return { a, b, matchId };
+  }
+
+  it("buys only as many translations as the budget allows", async () => {
+    const { a, matchId } = await withMessages(6);
+
+    const result = await translateConversation(a, matchId, "tr", 2);
+
+    expect(Object.keys(result!.translations)).toHaveLength(2);
+    expect(result!.limitReached).toBe(true);
+    expect(stub.calls.flatMap((call) => call.texts)).toHaveLength(2);
+  });
+
+  /**
+   * Which two, specifically. A member near their limit is reading the bottom of
+   * the conversation, so spending the allowance on the top of it would leave
+   * every message they can actually see untranslated.
+   */
+  it("spends the budget on the newest messages, not the oldest", async () => {
+    const { a, matchId } = await withMessages(5);
+
+    await translateConversation(a, matchId, "tr", 2);
+
+    expect(stub.calls.flatMap((call) => call.texts).sort()).toEqual(["mesaj 3", "mesaj 4"]);
+  });
+
+  it("does not report a limit when everything fitted", async () => {
+    const { a, matchId } = await withMessages(3);
+
+    const result = await translateConversation(a, matchId, "tr", 10);
+
+    expect(result!.limitReached).toBe(false);
+    expect(Object.keys(result!.translations)).toHaveLength(3);
+  });
+
+  /**
+   * A budget of zero is not the same as no translation.
+   *
+   * Everything already cached stays readable — it has been paid for, and a
+   * member scrolling back through a conversation they translated yesterday
+   * should not watch it revert to a language they cannot read.
+   */
+  it("still serves cached translations once the budget is spent", async () => {
+    const { a, matchId } = await withMessages(2);
+    await translateConversation(a, matchId, "tr", 2);
+    stub.calls = [];
+
+    const result = await translateConversation(a, matchId, "tr", 0);
+
+    expect(Object.keys(result!.translations)).toHaveLength(2);
+    expect(result!.limitReached).toBe(false);
+    expect(stub.calls).toHaveLength(0);
+  });
+
+  it("charges the allowance for new translations only, never for cache hits", async () => {
+    const { a, matchId } = await withMessages(3);
+
+    await translateConversation(a, matchId, "tr", null);
+    const afterFirst = await db.select().from(translationUsage);
+
+    // Reading the same conversation again costs the provider nothing, so it
+    // must cost the member nothing.
+    await translateConversation(a, matchId, "tr", null);
+    const afterSecond = await db.select().from(translationUsage);
+
+    expect(afterFirst).toHaveLength(3);
+    expect(afterSecond).toHaveLength(3);
+  });
+
+  /**
+   * A failed provider call must not be billed to the member. Otherwise an
+   * outage silently eats a free member's day.
+   */
+  it("does not spend the allowance when the provider fails", async () => {
+    const { a, matchId } = await withMessages(2);
+    stub.failNext = true;
+
+    const result = await translateConversation(a, matchId, "tr", null);
+
+    expect(result!.degraded).toBe(true);
+    expect(await db.select().from(translationUsage)).toHaveLength(0);
   });
 });
