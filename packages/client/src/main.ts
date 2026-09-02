@@ -118,6 +118,7 @@ async function main(): Promise<void> {
       console.warn('[boot] guest creation failed, continuing offline:', (error as Error).message);
       session = { playerId: `local_${Math.random().toString(36).slice(2, 10)}`, token: '' };
       await bootGame(clean);
+      shell.setOnline(false);
       shell.setNotice('Playing offline — the server could not be reached.');
     }
   }

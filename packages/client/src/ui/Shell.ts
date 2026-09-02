@@ -80,6 +80,15 @@ export class Shell {
   private profile: ProfileBundle | null = null;
   private settings: Settings;
   private currentModeId = 'kangaroo-chase';
+  /**
+   * Whether the client has a real server session.
+   *
+   * Everything that needs matchmaking is refused while this is false. Without it the menu
+   * happily starts an online match that can never fill: the player waits on
+   * "Waiting for players (0/2)" until they think to press Menu, with nothing on screen saying
+   * it will never succeed.
+   */
+  private online = true;
   private notice = '';
   private noticeElement: HTMLElement | null = null;
   /**
@@ -107,6 +116,13 @@ export class Shell {
 
   setSettings(settings: Settings): void {
     this.settings = settings;
+  }
+
+  /** Told by the bootstrap: false when guest creation failed and we are running standalone. */
+  setOnline(online: boolean): void {
+    if (this.online === online) return;
+    this.online = online;
+    if (this.screen !== 'none') this.render();
   }
 
   /**
@@ -222,14 +238,20 @@ export class Shell {
       el(
         'div',
         { class: 'kc-menu' },
-        button('Play', () => this.options.callbacks.onQuickPlay(this.currentModeId), 'primary'),
+        this.online
+          ? button('Play', () => this.options.callbacks.onQuickPlay(this.currentModeId), 'primary')
+          : null,
         button('Game modes', () => this.show('modes')),
         button('Private room', () => this.show('room')),
         button('Customise', () => this.show('customize')),
         button('Store', () => this.show('store')),
         button('Settings', () => this.show('settings')),
         button('How to play', () => this.show('tutorial')),
-        button('Practice with bots', () => this.options.callbacks.onPractice(this.currentModeId)),
+        button(
+          'Practice with bots',
+          () => this.options.callbacks.onPractice(this.currentModeId),
+          this.online ? 'ghost' : 'primary',
+        ),
       ),
       this.noticeNode(),
       el('p', { class: 'kc-note' }, 'No loot boxes. No pay-to-win. Every animal moves exactly the same.'),
@@ -253,11 +275,18 @@ export class Shell {
       el('h3', {}, mode.name),
       el('p', {}, mode.description),
       el('span', { class: 'kc-tag' }, `${mode.minPlayers}-${mode.maxPlayers} players · ${Math.round(mode.roundSeconds / 60)} min`),
-      button(selected ? 'Play now' : 'Select', () => {
-        this.currentModeId = mode.id;
-        if (selected) this.options.callbacks.onQuickPlay(mode.id);
-        else this.render();
-      }, selected ? 'primary' : 'ghost'),
+      button(
+        // Offline there is no online match to start, so a selected card offers the thing that
+        // does work rather than a button that leads to an empty lobby.
+        selected ? (this.online ? 'Play now' : 'Practice this mode') : 'Select',
+        () => {
+          this.currentModeId = mode.id;
+          if (!selected) this.render();
+          else if (this.online) this.options.callbacks.onQuickPlay(mode.id);
+          else this.options.callbacks.onPractice(mode.id);
+        },
+        selected ? 'primary' : 'ghost',
+      ),
     );
   }
 
@@ -276,10 +305,22 @@ export class Shell {
         'div',
         { class: 'kc-panel' },
         el('div', { class: 'kc-field' }, el('span', {}, 'Room code'), input),
-        button('Join room', () => this.options.callbacks.onJoinRoom(input.value.trim()), 'primary'),
+        // A private room is a server object, so all three of these need a session. Offline they
+        // are replaced by one line saying so, rather than three buttons that lead to an empty
+        // lobby with no way to tell it will stay empty.
+        this.online
+          ? button('Join room', () => this.options.callbacks.onJoinRoom(input.value.trim()), 'primary')
+          : null,
         el('hr', { style: { opacity: '0.15', width: '100%' } }),
-        button('Create a private room', () => this.options.callbacks.onCreatePrivate()),
-        button('Create with your own rules', () => this.show('houseRules')),
+        this.online ? button('Create a private room', () => this.options.callbacks.onCreatePrivate()) : null,
+        this.online
+          ? button('Create with your own rules', () => this.show('houseRules'))
+          : el(
+              'p',
+              { class: 'kc-note' },
+              'Private rooms need the server. While it is unreachable, ' +
+                'Practice with bots is the way to play — house rules included.',
+            ),
       ),
       this.noticeNode(),
       button('Back', () => this.show('menu')),
