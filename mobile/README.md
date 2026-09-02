@@ -29,9 +29,10 @@ PWABuilder. A third native shell would be a second copy of the app to keep in
 step with the first two, in exchange for nothing the packaged PWA does not
 already do. See `microsoft-store/submission.md`.
 
-**Before submitting to Microsoft**, read the first section of that file: the
-purchase verifier has no Microsoft driver, so subscriptions cannot be sold on
-Windows today, and the listing copy currently quotes prices.
+Subscriptions work on Windows: `src/lib/billing/microsoft.ts` verifies a Store
+purchase against the Store collections API, and `/api/billing/purchase` takes a
+`store` field naming which store sold it. It needs three environment variables —
+see `.env.example` — and stays closed until they are set.
 
 `capacitor.config.ts` stays at the repository root, because that is where the
 Capacitor CLI looks for it. It points `android.path` and `ios.path` here.

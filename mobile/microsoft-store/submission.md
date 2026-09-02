@@ -10,32 +10,67 @@ olurdu.
 
 ---
 
-## 0. Önce: bu gönderimi bloke eden bir şey var
+## 0. Abonelikler
 
-**Windows'ta abonelik satılamıyor.** `src/lib/billing/purchase.ts` iki
-sağlayıcı tanıyor — `google_play` ve `app_store` — ve Microsoft için bir
-`PurchaseVerifier` uygulaması yok. Paket bugün gönderilirse PLUS ve VIP satın
-alma akışı Windows'ta çalışmaz.
+Windows'ta abonelik satılabiliyor: `src/lib/billing/microsoft.ts` Store
+collections API'sini konuşan bir `PurchaseVerifier`, ve `/api/billing/purchase`
+artık gövdede `store` alanı bekliyor (`google_play` | `app_store` |
+`microsoft_store`).
 
-Üç seçenek var, ve bu bir ürün kararı:
+Akış iki taraflı, ve iki tarafı da olması bilinçli:
 
-1. **Windows'u ücretsiz katman olarak yayınla.** Listelemede abonelikten hiç
-   bahsetme, satın almayı telefona bırak. Aynı hesap olduğu için telefonda
-   alınan abonelik Windows'ta da geçerli — `subscriptions` tablosu kullanıcıya
-   bağlı, cihaza değil. En hızlı yol, ve dürüst: mağaza metni satmadığı bir
-   şeyi vaat etmiyor.
-2. **Microsoft Store IAP ekle.** `PurchaseVerifier` arayüzünü uygulayan bir
-   `microsoft_store` sürücüsü yazılır. Arayüz zaten sağlayıcıdan bağımsız
-   tasarlanmış, yani mimari değişiklik gerekmiyor — sadece yeni bir sürücü.
-3. **Kendi ödeme akışını kullan.** Microsoft, oyun olmayan uygulamaların kendi
-   ödeme sistemlerini kullanmasına izin veriyor — bu, Apple ve Google'ın
-   almadığı bir esneklik ve ekonomik olarak anlamlı. **Ancak** güncel koşulları
-   gönderim öncesi Microsoft'un mağaza politikalarından doğrulayın; bu
-   kural birkaç kez değişti ve burada yazdığım hâli garanti edemem.
+- **İstemci** Windows'tan bir *Store ID key* alır (`StoreContext`) ve `token`
+  olarak gönderir. Bu, üyeyi kanıtlar.
+- **Sunucu** Azure AD'den kendi adına bir belirteç alır. Bu, yayıncıyı
+  kanıtlar.
 
-`listing.md`'deki açıklama metni şu an **1. seçeneğe göre değil** — fiyatları
-yazıyor. 1'i seçerseniz "ÜCRETLENDİRME" bölümünü metinden çıkarın, yoksa
-listeleme uygulamanın Windows'ta yapamadığı bir şeyi vaat etmiş olur.
+İkisi olmadan sorgu çalışmıyor — istemci yayıncı belirteci üretemez, sunucu da
+istemcinin almadığı bir anahtarla kimseyi adlandıramaz.
+
+### Yapılandırma
+
+Partner Center yayıncı hesabının bulunduğu Azure AD kiracısında bir uygulama
+kaydı açın. API izni ya da yanıt URL'si gerekmiyor; tek işi
+`client_credentials` ile yayıncıyı kanıtlamak.
+
+```bash
+MICROSOFT_STORE_TENANT_ID=...      # Directory (tenant) ID
+MICROSOFT_STORE_CLIENT_ID=...      # Application (client) ID
+MICROSOFT_STORE_CLIENT_SECRET=...  # istemci gizli anahtarı — süresi doluyor
+```
+
+Üçü birden ya da hiçbiri: eksik yapılandırma başlangıçta hata veriyor, sessizce
+geri düşmüyor. Aksi hâlde abonelik sattığını sanan ve hepsini reddeden bir
+deploy elde edersiniz.
+
+**Ürün kimlikleri.** `PRODUCT_TIERS` (`src/lib/billing/purchase.ts`) şu ikisini
+tanıyor:
+
+```
+com.fiorematch.app.plus.monthly
+com.fiorematch.app.vip.monthly
+```
+
+Partner Center'da eklentileri **aynı kimliklerle** oluşturursanız başka bir şey
+gerekmiyor. Farklı adlandırdıysanız eşlemeyi verin:
+
+```bash
+MICROSOFT_STORE_PRODUCT_IDS='{"com.fiorematch.app.plus.monthly":"9NXXXXXXXXXX"}'
+```
+
+Bu eşleme yanlışsa sürücü sorunsuz kimlik doğrular ve hiçbir şey eşleştiremez —
+üyeye "satın alman geçersiz" olarak görünür. Test satın almasıyla bir kez
+doğrulayın.
+
+### Doğrulanması gereken bir nokta
+
+Sürücünün okuduğu `recurrenceState` alan adı, Microsoft'un dokümantasyonuna
+karşı **canlıya çıkmadan doğrulanmalı**. İki uç nokta ve iki adımlı akış
+uzun süredir aynı; en çok değişmiş olabilecek şey yanıt alan adları.
+
+Yanlış olması hâlinde davranış kapalı yönde bozuluyor — her satın alma
+reddedilir, kimseye bedava abonelik verilmez — ve `interpretRecurrence()`
+bu alanları okuyan tek yer, testleri de var. Düzeltmesi tek fonksiyon.
 
 ---
 

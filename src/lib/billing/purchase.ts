@@ -14,8 +14,24 @@ import { isTier } from "./tiers";
  * return and it is what survives clock skew, grace periods and the retries the
  * store performs on a failed card without telling us.
  */
+/**
+ * The stores a purchase can come from.
+ *
+ * The client says which one it is holding a token for, because the token
+ * formats are not distinguishable and asking the wrong store is not a
+ * recoverable mistake — it is a refusal that looks exactly like a forged
+ * purchase.
+ */
+export const STORES = ["google_play", "app_store", "microsoft_store"] as const;
+
+export type StoreId = (typeof STORES)[number];
+
+export function isStore(value: string): value is StoreId {
+  return (STORES as readonly string[]).includes(value);
+}
+
 export type VerifiedPurchase = {
-  /** `google_play` | `app_store` — recorded so a switch stays traceable. */
+  /** Which store said so — recorded so a switch stays traceable. */
   provider: string;
   /**
    * The stable identifier for this *subscription*, not this transaction.

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { purchaseVerifier, purchasesEnabled } from "@/lib/billing";
-import { tierForProduct } from "@/lib/billing/purchase";
+import { isStore, tierForProduct } from "@/lib/billing/purchase";
 import { recordPurchase } from "@/db/billing";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -11,9 +11,10 @@ export const dynamic = "force-dynamic";
  * Redeeming a store purchase.
  *
  * The client hands over what the store gave it — a purchase token on Android,
- * an original transaction id on iOS — and this asks the store whether it is
- * real. The token is never trusted on its own: it arrives from a device, and a
- * device is not a source of truth about whether money changed hands.
+ * an original transaction id on iOS, a Store ID key on Windows — and this asks
+ * that store whether it is real. The token is never trusted on its own: it
+ * arrives from a device, and a device is not a source of truth about whether
+ * money changed hands.
  *
  * Safe to call repeatedly, and the app should: the client calls it on every
  * launch to reconcile a subscription whose store notification never arrived.
@@ -23,17 +24,10 @@ export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  // No store configured means nothing can be bought. Said plainly rather than
-  // failing somewhere deeper, so a client can tell "not open yet" from "your
-  // purchase was refused".
-  if (!purchasesEnabled()) {
-    return NextResponse.json({ available: false }, { status: 503 });
-  }
-
   const limit = checkRateLimit(`purchase:${auth.user.id}`, { max: 20, windowMs: 60_000 });
   if (!limit.allowed) return apiError("rate_limited", 429);
 
-  let body: { token?: unknown; productId?: unknown };
+  let body: { token?: unknown; productId?: unknown; store?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -44,6 +38,25 @@ export async function POST(request: NextRequest) {
   const productId = typeof body.productId === "string" ? body.productId.trim() : "";
   if (!token || !productId) return apiError("invalid_body", 400);
 
+  /**
+   * Which store sold it, said by the client rather than guessed here.
+   *
+   * A Play purchase token, an Apple transaction id and a Microsoft Store ID key
+   * are all opaque strings, so there is nothing to sniff. Asking the wrong
+   * store returns "no such purchase", which is indistinguishable from a forged
+   * one — so the client names the store, and an unrecognised name is refused
+   * before any store is called.
+   */
+  const store = typeof body.store === "string" ? body.store.trim() : "";
+  if (!isStore(store)) return apiError("unknown_store", 400);
+
+  // Configured per store, not per deployment: the same build serves a phone
+  // that bought through Play and a PC that bought through Microsoft, and one
+  // being open says nothing about the other.
+  if (!purchasesEnabled(store)) {
+    return NextResponse.json({ available: false, store }, { status: 503 });
+  }
+
   // The product has to be one we sell. Checked before the store call so an
   // unknown id cannot be spent as an API request, and refused rather than
   // defaulted — see `tierForProduct`.
@@ -51,7 +64,7 @@ export async function POST(request: NextRequest) {
 
   let verified;
   try {
-    verified = await purchaseVerifier().verify(token, productId);
+    verified = await purchaseVerifier(store).verify(token, productId);
   } catch {
     // The store could not be reached. Distinct from a refusal, because this
     // one is worth retrying and the client should.
