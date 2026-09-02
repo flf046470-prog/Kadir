@@ -27,6 +27,16 @@ export interface Tunable {
   min: number;
   max: number;
   step: number;
+  /**
+   * Set when the field only does anything with real tracked hands.
+   *
+   * Most of these are live on every platform, which is easy to get wrong in the other direction:
+   * PC and mobile players go through the same hand-anchor machinery, because the client places
+   * their hands procedurally and the grab button sets the grip. `applyPalmPush` is the one
+   * exception — it skips any hand that is not actually tracked — so on a keyboard that slider
+   * moves and nothing happens.
+   */
+  vrOnly?: boolean;
 }
 
 /**
@@ -53,6 +63,7 @@ export const TUNABLES = [
     min: 0.2,
     max: 3,
     step: 0.05,
+    vrOnly: true,
   },
   {
     field: 'friction',
@@ -141,6 +152,7 @@ export const TUNABLES = [
   min: number;
   max: number;
   step: number;
+  vrOnly?: boolean;
 }[];
 
 export type TunableField = (typeof TUNABLES)[number]['field'];

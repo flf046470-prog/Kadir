@@ -54,6 +54,40 @@ describe('tunable definitions', () => {
   });
 
   /**
+   * Which sliders do anything without a headset.
+   *
+   * The obvious guess — that everything with "hand" in its name is VR-only — is wrong, and that
+   * is why this is written down rather than left to a reader. PC and mobile players go through
+   * the same hand-anchor machinery: the client places their hands procedurally and the grab
+   * button sets the grip, so `pushForce`, `handGrabRadius`, `maxHandCorrection` and
+   * `handTwoHandMultiplier` are all live on a keyboard.
+   *
+   * `handPushForce` is the single exception, because `applyPalmPush` skips any hand that is not
+   * really tracked and a procedurally placed hand never is. A slider that cannot move anything
+   * is worse than an absent one, so the panel hides it off a headset — and this pins the list it
+   * hides by, so a future field that needs tracking has to declare itself.
+   */
+  it('marks exactly the field that needs real tracked hands', () => {
+    const vrOnly = TUNABLES.filter((t) => 'vrOnly' in t && t.vrOnly).map((t) => t.field);
+    expect(vrOnly).toEqual(['handPushForce']);
+  });
+
+  it('leaves the other hand-named fields available on every platform', () => {
+    for (const field of ['pushForce', 'handGrabRadius', 'maxHandCorrection', 'handTwoHandMultiplier']) {
+      const tunable = TUNABLES.find((t) => t.field === field);
+      expect(tunable, `${field} should still be tunable`).toBeDefined();
+      expect('vrOnly' in (tunable as object) && (tunable as { vrOnly?: boolean }).vrOnly, field).toBeFalsy();
+    }
+  });
+
+  it('still offers a usable panel with no headset', () => {
+    // Whatever gets marked VR-only later, a desktop session must not be left with a handful of
+    // sliders — the panel is how the feel gets found in the first place.
+    const flat = TUNABLES.filter((t) => !('vrOnly' in t && t.vrOnly));
+    expect(flat.length).toBeGreaterThanOrEqual(TUNABLES.length - 2);
+  });
+
+  /**
    * `friction` and `airControl` are both tunable and inside the animal feel band, which is fine
    * and worth pinning down rather than assuming: the band is applied multiplicatively
    * (`base * (1 + mod)`), so retuning the baseline moves every animal together and the spread

@@ -525,7 +525,12 @@ export class Shell {
       );
     }
 
-    for (const tunable of store.tunables) {
+    // A slider that cannot move anything is worse than an absent one: it invites the player to
+    // spend a tuning session on it and conclude the game ignores them. Palm shove is the only
+    // field that needs real tracked hands, so off a headset it is simply not offered.
+    const tunables = store.tunables.filter((tunable) => this.options.platform === 'vr' || !tunable.vrOnly);
+
+    for (const tunable of tunables) {
       const readout = el('span', {}, String(store.value(tunable.field)));
       const input = el('input', {
         type: 'range',
