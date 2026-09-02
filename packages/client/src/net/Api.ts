@@ -1,3 +1,4 @@
+import { listAnimals, listCosmetics, listModes, listStoreItems } from '@kc/core';
 import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, StoreItem } from '@kc/core';
 
 export interface ProfileBundle {
@@ -12,6 +13,27 @@ export interface ContentBundle {
   cosmetics: CosmeticDef[];
   store: StoreItem[];
   modes: GameModeDef[];
+}
+
+/**
+ * The catalogue the client can serve itself, with no server involved.
+ *
+ * Every launch catalogue — animals, cosmetics, store, modes — registers itself when its module
+ * is imported, so a browser running this build already holds all of it. `/api/content` exists so
+ * the catalogue can be updated without shipping a new client, not because the client would
+ * otherwise be empty.
+ *
+ * That distinction was lost at the call site: when the fetch failed the menus were simply never
+ * given anything, and Game modes and Customise rendered as a title and a Back button. A player
+ * with no connection saw a game that looked broken rather than one that looked offline.
+ */
+export function localContent(): ContentBundle {
+  return {
+    animals: listAnimals(),
+    cosmetics: listCosmetics(),
+    store: listStoreItems(),
+    modes: listModes(),
+  };
 }
 
 export interface LeaderboardEntry {

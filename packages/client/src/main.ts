@@ -1,6 +1,6 @@
 import { sanitizeName } from '@kc/core';
 import type { Settings } from '@kc/core';
-import { Api } from './net/Api.js';
+import { Api, localContent } from './net/Api.js';
 import { GameClient } from './game/GameClient.js';
 import { MobileInput } from './platform/mobile/MobileInput.js';
 import { PCInput } from './platform/pc/PCInput.js';
@@ -138,7 +138,12 @@ async function main(): Promise<void> {
     try {
       shell.setContent(await api.getContent());
     } catch {
-      // Content endpoints are a convenience; the client already has the launch data compiled in.
+      // The catalogue is compiled into this build and registers itself on import, so an
+      // unreachable server means the menus have no *server* content — not that they have none.
+      // Handing them the local copy is the difference between a game that looks offline and one
+      // that looks broken: without it, Game modes and Customise render as a title and a Back
+      // button, with nothing saying why.
+      shell.setContent(localContent());
     }
 
     game = new GameClient({
