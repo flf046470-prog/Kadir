@@ -37,6 +37,7 @@
     "pack:phone": "node scripts/pack-phone.mjs",
     "pack:phone:check": "node scripts/pack-phone.mjs --check",
     "pack:msstore": "node scripts/pack-msstore.mjs",
+    "pack:msstore:msix": "node scripts/build-msix.mjs",
     "pack:msstore:check": "node scripts/pack-msstore.mjs --check",
     "build:quest": "node scripts/build-android.mjs --target quest",
     "build:phone": "node scripts/build-android.mjs --target phone"

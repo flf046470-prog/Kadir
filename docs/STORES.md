@@ -244,23 +244,34 @@ the Store reserves the revision field. Every submission must also *increase* the
 
 ### Build the package
 
-`makeappx` and `signtool` ship with the Windows SDK and only run on Windows, which is why this
-script stops before them, exactly as the Bubblewrap ones do:
-
-```powershell
-makeappx pack /d packaging\microsoft-store /p KangarooChase.msix /o
+```bash
+npm run pack:msstore:msix
 ```
 
-Upload `KangarooChase.msix` to Partner Center **unsigned**. The Store re-signs with its own
-certificate; a self-signed package is rejected. Sign only to sideload a test build:
+That writes `packaging/microsoft-store/KangarooChase_<version>_neutral.msix` — the file you
+upload — and needs no Windows SDK. `makeappx.exe` is the usual tool and only runs on Windows,
+which would leave the one artifact a Windows submission needs unbuildable on the machine that
+builds everything else. An MSIX is an OPC package: a ZIP carrying the app manifest, a
+content-type map and a block map of SHA-256 hashes, and `scripts/lib/msix.mjs` writes one
+directly. Everything is stored rather than deflated (the payload is PNG tile art, which does not
+compress), which is `makeappx /nc` by another route.
+
+The script then reads its own output back and checks it: the archive through the system `unzip`,
+the block map by re-hashing the bytes actually stored, and the manifest by confirming every image
+it names is really in the package. A package that is wrong in a way only Partner Center notices
+costs a submission round trip.
+
+Upload it to Partner Center **unsigned**. The Store re-signs with its own certificate; a
+self-signed package is rejected. Sign only to sideload a test build, on Windows:
 
 ```powershell
-signtool sign /fd SHA256 /a /f test.pfx /p <password> KangarooChase.msix
+signtool sign /fd SHA256 /a /f test.pfx /p <password> KangarooChase_0.1.0.0_neutral.msix
 ```
 
-If you would rather not install the SDK, [PWABuilder](https://www.pwabuilder.com/) generates the
-same kind of package from the live URL. This script exists so the manifest is ours rather than
-whatever a generator inferred — in particular the two things below.
+[PWABuilder](https://www.pwabuilder.com/) generates the same kind of package from the live URL if
+you would rather not run any of this. These scripts exist so the manifest is ours rather than
+whatever a generator inferred — in particular the two things below — and so the package can be
+built in CI rather than on somebody's laptop.
 
 ### Two things that are not defaults
 

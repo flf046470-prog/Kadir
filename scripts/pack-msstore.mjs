@@ -160,7 +160,11 @@ async function render() {
   const manifest = JSON.parse(await readFile(path.join(publicDir, 'manifest.webmanifest'), 'utf8'));
   const version = storeVersion(pkg.version);
 
-  const template = await readFile(path.join(outDir, 'AppxManifest.template.xml'), 'utf8');
+  // The template's comments explain the template. They are three kilobytes of our own build notes
+  // and they have no business being shipped inside a Store package, so the render drops them.
+  const template = (await readFile(path.join(outDir, 'AppxManifest.template.xml'), 'utf8'))
+    .replaceAll(/<!--[\s\S]*?-->\n?/g, '')
+    .replaceAll(/\n{3,}/g, '\n\n');
   const rendered = template
     .replaceAll('__IDENTITY_NAME__', IDENTITY_NAME)
     .replaceAll('__PUBLISHER__', escapeXml(PUBLISHER))
