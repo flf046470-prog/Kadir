@@ -80,7 +80,7 @@ async function main(): Promise<void> {
           game?.applySettings(next);
         },
         onNameChanged: (name) => void createSession(name),
-        onResume: () => closeMenu(),
+        onPlayAgain: () => playAgain(),
         onLeaveMatch: () => {
           game?.disconnect();
           openMenu();
@@ -303,6 +303,21 @@ async function main(): Promise<void> {
     await game.audio.resume();
     if (settings.voiceEnabled) void game.voice.enable();
     game.connect(serverUrl, options);
+  }
+
+  /**
+   * "Play again" on the results screen.
+   *
+   * It used to call `closeMenu()`, which only hid the shell — so after a solo round it dropped
+   * the player back into the *finished* simulation, clock at zero, nothing happening. That was
+   * invisible while the results screen only ever appeared after a server match; it stopped being
+   * invisible when solo rounds started reporting results too.
+   *
+   * Online the server owns what comes next, so closing the menu is still the right move there.
+   */
+  function playAgain(): void {
+    if (game?.isSoloPractice) startPractice(game.currentModeId);
+    else closeMenu();
   }
 
   function startPractice(modeId: string): void {

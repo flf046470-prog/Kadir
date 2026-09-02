@@ -42,7 +42,8 @@ export interface ShellCallbacks {
   onCosmeticsChanged(cosmetics: Record<string, string>): void;
   onSettingsChanged(settings: Settings): void;
   onNameChanged(name: string): void;
-  onResume(): void;
+  /** The results screen's "Play again": start another round, not merely close a menu. */
+  onPlayAgain(): void;
   onLeaveMatch(): void;
   onVoiceToggle(enabled: boolean): void;
 }
@@ -892,7 +893,7 @@ export class Shell {
       reward
         ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP${reward.achievements.length > 0 ? ` · ${reward.achievements.length} achievement(s) unlocked` : ''}`)
         : null,
-      el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onResume(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
+      el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onPlayAgain(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
       // Without a notice node here the element stays null on this screen, so the next setNotice
       // falls back to a full re-render — the very path that used to blank it.
       this.noticeNode(),

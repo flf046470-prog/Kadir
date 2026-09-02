@@ -270,6 +270,16 @@ export class GameClient {
     this.callbacks.onResults(this.sim.results(), {});
   }
 
+  /** True while this is a local round against bots rather than a server match. */
+  get isSoloPractice(): boolean {
+    return this.soloPractice;
+  }
+
+  /** The mode currently being played, so the menus can start another round of the same thing. */
+  get currentModeId(): string {
+    return this.modeId;
+  }
+
   /** True while movement tuning may be edited: solo practice, where nobody else is affected. */
   get canTune(): boolean {
     return this.soloPractice;
