@@ -13,7 +13,10 @@ export default defineConfig({
     ],
   },
   test: {
-    include: ['packages/**/*.test.ts'],
+    // `scripts/` is included because the packaging tooling grew real logic — a PNG codec, store
+    // manifest rules — and tooling that is only exercised by running it is tooling that breaks
+    // on the day of a submission.
+    include: ['packages/**/*.test.ts', 'scripts/**/*.test.ts'],
     environment: 'node',
     globals: false,
     reporters: ['default'],

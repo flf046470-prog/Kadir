@@ -199,6 +199,17 @@ async function main() {
     hint: 'npm run build:phone -- --domain <host>',
   });
 
+  const msstoreDir = value('--msstore-dir') ?? path.join(root, 'packaging', 'microsoft-store');
+  await collect({
+    id: 'msstore',
+    title: 'Microsoft Store upload',
+    from: path.join(msstoreDir, 'KangarooChase.msix'),
+    kind: 'file',
+    out: `kangaroo-chase-windows-${version}.msix`,
+    note: 'Upload to Partner Center unsigned — the Store re-signs it. Sign only to sideload.',
+    hint: 'npm run pack:msstore -- --domain <host> --identity-name <name> --publisher "CN=..."  then  makeappx pack',
+  });
+
   if (stale.length > 0) {
     console.error(`\n\x1b[31m${stale.length} artifact(s) older than what they were built from:\x1b[0m`);
     for (const s of stale) {

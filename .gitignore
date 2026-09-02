@@ -48,3 +48,13 @@ packaging/*/store_icon.png
 packaging/*/manifest-checksum.txt
 packaging/*/.gradle/
 packaging/*/build/
+
+# The Microsoft Store package. AppxManifest.xml carries the Partner Center identity, which is
+# per-account and must not be committed; the tile art is regenerated from icons/icon-1024.png by
+# `npm run pack:msstore`, so committing it would only let it drift from the source icon.
+packaging/microsoft-store/build/
+packaging/**/*.msix
+packaging/**/*.msixbundle
+packaging/**/*.appx
+packaging/**/*.appxbundle
+packaging/**/*.pfx

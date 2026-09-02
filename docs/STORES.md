@@ -8,6 +8,7 @@ chosen. The game is one web build; the store packages wrap it differently.
 | Meta Horizon Store | Immersive WebXR PWA via Bubblewrap (TWA → APK/AAB) | Native WebXR | Buildable here; needs a signing key and a developer account |
 | Steam | Desktop shell + bundled-browser VR launch | SteamVR via OpenXR | Buildable here; needs a Steamworks appid |
 | Google Play | Landscape TWA via Bubblewrap (APK/AAB) | — (phone is flat) | Buildable here; needs a signing key and a developer account |
+| Microsoft Store | Hosted PWA as MSIX | — (desktop is flat) | Manifest and tile art buildable here; `makeappx` needs Windows |
 | Apple App Store | — | — | Not set up |
 
 ---
@@ -205,6 +206,76 @@ serve, with the certificate SHA-256 already filled in.
 Play binds the listing to the package id *and* the signing key, forever. The id derived from the
 host is the same one the Quest build derives; that is fine today because Play and Horizon are
 separate namespaces, but pass `--package-id` if you ever need them to differ.
+
+## Microsoft Store
+
+Windows takes a Progressive Web App from the Store as a **hosted app**: the MSIX package carries
+the app manifest and the tile art, and its `StartPage` points at the deployed origin. That is the
+same shape as the Trusted Web Activity on Android — one origin, no bundled copy of the game — so
+the same web build and the same deployment serve all three stores.
+
+```bash
+npm run build                       # dist/client, which is what the origin serves
+npm run pack:msstore -- \
+  --domain kangaroochase.example \
+  --identity-name 12345Studio.KangarooChase \
+  --publisher "CN=ABCDEF12-3456-7890-ABCD-EF1234567890" \
+  --publisher-display "Your Studio"
+```
+
+That writes `packaging/microsoft-store/AppxManifest.xml` and generates all 17 tile, logo and
+splash images from `packages/client/public/icons/icon-1024.png`. Both are gitignored: the
+manifest carries a per-account identity, and the art is derived, so committing it would only let
+it drift from the source icon.
+
+### Get the identity first
+
+`--identity-name` and `--publisher` are **not yours to choose**. Reserve the app name in Partner
+Center, then read them off *Product → Product identity*:
+
+- **Package/Identity Name** — something like `12345Studio.KangarooChase`.
+- **Publisher** — the `CN=…` distinguished name. It is not your company name, and pasting the
+  company name is the single most common reason a first upload is rejected. The script refuses
+  anything that does not start with `CN=`.
+
+The version is derived from `package.json` and widened to four parts with a trailing `0`, because
+the Store reserves the revision field. Every submission must also *increase* the version, so bump
+`package.json` before repackaging.
+
+### Build the package
+
+`makeappx` and `signtool` ship with the Windows SDK and only run on Windows, which is why this
+script stops before them, exactly as the Bubblewrap ones do:
+
+```powershell
+makeappx pack /d packaging\microsoft-store /p KangarooChase.msix /o
+```
+
+Upload `KangarooChase.msix` to Partner Center **unsigned**. The Store re-signs with its own
+certificate; a self-signed package is rejected. Sign only to sideload a test build:
+
+```powershell
+signtool sign /fd SHA256 /a /f test.pfx /p <password> KangarooChase.msix
+```
+
+If you would rather not install the SDK, [PWABuilder](https://www.pwabuilder.com/) generates the
+same kind of package from the live URL. This script exists so the manifest is ours rather than
+whatever a generator inferred — in particular the two things below.
+
+### Two things that are not defaults
+
+- **`ApplicationContentUriRules`.** Without a rule covering the origin, Windows treats the app's
+  own pages as untrusted web content: WinRT access is refused and permission prompts behave
+  differently. The rule is what makes the microphone capability usable at all.
+- **The `microphone` capability.** Voice chat needs it. Declaring capabilities you do not use is
+  a review risk; failing to declare one you do use means the feature silently never works, for
+  everyone, with no error.
+
+### What Windows players get
+
+The flat desktop game — the same one Steam ships, running in the Store's PWA container instead of
+Electron. No WebXR: a headset on Windows goes through the Steam build. The two are separate
+listings of the same game and can be published independently.
 
 ## Apple App Store
 
