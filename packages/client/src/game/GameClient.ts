@@ -108,6 +108,8 @@ export class GameClient {
   /** Live movement tuning. Only ever applied in solo practice — see `applyTuning`. */
   readonly tuning: TuningStore;
   private soloPractice = false;
+  /** Guards the one-shot results callback: `finished()` stays true for every tick after the end. */
+  private soloResultsSent = false;
   private modeId = 'kangaroo-chase';
   private roomCode = '';
 
@@ -245,8 +247,27 @@ export class GameClient {
     }
     this.levelRenderer.setCheckpointsVisible(modeId === 'parkour');
     this.soloPractice = true;
+    this.soloResultsSent = false;
     this.applyTuning();
     this.callbacks.onNotice('Solo practice — bots only. Reconnecting in the background.');
+  }
+
+  /**
+   * End a solo round properly.
+   *
+   * In a real match the results screen is driven by a message from the server. Solo practice has
+   * no server, so nothing ever fired it: the round simply stopped, the HUD sat on "ENDED", and
+   * the only way out was the pause menu. That is most of a four-minute round ending in nothing,
+   * and it is now the ordinary way to play with no connection.
+   *
+   * Rewards are deliberately empty. Coins and XP are granted by the server from the server's own
+   * result — a client that awarded itself currency would be the one hole the whole economy is
+   * built to avoid — so a solo round shows the scoreboard and pays nothing, which is honest.
+   */
+  private reportSoloResults(): void {
+    if (this.soloResultsSent || !this.sim.finished()) return;
+    this.soloResultsSent = true;
+    this.callbacks.onResults(this.sim.results(), {});
   }
 
   /** True while movement tuning may be edited: solo practice, where nobody else is affected. */
@@ -269,6 +290,7 @@ export class GameClient {
   private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelSeed: number }): void {
     // A real match starts: the server owns the configs from here on.
     this.soloPractice = false;
+    this.soloResultsSent = false;
     this.localId = message.playerId;
     this.modeId = message.modeId;
     this.roomCode = message.roomCode;
@@ -454,6 +476,7 @@ export class GameClient {
       const events = this.sim.events.drain();
       this.handleEvents(events);
       this.callbacks.onModeState(this.sim.mode.state());
+      this.reportSoloResults();
     } else {
       this.sim.events.drain();
     }

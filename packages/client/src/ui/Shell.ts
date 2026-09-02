@@ -66,6 +66,11 @@ export interface ShellOptions {
   onTuningChanged(): void;
 }
 
+/** Compile-time proof that a switch covered every case. Never reached at runtime. */
+function assertNever(value: never): never {
+  throw new Error(`unhandled screen: ${String(value)}`);
+}
+
 /**
  * Menus for PC and Mobile (VR gets world-space panels instead — see `VRPanels`).
  *
@@ -89,6 +94,18 @@ export class Shell {
    * it will never succeed.
    */
   private online = true;
+  /**
+   * The last round's results, kept so the screen can be rebuilt like any other.
+   *
+   * `showResults` used to append its DOM directly and `render` had no case for it, so any
+   * re-render while results were up fell through to `default` and left a blank page with the
+   * scoreboard gone. Storing the data makes results an ordinary screen.
+   */
+  private results: {
+    result: MatchResult;
+    rewards: Record<string, { coins: number; xp: number; achievements: string[] }>;
+    localId: string;
+  } | null = null;
   private notice = '';
   private noticeElement: HTMLElement | null = null;
   /**
@@ -185,8 +202,15 @@ export class Shell {
       case 'tutorial':
         this.element.append(this.tutorialScreen());
         break;
-      default:
+      case 'results':
+        if (this.results) this.element.append(this.resultsScreen(this.results));
         break;
+      default:
+        // Deliberately not `default: break`. Every ScreenId is listed above, so adding one to the
+        // union without a case here fails to compile — which is exactly how the results screen
+        // came to render nothing: it was in the union, `show('results')` set it, and the switch
+        // fell quietly through to a blank page.
+        assertNever(this.screen);
     }
   }
 
@@ -830,9 +854,19 @@ export class Shell {
 
   /** Results overlay shown after a round. */
   showResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>, localId: string): void {
-    this.screen = 'results';
-    clear(this.element);
+    this.results = { result, rewards, localId };
+    this.show('results');
+  }
 
+  private resultsScreen({
+    result,
+    rewards,
+    localId,
+  }: {
+    result: MatchResult;
+    rewards: Record<string, { coins: number; xp: number; achievements: string[] }>;
+    localId: string;
+  }): HTMLElement {
     const table = el('table');
     table.append(
       el('tr', {}, el('th', {}, '#'), el('th', {}, 'Player'), el('th', {}, 'Score'), el('th', {}, 'Tags')),
@@ -850,17 +884,18 @@ export class Shell {
     }
 
     const reward = rewards[localId];
-    this.element.append(
-      el(
-        'div',
-        { class: 'kc-screen' },
-        this.header(result.winnerIds.includes(localId) ? 'You win!' : 'Round over'),
-        el('div', { class: 'kc-panel kc-results' }, table),
-        reward
-          ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP${reward.achievements.length > 0 ? ` · ${reward.achievements.length} achievement(s) unlocked` : ''}`)
-          : null,
-        el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onResume(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
-      ),
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header(result.winnerIds.includes(localId) ? 'You win!' : 'Round over'),
+      el('div', { class: 'kc-panel kc-results' }, table),
+      reward
+        ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP${reward.achievements.length > 0 ? ` · ${reward.achievements.length} achievement(s) unlocked` : ''}`)
+        : null,
+      el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onResume(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
+      // Without a notice node here the element stays null on this screen, so the next setNotice
+      // falls back to a full re-render — the very path that used to blank it.
+      this.noticeNode(),
     );
   }
 
