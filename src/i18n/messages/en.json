@@ -169,7 +169,7 @@
   },
   "pricing": {
     "title": "Simple, honest pricing",
-    "subtitle": "Start free. Upgrade only if PLUS or VIP genuinely helps you meet more people. Prices shown in your local currency where supported by the App Store and Google Play.",
+    "subtitle": "Start free. Upgrade only if PLUS or VIP genuinely helps you meet more people. Prices shown in your local currency where the app store supports it.",
     "freeName": "Free",
     "freePrice": "$0",
     "freePeriod": "forever",
@@ -177,7 +177,9 @@
     "freeFeatures": [
       "Full profile creation",
       "Discover, Like, and Pass",
+      "50 Likes a day",
       "Matching and messaging",
+      "15 message translations a day",
       "Standard filters",
       "Block & report tools"
     ],
@@ -187,11 +189,11 @@
     "plusDesc": "For people who want more control over who they meet.",
     "plusFeatures": [
       "Everything in Free",
+      "Unlimited message translation",
       "Advanced filters",
       "200 Likes a day",
       "See who liked you",
       "Undo your last pass",
-      "In-chat message translation",
       "10 gifts a day"
     ],
     "vipName": "VIP",
@@ -207,7 +209,7 @@
       "A 60-minute Boost every month"
     ],
     "vipBadge": "Most complete",
-    "localNote": "Local pricing follows Apple App Store and Google Play country-level pricing tiers — not a raw currency conversion — and is managed centrally so we can adjust fairly by market.",
+    "localNote": "Local pricing follows each app store's country-level pricing tiers — not a raw currency conversion — and is managed centrally so we can adjust fairly by market.",
     "addonsTitle": "One-time boosts",
     "addonsSubtitle": "Buy exactly the extra reach you want, only when you want it.",
     "addons": [

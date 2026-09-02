@@ -31,11 +31,11 @@ export default function PricingPage() {
   const faqs = [
     {
       question: "How much do PLUS and VIP cost?",
-      answer: "PLUS is $4.99/month and VIP is $9.99/month, shown in your local currency where supported by the App Store and Google Play. Cancel any time and you keep what you paid for until the period ends."
+      answer: "PLUS is $4.99/month and VIP is $9.99/month, shown in your local currency where the app store supports it. Cancel any time and you keep what you paid for until the period ends."
     },
     {
       question: "Is pricing the same in every country?",
-      answer: "Local prices follow Apple App Store and Google Play country-level pricing tiers, not a raw currency conversion, and are managed centrally so pricing stays fair by market."
+      answer: "Local prices follow each app store's country-level pricing tiers, not a raw currency conversion, and are managed centrally so pricing stays fair by market."
     },
     {
       question: "Can I use FioreMatch for free?",

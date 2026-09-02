@@ -169,7 +169,7 @@
   },
   "pricing": {
     "title": "Basit, dürüst fiyatlandırma",
-    "subtitle": "Ücretsiz başla. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt. Fiyatlar, App Store ve Google Play'in desteklediği yerlerde kendi para biriminde gösterilir.",
+    "subtitle": "Ücretsiz başla. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt. Fiyatlar, uygulama mağazasının desteklediği yerlerde kendi para biriminde gösterilir.",
     "freeName": "Ücretsiz",
     "freePrice": "$0",
     "freePeriod": "süresiz",
@@ -177,7 +177,9 @@
     "freeFeatures": [
       "Tam profil oluşturma",
       "Keşfet, Beğen ve Geç",
+      "Günde 50 Beğeni",
       "Eşleşme ve mesajlaşma",
+      "Günde 15 mesaj çevirisi",
       "Standart filtreler",
       "Engelleme ve bildirme araçları"
     ],
@@ -187,11 +189,11 @@
     "plusDesc": "Kiminle tanışacağı üzerinde daha fazla kontrol isteyenler için.",
     "plusFeatures": [
       "Ücretsiz paketteki her şey",
+      "Sınırsız mesaj çevirisi",
       "Gelişmiş filtreler",
       "Günde 200 Beğeni",
       "Seni kimlerin beğendiğini gör",
       "Son geçişini geri al",
-      "Sohbet içi mesaj çevirisi",
       "Günde 10 hediye"
     ],
     "vipName": "VIP",
@@ -207,7 +209,7 @@
       "Her ay 60 dakikalık Boost"
     ],
     "vipBadge": "En kapsamlı",
-    "localNote": "Yerel fiyatlar, ham bir döviz dönüşümü değil, Apple App Store ve Google Play'in ülke bazlı fiyat kademelerini takip eder ve pazarlara adil şekilde ayarlayabilmemiz için merkezi olarak yönetilir.",
+    "localNote": "Yerel fiyatlar, ham bir döviz dönüşümü değil, uygulama mağazalarının ülke bazlı fiyat kademelerini takip eder ve pazarlara adil şekilde ayarlayabilmemiz için merkezi olarak yönetilir.",
     "addonsTitle": "Tek seferlik boost'lar",
     "addonsSubtitle": "İstediğin ekstra erişimi, tam istediğin zaman satın al.",
     "addons": [

@@ -13,13 +13,17 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:normalise-places": "tsx scripts/normalise-places.ts",
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "capture": "node scripts/capture.mjs",
     "native:assets": "node mobile/assets/generate.mjs",
     "native:sync": "cap sync",
     "native:android": "cap open android",
     "native:ios": "cap open ios",
     "store:play": "node mobile/play-store/screenshots.mjs",
     "store:appstore": "node mobile/app-store/screenshots.mjs",
-    "store:assets": "npm run store:play && npm run store:appstore"
+    "store:assets": "npm run store:play && npm run store:appstore && npm run store:microsoft",
+    "store:microsoft": "node mobile/microsoft-store/screenshots.mjs",
+    "store:microsoft:assets": "node mobile/microsoft-store/assets.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",
@@ -50,6 +54,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9.18.0",
     "eslint-config-next": "^15.1.6",
+    "playwright": "^1.62.1",
     "postcss": "^8.5.1",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.23.12",
