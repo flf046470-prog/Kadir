@@ -12,7 +12,7 @@ import { LAUNCH_GADGETS, freeGadgetIds, getGadget, listGadgets, validateGadgets 
 import { applyLoadout, canUse, grantRoleGadgets, resolveLoadout } from './loadout.js';
 import { GadgetRuntime, absorbDamage, aimFrom, applyPayload, tickStatus } from './runtime.js';
 import type { GadgetContext } from './runtime.js';
-import { createGadgetState, cycleSelection, resetForRound, selectedGadget, setSlot } from './state.js';
+import { createGadgetState, cycleSelection, resetForRound, selectGadget, selectedGadget, setSlot } from './state.js';
 import type { GadgetDef } from './types.js';
 
 const DT = 1 / 60;
@@ -154,6 +154,57 @@ describe('per-round state', () => {
     expect(selectedGadget(state)).toBe('smoke_bomb');
     cycleSelection(state);
     expect(selectedGadget(state)).toBe('freeze_gun');
+  });
+});
+
+/**
+ * The selection is what the fire button points at, and a selection pointing at an empty slot is
+ * indistinguishable — from the player's side — from a broken gadget or a broken key. That is
+ * exactly what happened after an in-round purchase: the item went into its own slot, the
+ * selection stayed on the empty primary, and pressing fire did nothing at all.
+ */
+describe('the fire button always points at something', () => {
+  it('never leaves the selection on an empty slot after equipping', () => {
+    const state = createGadgetState();
+    // Nothing held: selection sits on slot 0, which holds nothing.
+    expect(selectedGadget(state)).toBeNull();
+
+    // A secondary-slot gadget does not land in slot 0, so the selection has to move to it.
+    setSlot(state, 'smoke_bomb');
+    expect(selectedGadget(state)).toBe('smoke_bomb');
+  });
+
+  it('leaves an existing usable selection alone', () => {
+    const state = createGadgetState();
+    setSlot(state, 'freeze_gun');
+    expect(selectedGadget(state)).toBe('freeze_gun');
+
+    // Picking up a second gadget must not yank the selection off what is already in hand.
+    setSlot(state, 'smoke_bomb');
+    expect(selectedGadget(state)).toBe('freeze_gun');
+  });
+
+  it('can be pointed at a specific gadget the player holds', () => {
+    const state = createGadgetState();
+    setSlot(state, 'freeze_gun');
+    setSlot(state, 'smoke_bomb');
+
+    expect(selectGadget(state, 'smoke_bomb')).toBe(true);
+    expect(selectedGadget(state)).toBe('smoke_bomb');
+  });
+
+  it('refuses to select a gadget that is not held', () => {
+    const state = createGadgetState();
+    setSlot(state, 'freeze_gun');
+    expect(selectGadget(state, 'smoke_bomb')).toBe(false);
+    expect(selectedGadget(state)).toBe('freeze_gun');
+  });
+
+  it('does not point the fire button at armour, which never fires', () => {
+    const state = createGadgetState();
+    setSlot(state, 'steel_vest');
+    // Armour occupies its own slot but is passive, so the selection must not land on it.
+    expect(selectedGadget(state)).not.toBe('steel_vest');
   });
 });
 

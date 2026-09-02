@@ -1,6 +1,6 @@
 import { getGadget, listGadgets } from '../gadgets/catalog.js';
 import { grantRoleGadgets } from '../gadgets/loadout.js';
-import { setSlot } from '../gadgets/state.js';
+import { selectGadget, setSlot } from '../gadgets/state.js';
 import type { PlayerState } from '../player/state.js';
 import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
@@ -188,6 +188,10 @@ export class HuntMode extends RoundMode {
 
     player.gadgets.cash -= def.roundCost;
     setSlot(player.gadgets, gadgetId);
+    // Buying something is a statement that you intend to use it, so it becomes the selected
+    // gadget. Armour is the exception: it is passive, and selecting it would leave the fire
+    // button pointing at something that never fires.
+    if (def.slot !== 'armour') selectGadget(player.gadgets, gadgetId);
     if (def.uses > 0) player.gadgets.charges[gadgetId] = def.uses;
     if (def.payload.on === 'armour') player.gadgets.armour = def.payload.points;
     delete player.gadgets.cooldowns[gadgetId];

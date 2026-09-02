@@ -108,6 +108,52 @@ describe('the in-round shop', () => {
     expect(survivor.gadgets.cash).toBe(1000 - (getGadget('steel_vest')?.roundCost ?? 0));
   });
 
+  /**
+   * Buying and then not being able to fire it was the actual bug: the gadget went into its own
+   * slot, the selection stayed on the empty primary, and the fire button did nothing — which
+   * from the player's chair is indistinguishable from the gadget being broken.
+   */
+  it('hands the survivor the thing they just bought, ready to fire', () => {
+    const { sim, mode } = huntWith();
+    const survivor = byRole(sim, 'survivor')[0] as PlayerState;
+    survivor.gadgets.cash = 1000;
+
+    const ctx = (sim as unknown as { modeCtx: Parameters<HuntMode['purchase']>[0] }).modeCtx;
+    expect(mode.purchase(ctx, survivor, 'smoke_bomb')).toBe(true);
+    expect(selectedGadget(survivor.gadgets)).toBe('smoke_bomb');
+  });
+
+  /**
+   * The case `setSlot`'s own repair does not cover: the player already holds something usable,
+   * so the selection is valid and stays put — leaving the thing they just paid for sitting in a
+   * slot they have to know to cycle to.
+   */
+  it('switches to the new purchase even when already holding something', () => {
+    const { sim, mode } = huntWith();
+    const survivor = byRole(sim, 'survivor')[0] as PlayerState;
+    survivor.gadgets.cash = 2000;
+
+    const ctx = (sim as unknown as { modeCtx: Parameters<HuntMode['purchase']>[0] }).modeCtx;
+    mode.purchase(ctx, survivor, 'freeze_gun');
+    expect(selectedGadget(survivor.gadgets)).toBe('freeze_gun');
+
+    mode.purchase(ctx, survivor, 'smoke_bomb');
+    expect(selectedGadget(survivor.gadgets)).toBe('smoke_bomb');
+  });
+
+  it('does not point the fire button at a vest, which cannot be fired', () => {
+    const { sim, mode } = huntWith();
+    const survivor = byRole(sim, 'survivor')[0] as PlayerState;
+    survivor.gadgets.cash = 1000;
+
+    const ctx = (sim as unknown as { modeCtx: Parameters<HuntMode['purchase']>[0] }).modeCtx;
+    mode.purchase(ctx, survivor, 'smoke_bomb');
+    mode.purchase(ctx, survivor, 'steel_vest');
+    // The vest is worn, not held: buying it must not steal the selection from the bomb.
+    expect(survivor.gadgets.armour).toBe(60);
+    expect(selectedGadget(survivor.gadgets)).toBe('smoke_bomb');
+  });
+
   it('refuses a purchase the survivor cannot afford, and takes no cash', () => {
     const { sim, mode } = huntWith();
     const survivor = byRole(sim, 'survivor')[0] as PlayerState;

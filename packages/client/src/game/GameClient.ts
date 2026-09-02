@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {
   Bot,
+  Buttons,
   Simulation,
   TICK_DT,
   botName,
@@ -40,6 +41,8 @@ export interface GameCallbacks {
   onNotice(text: string): void;
   onRoomState(code: string, isPrivate: boolean, playerCount: number): void;
   onLocalEvent(event: SimEvent): void;
+  /** The shop button was pressed. Opening a panel is a local decision, not a simulated one. */
+  onShopToggle(): void;
 }
 
 export interface GameClientOptions {
@@ -110,6 +113,15 @@ export class GameClient {
   private soloPractice = false;
   /** Guards the one-shot results callback: `finished()` stays true for every tick after the end. */
   private soloResultsSent = false;
+  /**
+   * What the in-round shop is selling.
+   *
+   * Solo reads it straight off the local simulation; online it arrives in a `gear` message,
+   * because the mode prices the stock and the mode lives on the server.
+   */
+  private shop: { id: string; name: string; cost: number }[] = [];
+  /** Previous frame's shop button, so the panel toggles on the press rather than every tick. */
+  private shopHeld = false;
   private modeId = 'kangaroo-chase';
   private roomCode = '';
 
@@ -146,6 +158,9 @@ export class GameClient {
       onModeState: (state) => {
         this.callbacks.onModeState(state);
         this.levelRenderer.setCheckpointsVisible(state.modeId === 'parkour');
+      },
+      onGear: (gear) => {
+        this.shop = gear.shop;
       },
       onResults: (result, rewards) => this.callbacks.onResults(result, rewards),
       onChat: (playerId, name, text, channel) =>
@@ -268,6 +283,28 @@ export class GameClient {
     if (this.soloResultsSent || !this.sim.finished()) return;
     this.soloResultsSent = true;
     this.callbacks.onResults(this.sim.results(), {});
+  }
+
+  /** What the in-round shop is selling right now. Empty in modes that run no shop. */
+  get shopStock(): { id: string; name: string; cost: number }[] {
+    return this.shop;
+  }
+
+  /**
+   * Ask to buy a gadget.
+   *
+   * Solo applies it to the local simulation, which is the only authority there. Online it asks
+   * the server and waits: the mode owns the round cash, so it is the only thing that can decide
+   * whether the buy happens. A client that granted itself the item would be predicting a
+   * purchase the server may refuse.
+   */
+  buy(gadgetId: string): void {
+    if (this.soloPractice) {
+      this.sim.purchase(this.localId, gadgetId);
+      this.shop = this.sim.shopStock();
+    } else {
+      this.net.sendJson({ t: 'shop', gadgetId });
+    }
   }
 
   /** True while this is a local round against bots rather than a server match. */
@@ -467,6 +504,12 @@ export class GameClient {
     const tick = this.sim.tick + 1;
     this.intent.tick = tick;
 
+    // The shop button opens a panel, which is a local action — the bit is in the intent because
+    // every platform already reports it there, not because the simulation does anything with it.
+    const shopPressed = (this.intent.buttons & Buttons.Shop) !== 0;
+    if (shopPressed && !this.shopHeld) this.callbacks.onShopToggle();
+    this.shopHeld = shopPressed;
+
     this.sim.setIntent(this.localId, this.intent, false);
     if (this.online) {
       this.prediction.record(tick, this.intent);
@@ -486,6 +529,7 @@ export class GameClient {
       const events = this.sim.events.drain();
       this.handleEvents(events);
       this.callbacks.onModeState(this.sim.mode.state());
+      this.shop = this.sim.shopStock();
       this.reportSoloResults();
     } else {
       this.sim.events.drain();

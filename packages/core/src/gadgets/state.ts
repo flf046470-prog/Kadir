@@ -32,12 +32,19 @@ export function gadgetInSlot(state: PlayerGadgetState, slot: GadgetSlot): string
   return state.slots[slotIndex(slot)] ?? null;
 }
 
-/** Put a gadget in its own slot. Returns false when the id is unknown. */
+/**
+ * Put a gadget in its own slot. Returns false when the id is unknown.
+ *
+ * Also repairs the selection if it was left pointing at an empty slot. A player whose fire
+ * button does nothing has no way to tell whether the gadget failed, the button failed, or they
+ * are simply pointing at nothing — and the answer was always the third one.
+ */
 export function setSlot(state: PlayerGadgetState, gadgetId: string | null): boolean {
   if (gadgetId === null) return false;
   const def = getGadget(gadgetId);
   if (!def) return false;
   state.slots[slotIndex(def.slot)] = gadgetId;
+  if (selectedGadget(state) === null) cycleSelection(state);
   return true;
 }
 
@@ -61,6 +68,16 @@ export function setHeldGadget(state: PlayerGadgetState, gadgetId: string): boole
   if (!def) return false;
   const index = slotIndex(def.slot);
   state.slots[index] = gadgetId;
+  state.selected = index;
+  return true;
+}
+
+/** Point the selection at a gadget the player is holding. No-op if they are not holding it. */
+export function selectGadget(state: PlayerGadgetState, gadgetId: string): boolean {
+  const def = getGadget(gadgetId);
+  if (!def) return false;
+  const index = slotIndex(def.slot);
+  if (state.slots[index] !== gadgetId) return false;
   state.selected = index;
   return true;
 }

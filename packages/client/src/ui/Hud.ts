@@ -1,3 +1,4 @@
+import { GADGET_SLOTS, getGadget } from '@kc/core';
 import type { ModeStateView, PlayerState, SimEvent } from '@kc/core';
 import { clear, el, formatTime } from './dom.js';
 import type { MobileButtonState, MobileInput } from '../platform/mobile/MobileInput.js';
@@ -9,6 +10,8 @@ export interface HudOptions {
   localId: string;
   onMenu(): void;
   onEmote(): void;
+  /** Buy a gadget from the in-round shop. */
+  onBuy?(gadgetId: string): void;
   /** Send a chat line. Absent in contexts with no server to send it to. */
   onChat?(text: string, channel: 'room' | 'team'): void;
   /**
@@ -34,6 +37,26 @@ export class Hud {
   private chat: ChatPanel;
   private toast: HTMLElement;
   private chargeFill: HTMLElement;
+  /**
+   * The gadget strip: round cash, the three slots, and any status effect running.
+   *
+   * The gadgets were fully simulated and bound to keys long before anything drew them, so a
+   * player pressing F fired whichever slot happened to be selected, at a target they could not
+   * see the cooldown for, holding cash they had no way to know about. A tool you cannot see the
+   * state of is a tool you cannot use deliberately.
+   */
+  private gadgetBar: HTMLElement;
+  /**
+   * The in-round shop.
+   *
+   * Modes like The Hunt hand survivors cash and expect them to spend it mid-round. Every part of
+   * that existed — the mode prices the stock, the server routes the buy, all three input layers
+   * report the button — except a way to see the list, so the cash simply accumulated.
+   */
+  private shopPanel: HTMLElement;
+  private shopOpen = false;
+  private shopStock: { id: string; name: string; cost: number }[] = [];
+  private cash = 0;
   private touchLayer: HTMLElement | null = null;
   private stick: HTMLElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -52,6 +75,8 @@ export class Hud {
     });
     this.toast = el('div', { class: 'kc-toast kc-hidden' }, '');
     this.chargeFill = el('i');
+    this.gadgetBar = el('div', { class: 'kc-gadgets kc-hidden' });
+    this.shopPanel = el('div', { class: 'kc-shop kc-hidden' });
 
     this.element = el(
       'div',
@@ -62,6 +87,8 @@ export class Hud {
       this.chat.element,
       this.toast,
       el('div', { class: 'kc-charge' }, this.chargeFill),
+      this.gadgetBar,
+      this.shopPanel,
       el(
         'div',
         { class: 'kc-topbar' },
@@ -165,6 +192,99 @@ export class Hud {
     if (local) {
       this.chargeFill.style.width = `${Math.round(local.charge * 100)}%`;
       this.chargeFill.style.opacity = local.charge > 0.02 ? '1' : '0.15';
+      this.cash = local.gadgets.cash;
+      this.updateGadgets(local);
+      if (this.shopOpen) this.renderShop();
+    }
+  }
+
+  /**
+   * Draw the gadget strip, or hide it in modes that have no gadgets at all.
+   *
+   * Everything here comes from the local player's own state, which the HUD is already handed —
+   * no protocol change was needed to show any of it. It simply was never drawn.
+   */
+  private updateGadgets(local: PlayerState): void {
+    const g = local.gadgets;
+    const carrying = g.slots.some((id) => id !== null);
+    const status = statusLabel(g);
+    if (!carrying && g.cash === 0 && g.armour === 0 && !status) {
+      this.gadgetBar.classList.add('kc-hidden');
+      return;
+    }
+    this.gadgetBar.classList.remove('kc-hidden');
+    clear(this.gadgetBar);
+
+    if (g.cash > 0) this.gadgetBar.append(el('span', { class: 'kc-pill kc-currency' }, `🪙 ${g.cash}`));
+    if (g.armour > 0) this.gadgetBar.append(el('span', { class: 'kc-pill' }, `🛡 ${Math.ceil(g.armour)}`));
+
+    for (let i = 0; i < g.slots.length; i++) {
+      const id = g.slots[i];
+      if (!id) continue;
+      const def = getGadget(id);
+      const cooldown = g.cooldowns[id] ?? 0;
+      const charges = g.charges[id];
+      // A slot reads: name, then what stops you using it — the remaining cooldown if it is
+      // recharging, otherwise how many uses are left. Both at once is noise.
+      const detail = cooldown > 0.05 ? `${cooldown.toFixed(1)}s` : charges === undefined ? '' : `×${charges}`;
+      this.gadgetBar.append(
+        el(
+          'span',
+          {
+            class: `kc-slot${i === g.selected ? ' kc-slot--on' : ''}${cooldown > 0.05 ? ' kc-slot--cooling' : ''}`,
+            title: `${GADGET_SLOTS[i] ?? ''}`,
+          },
+          el('b', {}, def?.name ?? id),
+          detail ? el('i', {}, detail) : null,
+        ),
+      );
+    }
+
+    if (status) this.gadgetBar.append(el('span', { class: 'kc-pill kc-pill--warn' }, status));
+  }
+
+  /** Current stock, pushed in whenever it changes. */
+  setShop(stock: { id: string; name: string; cost: number }[]): void {
+    this.shopStock = stock;
+    if (this.shopOpen) this.renderShop();
+  }
+
+  /**
+   * Open or close the shop.
+   *
+   * Refuses to open when there is nothing to sell, rather than showing an empty box: most modes
+   * run no shop at all, and the button is on every platform's control list regardless.
+   */
+  toggleShop(): void {
+    if (!this.shopOpen && this.shopStock.length === 0) return;
+    this.shopOpen = !this.shopOpen;
+    this.shopPanel.classList.toggle('kc-hidden', !this.shopOpen);
+    if (this.shopOpen) this.renderShop();
+  }
+
+  get shopIsOpen(): boolean {
+    return this.shopOpen;
+  }
+
+  private renderShop(): void {
+    clear(this.shopPanel);
+    this.shopPanel.append(el('div', { class: 'kc-shop-head' }, el('span', {}, 'Shop'), el('span', {}, `🪙 ${this.cash}`)));
+    for (const item of this.shopStock) {
+      const affordable = this.cash >= item.cost;
+      const row = el(
+        'button',
+        {
+          // Unaffordable rows stay visible and stay disabled: knowing what you are saving towards
+          // is the point of having cash at all.
+          class: `kc-shop-row${affordable ? '' : ' kc-shop-row--poor'}`,
+          disabled: !affordable,
+          dataset: { ui: 'true' },
+          onClick: () => this.options.onBuy?.(item.id),
+        },
+        el('span', {}, item.name),
+        el('b', {}, `🪙 ${item.cost}`),
+      );
+      this.shopPanel.append(row);
     }
   }
 
@@ -243,6 +363,15 @@ function roleLabel(role: string): string {
     default:
       return 'WARM-UP';
   }
+}
+
+/** The one status effect worth shouting about, longest-lasting first. */
+function statusLabel(g: PlayerState['gadgets']): string {
+  if (g.frozen > 0) return `FROZEN ${g.frozen.toFixed(1)}s`;
+  if (g.snared > 0) return `SNARED ${g.snared.toFixed(1)}s`;
+  if (g.smoked > 0) return 'BLINDED';
+  if (g.revealed > 0) return 'REVEALED';
+  return '';
 }
 
 function shortId(id: string): string {

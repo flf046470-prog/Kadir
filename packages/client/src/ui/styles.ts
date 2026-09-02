@@ -77,6 +77,24 @@ export const UI_CSS = `
 .kc-charge { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(240px, 46vw); height: 8px; background: rgba(0,0,0,.45); border-radius: 999px; overflow: hidden; }
 .kc-charge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#ffd166,#ef476f); }
 
+/* Gadget strip: sits just above the hop-charge bar, out of the middle of the screen. */
+.kc-gadgets { position: absolute; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 18px); left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; pointer-events: none; max-width: 96vw; flex-wrap: wrap; justify-content: center; }
+.kc-slot { display: flex; align-items: baseline; gap: 6px; background: rgba(0,0,0,.42); border-radius: 999px; padding: 7px 13px; font-size: 13px; border: 1px solid transparent; }
+.kc-slot b { font-weight: 600; }
+.kc-slot i { font-style: normal; opacity: .75; font-variant-numeric: tabular-nums; }
+/* The selected slot is the one the fire button uses, so it is the one that must be unmistakable. */
+.kc-slot--on { border-color: #ffd166; background: rgba(255,209,102,.18); }
+.kc-slot--cooling { opacity: .55; }
+.kc-pill--warn { background: rgba(239,71,111,.85); }
+
+/* In-round shop. Anchored right so it never covers the headline or the player. */
+.kc-shop { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); width: min(260px, 62vw); background: rgba(12,20,15,.92); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+.kc-shop-head { display: flex; justify-content: space-between; font-weight: 700; padding: 2px 6px 6px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.kc-shop-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 10px; background: rgba(255,255,255,.08); color: inherit; font: inherit; cursor: pointer; }
+.kc-shop-row:hover:not(:disabled) { background: rgba(255,209,102,.22); }
+.kc-shop-row:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
+.kc-shop-row--poor { opacity: .45; cursor: not-allowed; }
+
 .kc-touch { position: absolute; inset: 0; }
 .kc-stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255,255,255,.28); background: rgba(0,0,0,.22); opacity: 0; transition: opacity .12s; }
 .kc-stick i { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: rgba(255,255,255,.4); }

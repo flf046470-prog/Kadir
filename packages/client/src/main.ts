@@ -167,6 +167,10 @@ async function main(): Promise<void> {
         onRoomState: (code, isPrivate, playerCount) =>
           hud?.setStatus(`${code}${isPrivate ? ' (private)' : ''} · ${playerCount} players`),
         onLocalEvent: (event) => hud?.handleEvent(event, session?.playerId ?? ''),
+        onShopToggle: () => {
+          hud?.setShop(game?.shopStock ?? []);
+          hud?.toggleShop();
+        },
       },
     });
 
@@ -177,6 +181,10 @@ async function main(): Promise<void> {
       onMenu: () => openMenu(),
       onEmote: () => undefined,
       onChat: (text, channel) => game?.sendChat(text, channel),
+      onBuy: (gadgetId) => {
+        game?.buy(gadgetId);
+        hud?.setShop(game?.shopStock ?? []);
+      },
       // While the composer has the keyboard the game must stop reading it, or typing "hey" hops
       // three times. The input layer is detached rather than filtered, so no key can leak through.
       onChatFocus: (focused) => game?.setInputSuspended(focused),

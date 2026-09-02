@@ -17,6 +17,13 @@ export interface NetHandlers {
   onEvents(events: SimEvent[]): void;
   onModeState(state: ModeStateView): void;
   onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
+  /**
+   * The server's view of this player's gadgets and what the in-round shop is selling.
+   *
+   * Sent whenever either changes. The stock is priced by the mode, so it is the server's to
+   * decide — the client renders it and asks to buy; it never sets a price or grants an item.
+   */
+  onGear(gear: { cash: number; slots: (string | null)[]; selected: number; charges: Record<string, number>; shop: { id: string; name: string; cost: number }[] }): void;
   onChat(playerId: string, name: string, text: string, channel: 'room' | 'team' | 'system'): void;
   /** Only the sender is told why a message of theirs was not delivered. */
   onChatRejected(message: string): void;
@@ -187,6 +194,15 @@ export class NetClient {
         break;
       case 'mode':
         this.handlers.onModeState(message.state);
+        break;
+      case 'gear':
+        this.handlers.onGear({
+          cash: message.cash,
+          slots: message.slots,
+          selected: message.selected,
+          charges: message.charges,
+          shop: message.shop,
+        });
         break;
       case 'results':
         this.handlers.onResults(message.result, message.rewards);
