@@ -61,6 +61,16 @@ export class MobileInput implements PlatformInput {
     talk: false,
   };
 
+  /**
+   * Buttons pressed *and released* since the last sample.
+   *
+   * A tap can start and finish between two simulation frames — a fast thumb manages it, and it is
+   * the norm for anything driving the game programmatically. Reading only the live flag would drop
+   * that press on the floor, which on an edge-detected button (shop, next gadget, punch, emote)
+   * means the tap simply did nothing. So a press survives until the simulation has seen it once.
+   */
+  private latched = new Set<keyof MobileButtonState>();
+
   private stick: TouchStick | null = null;
   private lookPointer: number | null = null;
   private lastLookX = 0;
@@ -98,6 +108,22 @@ export class MobileInput implements PlatformInput {
     this.lookPointer = null;
   }
 
+  /**
+   * Press or release a touch button. The HUD owns the buttons; this owns what the game reads.
+   *
+   * Routed through a method rather than written straight into `buttons` so the press can be
+   * latched — see `latched`.
+   */
+  setButton(key: keyof MobileButtonState, pressed: boolean): void {
+    if (pressed) this.latched.add(key);
+    this.buttons[key] = pressed;
+  }
+
+  /** Held right now, or tapped since the last sample. */
+  private held(key: keyof MobileButtonState): boolean {
+    return this.buttons[key] || this.latched.has(key);
+  }
+
   sample(out: InputIntent, _dt: number, settings: Settings): void {
     this.stickRadius = settings.controls.joystickSize * 0.5;
 
@@ -109,19 +135,21 @@ export class MobileInput implements PlatformInput {
     out.hands = null;
 
     let buttons = 0;
-    if (this.buttons.jump) buttons |= Buttons.Jump;
-    if (this.buttons.grab) buttons |= Buttons.GrabLeft | Buttons.GrabRight;
-    if (this.buttons.interact) buttons |= Buttons.Interact;
-    if (this.buttons.emote) buttons |= Buttons.Emote;
-    if (this.buttons.punch) buttons |= Buttons.PunchRight;
-    if (this.buttons.gadget) buttons |= Buttons.UseGadget;
-    if (this.buttons.cycle) buttons |= Buttons.CycleGadget;
-    if (this.buttons.shop) buttons |= Buttons.Shop;
-    if (this.buttons.talk) buttons |= Buttons.Talk;
+    if (this.held('jump')) buttons |= Buttons.Jump;
+    if (this.held('grab')) buttons |= Buttons.GrabLeft | Buttons.GrabRight;
+    if (this.held('interact')) buttons |= Buttons.Interact;
+    if (this.held('emote')) buttons |= Buttons.Emote;
+    if (this.held('punch')) buttons |= Buttons.PunchRight;
+    if (this.held('gadget')) buttons |= Buttons.UseGadget;
+    if (this.held('cycle')) buttons |= Buttons.CycleGadget;
+    if (this.held('shop')) buttons |= Buttons.Shop;
+    if (this.held('talk')) buttons |= Buttons.Talk;
     // Sprint is automatic on touch: holding the stick at full deflection sprints, so the player
     // never has to find a second button while running for their life.
     if (Math.hypot(out.moveX, out.moveZ) > 0.92) buttons |= Buttons.Sprint;
     out.buttons = buttons;
+    // Reported once; a button still physically down keeps reporting through `buttons`.
+    this.latched.clear();
   }
 
   private onPointerDown = (event: PointerEvent): void => {

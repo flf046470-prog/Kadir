@@ -155,13 +155,35 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   await page.waitForTimeout(250);
   const closedAfterSend = await page.locator('.kc-chat[data-open="true"]').count() === 0;
 
-  // Touch builds reach the same composer through a button, since there is no Enter key.
+  /**
+   * Touch builds: every control must be reachable by an actual thumb.
+   *
+   * Rendering a button is not the same as being able to press one. The whole touch cluster once
+   * computed `pointer-events: none` — inherited from the pointer-transparent HUD root — so the
+   * canvas sat on top of it and every button was dead on a phone while looking perfect in a
+   * screenshot. An earlier version of this check dispatched a synthetic `pointerdown` straight at
+   * the node, which skips hit-testing entirely and so passed throughout. Hit-test first, then tap
+   * for real.
+   */
+  let touchHit = 'n/a';
   let touchChat = 'n/a';
   if (label !== 'desktop') {
+    const unreachable = await page.evaluate(() =>
+      [...document.querySelectorAll('.kc-touchbtn')]
+        .filter((n) => {
+          const r = n.getBoundingClientRect();
+          const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+          return !n.contains(top);
+        })
+        .map((n) => n.textContent),
+    );
+    touchHit = unreachable.length === 0 ? 'all reachable' : `UNREACHABLE ${unreachable.join(',')}`;
+
     const button = page.locator('.kc-touchbtn', { hasText: '💬' }).first();
     touchChat = (await button.count()) > 0 ? 'present' : 'MISSING';
     if (touchChat === 'present') {
-      await button.dispatchEvent('pointerdown');
+      const box = await button.boundingBox();
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
       await page.waitForTimeout(250);
       touchChat = (await page.locator('.kc-chat[data-open="true"]').count()) > 0 ? 'opens' : 'NO-OPEN';
       await page.keyboard.press('Escape');
@@ -170,10 +192,12 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
 
   console.log(`${label.padEnd(16)} tutorial=${sawTutorial} menu=${sawMenu} credits=${sawCredits} canvas=${played} inMatch=${inMatch}`);
   console.log(`${''.padEnd(16)} chat: open=${chatOpen} keysCaptured=${keysWentToChat} esc=${chatClosed} stillInMatch=${stillInMatch} closedAfterSend=${closedAfterSend} touch=${touchChat}`);
+  console.log(`${''.padEnd(16)} touch controls: ${touchHit}`);
   if (!chatOpen || !keysWentToChat || !chatClosed || !stillInMatch || !closedAfterSend) {
     errors.push(`[${label}] chat composer misbehaved (typed=${JSON.stringify(typed)})`);
   }
   if (touchChat !== 'n/a' && touchChat !== 'opens') errors.push(`[${label}] touch chat button ${touchChat}`);
+  if (touchHit !== 'n/a' && touchHit !== 'all reachable') errors.push(`[${label}] ${touchHit}`);
   await page.close();
 }
 await browser.close();

@@ -76,7 +76,9 @@ export class Hud {
     this.toast = el('div', { class: 'kc-toast kc-hidden' }, '');
     this.chargeFill = el('i');
     this.gadgetBar = el('div', { class: 'kc-gadgets kc-hidden' });
-    this.shopPanel = el('div', { class: 'kc-shop kc-hidden' });
+    // `data-ui` on the panel, not just on its rows: a thumb landing on the padding or the header
+    // would otherwise fall through to the movement layer and start steering the player mid-purchase.
+    this.shopPanel = el('div', { class: 'kc-shop kc-hidden', dataset: { ui: 'true' } });
 
     this.element = el(
       'div',
@@ -109,13 +111,19 @@ export class Hud {
         dataset: { ui: 'true' },
       }, label);
       const set = (value: boolean) => {
-        input.buttons[key] = value;
+        input.setButton(key, value);
         node.dataset.active = String(value);
       };
       node.addEventListener('pointerdown', (event) => {
         event.preventDefault();
-        node.setPointerCapture(event.pointerId);
         set(true);
+        // Capture keeps the release ours when the thumb slides off the button, but it is allowed
+        // to fail (no active pointer for that id) and a press must never be lost to that.
+        try {
+          node.setPointerCapture(event.pointerId);
+        } catch {
+          /* the button still releases on pointerup or pointerleave */
+        }
       });
       node.addEventListener('pointerup', () => set(false));
       node.addEventListener('pointercancel', () => set(false));
@@ -268,7 +276,18 @@ export class Hud {
 
   private renderShop(): void {
     clear(this.shopPanel);
-    this.shopPanel.append(el('div', { class: 'kc-shop-head' }, el('span', {}, 'Shop'), el('span', {}, `🪙 ${this.cash}`)));
+    // The close button is not a convenience. On a landscape phone the panel can sit over the
+    // gear cluster, so the button that opened the shop is the one it covers — without an exit of
+    // its own the player would be stuck looking at a price list.
+    this.shopPanel.append(
+      el(
+        'div',
+        { class: 'kc-shop-head' },
+        el('span', {}, 'Shop'),
+        el('span', {}, `🪙 ${this.cash}`),
+        el('button', { class: 'kc-shop-close', dataset: { ui: 'true' }, ariaLabel: 'Close shop', onClick: () => this.toggleShop() }, '✕'),
+      ),
+    );
     for (const item of this.shopStock) {
       const affordable = this.cash >= item.cost;
       const row = el(

@@ -88,8 +88,10 @@ export const UI_CSS = `
 .kc-pill--warn { background: rgba(239,71,111,.85); }
 
 /* In-round shop. Anchored right so it never covers the headline or the player. */
-.kc-shop { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); width: min(260px, 62vw); background: rgba(12,20,15,.92); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
-.kc-shop-head { display: flex; justify-content: space-between; font-weight: 700; padding: 2px 6px 6px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.kc-shop { position: absolute; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%); width: min(260px, 62vw); max-height: calc(100% - 24px); overflow-y: auto; background: rgba(12,20,15,.92); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+.kc-shop-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-weight: 700; padding: 2px 6px 6px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.kc-shop-close { margin-left: auto; width: 30px; height: 30px; flex: none; border: 0; border-radius: 8px; background: rgba(255,255,255,.1); color: inherit; font: inherit; line-height: 1; cursor: pointer; }
+.kc-shop-close:hover { background: rgba(239,71,111,.5); }
 .kc-shop-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; padding: 8px 12px; border: 0; border-radius: 10px; background: rgba(255,255,255,.08); color: inherit; font: inherit; cursor: pointer; }
 .kc-shop-row:hover:not(:disabled) { background: rgba(255,209,102,.22); }
 .kc-shop-row:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
@@ -102,7 +104,12 @@ export const UI_CSS = `
 /* Gear cluster: top-right, away from the movement pad so a thumb reaching for HOP mid-chase
    cannot fire a freeze gun by accident. Smaller, because it is used deliberately, not in a panic. */
 .kc-touchbtns--gear { top: max(64px, env(safe-area-inset-top)); bottom: auto; grid-template-columns: repeat(2, 62px); gap: 10px; }
-.kc-touchbtn { width: 76px; height: 76px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(20,40,24,.72); color: #fff; font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; user-select: none; }
+/* The pointer-events line below is not decoration, it is the whole button.
+   The HUD root is pointer-transparent so the canvas underneath can be swiped, and the property
+   inherits: without it every touch control computes to none, sits under the canvas, and silently
+   does nothing. The gaps between buttons stay transparent on purpose — swipe-to-look has to keep
+   working in the space around them. */
+.kc-touchbtn { width: 76px; height: 76px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(20,40,24,.72); color: #fff; font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; user-select: none; pointer-events: auto; }
 .kc-touchbtn--big { width: 92px; height: 92px; grid-column: 2; background: rgba(46,110,52,.8); }
 .kc-touchbtn:active, .kc-touchbtn[data-active="true"] { background: rgba(90,180,96,.9); transform: scale(.96); }
 
@@ -128,6 +135,12 @@ export const UI_CSS = `
   .kc-scores { font-size: 11px; padding: 6px 9px; min-width: 108px; max-height: 34vh; overflow: hidden; }
   .kc-headline { font-size: 20px; }
   .kc-chat { bottom: 96px; font-size: 11px; width: 62vw; }
+  /* The shop moves off the right-hand side entirely. Right-anchored it covered both control
+     clusters and ran off the top and bottom of a 360px-tall screen; here it sits bottom-left,
+     clear of the Menu button above it and of every touch control to its right, and scrolls. */
+  .kc-shop { left: max(12px, env(safe-area-inset-left)); right: auto; top: auto; bottom: max(10px, env(safe-area-inset-bottom)); transform: none; width: min(240px, 40vw); max-height: calc(100% - 92px); }
+  .kc-shop-row { min-height: 38px; padding: 5px 10px; font-size: 12px; }
+  .kc-shop-close { width: 26px; height: 26px; }
 }
 `;
 
