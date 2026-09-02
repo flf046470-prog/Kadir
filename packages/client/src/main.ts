@@ -62,7 +62,7 @@ async function main(): Promise<void> {
       root: shellRoot,
       api,
       platform: device.kind,
-      controlHints: input.controlHints,
+      controlHints: () => input.controlHints,
       devPurchases: import.meta.env.DEV,
       tuning,
       canTune: () => game?.canTune ?? false,

@@ -43,7 +43,13 @@ export interface PlatformInput {
   /** Attach listeners. */
   start(): void;
   stop(): void;
-  /** Platform-specific hint shown by the tutorial. */
+  /**
+   * Platform-specific hints shown by the tutorial.
+   *
+   * Implemented as a getter by the platforms whose controls depend on runtime state — VR on
+   * whether the player is in arms-first mode, PC on whether pointer lock was granted — so this
+   * is read when the screen is drawn rather than once at startup.
+   */
   readonly controlHints: { action: string; hint: string }[];
   /**
    * Play haptic feedback for a gameplay event.

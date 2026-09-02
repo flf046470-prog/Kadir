@@ -11,24 +11,39 @@ import type { PlatformInput } from '../Platform.js';
 /** Pixels of drag that turn a held mouse button from an attack into a look. */
 const DRAG_LOOK_SLOP = 8;
 
+/** Every control row below the two that depend on how the browser is treating the mouse. */
+const PC_CONTROL_HINTS = [
+  { action: 'Hop (hold to charge)', hint: 'Space' },
+  { action: 'Sprint', hint: 'Shift' },
+  { action: 'Crouch', hint: 'Ctrl' },
+  { action: 'Grab / climb', hint: 'Right mouse' },
+  { action: 'Punch', hint: 'Left mouse' },
+  { action: 'Interact', hint: 'E' },
+  { action: 'Emote', hint: 'X' },
+  { action: 'Use gadget', hint: 'F' },
+  { action: 'Next gadget', hint: 'Q' },
+  { action: 'Shop / board', hint: 'B' },
+  { action: 'Push to talk', hint: 'V' },
+];
+
 export class PCInput implements PlatformInput {
   readonly kind = 'pc' as const;
 
-  readonly controlHints = [
-    { action: 'Move', hint: 'W A S D' },
-    { action: 'Look', hint: 'Mouse' },
-    { action: 'Hop (hold to charge)', hint: 'Space' },
-    { action: 'Sprint', hint: 'Shift' },
-    { action: 'Crouch', hint: 'Ctrl' },
-    { action: 'Grab / climb', hint: 'Right mouse' },
-    { action: 'Punch', hint: 'Left mouse' },
-    { action: 'Interact', hint: 'E' },
-    { action: 'Emote', hint: 'X' },
-    { action: 'Use gadget', hint: 'F' },
-    { action: 'Next gadget', hint: 'Q' },
-    { action: 'Shop / board', hint: 'B' },
-    { action: 'Push to talk', hint: 'V' },
-  ];
+  /**
+   * The tutorial's control list.
+   *
+   * A getter because one row is not fixed: where the browser refuses pointer lock — any embedded
+   * frame without `allow-pointer-lock` — look is driven by dragging instead, and telling that
+   * player "Look: Mouse" is worse than saying nothing. It is the one screen they open *because*
+   * the camera would not turn.
+   */
+  get controlHints(): { action: string; hint: string }[] {
+    return [
+      { action: 'Move', hint: 'W A S D' },
+      { action: 'Look', hint: this.pointerLockBlocked ? 'Drag with the mouse' : 'Mouse' },
+      ...PC_CONTROL_HINTS,
+    ];
+  }
 
   private keys = new Set<string>();
   private mouseButtons = new Set<number>();

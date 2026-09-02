@@ -52,7 +52,12 @@ export interface ShellOptions {
   api: Api;
   callbacks: ShellCallbacks;
   platform: 'pc' | 'mobile' | 'vr';
-  controlHints: { action: string; hint: string }[];
+  /**
+   * Read as a function, not a snapshot: on desktop the look control depends on whether the
+   * browser granted pointer lock, and that is only known after the player's first click — which
+   * happens after this screen already exists.
+   */
+  controlHints: () => { action: string; hint: string }[];
   devPurchases: boolean;
   tuning: TuningStore;
   /** True only in solo practice; tuning is refused elsewhere because the server owns movement. */
@@ -758,7 +763,7 @@ export class Shell {
 
   private tutorialScreen(): HTMLElement {
     const list = el('div', { class: 'kc-panel' });
-    for (const hint of this.options.controlHints) {
+    for (const hint of this.options.controlHints()) {
       list.append(el('div', { class: 'kc-field' }, el('span', {}, hint.action), el('strong', {}, hint.hint)));
     }
     return el(

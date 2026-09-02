@@ -140,6 +140,30 @@ describe('mouse look without pointer lock', () => {
     expect(look(input).yaw).toBe(0);
   });
 
+  /**
+   * The tutorial has to describe the controls the player actually has.
+   *
+   * "How to play" is the screen someone opens *because* the camera would not turn, so telling
+   * them "Look: Mouse" there is worse than saying nothing at all.
+   */
+  it('tells the player to drag once pointer lock has been refused', () => {
+    const look = () => input.controlHints.find((h) => h.action === 'Look')?.hint;
+
+    // Before the first click nothing has been refused yet, so the normal hint stands.
+    expect(look()).toBe('Mouse');
+
+    dom.fire('mousedown', { button: 0, target: null });
+    expect(look()).toMatch(/drag/i);
+  });
+
+  it('keeps every other control row unchanged', () => {
+    dom.fire('mousedown', { button: 0, target: null });
+    const hints = input.controlHints;
+    expect(hints.find((h) => h.action === 'Move')?.hint).toBe('W A S D');
+    expect(hints.find((h) => h.action === 'Punch')?.hint).toBe('Left mouse');
+    expect(hints.find((h) => h.action === 'Push to talk')?.hint).toBe('V');
+  });
+
   it('keyboard movement is unaffected — walking never depended on the pointer', () => {
     dom.fire('keydown', { code: 'KeyW', repeat: false, target: null, preventDefault: () => {} });
     dom.fire('keydown', { code: 'Space', repeat: false, target: null, preventDefault: () => {} });
