@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   pgTable,
   text,
@@ -851,4 +852,57 @@ export const virtualDateUsage = pgTable(
     endedAt: timestamp("ended_at", { withTimezone: true })
   },
   (table) => [index("virtual_date_usage_user_time_idx").on(table.userId, table.startedAt)]
+);
+
+/**
+ * An invitation to meet in a virtual date room.
+ *
+ * Cascades from the match rather than from the two members, and that is the
+ * load-bearing choice: `blockUser` deletes the match, so blocking someone takes
+ * every invitation between you with it. Without that, a blocked member's
+ * pending invite would sit in the recipient's list with no conversation behind
+ * it and no way to answer it.
+ *
+ * `environment` and `scheduledFor` are nullable because an invitation is a
+ * question before it is a plan — "shall we?" is a complete invitation, and the
+ * where and when can be settled in the conversation that already exists.
+ */
+export const virtualDateInvites = pgTable(
+  "virtual_date_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    matchId: uuid("match_id")
+      .notNull()
+      .references(() => matches.id, { onDelete: "cascade" }),
+    fromUserId: uuid("from_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toUserId: uuid("to_user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** pending | accepted | declined | expired | cancelled */
+    status: text("status").notNull().default("pending"),
+    /** An id from the environment catalogue, once one is chosen. */
+    environment: text("environment"),
+    /** When the two of them agreed to meet, for a planned rather than a now date. */
+    scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    respondedAt: timestamp("responded_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull()
+  },
+  (table) => [
+    /**
+     * One open invitation per conversation, enforced by the database.
+     *
+     * A partial index rather than application logic: two taps on a slow
+     * connection are two concurrent inserts, and a check-then-insert in the
+     * application loses that race. Answered invitations are excluded, so a
+     * declined date can be followed by asking again.
+     */
+    uniqueIndex("virtual_date_invites_one_pending_idx")
+      .on(table.matchId)
+      .where(sql`status = 'pending'`),
+    index("virtual_date_invites_to_idx").on(table.toUserId, table.status),
+    index("virtual_date_invites_from_idx").on(table.fromUserId, table.status)
+  ]
 );
