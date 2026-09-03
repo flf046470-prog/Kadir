@@ -204,6 +204,10 @@ export async function sendMessage(
 
   const risk = assessRisk({
     text: trimmed,
+    // The language the sender declared, so the detector runs that language's
+    // wording rather than every language's. Absent, it tries them all at a
+    // discount — see `MessageContext.language`.
+    language,
     identicalMessageRecipients: identicalRecipients,
     minutesSinceConversationStart: minutesSinceStart
   });
