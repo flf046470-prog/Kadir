@@ -906,3 +906,46 @@ export const virtualDateInvites = pgTable(
     index("virtual_date_invites_from_idx").on(table.fromUserId, table.status)
   ]
 );
+
+/**
+ * A FioreMatch account's identity on a platform that has its own.
+ *
+ * Only the three that do. Android, iOS and web are not here: on those the
+ * member signs in to FioreMatch directly, so there is no second identity to
+ * link and a row would be a duplicate of `users.id`. Meta, Steam and Epic each
+ * authenticate the person before the app ever runs, and the question this table
+ * answers is "which FioreMatch account is that".
+ *
+ * Two uniqueness rules, and they say different things:
+ *
+ *  - **(platform, platform_user_id)** — one platform identity belongs to one
+ *    account. Without it, a Steam account could be attached to several
+ *    FioreMatch accounts, and a purchase made once would follow it to all of
+ *    them.
+ *  - **(user_id, platform)** — one account has at most one identity per
+ *    platform, so "which Steam account is this member" always has one answer.
+ *
+ * `platform_user_id` is never shown to another member and never joins a profile
+ * query. A Steam id is a durable public handle elsewhere: leaking it links a
+ * dating profile to a gaming identity, which is a deanonymisation this product
+ * has no reason to perform.
+ */
+export const userPlatformAccounts = pgTable(
+  "user_platform_accounts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** meta | steam | epic */
+    platform: text("platform").notNull(),
+    /** The id that platform knows the person by. Private, always. */
+    platformUserId: text("platform_user_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true })
+  },
+  (table) => [
+    uniqueIndex("user_platform_accounts_identity_idx").on(table.platform, table.platformUserId),
+    uniqueIndex("user_platform_accounts_member_idx").on(table.userId, table.platform)
+  ]
+);
