@@ -166,6 +166,20 @@ async function shoot(context, shape, target, dir) {
     await page.locator(target.settle).first().waitFor({ state: "visible", timeout: 15_000 });
   }
 
+  // Web fonts and the gradient backdrop land a frame after layout; without
+  // this the mark and the display face occasionally shoot mid-swap.
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(400);
+
+  /**
+   * Framing last, after everything that scrolls on its own has finished.
+   *
+   * This used to run before the font wait, and the conversation view — which
+   * jumps to its newest message on mount — landed after it and won. The shot
+   * came out a few hundred pixels down the page, with the site header sliced
+   * in half. Whatever the page wants to do to the scroll position, it has done
+   * it by here.
+   */
   if (target.scrollTo === "top") {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
     await page.waitForTimeout(150);
@@ -204,10 +218,7 @@ async function shoot(context, shape, target, dir) {
     await page.waitForTimeout(150);
   }
 
-  // Web fonts and the gradient backdrop land a frame after layout; without
-  // this the mark and the display face occasionally shoot mid-swap.
-  await page.evaluate(() => document.fonts.ready);
-  await page.waitForTimeout(400);
+
 
   const file = join(dir, `${target.file}.png`);
   await page.screenshot({ path: file, type: "png" });

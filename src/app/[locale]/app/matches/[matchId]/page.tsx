@@ -3,12 +3,13 @@ import { redirect, notFound } from "next/navigation";
 import { currentUser } from "@/auth/guard";
 import { resolveMatchFor } from "@/db/messaging";
 import { db } from "@/db/client";
-import { profileAttributes, users } from "@/db/schema";
+import { profileAttributes, profiles, users } from "@/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { needsTranslation } from "@/lib/matching/shared-language";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
 import { translationEnabled } from "@/lib/translate";
+import { awakeOverlap, zoneFor } from "@/lib/domain/timezones";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function ConversationPage({
   const match = await resolveMatchFor(user.id, matchId);
   if (!match) notFound();
 
-  const [t, partnerRows, languageRows] = await Promise.all([
+  const [t, partnerRows, languageRows, placeRows] = await Promise.all([
     getTranslations({ locale, namespace: "app" }),
     db
       .select({ displayName: users.displayName })
@@ -42,8 +43,39 @@ export default async function ConversationPage({
           inArray(profileAttributes.userId, [user.id, match.partnerId]),
           eq(profileAttributes.kind, "language_spoken")
         )
-      )
+      ),
+    // Both sides' places: the partner's for their clock, the viewer's because
+    // the shared window is only meaningful expressed in the reader's hours.
+    db
+      .select({
+        userId: profiles.userId,
+        cityId: profiles.cityId,
+        countryId: profiles.countryId
+      })
+      .from(profiles)
+      .where(inArray(profiles.userId, [user.id, match.partnerId]))
   ]);
+
+  const placeOf = (id: string) => placeRows.find((row) => row.userId === id);
+  const viewerZone = (() => {
+    const place = placeOf(user.id);
+    return zoneFor(place?.cityId, place?.countryId);
+  })();
+  const partnerPlace = placeOf(match.partnerId);
+  const partnerZone = zoneFor(partnerPlace?.cityId, partnerPlace?.countryId);
+
+  /**
+   * The shared window needs both zones. One unknown place is enough to make it
+   * unanswerable, and an unanswerable question is left unanswered rather than
+   * guessed at — see `zoneFor`.
+   */
+  const overlap = viewerZone && partnerZone ? awakeOverlap(viewerZone, partnerZone) : null;
+
+  const hour = (value: number) => `${String(value).padStart(2, "0")}:00`;
+  const bothAwake =
+    overlap === null
+      ? null
+      : t("bothAwake", { from: hour(overlap.startHour), to: hour(overlap.endHour) });
 
   const gamesT = await getTranslations({ locale, namespace: "games" });
 
@@ -79,7 +111,12 @@ export default async function ConversationPage({
       // the original turns it off, and that is a different thing from never
       // having been told translation existed.
       translationAuto={noSharedLanguage}
+      // Null whenever either place is unresolvable, which is common and fine:
+      // the header simply carries one line fewer.
+      partnerZone={partnerZone}
+      bothAwake={bothAwake}
       labels={{
+        theirTime: t("theirTime"),
         placeholder: t("sendPlaceholder"),
         send: t("send"),
         noMessages: t("noMessages"),

@@ -79,6 +79,17 @@ export async function POST(
 
   if (!result.ok) {
     if (result.reason === "not_a_match") return apiError("not_found", 404);
+    /**
+     * A throttle, not a malformed request.
+     *
+     * 429 rather than 400 because the message was fine and will be accepted
+     * later — and the cap travels in the body so the client can name it. A
+     * limit whose size the member cannot see reads as the app being broken,
+     * which is the most likely way this feature fails.
+     */
+    if (result.reason === "new_account_limit") {
+      return NextResponse.json({ error: result.reason, limit: result.limit }, { status: 429 });
+    }
     return apiError(result.reason, 400);
   }
 

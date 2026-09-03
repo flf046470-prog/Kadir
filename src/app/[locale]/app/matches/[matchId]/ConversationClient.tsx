@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { GIFTS, giftById, type GiftId } from "@/lib/gifts/catalogue";
+import { PartnerClock } from "./PartnerClock";
 
 type Message = {
   id: string;
@@ -36,6 +37,8 @@ type TimelineEntry =
   | { kind: "gift"; at: number; gift: SentGift };
 
 type Labels = {
+  /** "Their time" — the label before the partner's local clock. */
+  theirTime: string;
   placeholder: string;
   send: string;
   noMessages: string;
@@ -82,12 +85,18 @@ export function ConversationClient({
   locale,
   translationAvailable,
   translationAuto,
+  partnerZone,
+  bothAwake,
   labels
 }: {
   matchId: string;
   partnerId: string;
   partnerName: string;
   locale: string;
+  /** IANA zone for the partner, or null when their place could not be resolved. */
+  partnerZone: string | null;
+  /** The shared-window sentence, built on the server. Null if either place is unknown. */
+  bothAwake: string | null;
   /** False when no provider is configured, in which case there is no control. */
   translationAvailable: boolean;
   /** No language in common: translation starts on rather than waiting to be found. */
@@ -300,6 +309,12 @@ export function ConversationClient({
 
   return (
     <section className="container-fm flex max-w-2xl flex-col py-10">
+      {/*
+        The clock sits below the row rather than inside it. Placed beside the
+        name it competed for width with the actions, and on a phone the three
+        of them wrapped into each other — the line is long, and it is the one
+        piece of the header that is allowed to be.
+      */}
       <div className="flex items-center justify-between">
         <div>
           <a href={`/${locale}/app/matches`} className="text-sm text-ink/50 hover:text-ink">
@@ -330,6 +345,12 @@ export function ConversationClient({
           </button>
         </div>
       </div>
+      <PartnerClock
+        zone={partnerZone}
+        locale={locale}
+        theirTime={labels.theirTime}
+        bothAwake={bothAwake}
+      />
 
       {translateOn && (
         <p className="mt-4 rounded-lg bg-dusk-50 p-3 text-xs text-ink/60" role="status">

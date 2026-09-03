@@ -2,6 +2,10 @@ import { and, asc, eq, desc, inArray, isNull, or, ne, sql } from "drizzle-orm";
 import { db } from "./client";
 import { messages, messageRiskAssessments, matches, users, reports } from "./schema";
 import { assessRisk } from "@/lib/safety/scam-shield";
+import {
+  ageInHours,
+  conversationAllowance
+} from "@/lib/safety/new-account";
 
 /**
  * Messaging.
@@ -181,7 +185,12 @@ function parseSignals(raw: string | null): string[] {
 
 export type SendResult =
   | { ok: true; messageId: string }
-  | { ok: false; reason: "not_a_match" | "empty" | "too_long" };
+  | {
+      ok: false;
+      reason: "not_a_match" | "empty" | "too_long" | "new_account_limit";
+      /** For `new_account_limit`, what the cap is — so it can be said out loud. */
+      limit?: number;
+    };
 
 export async function sendMessage(
   userId: string,
@@ -195,6 +204,23 @@ export async function sendMessage(
   const trimmed = body.trim();
   if (trimmed.length === 0) return { ok: false, reason: "empty" };
   if (trimmed.length > MAX_MESSAGE_LENGTH) return { ok: false, reason: "too_long" };
+
+  /**
+   * A young account may only open so many conversations a day.
+   *
+   * Checked here rather than in the route because it depends on whether this
+   * message *starts* a conversation, which the route cannot see. Replies are
+   * never limited: the pattern being slowed is one account reaching many
+   * strangers, and someone answering a person who wrote to them is the
+   * opposite of that.
+   */
+  const starting = await isFirstMessageFrom(userId, matchId);
+  if (starting) {
+    const allowance = await conversationAllowanceFor(userId);
+    if (!allowance.allowed) {
+      return { ok: false, reason: "new_account_limit", limit: allowance.limit ?? undefined };
+    }
+  }
 
   // How many distinct people got a near-identical message recently — the input
   // Scam Shield needs for its mass-message signal.
@@ -230,6 +256,56 @@ export async function sendMessage(
     }
 
     return { ok: true as const, messageId: created.id };
+  });
+}
+
+/** Whether this member has said anything in this match yet. */
+async function isFirstMessageFrom(userId: string, matchId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.matchId, matchId), eq(messages.senderId, userId)))
+    .limit(1);
+
+  return rows.length === 0;
+}
+
+/**
+ * How many conversations this member has opened in the last rolling 24 hours,
+ * against what their account age allows.
+ *
+ * "Opened" is the first message *they* sent in a match, so a thread they have
+ * been replying in for a week does not count again today, and a match made
+ * long ago that they only now write to does. The match's own age is
+ * deliberately not the measure: matching is not the act being limited.
+ */
+async function conversationAllowanceFor(userId: string) {
+  const [account] = await db
+    .select({ createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  // No row means the caller was already resolved as a match participant, so
+  // this is a race with account deletion rather than a real state. Refusing
+  // would be a confusing error; the insert below will fail on its own.
+  if (!account) return { allowed: true, limit: null as number | null };
+
+  const rows = await db.execute<{ started: number }>(sql`
+    select count(*)::int as started from (
+      select ${messages.matchId}, min(${messages.createdAt}) as first_at
+      from ${messages}
+      where ${messages.senderId} = ${userId}
+      group by ${messages.matchId}
+    ) opened
+    where opened.first_at > now() - interval '1 day'
+  `);
+
+  const startedLastDay = Number(rows[0]?.started ?? 0);
+
+  return conversationAllowance({
+    accountAgeHours: ageInHours(account.createdAt),
+    startedLastDay
   });
 }
 

@@ -766,7 +766,9 @@
     "visitorsLockedBody": "The count above is real. VIP puts names to it, and shows who came back more than once.",
     "likesCount": "{count, plural, one {# person is waiting for an answer} other {# people are waiting for an answer}}",
     "visitorsCount": "{count, plural, one {# person opened your profile} other {# people opened your profile}}",
-    "autoTranslated": "You have no language in common, so this is translated automatically."
+    "autoTranslated": "You have no language in common, so this is translated automatically.",
+    "theirTime": "Their time",
+    "bothAwake": "Both awake: {from}–{to}"
   },
   "appOnly": {
     "tagline": "Meet beyond borders.",
