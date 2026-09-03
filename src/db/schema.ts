@@ -815,3 +815,40 @@ export const translationUsage = pgTable(
   },
   (table) => [index("translation_usage_user_time_idx").on(table.userId, table.createdAt)]
 );
+
+/**
+ * Virtual dates started, for the monthly allowance.
+ *
+ * Separate from any future session or room table, and deliberately so: this is
+ * the *accounting*, and it has to survive whatever the session record does. A
+ * room that crashes, is cleaned up, or is deleted for privacy must not hand the
+ * member their quota back — the infrastructure was paid for either way, which
+ * is the whole reason the ceiling exists.
+ *
+ * Rows carry no content, no partner name and no room contents. They are a
+ * rolling month's worth of counting, and nothing reads further back.
+ */
+export const virtualDateUsage = pgTable(
+  "virtual_date_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /**
+     * The match the date was for.
+     *
+     * Nullable on purpose: a member may delete a match, and losing the match
+     * must not erase the fact that a date was held. `set null` keeps the count
+     * honest while dropping the association.
+     */
+    matchId: uuid("match_id").references(() => matches.id, { onDelete: "set null" }),
+    /** Which environment, so popularity is measurable without a second table. */
+    environment: text("environment"),
+    /** Which platform started it — quest, pcvr, web. */
+    platform: text("platform"),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    endedAt: timestamp("ended_at", { withTimezone: true })
+  },
+  (table) => [index("virtual_date_usage_user_time_idx").on(table.userId, table.startedAt)]
+);

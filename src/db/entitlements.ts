@@ -1,6 +1,13 @@
 import { and, count, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
-import { boostGrants, boosts, likes, subscriptions, translationUsage } from "./schema";
+import {
+  boostGrants,
+  boosts,
+  likes,
+  subscriptions,
+  translationUsage,
+  virtualDateUsage
+} from "./schema";
 import { advisoryLockKey } from "./advisory-lock";
 import { spendReward } from "./referral";
 import {
@@ -164,6 +171,38 @@ export async function translationAllowance(
     .select({ total: count() })
     .from(translationUsage)
     .where(and(eq(translationUsage.userId, userId), gte(translationUsage.createdAt, since)));
+
+  const used = rows[0]?.total ?? 0;
+  return { allowed: used < limit, used, limit };
+}
+
+/**
+ * How many virtual dates are left this month.
+ *
+ * A rolling thirty days rather than a calendar month, for the reason the like
+ * allowance gives and one more of its own: calendar months are 28 to 31 days
+ * long, so a member in February would get the same allowance over three fewer
+ * days than one in March. A rolling window is the same length for everyone, in
+ * every timezone, in every month.
+ *
+ * Counted from `startedAt`, so a date that is still running is already spent.
+ * The alternative — counting completed dates — would let someone open thirty
+ * rooms, leave them all open, and pay for none of them.
+ */
+export async function virtualDateAllowance(
+  userId: string,
+  now: Date = new Date()
+): Promise<LikeAllowance> {
+  const { entitlements } = await entitlementsOf(userId, now);
+  const limit = entitlements.monthlyVirtualDates;
+  if (limit === null) return { allowed: true, used: 0, limit: null };
+
+  const since = new Date(now.getTime() - 30 * 24 * 3_600_000);
+
+  const rows = await db
+    .select({ total: count() })
+    .from(virtualDateUsage)
+    .where(and(eq(virtualDateUsage.userId, userId), gte(virtualDateUsage.startedAt, since)));
 
   const used = rows[0]?.total ?? 0;
   return { allowed: used < limit, used, limit };

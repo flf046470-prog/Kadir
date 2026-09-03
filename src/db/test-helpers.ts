@@ -22,7 +22,7 @@ export async function resetDatabase(): Promise<void> {
   await db.execute(
     sql`truncate table users, sessions, profiles, profile_attributes, profile_visibility,
         quiz_answers, travel_plans, likes, matches, blocks, signal_weights, daily_suggestions,
-        message_translations, translation_usage
+        message_translations, translation_usage, virtual_date_usage
         restart identity cascade`
   );
 }

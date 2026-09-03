@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { locales, type Locale } from "@/i18n/locales";
 import { siteUrl } from "./site";
-import { MONTHLY_PRICE_CENTS } from "./billing/tiers";
+import { ANNUAL_PRICE_CENTS } from "./billing/tiers";
 
 /**
  * Builds canonical + hreflang alternates for a given path across all launch
@@ -100,23 +100,23 @@ export function softwareApplicationSchema(locale: Locale) {
     offers: (["plus", "vip"] as const).map((tier) => ({
       "@type": "Offer",
       name: tier.toUpperCase(),
-      price: (MONTHLY_PRICE_CENTS[tier] / 100).toFixed(2),
+      price: (ANNUAL_PRICE_CENTS[tier] / 100).toFixed(2),
       priceCurrency: "USD",
       /**
        * The billing period, stated rather than implied.
        *
        * A bare `price` on a subscription is read as the whole cost, so a search
-       * result would quote $4.99 for the product rather than for a month of it
-       * — which is the kind of number someone arrives already believing.
+       * result would quote $19.99 for the product rather than for a year of
+       * it — which is the kind of number someone arrives already believing.
        */
       priceSpecification: {
         "@type": "UnitPriceSpecification",
-        price: (MONTHLY_PRICE_CENTS[tier] / 100).toFixed(2),
+        price: (ANNUAL_PRICE_CENTS[tier] / 100).toFixed(2),
         priceCurrency: "USD",
         referenceQuantity: {
           "@type": "QuantitativeValue",
           value: 1,
-          unitCode: "MON"
+          unitCode: "ANN"
         }
       },
       priceValidUntil: "2027-12-31"

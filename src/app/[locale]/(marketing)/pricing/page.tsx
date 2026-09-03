@@ -31,7 +31,7 @@ export default function PricingPage() {
   const faqs = [
     {
       question: "How much do PLUS and VIP cost?",
-      answer: "PLUS is $4.99/month and VIP is $9.99/month, shown in your local currency where the app store supports it. Cancel any time and you keep what you paid for until the period ends."
+      answer: "PLUS is $19.99/year and VIP is $49.99/year, shown in your local currency where the app store supports it. Cancel any time and you keep what you paid for until the period ends."
     },
     {
       question: "Is pricing the same in every country?",

@@ -70,11 +70,11 @@ kılarak sağlanıyor. Oynamamak da gayet normal bir cevap.
 Profil, Keşfet, eşleşme, mesajlaşma, standart filtreler, engelleme ve bildirme.
 Günde 50 beğeni, 3 hediye. Tanışmak için ödeme gerekmiyor.
 
-PLUS — ayda 4,99 $
+PLUS — yılda 19,99 $
 Gelişmiş filtreler, günde 200 beğeni, seni kimlerin beğendiğini görmek,
 son geçişini geri almak, sohbet içi çeviri, günde 10 hediye.
 
-VIP — ayda 9,99 $
+VIP — yılda 49,99 $
 PLUS'taki her şey, artı sınırsız beğeni ve hediye, profil ziyaretçilerin,
 Keşfet'te öncelikli görünürlük, kartında VIP rozeti ve her ay 60 dakikalık
 Boost.

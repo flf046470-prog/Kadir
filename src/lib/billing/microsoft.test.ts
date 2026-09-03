@@ -18,8 +18,8 @@ import { subscriptionFor } from "./purchase";
  * hands out subscriptions whenever Microsoft has an outage.
  */
 
-const PLUS = "com.fiorematch.app.plus.monthly";
-const VIP = "com.fiorematch.app.vip.monthly";
+const PLUS = "com.fiorematch.app.plus.annual";
+const VIP = "com.fiorematch.app.vip.annual";
 
 const FUTURE = "2027-01-01T00:00:00.000Z";
 

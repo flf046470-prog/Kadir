@@ -96,11 +96,11 @@ diğerinin cevabını göremez.
 Profil, Keşfet, eşleşme, mesajlaşma, standart filtreler, engelleme ve bildirme.
 Günde 50 beğeni, 3 hediye.
 
-PLUS — ayda 4,99 $
+PLUS — yılda 19,99 $
 Gelişmiş filtreler, günde 200 beğeni, seni kimlerin beğendiğini görmek,
 son geçişini geri almak, sohbet içi çeviri, günde 10 hediye.
 
-VIP — ayda 9,99 $
+VIP — yılda 49,99 $
 PLUS'taki her şey, artı sınırsız beğeni ve hediye, profil ziyaretçilerin,
 Keşfet'te öncelikli görünürlük, kartında VIP rozeti ve her ay 60 dakikalık
 Boost.
@@ -220,5 +220,5 @@ kalmaz, çünkü simülatör zaten doğru boyutta çıktı verir.
 - [ ] Push Notifications yetkisi + APNs anahtarı
 - [ ] **Dağıtım ayakta olmalı** — yoksa inceleme uzmanı çevrimdışı ekranı görür.
       Pazarlama sitesi yayınlanmıyor, ama sunucunun çalışması şart.
-- [ ] StoreKit ile abonelik ürünleri tanımlanmalı (4,99 $ ve 9,99 $ aylık)
+- [ ] StoreKit ile abonelik ürünleri tanımlanmalı (19,99 $ ve 49,99 $ yıllık)
 - [ ] 6,9" ve 6,5" ekran görüntüleri simülatörden alınmalı

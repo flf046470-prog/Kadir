@@ -48,15 +48,34 @@ export type FlagConfig = {
 };
 
 /**
- * Default rollout state. Everything ships dark: no feature is on until it has
+ * Default rollout state. Unbuilt features ship dark: nothing is on until it has
  * passed its own test, security, and privacy review.
+ *
+ * A 0 here means one of two different things, and the difference matters. For
+ * most of this list it means the feature does not exist and nothing reads the
+ * flag — `WIRED_FLAGS` in `server.ts` names the few that are genuinely
+ * connected, and a test keeps that list honest. For a wired flag it would mean
+ * a built feature switched off.
+ *
+ * A wired flag defaults to 100 when the feature it gates already ships. Setting
+ * it to 0 to be careful would not be careful: it would turn a working feature
+ * off for everyone the moment the gate was added, which is a regression wearing
+ * a rollout's clothes.
  */
 export const defaultFlags: Record<FeatureName, FlagConfig> = {
   ai_matchmaker: { rollout: 0 },
   compatibility_dna: { rollout: 0 },
   todays_five: { rollout: 0 },
   global_match: { rollout: 0 },
-  ai_translation: { rollout: 0 },
+  /**
+   * On, because message translation ships today.
+   *
+   * Wired as a kill switch rather than a rollout: it is the one feature with a
+   * per-call cost to a third party, so the operational need is stopping it
+   * during a provider outage or a cost spike without waiting for a deploy.
+   * `FEATURE_FLAGS={"ai_translation":{"killed":true}}` does that.
+   */
+  ai_translation: { rollout: 100 },
   conversation_coach: { rollout: 0 },
   match_games: { rollout: 0 },
   scam_shield: { rollout: 0 },

@@ -47,15 +47,15 @@ deploy elde edersiniz.
 tanıyor:
 
 ```
-com.fiorematch.app.plus.monthly
-com.fiorematch.app.vip.monthly
+com.fiorematch.app.plus.annual
+com.fiorematch.app.vip.annual
 ```
 
 Partner Center'da eklentileri **aynı kimliklerle** oluşturursanız başka bir şey
 gerekmiyor. Farklı adlandırdıysanız eşlemeyi verin:
 
 ```bash
-MICROSOFT_STORE_PRODUCT_IDS='{"com.fiorematch.app.plus.monthly":"9NXXXXXXXXXX"}'
+MICROSOFT_STORE_PRODUCT_IDS='{"com.fiorematch.app.plus.annual":"9NXXXXXXXXXX"}'
 ```
 
 Bu eşleme yanlışsa sürücü sorunsuz kimlik doğrular ve hiçbir şey eşleştiremez —

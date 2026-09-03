@@ -136,8 +136,8 @@ export function subscriptionFor(
  * pays for itself in support tickets.
  */
 const PRODUCT_TIERS: Record<string, Tier> = {
-  "com.fiorematch.app.plus.monthly": "plus",
-  "com.fiorematch.app.vip.monthly": "vip"
+  "com.fiorematch.app.plus.annual": "plus",
+  "com.fiorematch.app.vip.annual": "vip"
 };
 
 export function tierForProduct(productId: string): Tier | null {

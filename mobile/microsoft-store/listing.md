@@ -80,7 +80,7 @@ Uygulama pencerede çalışır, yeniden boyutlandırılabilir ve Başlat menüs�
 sabitlenebilir. Aynı hesap telefonda ve bilgisayarda aynı sohbetleri gösterir.
 
 ÜCRETLENDİRME
-Ücretsiz başlayın. PLUS ayda 4,99 USD, VIP ayda 9,99 USD; fiyatlar mağazanın
+Ücretsiz başlayın. PLUS yılda 19,99 USD, VIP yılda 49,99 USD; fiyatlar mağazanın
 desteklediği yerlerde kendi para biriminizde görünür. İstediğiniz an iptal
 edin, ödediğiniz dönem bitene kadar erişiminiz sürer.
 ```

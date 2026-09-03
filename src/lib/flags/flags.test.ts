@@ -9,6 +9,7 @@ import {
   type FlagConfig,
   type RolloutPercent
 } from "./flags";
+import { WIRED_FLAGS } from "./server";
 
 const memberIds = Array.from({ length: 5000 }, (_, i) => `member-${i}`);
 
@@ -17,11 +18,21 @@ function withRollout(rollout: RolloutPercent): Partial<Record<FeatureName, FlagC
 }
 
 describe("isEnabled", () => {
-  it("ships every feature off by default", () => {
-    for (const config of Object.values(defaultFlags)) {
-      expect(config.rollout).toBe(0);
-    }
-    expect(enabledFeatures({ memberId: "anyone" })).toEqual([]);
+  /**
+   * Nothing turns on by accident — but "off by default" stopped being the
+   * whole rule once a flag was wired to a feature that already ships.
+   *
+   * This asserted every flag was at 0, which was true while `isEnabled` had no
+   * callers at all and every percentage was decoration. Now `ai_translation`
+   * gates live translation as a kill switch, and holding it at 0 would have
+   * turned translation off for everyone the moment the gate was added.
+   *
+   * The rule that survives is narrower and more useful: a member gets only
+   * features that are wired. `config.test.ts` carries the other half — that
+   * everything unwired is still dark.
+   */
+  it("turns on only what is deliberately wired", () => {
+    expect(enabledFeatures({ memberId: "anyone" })).toEqual(WIRED_FLAGS);
   });
 
   it("is deterministic for the same member and flag", () => {

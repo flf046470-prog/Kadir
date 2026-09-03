@@ -4,6 +4,7 @@ import { translateConversation } from "@/db/translations";
 import { translationEnabled } from "@/lib/translate";
 import { translationAllowance } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { featureEnabled } from "@/lib/flags/server";
 
 /**
  * Translations for one conversation.
@@ -22,10 +23,21 @@ export async function GET(
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  // Only one reason left for translation to be absent: the deployment has no
-  // provider configured. Paying is no longer the gate — every member has an
-  // allowance, and what a subscription buys is the removal of its ceiling.
-  if (!translationEnabled()) {
+  /**
+   * Two reasons translation can be absent, and neither is the member's tier.
+   *
+   * The deployment may have no provider configured, or the feature may be
+   * switched off. `ai_translation` is wired as a kill switch precisely because
+   * this is the one feature that spends money at a third party on every cache
+   * miss, so a provider outage or a cost spike has to be stoppable without
+   * waiting for a deploy.
+   *
+   * Both answer the same shape rather than an error: the conversation is still
+   * readable without translation, so this degrades rather than fails. Paying is
+   * not the gate either — every member has an allowance, and what a
+   * subscription buys is the removal of its ceiling.
+   */
+  if (!translationEnabled() || !featureEnabled("ai_translation", auth.user.id)) {
     return NextResponse.json({
       available: false,
       translations: {},

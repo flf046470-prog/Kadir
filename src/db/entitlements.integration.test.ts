@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { boosts, likes, referralRewards, subscriptions } from "./schema";
+import { boosts, likes, referralRewards, subscriptions, virtualDateUsage } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
 import {
   boostedUserIds,
@@ -10,7 +10,8 @@ import {
   likeAllowance,
   startBoost,
   tierOf,
-  tiersOf
+  tiersOf,
+  virtualDateAllowance
 } from "./entitlements";
 import { walletFor } from "./referral";
 import { ENTITLEMENTS } from "@/lib/billing/tiers";
@@ -284,5 +285,122 @@ describe("boost", () => {
     expect(await walletFor(user)).toEqual([
       { rewardId: "boost", quantity: 3, trialDays: null }
     ]);
+  });
+});
+
+
+/**
+ * The virtual date allowance.
+ *
+ * The first ceiling in this file that limits something with a *per-minute
+ * infrastructure cost* rather than a database row, which is why it exists
+ * before the feature does: an unbounded free tier on a voice-and-network
+ * session is a liability, and the quota is far easier to get right while there
+ * is nothing depending on it.
+ */
+describe("virtual date allowance", () => {
+  async function startDates(userId: string, count: number, startedAt?: Date) {
+    if (count === 0) return;
+    await db.insert(virtualDateUsage).values(
+      Array.from({ length: count }, () => ({
+        userId,
+        ...(startedAt ? { startedAt } : {})
+      }))
+    );
+  }
+
+  it("gives a free member the tier's monthly ceiling", async () => {
+    const userId = await createTestUser();
+    const allowance = await virtualDateAllowance(userId);
+
+    expect(allowance).toEqual({
+      allowed: true,
+      used: 0,
+      limit: ENTITLEMENTS.free.monthlyVirtualDates
+    });
+  });
+
+  it("counts dates already started", async () => {
+    const userId = await createTestUser();
+    await startDates(userId, 3);
+
+    const allowance = await virtualDateAllowance(userId);
+    expect(allowance.used).toBe(3);
+    expect(allowance.allowed).toBe(true);
+  });
+
+  it("refuses once the month's dates are spent", async () => {
+    const userId = await createTestUser();
+    await startDates(userId, ENTITLEMENTS.free.monthlyVirtualDates!);
+
+    expect((await virtualDateAllowance(userId)).allowed).toBe(false);
+  });
+
+  /**
+   * Counted from when the date *started*, so a room left open is already paid
+   * for. Counting completed dates instead would let someone open the whole
+   * month's allowance at once, never end any of them, and spend none.
+   */
+  it("counts a date that has not ended", async () => {
+    const userId = await createTestUser();
+    await startDates(userId, 5);
+
+    const rows = await db
+      .select({ endedAt: virtualDateUsage.endedAt })
+      .from(virtualDateUsage)
+      .where(eq(virtualDateUsage.userId, userId));
+
+    expect(rows.every((row) => row.endedAt === null)).toBe(true);
+    expect((await virtualDateAllowance(userId)).allowed).toBe(false);
+  });
+
+  it("forgets a date older than the rolling month", async () => {
+    const userId = await createTestUser();
+    await startDates(userId, 5, new Date(Date.now() - 31 * DAY_MS));
+
+    const allowance = await virtualDateAllowance(userId);
+    expect(allowance.used).toBe(0);
+    expect(allowance.allowed).toBe(true);
+  });
+
+  it("gives PLUS a larger ceiling than free", async () => {
+    const userId = await createTestUser();
+    await subscribe(userId, "plus");
+
+    const allowance = await virtualDateAllowance(userId);
+    expect(allowance.limit).toBe(ENTITLEMENTS.plus.monthlyVirtualDates);
+    expect(allowance.limit!).toBeGreaterThan(ENTITLEMENTS.free.monthlyVirtualDates!);
+  });
+
+  /**
+   * VIP is sold as unlimited and is unlimited here. The abuse ceiling that
+   * protects the infrastructure lives in rate limiting, not in this number —
+   * mixing the two would make "unlimited" quietly false.
+   */
+  it("does not limit VIP", async () => {
+    const userId = await createTestUser();
+    await subscribe(userId, "vip");
+    await startDates(userId, 200);
+
+    const allowance = await virtualDateAllowance(userId);
+    expect(allowance.limit).toBeNull();
+    expect(allowance.allowed).toBe(true);
+  });
+
+  /**
+   * The accounting outlives the match. Deleting a conversation must not refund
+   * the quota: the infrastructure was paid for either way, which is the reason
+   * the ceiling exists at all.
+   */
+  it("keeps counting a date whose match is gone", async () => {
+    const userId = await createTestUser();
+    await startDates(userId, 2);
+
+    await db
+      .update(virtualDateUsage)
+      .set({ matchId: null })
+      .where(eq(virtualDateUsage.userId, userId));
+
+    expect((await virtualDateAllowance(userId)).used).toBe(2);
   });
 });

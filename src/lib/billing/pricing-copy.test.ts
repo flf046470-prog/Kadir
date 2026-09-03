@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import en from "@/i18n/messages/en.json";
 import tr from "@/i18n/messages/tr.json";
-import { ENTITLEMENTS, MONTHLY_PRICE_CENTS, TIERS, type Tier } from "./tiers";
+import { ENTITLEMENTS, ANNUAL_PRICE_CENTS, TIERS, type Tier } from "./tiers";
 
 /**
  * The pricing page against the entitlement table.
@@ -96,14 +96,14 @@ describe.each(Object.entries(LOCALES))("the %s pricing page", (_locale, copy) =>
   /**
    * The prices, against the constant the stores are configured from.
    *
-   * `MONTHLY_PRICE_CENTS` is what the store product tiers must match. The page
+   * `ANNUAL_PRICE_CENTS` is what the store product tiers must match. The page
    * renders its own string, so a reprice that misses the translation files
    * shows the old number beside the new charge — which is a refund and a
    * one-star review rather than a rendering bug.
    */
   it("prints the price the billing table charges", () => {
-    expect(copy.plusPrice).toContain((MONTHLY_PRICE_CENTS.plus / 100).toFixed(2));
-    expect(copy.vipPrice).toContain((MONTHLY_PRICE_CENTS.vip / 100).toFixed(2));
+    expect(copy.plusPrice).toContain((ANNUAL_PRICE_CENTS.plus / 100).toFixed(2));
+    expect(copy.vipPrice).toContain((ANNUAL_PRICE_CENTS.vip / 100).toFixed(2));
     expect(copy.freePrice).toContain("0");
   });
 

@@ -5,7 +5,7 @@ import {
   entitlementsFor,
   isTier,
   TIERS,
-  MONTHLY_PRICE_CENTS
+  ANNUAL_PRICE_CENTS
 } from "./tiers";
 import { PRODUCT_IDS } from "./purchase";
 
@@ -87,9 +87,9 @@ describe("the entitlement table", () => {
    * make the more expensive tier indefensible.
    */
   it("charges more for VIP, and gives something for it", () => {
-    expect(MONTHLY_PRICE_CENTS.free).toBe(0);
-    expect(MONTHLY_PRICE_CENTS.plus).toBeGreaterThan(MONTHLY_PRICE_CENTS.free);
-    expect(MONTHLY_PRICE_CENTS.vip).toBeGreaterThan(MONTHLY_PRICE_CENTS.plus);
+    expect(ANNUAL_PRICE_CENTS.free).toBe(0);
+    expect(ANNUAL_PRICE_CENTS.plus).toBeGreaterThan(ANNUAL_PRICE_CENTS.free);
+    expect(ANNUAL_PRICE_CENTS.vip).toBeGreaterThan(ANNUAL_PRICE_CENTS.plus);
 
     const plus = entitlementsFor("plus");
     const vip = entitlementsFor("vip");
@@ -104,19 +104,20 @@ describe("the entitlement table", () => {
    * The period the price is quoted in, and the period the stores sell in, have
    * to be the same period.
    *
-   * Nothing else in the codebase connects them: `MONTHLY_PRICE_CENTS` is a
+   * Nothing else in the codebase connects them: `ANNUAL_PRICE_CENTS` is a
    * number, and the product ids are strings the stores match on. Repricing to
-   * an annual plan while leaving `.monthly` ids — or the reverse — produces a
+   * a monthly plan while leaving `.annual` ids — or the reverse — produces a
    * listing that charges one thing and a store that sells another, and neither
    * side is wrong on its own, so nothing fails until a member is billed.
    *
-   * This is the failure the old pricing hid: $1.99 read as a plausible monthly
-   * price and was in fact annual, and the constant's name was the only thing
-   * that said so.
+   * This has now been got wrong in both directions. The original $1.99 read as
+   * a plausible monthly price and was in fact annual; a later pass moved to a
+   * genuine monthly plan; this one moves back to annual. Each time, the only
+   * thing standing between the two halves was a name and this test.
    */
   it("quotes prices in the same period the store products are sold in", () => {
     for (const id of PRODUCT_IDS) {
-      expect(id.endsWith(".monthly")).toBe(true);
+      expect(id.endsWith(".annual")).toBe(true);
     }
   });
 
@@ -134,6 +135,7 @@ describe("the entitlement table", () => {
         "dailyLikes",
         "dailyTranslations",
         "monthlyBoostCredits",
+        "monthlyVirtualDates",
         "priorityVisibility",
         "profileVisitors",
         "seeWhoLikedYou",
