@@ -1,7 +1,8 @@
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq, lt, ne } from "drizzle-orm";
 import { db } from "./client";
-import { subscriptions } from "./schema";
+import { subscriptions, storeNotifications } from "./schema";
 import { subscriptionFor, type VerifiedPurchase } from "@/lib/billing/purchase";
+import type { StoreNotification } from "@/lib/billing/notifications";
 
 /**
  * Recording a verified store purchase.
@@ -113,4 +114,141 @@ export async function subscriptionByRef(
     .limit(1);
 
   return rows[0] ?? null;
+}
+
+/**
+ * How long a handled notification is remembered.
+ *
+ * Long enough to cover every store's retry window — Apple gives up after about
+ * three days, Google's Pub/Sub subscription after seven — with room for an
+ * outage on our side, and no longer. The rows have no use once no store will
+ * ever send that id again, and keeping them would turn a dedupe log into a
+ * permanent record of when each subscription changed.
+ */
+export const NOTIFICATION_RETENTION_DAYS = 30;
+
+export type NotificationOutcome =
+  | { applied: true; userId: string; tier: string; status: string; currentPeriodEnd: Date }
+  /**
+   * Handled, but nothing written. All three are successes, not failures — the
+   * store should stop asking — and they are kept apart because they mean very
+   * different things when this path is being debugged.
+   *
+   *   duplicate            — seen before. Says the retry machinery works.
+   *   stale                — describes an older world than the row already
+   *                          holds. Says notifications overtook each other.
+   *   unknown_subscription — refers to a purchase this deployment has no row
+   *                          for. Says a member bought and never redeemed, or
+   *                          deleted their account, or the store account is
+   *                          shared with another environment.
+   */
+  | { applied: false; reason: "duplicate" | "stale" | "unknown_subscription" };
+
+/**
+ * Applying a store notification whose signature has already been checked.
+ *
+ * The whole thing is one transaction around a locked subscription row, because
+ * every step can race with another delivery of the same notification and with
+ * a *different* notification about the same subscription. Without the lock the
+ * staleness check reads a value that a concurrent transaction is in the middle
+ * of replacing, and the older of two notifications can be the one that lands.
+ *
+ * The order of the checks is deliberate:
+ *
+ *  1. **Find the subscription first.** A notification we cannot attach to
+ *     anyone is not recorded as handled, so if the member redeems a moment
+ *     later a retry can still land. Recording it would close that door
+ *     permanently, which is the one mistake here that cannot be recovered from
+ *     by trying again.
+ *  2. **Then claim the id.** Two concurrent deliveries both reach this and the
+ *     primary key picks one; the loser sees its own insert do nothing and stops
+ *     rather than repeating the work.
+ *  3. **Then check staleness**, and record the claim either way. A late
+ *     notification is genuinely handled — the answer is "we already know
+ *     better" — and leaving it unrecorded would invite the store to keep
+ *     re-delivering something that will never be applied.
+ */
+export async function applyStoreNotification(
+  notification: StoreNotification,
+  now: Date = new Date()
+): Promise<NotificationOutcome> {
+  const { purchase, notificationId, signedAt } = notification;
+
+  return db.transaction(async (tx) => {
+    const existing = await tx
+      .select({
+        userId: subscriptions.userId,
+        notifiedAt: subscriptions.notifiedAt
+      })
+      .from(subscriptions)
+      .where(eq(subscriptions.providerRef, purchase.providerRef))
+      .limit(1)
+      // Serialises everything below per subscription. This is money; the cost
+      // of the lock is one row for the length of one small transaction.
+      .for("update");
+
+    const row = existing[0];
+    if (!row) return { applied: false as const, reason: "unknown_subscription" as const };
+
+    const claimed = await tx
+      .insert(storeNotifications)
+      .values({ provider: purchase.provider, notificationId })
+      .onConflictDoNothing()
+      .returning({ notificationId: storeNotifications.notificationId });
+
+    if (!claimed[0]) return { applied: false as const, reason: "duplicate" as const };
+
+    /**
+     * Signed no later than the notification already applied, so it describes a
+     * world at least as old as the row. Dropped rather than written.
+     *
+     * `<=` rather than `<`: two notifications carrying the same signing instant
+     * cannot be ordered by this field, and re-applying one of them is the only
+     * choice that could move the row backwards. The one already applied stands.
+     */
+    if (row.notifiedAt && signedAt.getTime() <= row.notifiedAt.getTime()) {
+      return { applied: false as const, reason: "stale" as const };
+    }
+
+    // The same function the redemption path uses, so a refund cannot mean one
+    // thing when the member reports it and another when the store does.
+    const state = subscriptionFor(purchase, now);
+
+    await tx
+      .update(subscriptions)
+      .set({
+        tier: state.tier,
+        status: state.status,
+        currentPeriodEnd: state.currentPeriodEnd,
+        provider: state.provider,
+        providerRef: state.providerRef,
+        notifiedAt: signedAt,
+        updatedAt: now
+      })
+      .where(eq(subscriptions.userId, row.userId));
+
+    /**
+     * Pruning rides along on the path that just wrote a row, rather than
+     * needing a scheduler this codebase does not have. It is a range delete
+     * over an index on a table that grows by one row per subscription event,
+     * and it runs only when something was actually applied — so a flood of
+     * duplicates does not turn into a flood of deletes.
+     */
+    await tx
+      .delete(storeNotifications)
+      .where(
+        lt(
+          storeNotifications.receivedAt,
+          new Date(now.getTime() - NOTIFICATION_RETENTION_DAYS * 86_400_000)
+        )
+      );
+
+    return {
+      applied: true as const,
+      userId: row.userId,
+      tier: state.tier,
+      status: state.status,
+      currentPeriodEnd: state.currentPeriodEnd
+    };
+  });
 }

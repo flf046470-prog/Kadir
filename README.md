@@ -215,8 +215,29 @@ country-level pricing tiers — not raw currency conversion — managed centrall
 so they can be tuned per market from an admin surface. The central price
 management backend is Phase 4 of the roadmap.
 
-**Nothing can be bought yet.** There is no payment integration: the
-`subscriptions` table is written only by tests. For the mobile apps this
-cannot be Stripe — Apple's guideline 3.1.1 and Google Play's billing policy
-both require digital subscriptions to go through in-app purchase — so the work
-is StoreKit plus Play Billing, with server-side receipt validation.
+This cannot be Stripe on mobile — Apple's guideline 3.1.1 and Google Play's
+billing policy both require digital subscriptions to go through in-app
+purchase — so the work is StoreKit plus Play Billing, with server-side
+verification.
+
+**The two halves of that.** `POST /api/billing/purchase` takes what a store
+gave the client, asks that store whether it is real, and writes the
+subscription from the store's answer; the client calls it again on every launch
+to reconcile. `POST /api/billing/notifications/[store]` is where a store reports
+what happened *afterwards* — a renewal, a cancellation, a refund. Without the
+second, the server only learns of a refund if the refunded member comes back
+and asks, which they have no reason to do.
+
+**What each store still needs: a driver, and credentials from a publisher
+account.**
+
+| | Verify a purchase | Verify a notification |
+| --- | --- | --- |
+| Microsoft Store | ✅ `lib/billing/microsoft.ts` | ❌ — refunds arrive by polling clawback, not by push |
+| Google Play | ❌ | ❌ |
+| App Store | ❌ | ❌ |
+
+Every unwired cell answers **503 "not open"** rather than accepting the claim,
+and nothing here is stubbed: a stub that answered "valid" would hand a
+subscription to anyone who posted to these routes, which is worse than having
+no route at all.

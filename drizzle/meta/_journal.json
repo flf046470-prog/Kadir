@@ -113,6 +113,13 @@
       "when": 1788464540426,
       "tag": "0015_flat_wonder_man",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1788533003501,
+      "tag": "0016_daffy_roulette",
+      "breakpoints": true
     }
   ]
 }

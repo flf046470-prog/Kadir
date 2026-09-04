@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "./client";
-import { subscriptions } from "./schema";
+import { subscriptions, storeNotifications } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
-import { recordPurchase, subscriptionByRef } from "./billing";
+import {
+  applyStoreNotification,
+  recordPurchase,
+  subscriptionByRef,
+  NOTIFICATION_RETENTION_DAYS
+} from "./billing";
 import { entitlementsOf, tierOf } from "./entitlements";
+import { deleteAccount } from "@/auth/accounts";
 import type { VerifiedPurchase } from "@/lib/billing/purchase";
+import type { StoreNotification } from "@/lib/billing/notifications";
 
 const DAY = 86_400_000;
 const now = new Date("2026-09-01T12:00:00Z");
@@ -156,5 +163,242 @@ describe("recording a purchase", () => {
 
     const rows = await db.select().from(subscriptions).where(eq(subscriptions.userId, user));
     expect(rows[0].provider).toBe("app_store");
+  });
+});
+
+describe("applying a store notification", () => {
+  function notification(
+    overrides: Partial<VerifiedPurchase> = {},
+    meta: { notificationId?: string; signedAt?: Date } = {}
+  ): StoreNotification {
+    return {
+      notificationId: meta.notificationId ?? "notif-1",
+      signedAt: meta.signedAt ?? now,
+      purchase: purchase(overrides)
+    };
+  }
+
+  /**
+   * The reason this path exists.
+   *
+   * A refunded member's entitlement is otherwise only re-checked when they next
+   * open the app, and someone who has taken their money back has no reason to.
+   * Without a notification arriving on its own, the tier outlives the payment
+   * for the whole remaining period.
+   */
+  it("ends access when the store reports a refund", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    expect(await tierOf(user, now)).toBe("plus");
+
+    const result = await applyStoreNotification(
+      notification({ refunded: true }, { signedAt: new Date(now.getTime() + 60_000) }),
+      now
+    );
+
+    expect(result).toMatchObject({ applied: true, userId: user, status: "expired" });
+    expect(await tierOf(user, now)).toBe("free");
+  });
+
+  it("extends access when the store reports a renewal", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    const renewed = new Date(now.getTime() + 730 * DAY);
+
+    await applyStoreNotification(
+      notification({ expiresAt: renewed }, { signedAt: new Date(now.getTime() + 60_000) }),
+      now
+    );
+
+    expect(await tierOf(user, new Date(now.getTime() + 400 * DAY))).toBe("plus");
+  });
+
+  it("keeps the paid period when the store reports a cancellation", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+
+    const result = await applyStoreNotification(
+      notification({ cancelled: true }, { signedAt: new Date(now.getTime() + 60_000) }),
+      now
+    );
+
+    expect(result).toMatchObject({ applied: true, status: "canceled" });
+    // Cancelling is not a refund: they keep what they bought until it runs out.
+    expect(await tierOf(user, now)).toBe("plus");
+  });
+
+  /**
+   * Both stores deliver at least once and retry until acknowledged, so this is
+   * the ordinary case rather than an edge one.
+   */
+  it("does nothing the second time the same notification arrives", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    const same = notification({ refunded: true }, { signedAt: new Date(now.getTime() + 60_000) });
+
+    expect(await applyStoreNotification(same, now)).toMatchObject({ applied: true });
+    expect(await applyStoreNotification(same, now)).toEqual({
+      applied: false,
+      reason: "duplicate"
+    });
+  });
+
+  /**
+   * The case `signedAt` exists for.
+   *
+   * A renewal that spent an hour being retried lands *after* the refund that
+   * followed it. Applied in arrival order it restores an entitlement the member
+   * has already been paid back for — the exact failure that makes a refund
+   * look optional.
+   */
+  it("ignores a notification signed before the one already applied", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+
+    const refundedAt = new Date(now.getTime() + 2 * DAY);
+    await applyStoreNotification(
+      notification({ refunded: true }, { notificationId: "refund", signedAt: refundedAt }),
+      now
+    );
+    expect(await tierOf(user, now)).toBe("free");
+
+    const late = notification(
+      { expiresAt: new Date(now.getTime() + 730 * DAY) },
+      { notificationId: "renewal", signedAt: new Date(refundedAt.getTime() - DAY) }
+    );
+
+    expect(await applyStoreNotification(late, now)).toEqual({
+      applied: false,
+      reason: "stale"
+    });
+    expect(await tierOf(user, now)).toBe("free");
+  });
+
+  /**
+   * Two notifications carrying the same signing instant cannot be ordered by
+   * that field, so the one already applied stands — re-applying is the only
+   * choice of the two that could move a row backwards.
+   */
+  it("keeps the applied notification when a second shares its signing time", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    const signedAt = new Date(now.getTime() + DAY);
+
+    await applyStoreNotification(
+      notification({ refunded: true }, { notificationId: "a", signedAt }),
+      now
+    );
+
+    const rival = notification(
+      { expiresAt: new Date(now.getTime() + 730 * DAY) },
+      { notificationId: "b", signedAt }
+    );
+
+    expect(await applyStoreNotification(rival, now)).toEqual({
+      applied: false,
+      reason: "stale"
+    });
+    expect(await tierOf(user, now)).toBe("free");
+  });
+
+  /**
+   * A notification about a purchase nobody here has redeemed is deliberately
+   * *not* recorded as handled — so if the member redeems a moment later, a
+   * retry can still land. Recording it would close that door for good.
+   */
+  it("does not remember a notification it could not attach to anyone", async () => {
+    const orphan = notification({ providerRef: "never-redeemed" });
+
+    expect(await applyStoreNotification(orphan, now)).toEqual({
+      applied: false,
+      reason: "unknown_subscription"
+    });
+    expect(await db.select().from(storeNotifications)).toHaveLength(0);
+
+    // The member redeems, and the store's retry now finds a home.
+    const user = await createTestUser();
+    await recordPurchase(user, purchase({ providerRef: "never-redeemed" }), now);
+
+    expect(await applyStoreNotification(orphan, now)).toMatchObject({ applied: true });
+  });
+
+  it("remembers a notification it decided was stale, so the store stops resending", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+
+    await applyStoreNotification(
+      notification({}, { notificationId: "first", signedAt: new Date(now.getTime() + DAY) }),
+      now
+    );
+    await applyStoreNotification(notification({}, { notificationId: "late", signedAt: now }), now);
+
+    const seen = await db.select().from(storeNotifications);
+    expect(seen.map((row) => row.notificationId).sort()).toEqual(["first", "late"]);
+  });
+
+  /**
+   * Two deliveries of the same notification landing at once. One does the work
+   * and the other has to notice that it did not, rather than both writing.
+   */
+  it("lets only one of two simultaneous deliveries apply", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    const same = notification({ refunded: true }, { signedAt: new Date(now.getTime() + DAY) });
+
+    const results = await Promise.all([
+      applyStoreNotification(same, now),
+      applyStoreNotification(same, now)
+    ]);
+
+    expect(results.filter((result) => result.applied)).toHaveLength(1);
+    expect(results.filter((result) => !result.applied)).toMatchObject([{ reason: "duplicate" }]);
+    expect(await tierOf(user, now)).toBe("free");
+  });
+
+  /**
+   * The dedupe log is the one table that does not cascade from `users`, which
+   * is only defensible for as long as it holds nothing that points at a member.
+   *
+   * Deletion here is complete by cascade, so a column added to this table later
+   * would leave rows behind silently — and a `provider_ref` among them would
+   * outlive the deletion and re-link the person the next time the same store
+   * subscription appeared. This fails if that column is ever added.
+   */
+  it("keeps nothing about a deleted member in the notification log", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+    await applyStoreNotification(
+      notification({}, { signedAt: new Date(now.getTime() + DAY) }),
+      now
+    );
+
+    await deleteAccount(user);
+
+    const rows = await db.select().from(storeNotifications);
+    // The log survives the deletion, because it is not the member's data.
+    expect(rows).toHaveLength(1);
+
+    const stored = Object.values(rows[0]).map(String);
+    expect(stored).not.toContain(user);
+    expect(stored).not.toContain("token-abc");
+  });
+
+  it("forgets notifications older than any store would resend", async () => {
+    const user = await createTestUser();
+    await recordPurchase(user, purchase(), now);
+
+    await db.insert(storeNotifications).values({
+      provider: "google_play",
+      notificationId: "ancient",
+      receivedAt: new Date(now.getTime() - (NOTIFICATION_RETENTION_DAYS + 1) * DAY)
+    });
+
+    await applyStoreNotification(
+      notification({}, { notificationId: "current", signedAt: new Date(now.getTime() + DAY) }),
+      now
+    );
+
+    const remaining = await db.select().from(storeNotifications);
+    expect(remaining.map((row) => row.notificationId)).toEqual(["current"]);
   });
 });

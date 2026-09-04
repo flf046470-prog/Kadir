@@ -108,6 +108,26 @@ The workflow lives on this branch only. Several unrelated applications share
 this repository on different branch trees, and a pull request runs the workflow
 from its own head, so this checks FioreMatch and nothing else.
 
+## Store notifications
+
+`POST /api/billing/notifications/[store]` has to be reachable from the public
+internet, without a session, or refunds never reach the server. It is the only
+unauthenticated write in the application, and what stands in for the session is
+the signature check inside the store's driver — so **it must not be put behind
+an IP allowlist that assumes the stores publish stable addresses**, and equally
+must not be exempted from TLS.
+
+No driver exists for any store yet, so today it answers `503` to everything.
+That is the safe direction: nothing is written until a driver can prove a
+notification was signed. Configure a store's credentials and the same URL starts
+accepting that store's notifications and no others.
+
+Its replies are addressed to a machine that retries: `503` and `429` mean "come
+back", `400` means "stop". Anything in front of this route — a proxy, a WAF, a
+rate limiter — that turns a retryable answer into a final one will silently
+discard the notifications sent during an incident, and a discarded refund is a
+subscription that keeps running after the money went back.
+
 ## Health
 
 `GET /api/health` reaches the database and answers `200` or `503`. It is a

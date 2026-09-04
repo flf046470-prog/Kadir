@@ -627,12 +627,54 @@ export const subscriptions = pgTable(
     /** The provider's own id, so a webhook can find this row. Never shown. */
     providerRef: text("provider_ref"),
     provider: text("provider"),
+    /**
+     * When the store signed the most recent notification applied to this row.
+     *
+     * Null until a notification arrives: a subscription redeemed by the client
+     * and never touched by the store has nothing to compare against. Its only
+     * job is to let a late notification be recognised as late — see `signedAt`
+     * in `lib/billing/notifications.ts` for why arrival order cannot do that.
+     */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
   },
   (table) => [
     // The webhook arrives knowing only the provider's id.
     uniqueIndex("subscriptions_provider_ref_unique").on(table.providerRef)
+  ]
+);
+
+/**
+ * Store notifications already handled.
+ *
+ * Both stores deliver at least once and retry until acknowledged, so the same
+ * notification arrives repeatedly and two copies can be in flight at once.
+ * Applying one twice is harmless — the write converges — but the primary key
+ * makes "have we seen this?" a fact rather than a hope, and it is what stops
+ * two concurrent deliveries from both doing the work.
+ *
+ * **What is deliberately not here: the subscription, the product, the member.**
+ * A dedupe log needs an id and a date to do its job, and this one is written by
+ * an unauthenticated endpoint about people who may later delete their accounts.
+ * A `provider_ref` in this table would outlive the deletion that was supposed to
+ * remove them and would re-link them the next time the same store subscription
+ * appeared. The store keeps the billing history; this keeps a receipt number.
+ */
+export const storeNotifications = pgTable(
+  "store_notifications",
+  {
+    /** google_play | app_store | microsoft_store */
+    provider: text("provider").notNull(),
+    /** The store's own notification id. Opaque; only ever compared. */
+    notificationId: text("notification_id").notNull(),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [
+    primaryKey({ columns: [table.provider, table.notificationId] }),
+    // Rows are only useful for as long as a store might retry. The index is
+    // what makes pruning them a cheap range delete rather than a scan.
+    index("store_notifications_received_at_idx").on(table.receivedAt)
   ]
 );
 

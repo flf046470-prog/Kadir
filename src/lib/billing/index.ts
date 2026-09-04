@@ -1,4 +1,5 @@
 import { NoPurchaseVerifier, type PurchaseVerifier, type StoreId } from "./purchase";
+import { NoNotificationVerifier, type NotificationVerifier } from "./notifications";
 import { MicrosoftStoreVerifier } from "./microsoft";
 
 /**
@@ -105,4 +106,64 @@ export function purchasesEnabled(store: StoreId): boolean {
 /** Test hook, for swapping a driver in without environment variables. */
 export function setPurchaseVerifier(next: PurchaseVerifier | null): void {
   microsoft = next;
+}
+
+/**
+ * The driver that proves a notification came from a given store.
+ *
+ * None is written, and none is stubbed. Every one of these is a signature check
+ * standing between an unauthenticated public endpoint and the table that
+ * decides who is paying, and a driver that returned "authentic" without
+ * checking would hand anyone on the internet a VIP subscription — or let them
+ * expire someone else's. That is a worse failure than having no endpoint, so
+ * the endpoint answers "not open" until a real one exists.
+ *
+ * What each has to do, so the shape of the work is on the record:
+ *
+ *   app_store       — App Store Server Notifications V2 arrive as a JWS. Verify
+ *                     the `x5c` chain up to Apple's published root, check the
+ *                     leaf is Apple's, then read `signedTransactionInfo` (also
+ *                     a JWS, verified the same way) for the transaction and
+ *                     `signedDate` for `signedAt`.
+ *   google_play     — Real-time developer notifications arrive over Pub/Sub
+ *                     push, authenticated by the OIDC token in the
+ *                     `Authorization` header rather than by a body signature:
+ *                     verify it against Google's JWKS and check the audience is
+ *                     ours. The message body carries only a purchase token, so
+ *                     the driver then calls purchases.subscriptionsv2.get for
+ *                     the transaction; `eventTimeMillis` is `signedAt`.
+ *   microsoft_store — The collections query cannot be used here: it needs a
+ *                     Store ID key that only the client can obtain. Refunds
+ *                     come from the clawback API, which is polled rather than
+ *                     pushed, so this driver is a poller wearing the same
+ *                     interface — or this store keeps having no notification
+ *                     path, and refunds on Windows keep being invisible.
+ *
+ * Each returns the same `StoreNotification`, so nothing above this line changes
+ * when one lands.
+ */
+/**
+ * Held per store rather than per deployment, for the reason the purchase
+ * verifier gives: one store being wired must not make the others look open.
+ * Here that matters more, not less — an endpoint that accepted Play's
+ * notifications because Apple's driver exists would be accepting unsigned ones.
+ */
+const notificationVerifiers: Partial<Record<StoreId, NotificationVerifier>> = {};
+
+export function notificationVerifier(store: StoreId): NotificationVerifier {
+  return notificationVerifiers[store] ?? new NoNotificationVerifier();
+}
+
+/** Whether this deployment can believe a notification from this store. */
+export function notificationsEnabled(store: StoreId): boolean {
+  return notificationVerifier(store).name !== "none";
+}
+
+/** Test hook, matching `setPurchaseVerifier`. */
+export function setNotificationVerifier(
+  store: StoreId,
+  next: NotificationVerifier | null
+): void {
+  if (next) notificationVerifiers[store] = next;
+  else delete notificationVerifiers[store];
 }
