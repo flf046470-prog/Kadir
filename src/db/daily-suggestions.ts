@@ -8,7 +8,7 @@ import {
   matchedUserIds
 } from "./profile-repository";
 import { loadProfileCards, type ProfileCard } from "./profile-cards";
-import { listVisiblePhotos } from "./photos";
+import { listVisiblePhotosFor, type PhotoRecord } from "./photos";
 import { loadLearnedWeights } from "./signal-weights";
 import { selectTodaysFive } from "@/lib/matching/todays-five";
 import { locationContext } from "@/lib/matching/location-context";
@@ -37,7 +37,7 @@ export type DailySuggestion = {
   /** 0–1, as the engine produces it. Stored as an integer percentage. */
   score: number;
   reasons: MatchReason[];
-  photos: Awaited<ReturnType<typeof listVisiblePhotos>>;
+  photos: PhotoRecord[];
   rank: number;
 };
 
@@ -146,11 +146,10 @@ export async function todaysFive(
   const ids = rows.map((row) => row.suggestedUserId);
   const matched = new Set(await matchedUserIds(userId));
 
-  const [cards, photoEntries] = await Promise.all([
+  const [cards, photos] = await Promise.all([
     loadProfileCards(ids, matched),
-    Promise.all(ids.map(async (id) => [id, await listVisiblePhotos(id, userId)] as const))
+    listVisiblePhotosFor(ids, userId)
   ]);
-  const photos = new Map(photoEntries);
 
   return rows.map((row) => ({
     profileId: row.suggestedUserId,

@@ -8,6 +8,7 @@ import {
   canServe,
   deletePhoto,
   listVisiblePhotos,
+  listVisiblePhotosFor,
   pendingPhotos,
   rejectPhoto,
   uploadPhoto,
@@ -143,6 +144,60 @@ describe("upload and visibility", () => {
     expect(await listVisiblePhotos(owner, owner)).toHaveLength(1);
     expect(await listVisiblePhotos(owner, stranger)).toHaveLength(0);
     expect(await listVisiblePhotos(owner, null)).toHaveLength(0);
+  });
+
+  /**
+   * The batched form is what every multi-member screen actually calls, so its
+   * visibility rule has to be the *same* rule, not a similar one. One predicate
+   * covering "approved, or the viewer's own" is easy to get subtly wrong in the
+   * direction that leaks, so this asserts both halves in a single call.
+   */
+  it("applies the same visibility rule when asked about many members at once", async () => {
+    const owner = await createTestUser();
+    const other = await createTestUser();
+    const stranger = await createTestUser();
+
+    await uploadPhoto(owner, await plainPhoto());
+    const approved = await uploadPhoto(other, await plainPhoto(801));
+    if (!approved.ok) throw new Error("expected ok");
+    await approvePhoto(approved.photo.id);
+
+    const asStranger = await listVisiblePhotosFor([owner, other], stranger);
+    expect(asStranger.get(owner)).toHaveLength(0);
+    expect(asStranger.get(other)).toHaveLength(1);
+
+    // The owner still sees their own unapproved photo — in the same call that
+    // withholds it from everyone else.
+    const asOwner = await listVisiblePhotosFor([owner, other], owner);
+    expect(asOwner.get(owner)).toHaveLength(1);
+    expect(asOwner.get(other)).toHaveLength(1);
+
+    const signedOut = await listVisiblePhotosFor([owner, other], null);
+    expect(signedOut.get(owner)).toHaveLength(0);
+    expect(signedOut.get(other)).toHaveLength(1);
+  });
+
+  it("gives every member asked about an entry, even with no photos", async () => {
+    const nobody = await createTestUser();
+
+    const result = await listVisiblePhotosFor([nobody], nobody);
+
+    // "No photos" and "not asked about" have to stay distinguishable, or a
+    // caller cannot tell a member with none from one it forgot to ask about.
+    expect(result.has(nobody)).toBe(true);
+    expect(result.get(nobody)).toEqual([]);
+    expect(await listVisiblePhotosFor([], nobody)).toEqual(new Map());
+  });
+
+  it("returns each member's photos in display order", async () => {
+    const owner = await createTestUser();
+    const first = await uploadPhoto(owner, await plainPhoto());
+    const second = await uploadPhoto(owner, await plainPhoto(801));
+    if (!first.ok || !second.ok) throw new Error("expected ok");
+
+    const result = await listVisiblePhotosFor([owner], owner);
+
+    expect(result.get(owner)?.map((photo) => photo.position)).toEqual([0, 1]);
   });
 
   it("shows a photo to others once approved", async () => {

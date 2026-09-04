@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, isUnauthorized } from "@/auth/guard";
 import { likesReceived } from "@/db/likes-received";
 import { loadProfileCards } from "@/db/profile-cards";
-import { listVisiblePhotos } from "@/db/photos";
+import { listVisiblePhotosFor } from "@/db/photos";
 
 export const dynamic = "force-dynamic";
 
@@ -25,11 +25,7 @@ export async function GET() {
 
   const ids = received.likes.map((like) => like.userId);
   const cards = await loadProfileCards(ids);
-  const photos = new Map(
-    await Promise.all(
-      ids.map(async (id) => [id, await listVisiblePhotos(id, auth.user.id)] as const)
-    )
-  );
+  const photos = await listVisiblePhotosFor(ids, auth.user.id);
 
   return NextResponse.json({
     locked: false,

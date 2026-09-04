@@ -9,7 +9,7 @@ import {
 import { loadProfileCards } from "@/db/profile-cards";
 import { loadLearnedWeights } from "@/db/signal-weights";
 import { scoreMatch } from "@/lib/matching/score";
-import { listVisiblePhotos } from "@/db/photos";
+import { listVisiblePhotosFor } from "@/db/photos";
 import { buildReasons, describeCompatibility } from "@/lib/matching/reasons";
 import { discoveryModes, type DiscoveryModeId } from "@/lib/domain/taxonomies";
 import type { LocationContext } from "@/lib/matching/signals";
@@ -93,13 +93,7 @@ export async function GET(request: NextRequest) {
   const matched = new Set(matchedIds);
 
   // Only approved photos reach another member; `listVisiblePhotos` enforces it.
-  const photosByUser = new Map(
-    await Promise.all(
-      [...candidates.keys()].map(
-        async (id) => [id, await listVisiblePhotos(id, auth.user.id)] as const
-      )
-    )
-  );
+  const photosByUser = await listVisiblePhotosFor([...candidates.keys()], auth.user.id);
 
   // Display fields load separately from matching fields, and already have this
   // viewer's visibility applied — a hidden field never leaves the server.
