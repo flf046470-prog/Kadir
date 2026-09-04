@@ -84,6 +84,30 @@ docker run -p 3000:3000 -e DATABASE_URL=... -e NEXT_PUBLIC_SITE_URL=... fioremat
 > and confirm it returns 200. If it does not, `npm run start` is a working
 > fallback and the container is the thing to debug, not the app.
 
+## Checks
+
+`.github/workflows/ci.yml` runs lint, typecheck, the migrations, the whole test
+suite and a production build against a real PostgreSQL 16 service — on every
+pull request, and on every push to `fiorematch-main`.
+
+The same sequence is what to run before pushing:
+
+```bash
+npm run lint
+npm run typecheck
+npm run db:migrate
+npm test
+npm run build
+```
+
+The migrations run *before* the tests, and they are the real migrations rather
+than a schema push, so a migration that would fail on a deploy fails here
+instead — in the cheap place.
+
+The workflow lives on this branch only. Several unrelated applications share
+this repository on different branch trees, and a pull request runs the workflow
+from its own head, so this checks FioreMatch and nothing else.
+
 ## Health
 
 `GET /api/health` reaches the database and answers `200` or `503`. It is a
@@ -108,7 +132,13 @@ connect to until this exists.
 
 Named rather than omitted, so the gaps are decisions instead of surprises:
 
-- **No CI.** Tests, lint and build all pass and all have to be run by hand.
+- **CI checks, it does not deploy.** Nothing publishes an image or runs a
+  migration against a real database; both are still done by hand, on purpose,
+  because both belong to whoever owns the environment.
+- **Nothing drives a browser.** The suite is unit and database tests. The
+  screenshot pipeline (`npm run capture`) does drive Chromium, but it needs
+  seeded data and a running server, so it stays a command someone runs rather
+  than a check.
 - **No rate-limit store.** `src/lib/rate-limit.ts` is an in-memory fixed window,
   so with more than one instance the effective limit is *instances × limit*. It
   says so in its own comment. Before scaling past one instance this needs a

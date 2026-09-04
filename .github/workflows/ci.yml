@@ -1,0 +1,77 @@
+name: CI
+
+# Runs only where this file exists, which in this repository is the point:
+# several unrelated applications live on different branch trees here, and a
+# pull request runs the workflow from its own head. So this checks FioreMatch
+# and nothing else, without needing to name branches it should stay away from.
+#
+# Pushes are checked on the integration branch only. Everywhere else the pull
+# request event covers the same commits, and running both would double every
+# queue for no extra information.
+on:
+  push:
+    branches: [fiorematch-main]
+  pull_request:
+
+concurrency:
+  # A second push supersedes the first: nobody needs the result of a commit
+  # that has already been replaced.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fiorematch_test
+        ports:
+          - 5432:5432
+        # Without the health check the first migration races Postgres's own
+        # startup, which fails perhaps one run in five — the kind of flake that
+        # gets blamed on the tests.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Most of the suite is integration tests against a real database, because
+      # what they cover — cascades, partial unique indexes, transactions — is
+      # exactly what a mock cannot test.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/fiorematch_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The version this repository has been developed and verified against.
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Cheapest first, so an obvious mistake fails in a minute rather than in
+      # the ten it takes to reach the build.
+      - run: npm run lint
+      - run: npm run typecheck
+
+      # The schema has to exist before anything reads it. Running the real
+      # migrations rather than pushing the schema also means a broken migration
+      # fails here instead of on a deploy.
+      - run: npm run db:migrate
+      - run: npm test
+
+      # Last, because it is the slowest step and a type error would already
+      # have stopped the run.
+      - run: npm run build
