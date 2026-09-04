@@ -107,7 +107,7 @@ Boost.
 
 Aylık abonelik, istediğin zaman iptal edilir. Reklam yok, jeton yok.
 ```
-1997 / 4000
+2001 / 4000
 
 **Son paragraf zorunlu.** Apple, otomatik yenilenen abonelik satan
 uygulamalarda süre, ücret, yenileme ve iptal bilgisinin açıklamada bulunmasını
@@ -126,6 +126,22 @@ istiyor; eksikse 3.1.2'den reddediliyor.
 | Kumar | Hayır |
 
 Sonuç: **17+**. Buluşma uygulamaları zaten 17+ altına inemiyor.
+
+---
+
+## Destek iletişimi
+
+App Store Connect'te **Support URL** zorunlu alan.
+
+| Alan | Değer |
+|---|---|
+| Support URL | https://fiorematch.com/tr/contact |
+| Destek e-postası | support@fiorematch.com |
+
+Adres kodda tek yerde tutuluyor (`src/lib/site.ts` → `supportEmail`), iletişim
+sayfası oradan okuyor, ve `npm run store:check` üç listenin de aynı adresi
+yazdığını doğruluyor. Yüklemeden önce bu kutuya bir test e-postası atıp yanıt
+alabildiğinizi teyit edin: çalışmayan bir destek adresi inceleme reddi sebebi.
 
 ---
 

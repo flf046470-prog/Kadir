@@ -82,7 +82,7 @@ Boost.
 Aylık, istediğin zaman iptal edilir. Reklam yok, jeton yok, her tıkta satın
 alma yok.
 ```
-2277 / 4000
+2281 / 4000
 
 **Not:** Fiyat satırları `src/lib/billing/tiers.ts` içindeki `MONTHLY_PRICE_CENTS`
 ile aynı olmalı. Orada değişirse burada da değişmeli — Play'de yanlış fiyat
@@ -182,13 +182,21 @@ Uygulama ikonu için `public/icons/icon-512.png` (512×512).
 
 **Ekran görüntüleri hakkında iki uyarı:**
 
-1. İçerikteki profiller test hesapları, fotoğraflar sentetik degrade — gerçek
-   bir kişinin görseli kullanılmadı. Uygulama gerçek üyelerle dolduğunda
-   yeniden çekmek daha iyi olur.
-2. `03-otomatik-ceviri.png` bir çeviri sağlayıcısı taklidiyle üretildi.
-   Mekanizma gerçek (ortak dil yoksa çeviri kendiliğinden açılıyor, orijinal
-   altta duruyor) ama Türkçe metinler stub'dan geldi. `DEEPL_API_KEY` tanımlı
-   bir ortamda yeniden çekilmesi doğru olur.
+1. İçerikteki profiller test hesapları; fotoğraflar `seed:demo` tarafından
+   üretilen soyut avatarlar (degrade üzerinde silüet) — **gerçek bir kişinin
+   görseli kullanılmadı**. Bu bilinçli: bir flört uygulamasının mağaza
+   listesinde gerçek bir yüz göstermek, o kişinin üye olduğunu ima eder.
+   Lisansı belirsiz görsel de kullanılmıyor (§32). Uygulama gerçek üyelerle
+   dolduğunda yeniden çekmek daha iyi olur.
+2. `03-otomatik-ceviri.png` bir çeviri sağlayıcısı taklidiyle üretildi
+   (`npm run translate:stub`). Mekanizma gerçek — ortak dil yoksa çeviri
+   kendiliğinden açılıyor, orijinal altta duruyor, sürücünün auth başlığı ve
+   yanıt ayrıştırması gerçekten çalışıyor — ama Türkçe metinler stub'dan geldi.
+   `DEEPL_API_KEY` tanımlı bir ortamda yeniden çekilmesi doğru olur.
+
+`npm run store:check` bu görsellerin, üç listedeki metinlerin ve mağazaların
+istediği yüzeylerin hâlâ birbiriyle tutarlı olduğunu doğruluyor. Gönderimden
+önce çalıştırın.
 
 ---
 

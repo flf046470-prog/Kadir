@@ -17,6 +17,8 @@
     "db:normalise-places": "tsx scripts/normalise-places.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "capture": "node scripts/capture.mjs",
+    "translate:stub": "node scripts/translate-stub.mjs",
+    "store:check": "node scripts/store-check.mjs",
     "native:assets": "node mobile/assets/generate.mjs",
     "native:sync": "cap sync",
     "native:android": "cap open android",

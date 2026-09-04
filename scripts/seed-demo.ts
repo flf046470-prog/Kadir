@@ -215,11 +215,26 @@ async function givePhotos(userId: string, displayName: string): Promise<void> {
             `<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
                <defs>
                  <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-                   <stop offset="0%" stop-color="hsl(${(hue + index * 40) % 360},70%,62%)"/>
-                   <stop offset="100%" stop-color="hsl(${(hue + 70 + index * 40) % 360},65%,38%)"/>
+                   <stop offset="0%" stop-color="hsl(${(hue + index * 40) % 360},62%,68%)"/>
+                   <stop offset="100%" stop-color="hsl(${(hue + 70 + index * 40) % 360},58%,34%)"/>
                  </linearGradient>
+                 <radialGradient id="glow" cx="0.5" cy="0.36" r="0.5">
+                   <stop offset="0%" stop-color="#fff" stop-opacity="0.30"/>
+                   <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+                 </radialGradient>
                </defs>
                <rect width="1024" height="1024" fill="url(#g)"/>
+               <rect width="1024" height="1024" fill="url(#glow)"/>
+               <!--
+                 A shoulders-and-head silhouette, so the card reads as an avatar
+                 that is deliberately abstract rather than as an image that
+                 failed to load. A flat rectangle of colour looks like a loading
+                 state, and a store reviewer seeing one on every card reasonably
+                 concludes the app is broken.
+               -->
+               <circle cx="512" cy="404" r="150" fill="#fff" fill-opacity="0.22"/>
+               <path d="M232 1024c0-155 125-281 280-281s280 126 280 281z"
+                     fill="#fff" fill-opacity="0.22"/>
              </svg>`
           ),
           top: 0,

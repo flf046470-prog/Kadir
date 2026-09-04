@@ -36,7 +36,7 @@ Her kartta neden eşleştiğinizin gerekçesi yazılı: ortak dil, aynı ilişki
 hedefi, paylaşılan ilgi alanları, konum. Gizli bir algoritma değil,
 okuyabildiğiniz bir liste.
 ```
-322 / 1.000
+382 / 1.000
 
 **Neden bu metin:** Microsoft'un kısa açıklaması Play'inki gibi tek satır değil,
 arama sonucunda ve ürün sayfasının üstünde görünen tam bir paragraf. Yine de ilk
