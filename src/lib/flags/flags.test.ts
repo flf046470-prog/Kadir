@@ -9,7 +9,7 @@ import {
   type FlagConfig,
   type RolloutPercent
 } from "./flags";
-import { WIRED_FLAGS } from "./server";
+import { DARK_FLAGS, WIRED_FLAGS } from "./server";
 
 const memberIds = Array.from({ length: 5000 }, (_, i) => `member-${i}`);
 
@@ -28,11 +28,14 @@ describe("isEnabled", () => {
    * turned translation off for everyone the moment the gate was added.
    *
    * The rule that survives is narrower and more useful: a member gets only
-   * features that are wired. `config.test.ts` carries the other half — that
-   * everything unwired is still dark.
+   * features that are wired *and* meant to be on. `DARK_FLAGS` is the second
+   * half of that — virtual date invitations are built and gated and still
+   * deliberately off, because the date has nowhere to happen yet — and
+   * `config.test.ts` carries the third: everything unwired is still dark.
    */
-  it("turns on only what is deliberately wired", () => {
-    expect(enabledFeatures({ memberId: "anyone" })).toEqual(WIRED_FLAGS);
+  it("turns on only what is deliberately wired and switched on", () => {
+    const live = WIRED_FLAGS.filter((flag) => !DARK_FLAGS.includes(flag));
+    expect(enabledFeatures({ memberId: "anyone" })).toEqual(live);
   });
 
   it("is deterministic for the same member and flag", () => {

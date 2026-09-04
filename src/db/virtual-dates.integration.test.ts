@@ -7,9 +7,11 @@ import { blockUser } from "./interactions";
 import { virtualDateAllowance } from "./entitlements";
 import {
   INVITE_TTL_DAYS,
+  UNSCHEDULED_DATE_HOURS,
   cancelInvite,
   inviteToVirtualDate,
   listOpenInvites,
+  listUpcomingDates,
   respondToInvite
 } from "./virtual-dates";
 import { ENTITLEMENTS } from "@/lib/billing/tiers";
@@ -139,6 +141,35 @@ describe("inviting", () => {
       scheduledFor: new Date(Date.now() - DAY_MS)
     });
     expect(result).toEqual({ ok: false, reason: "scheduled_in_the_past" });
+  });
+
+  /**
+   * The other end of the same rule.
+   *
+   * An invitation is answerable for a week, so a date proposed for the week
+   * after would have the invitation expire days before it — the date never
+   * declined, never cancelled, just gone from both screens. Refusing it up
+   * front is why the invitation's lifetime and the scheduling limit are one
+   * number rather than two.
+   */
+  it("refuses a date set beyond the invitation's own lifetime", async () => {
+    const { a, matchId } = await matchedPair();
+
+    const result = await inviteToVirtualDate(a, matchId, {
+      scheduledFor: new Date(Date.now() + (INVITE_TTL_DAYS + 1) * DAY_MS)
+    });
+
+    expect(result).toEqual({ ok: false, reason: "scheduled_too_far" });
+  });
+
+  it("allows a date right up to that edge", async () => {
+    const { a, matchId } = await matchedPair();
+
+    const result = await inviteToVirtualDate(a, matchId, {
+      scheduledFor: new Date(Date.now() + INVITE_TTL_DAYS * DAY_MS - 60_000)
+    });
+
+    expect(result.ok).toBe(true);
   });
 });
 
@@ -386,6 +417,90 @@ describe("listing", () => {
 
     const outsider = await createTestUser();
     expect(await listOpenInvites(outsider)).toEqual([]);
+  });
+});
+
+/**
+ * What happens after yes.
+ *
+ * An accepted invitation stops being pending, which is what made it invisible:
+ * the member who sent it watched the row disappear and could not tell "she
+ * accepted" from "it expired". Both of them need to see the date they agreed
+ * to, and the sender needs it most — it is the only place they are told.
+ */
+describe("accepted dates", () => {
+  it("shows the date to both of them", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const scheduledFor = new Date(Date.now() + 2 * DAY_MS);
+    const invited = await inviteToVirtualDate(a, matchId, { scheduledFor });
+    if (!invited.ok) throw new Error("invite failed");
+    await respondToInvite(b, invited.inviteId, "accept");
+
+    const [forSender] = await listUpcomingDates(a);
+    const [forAccepter] = await listUpcomingDates(b);
+
+    expect(forSender.status).toBe("accepted");
+    expect(forSender.mine).toBe(true);
+    expect(forAccepter.mine).toBe(false);
+    // Each of them is told who the *other* one is.
+    expect(forSender.partnerName).toBeTruthy();
+    expect(forAccepter.partnerName).toBeTruthy();
+  });
+
+  it("keeps a declined invitation out of it", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invited = await inviteToVirtualDate(a, matchId);
+    if (!invited.ok) throw new Error("invite failed");
+    await respondToInvite(b, invited.inviteId, "decline");
+
+    expect(await listUpcomingDates(a)).toEqual([]);
+  });
+
+  it("keeps an unanswered invitation out of it", async () => {
+    const { a, matchId } = await matchedPair();
+    await inviteToVirtualDate(a, matchId);
+
+    expect(await listUpcomingDates(a)).toEqual([]);
+  });
+
+  /** A time that has passed is a date that has happened, or has been missed. */
+  it("drops a date once its time is behind us", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const scheduledFor = new Date(Date.now() + 3_600_000);
+    const invited = await inviteToVirtualDate(a, matchId, { scheduledFor });
+    if (!invited.ok) throw new Error("invite failed");
+    await respondToInvite(b, invited.inviteId, "accept");
+
+    expect(await listUpcomingDates(a)).toHaveLength(1);
+    expect(await listUpcomingDates(a, new Date(Date.now() + 2 * 3_600_000))).toEqual([]);
+  });
+
+  /**
+   * A date with no agreed time cannot be observed to have happened, so it ages
+   * out instead. A permanent "it's a date" is indistinguishable from a stuck
+   * one.
+   */
+  it("ages out a date that never got a time", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invited = await inviteToVirtualDate(a, matchId);
+    if (!invited.ok) throw new Error("invite failed");
+    await respondToInvite(b, invited.inviteId, "accept");
+
+    const withinTheDay = new Date(Date.now() + (UNSCHEDULED_DATE_HOURS - 1) * 3_600_000);
+    const afterTheDay = new Date(Date.now() + (UNSCHEDULED_DATE_HOURS + 1) * 3_600_000);
+
+    expect(await listUpcomingDates(a, withinTheDay)).toHaveLength(1);
+    expect(await listUpcomingDates(a, afterTheDay)).toEqual([]);
+  });
+
+  it("does not leak another pair's date", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invited = await inviteToVirtualDate(a, matchId);
+    if (!invited.ok) throw new Error("invite failed");
+    await respondToInvite(b, invited.inviteId, "accept");
+
+    const outsider = await createTestUser();
+    expect(await listUpcomingDates(outsider)).toEqual([]);
   });
 });
 

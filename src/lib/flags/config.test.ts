@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { ROLLOUT_STEPS, defaultFlags, isEnabled, type FeatureName } from "./flags";
 import { flagConfig, parseFlagOverrides, resetFlagConfig } from "./config";
-import { WIRED_FLAGS, enabledFeaturesFor, featureEnabled } from "./server";
+import { DARK_FLAGS, WIRED_FLAGS, enabledFeaturesFor, featureEnabled } from "./server";
 
 /**
  * The flag system, which until now described nothing.
@@ -159,7 +159,21 @@ describe("which flags are actually read", () => {
 
   it("does not gate a shipping feature at zero", () => {
     for (const flag of WIRED_FLAGS) {
+      if (DARK_FLAGS.includes(flag)) continue;
       expect(defaultFlags[flag].rollout).toBeGreaterThan(0);
+    }
+  });
+
+  /**
+   * The other side of that exemption, so it cannot be used to hide a gate that
+   * was simply forgotten. A deliberately dark flag has to be wired — otherwise
+   * it is an unbuilt feature and belongs in neither list — and it has to be at
+   * zero, because a dark flag at 25% is on for a quarter of the members.
+   */
+  it("keeps the deliberately dark flags wired and at zero", () => {
+    for (const flag of DARK_FLAGS) {
+      expect(WIRED_FLAGS).toContain(flag);
+      expect(defaultFlags[flag].rollout).toBe(0);
     }
   });
 

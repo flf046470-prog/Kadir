@@ -42,4 +42,20 @@ export function enabledFeaturesFor(memberId: string | null): FeatureName[] {
  * A flag is added here when a call site is added, not before. The rest stay
  * declared and unread, which is a smaller lie once it is written down.
  */
-export const WIRED_FLAGS: FeatureName[] = ["ai_translation"];
+export const WIRED_FLAGS: FeatureName[] = ["ai_translation", "virtual_dates"];
+
+/**
+ * The wired flags that are deliberately off.
+ *
+ * "Wired" and "on" were the same thing while translation was the only gate, and
+ * collapsing them was harmless until something was built that should not ship
+ * yet. Virtual date invitations are that: the flow works end to end, the routes
+ * and the screens enforce it, and the date itself has nowhere to happen until
+ * there is a client to hold it in.
+ *
+ * Naming them separately keeps both halves checkable — a flag here must be
+ * wired and must be at zero, and a wired flag *not* here must be above zero — so
+ * neither a forgotten gate nor a shipping feature switched off by accident can
+ * hide in the gap between the two lists.
+ */
+export const DARK_FLAGS: FeatureName[] = ["virtual_dates"];

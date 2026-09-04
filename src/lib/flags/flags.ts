@@ -37,7 +37,9 @@ export type FeatureName =
   | "match_intent"
   | "ai_icebreaker"
   | "smart_match"
-  | "match_quality_feedback";
+  | "match_quality_feedback"
+  // VR
+  | "virtual_dates";
 
 export type FlagConfig = {
   rollout: RolloutPercent;
@@ -92,7 +94,24 @@ export const defaultFlags: Record<FeatureName, FlagConfig> = {
   match_intent: { rollout: 0 },
   ai_icebreaker: { rollout: 0 },
   smart_match: { rollout: 0 },
-  match_quality_feedback: { rollout: 0 }
+  match_quality_feedback: { rollout: 0 },
+  /**
+   * Built, wired, and deliberately dark.
+   *
+   * The invitation flow is complete — a member can invite a match, choose an
+   * environment, accept, decline, cancel — and the one thing that does not
+   * exist is the date itself: there is no headset client and no voice session
+   * to join. Turning this on would let two people agree to meet somewhere that
+   * has not been built, and would spend a free member's five-a-month allowance
+   * on nothing.
+   *
+   * So it is off, and off is not the same as unbuilt: `DARK_FLAGS` in
+   * `server.ts` names the difference, and the day a client exists this becomes
+   * a number rather than a deploy. Before it does, the pricing page has to
+   * disclose the ceiling — `pricing-copy.test.ts` turns that check on with the
+   * flag.
+   */
+  virtual_dates: { rollout: 0 }
 };
 
 /**

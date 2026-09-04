@@ -1,9 +1,10 @@
-import { and, eq, inArray, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import { users, virtualDateInvites, virtualDateUsage } from "./schema";
 import { resolveMatchFor } from "./messaging";
 import { tierOf, virtualDateAllowance } from "./entitlements";
 import { environmentFor } from "@/lib/virtual-dates/environments";
+import { INVITE_TTL_DAYS, UNSCHEDULED_DATE_HOURS } from "@/lib/virtual-dates/rules";
 
 /**
  * Inviting someone to a virtual date, and answering.
@@ -28,7 +29,7 @@ import { environmentFor } from "@/lib/virtual-dates/environments";
  * a member out of dates would simply ask to be invited.
  */
 
-export const INVITE_TTL_DAYS = 7;
+export { INVITE_TTL_DAYS, UNSCHEDULED_DATE_HOURS } from "@/lib/virtual-dates/rules";
 
 export type InviteStatus = "pending" | "accepted" | "declined" | "expired" | "cancelled";
 
@@ -57,7 +58,8 @@ export type InviteResult =
         | "no_dates_left"
         | "unknown_environment"
         | "environment_locked"
-        | "scheduled_in_the_past";
+        | "scheduled_in_the_past"
+        | "scheduled_too_far";
       /** For `no_dates_left`, the ceiling — so the client can name it. */
       limit?: number;
     };
@@ -96,8 +98,23 @@ export async function inviteToVirtualDate(
   const match = await resolveMatchFor(userId, matchId);
   if (!match) return { ok: false, reason: "not_a_match" };
 
-  if (options.scheduledFor && options.scheduledFor.getTime() <= now.getTime()) {
-    return { ok: false, reason: "scheduled_in_the_past" };
+  const expiresAt = new Date(now.getTime() + INVITE_TTL_DAYS * 24 * 3_600_000);
+
+  if (options.scheduledFor) {
+    if (options.scheduledFor.getTime() <= now.getTime()) {
+      return { ok: false, reason: "scheduled_in_the_past" };
+    }
+    /**
+     * A date cannot outlive the invitation that proposes it.
+     *
+     * An invitation expires after a week, so one scheduled for the week after
+     * would sit on both their screens until it quietly expired — the date
+     * never cancelled, never declined, simply gone. The other end of the same
+     * rule as `scheduled_in_the_past`.
+     */
+    if (options.scheduledFor.getTime() > expiresAt.getTime()) {
+      return { ok: false, reason: "scheduled_too_far" };
+    }
   }
 
   const tier = await tierOf(userId, now);
@@ -117,8 +134,6 @@ export async function inviteToVirtualDate(
   }
 
   await expireStale(matchId);
-
-  const expiresAt = new Date(now.getTime() + INVITE_TTL_DAYS * 24 * 3_600_000);
 
   /**
    * The unique partial index is what enforces one open invitation per match.
@@ -308,6 +323,62 @@ export async function listOpenInvites(
       )
     );
 
+  const invites = await withPartnerNames(userId, rows);
+  return invites.filter((invite) => invite.expiresAt.getTime() > now.getTime());
+}
+
+/**
+ * Dates that were accepted and have not happened yet.
+ *
+ * Without this the person who *sent* an invitation never finds out it was
+ * accepted: the row stops being pending, drops out of `listOpenInvites`, and
+ * the only trace on their screen is their monthly allowance quietly going down
+ * by one. Somebody said yes, which is the single most important thing this
+ * feature has to communicate.
+ *
+ * A date with a time stays until that time passes. A date without one — "let's
+ * meet, we'll sort out when" — stays for a day, because that is roughly how
+ * long the sentence stays true.
+ */
+export async function listUpcomingDates(
+  userId: string,
+  now: Date = new Date()
+): Promise<VirtualDateInvite[]> {
+  const unscheduledSince = new Date(now.getTime() - UNSCHEDULED_DATE_HOURS * 3_600_000);
+
+  const rows = await db
+    .select()
+    .from(virtualDateInvites)
+    .where(
+      and(
+        eq(virtualDateInvites.status, "accepted"),
+        or(eq(virtualDateInvites.fromUserId, userId), eq(virtualDateInvites.toUserId, userId)),
+        or(
+          gt(virtualDateInvites.scheduledFor, now),
+          and(
+            isNull(virtualDateInvites.scheduledFor),
+            gt(virtualDateInvites.respondedAt, unscheduledSince)
+          )
+        )
+      )
+    );
+
+  return withPartnerNames(userId, rows);
+}
+
+type InviteRow = typeof virtualDateInvites.$inferSelect;
+
+/**
+ * Rows to something a screen can render, from this member's point of view.
+ *
+ * The partner's *name* rather than their id is what both lists need, and doing
+ * it in one place is what keeps "who is the other person here" from being
+ * worked out differently in two of them.
+ */
+async function withPartnerNames(
+  userId: string,
+  rows: InviteRow[]
+): Promise<VirtualDateInvite[]> {
   if (rows.length === 0) return [];
 
   const partnerIds = rows.map((row) => (row.fromUserId === userId ? row.toUserId : row.fromUserId));
@@ -335,6 +406,5 @@ export async function listOpenInvites(
         expiresAt: row.expiresAt
       };
     })
-    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-    .filter((invite) => invite.expiresAt.getTime() > now.getTime());
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
 }

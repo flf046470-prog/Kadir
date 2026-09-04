@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import en from "@/i18n/messages/en.json";
 import tr from "@/i18n/messages/tr.json";
 import { ENTITLEMENTS, ANNUAL_PRICE_CENTS, TIERS, type Tier } from "./tiers";
+import { defaultFlags } from "@/lib/flags/flags";
 
 /**
  * The pricing page against the entitlement table.
@@ -38,6 +39,14 @@ const LOCALES: Record<string, PricingCopy> = {
   en: en.pricing as PricingCopy,
   tr: tr.pricing as PricingCopy
 };
+
+/**
+ * Whether virtual dates reach anybody. A killed flag or a zero rollout means
+ * nobody, and a page that advertises a feature nobody has is worse than one
+ * that stays quiet about it.
+ */
+const virtualDatesShip =
+  defaultFlags.virtual_dates.rollout > 0 && !defaultFlags.virtual_dates.killed;
 
 const featuresFor = (copy: PricingCopy, tier: Tier): string[] =>
   tier === "free" ? copy.freeFeatures : tier === "plus" ? copy.plusFeatures : copy.vipFeatures;
@@ -91,6 +100,31 @@ describe.each(Object.entries(LOCALES))("the %s pricing page", (_locale, copy) =>
 
     expect(ENTITLEMENTS.vip.dailyLikes).toBeNull();
     expect(numbersIn(copy.vipFeatures)).not.toContain(ENTITLEMENTS.plus.dailyLikes);
+  });
+
+  /**
+   * The virtual date ceiling, which is not advertised yet and should not be.
+   *
+   * `monthlyVirtualDates` is enforced today, but the feature it limits is dark
+   * — `virtual_dates` is wired to routes and screens and switched off, because
+   * there is nowhere to hold the date. Selling "5 virtual dates a month" on the
+   * pricing page while nobody can have one would be a promise the app cannot
+   * keep, and on both stores that is a listing that describes a feature the
+   * binary does not have.
+   *
+   * So this check is dormant rather than absent: it runs the day the flag goes
+   * above zero, and fails until the page says what the ceiling is. That is the
+   * same rule the translation allowance is held to, applied at the moment it
+   * starts to matter instead of being remembered.
+   */
+  it.runIf(virtualDatesShip)("quotes the virtual date allowance each finite tier has", () => {
+    for (const tier of ["free", "plus"] as const) {
+      const limit = ENTITLEMENTS[tier].monthlyVirtualDates;
+      expect(limit).not.toBeNull();
+      expect(numbersIn(featuresFor(copy, tier))).toContain(limit);
+    }
+
+    expect(ENTITLEMENTS.vip.monthlyVirtualDates).toBeNull();
   });
 
   /**

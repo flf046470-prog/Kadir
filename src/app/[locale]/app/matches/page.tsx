@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { currentUser } from "@/auth/guard";
 import { listConversations } from "@/db/messaging";
 import { PushRegistrar } from "@/components/native/PushRegistrar";
+import { VirtualDateInbox } from "./VirtualDateInbox";
+import { featureEnabled } from "@/lib/flags/server";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +35,13 @@ export default async function MatchesPage({
       <PushRegistrar enabled={conversations.length > 0} />
 
       <h1 className="font-display text-3xl font-semibold text-ink">{t("matchesTitle")}</h1>
+
+      {/*
+        Above the list, because an invitation is a question someone asked and
+        the list is a place to browse. Renders nothing when there is nothing to
+        answer — see the component.
+      */}
+      {featureEnabled("virtual_dates", user.id) && <VirtualDateInbox />}
 
       {/*
         Interest that has not become a match yet lives one step from the list

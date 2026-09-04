@@ -1,32 +1,62 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
-import { inviteToVirtualDate, listOpenInvites } from "@/db/virtual-dates";
+import { inviteToVirtualDate, listOpenInvites, listUpcomingDates } from "@/db/virtual-dates";
 import { environmentsFor } from "@/lib/virtual-dates/environments";
-import { tierOf } from "@/db/entitlements";
+import { tierOf, virtualDateAllowance } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { featureEnabled } from "@/lib/flags/server";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The member's open virtual date invitations, and the environments they may
- * choose from.
+ * The member's open virtual date invitations, the environments they may choose
+ * from, and how much of their monthly allowance is left.
  *
  * The environment list travels with the invitations so a client can render a
  * picker without a second request and without knowing the tier rules. It is
  * still only advice — `inviteToVirtualDate` re-checks the tier, because a list
  * sent to a client is a list a client can edit.
+ *
+ * The allowance travels with them for the same reason it is shown at all: a
+ * member should know they have two dates left *before* they spend one, not
+ * after a 402. Only ever their own — the other side's remaining allowance is
+ * their business, and the invitation reveals it soon enough by being refused.
  */
 export async function GET() {
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  const [invites, tier] = await Promise.all([
+  /**
+   * Off answers rather than fails, the way translation does.
+   *
+   * A screen that asks "are virtual dates available to me?" gets `false` and
+   * renders nothing, which is a different thing from a 404 it has to treat as
+   * an error. The write paths below are the ones that refuse outright.
+   */
+  if (!featureEnabled("virtual_dates", auth.user.id)) {
+    return NextResponse.json(
+      { available: false, invites: [], upcoming: [], environments: [], allowance: null },
+      { headers: { "cache-control": "private, no-store" } }
+    );
+  }
+
+  const [invites, upcoming, tier, allowance] = await Promise.all([
     listOpenInvites(auth.user.id),
-    tierOf(auth.user.id)
+    // What was said yes to. Without it the member who sent an invitation sees
+    // it disappear on acceptance and learns nothing from the disappearance.
+    listUpcomingDates(auth.user.id),
+    tierOf(auth.user.id),
+    virtualDateAllowance(auth.user.id)
   ]);
 
   return NextResponse.json(
-    { invites, environments: environmentsFor(tier).map((environment) => environment.id) },
+    {
+      available: true,
+      invites,
+      upcoming,
+      environments: environmentsFor(tier).map((environment) => environment.id),
+      allowance: { used: allowance.used, limit: allowance.limit }
+    },
     { headers: { "cache-control": "private, no-store" } }
   );
 }
@@ -35,6 +65,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
+
+  /**
+   * A feature that is off for this member does not exist for them, so this is a
+   * 404 rather than the GET's polite `available: false`. Refusing here is what
+   * makes the gate real: hiding the button would leave the route open to
+   * anything that can send a POST, and accepting an invitation spends a
+   * member's monthly allowance on a date that has nowhere to happen.
+   */
+  if (!featureEnabled("virtual_dates", auth.user.id)) return apiError("not_found", 404);
 
   // Tighter than messaging: an invitation interrupts the other person, and a
   // burst of them across many matches is the shape unwanted attention takes.

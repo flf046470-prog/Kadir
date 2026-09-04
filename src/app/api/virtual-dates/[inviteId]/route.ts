@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { cancelInvite, respondToInvite } from "@/db/virtual-dates";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { featureEnabled } from "@/lib/flags/server";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,20 @@ export async function POST(
 
   const response = body.response;
   if (response !== "accept" && response !== "decline") return apiError("invalid_body", 400);
+
+  /**
+   * With the feature off, an invitation can still be turned down but not taken
+   * up.
+   *
+   * Accepting is the half that creates something: it spends both allowances and
+   * agrees to meet somewhere that, while this flag is off, does not exist.
+   * Declining only closes a row. Blocking both would mean a kill switch flipped
+   * during an incident leaves people holding invitations they cannot answer for
+   * a week, which is a worse outcome than the one the switch was thrown for.
+   */
+  if (response === "accept" && !featureEnabled("virtual_dates", auth.user.id)) {
+    return apiError("not_found", 404);
+  }
 
   const { inviteId } = await params;
   const result = await respondToInvite(auth.user.id, inviteId, response);

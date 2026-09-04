@@ -8,8 +8,10 @@ import { and, eq, inArray } from "drizzle-orm";
 import { needsTranslation } from "@/lib/matching/shared-language";
 import { ConversationClient } from "./ConversationClient";
 import { GamesPanel } from "./GamesPanel";
+import { VirtualDatePanel } from "./VirtualDatePanel";
 import { translationEnabled } from "@/lib/translate";
 import { awakeOverlap, zoneFor } from "@/lib/domain/timezones";
+import { featureEnabled } from "@/lib/flags/server";
 
 export const dynamic = "force-dynamic";
 
@@ -144,7 +146,16 @@ export default async function ConversationPage({
       />
 
       {/* Games sit with the conversation because starting one is the point. */}
-      <div className="container-fm pb-10">
+      <div className="container-fm space-y-6 pb-10">
+        {/*
+          Decided here rather than inside the panel so a member the feature is
+          off for never fetches for it. The routes carry the same gate — this
+          one only decides what is drawn.
+        */}
+        {featureEnabled("virtual_dates", user.id) && (
+          <VirtualDatePanel matchId={matchId} partnerName={partnerRows[0]?.displayName ?? ""} />
+        )}
+
         <GamesPanel
           matchId={matchId}
           labels={{
