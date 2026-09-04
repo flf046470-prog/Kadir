@@ -56,3 +56,23 @@ export function isDenied(
 ): result is ModeratorDenied {
   return "response" in result;
 }
+
+/**
+ * Admin only — a strictly smaller set than `requireModerator`.
+ *
+ * The two roles are not ranks of the same job. A moderator reviews reported
+ * content and photos, which is one member's case at a time; an admin sees how
+ * the business is doing, which is everyone at once. Someone brought in to look
+ * at reports has no reason to be handed conversion rates and member totals, and
+ * "moderator" is the role a growing product hands out most freely.
+ *
+ * Denied the same way, and for the same reason: 404, so the surface does not
+ * announce itself to anyone who cannot use it.
+ */
+export async function requireAdmin(): Promise<ModeratorAuthorized | ModeratorDenied> {
+  const moderator = await currentModerator();
+  if (!moderator || moderator.role !== "admin") {
+    return { response: NextResponse.json({ error: "not_found" }, { status: 404 }) };
+  }
+  return { moderator };
+}

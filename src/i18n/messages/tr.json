@@ -702,6 +702,7 @@
     "photoTooMany": "Fotoğraf sınırına ulaştın.",
     "photoFailed": "Yükleme başarısız. Lütfen tekrar dene.",
     "moderationTitle": "Moderasyon",
+    "metricsTitle": "Metrikler",
     "discoverEmptyFiltered": "Bu filtrelerle şu anda kimse yok. Filtreleri genişletmeyi deneyin.",
     "filters": "Filtreler",
     "filterAge": "Yaş",

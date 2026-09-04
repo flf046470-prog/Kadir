@@ -6,11 +6,18 @@ export function AppNav({
   locale,
   displayName,
   isModerator = false,
+  isAdmin = false,
   labels
 }: {
   locale: string;
   displayName: string;
   isModerator?: boolean;
+  /**
+   * Narrower than `isModerator`, not a stronger version of it. The two roles do
+   * different jobs, and someone brought in to review reports has no reason to
+   * be handed the business's numbers — see `requireAdmin`.
+   */
+  isAdmin?: boolean;
   labels: {
     dailyFive: string;
     discover: string;
@@ -18,6 +25,7 @@ export function AppNav({
     referral: string;
     profile: string;
     moderation: string;
+    metrics: string;
     logout: string;
   };
 }) {
@@ -64,6 +72,14 @@ export function AppNav({
           className="hidden font-medium text-bloom-600 hover:text-bloom-700 sm:inline"
         >
           {labels.moderation}
+        </a>
+      )}
+      {isAdmin && (
+        <a
+          href={`/${locale}/app/admin/metrics`}
+          className="hidden font-medium text-bloom-600 hover:text-bloom-700 sm:inline"
+        >
+          {labels.metrics}
         </a>
       )}
       <span className="hidden text-ink/40 sm:inline">{displayName}</span>

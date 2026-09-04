@@ -702,6 +702,7 @@
     "photoTooMany": "You've reached the photo limit.",
     "photoFailed": "Upload failed. Please try again.",
     "moderationTitle": "Moderation",
+    "metricsTitle": "Metrics",
     "discoverEmptyFiltered": "No one matches these filters right now. Try widening them.",
     "filters": "Filters",
     "filterAge": "Age",

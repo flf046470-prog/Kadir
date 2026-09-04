@@ -54,6 +54,7 @@ export default async function AppLayout({
             locale={locale}
             displayName={user.displayName}
             isModerator={moderator !== null}
+            isAdmin={moderator?.role === "admin"}
             labels={{
               dailyFive: t("dailyFiveNav"),
               discover: t("discoverTitle"),
@@ -61,6 +62,7 @@ export default async function AppLayout({
               referral: t("referralNav"),
               profile: t("profileTitle"),
               moderation: t("moderationTitle"),
+              metrics: t("metricsTitle"),
               logout: t("logout")
             }}
           />

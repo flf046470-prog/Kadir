@@ -166,3 +166,9 @@ Named rather than omitted, so the gaps are decisions instead of surprises:
 - **No backups.** A managed database usually provides them; confirm rather than
   assume, and test a restore before it matters.
 - **No error reporting.** Failures reach the container log and nowhere else.
+- **No analytics vendor, deliberately.** `/app/admin/metrics` counts the
+  product's own tables when someone opens it. There is nothing to configure and
+  nothing to send, which is the point: the alternative is shipping dating
+  behaviour to a third party. What it costs is that every number is computed on
+  demand — fine at this size, and the first thing to revisit if the page gets
+  slow rather than the first thing to replace with a tracker.
