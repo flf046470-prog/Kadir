@@ -3,6 +3,7 @@ import { getTranslations } from "next-intl/server";
 import { PageHero } from "@/components/PageHero";
 import { buildMetadata } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
+import { supportEmail } from "@/lib/site";
 import { ContactForm } from "./ContactForm";
 
 export async function generateMetadata({
@@ -41,8 +42,10 @@ export default async function ContactPage({
             topicOptions: t.raw("formTopicOptions") as string[],
             message: t("formMessage"),
             submit: t("formSubmit"),
-            note: t("formNote")
+            note: t("formNote"),
+            opened: t("opened")
           }}
+          supportEmail={supportEmail}
         />
       </section>
     </>

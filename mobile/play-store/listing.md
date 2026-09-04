@@ -96,7 +96,7 @@ yazmak politika ihlali.
 |---|---|
 | Uygulama kategorisi | Dating |
 | Etiketler | Dating, Social, Lifestyle |
-| E-posta | (yayıncı hesabının adresi) |
+| E-posta | support@fiorematch.com |
 | Web sitesi | https://fiorematch.com |
 | Gizlilik politikası | https://fiorematch.com/tr/legal/privacy |
 

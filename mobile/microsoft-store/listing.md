@@ -173,8 +173,14 @@ sebebi. Yer tutucu bir sayfa koymayın, gerçek metin olsun.
 ## Destek iletişimi
 
 ```
-destek@fiorematch.com
+support@fiorematch.com
 ```
+
+Üç mağaza da çalışan bir destek adresi şart koşuyor, ve bu adres kodda tek bir
+yerde tutuluyor — `src/lib/site.ts` → `supportEmail` — iletişim sayfası da
+oradan okuyor. Buradaki metin onunla aynı kalmalı: listede yazan ama kimsenin
+okumadığı bir kutu, geç yanıttan daha kötüdür. Teslimden önce bu adrese bir
+test e-postası atıp yanıt alabildiğinizi doğrulayın.
 
 ---
 

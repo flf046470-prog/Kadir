@@ -296,7 +296,8 @@
     ],
     "formMessage": "Mesaj",
     "formSubmit": "Mesaj gönder",
-    "formNote": "Bu bir demo iletişim formudur — mesajların destek sistemimize yönlendirilmesi backend sürümüyle birlikte devreye girecek.",
+    "formNote": "Mesajlar e-posta ile destek kutumuza ulaşır. Türkçe ve İngilizce yanıtlıyoruz.",
+    "opened": "Mesaj hazır hâlde e-posta uygulamanızda açılmış olmalı. Açılmadıysa yukarıdaki adrese yazın.",
     "safetyUrgent": "Acil bir tehlikedeysen önce yerel acil durum servislerine ulaş."
   },
   "guidesIndex": {

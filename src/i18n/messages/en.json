@@ -296,7 +296,8 @@
     ],
     "formMessage": "Message",
     "formSubmit": "Send message",
-    "formNote": "This is a demo contact form — message routing to our support system ships with the backend release.",
+    "formNote": "Messages go to our support inbox by email. We answer in Turkish and English.",
+    "opened": "Your mail app should have opened with the message ready to send. If it did not, write to the address above.",
     "safetyUrgent": "If you're in immediate danger, contact local emergency services first."
   },
   "guidesIndex": {

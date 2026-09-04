@@ -2,6 +2,21 @@ export const siteUrl = process.env.SITE_URL ?? "https://fiorematch.com";
 export const siteName = "FioreMatch";
 
 /**
+ * Where a member reaches a person.
+ *
+ * One constant, because it is quoted in places that must not disagree: the
+ * contact page, and the support address on each store listing. Apple and Google
+ * both require a working contact on the listing, and one pointing at a mailbox
+ * nobody reads is worse than a slow reply — it is a review rejection, and
+ * before that, a member in trouble with nowhere to go.
+ *
+ * Deliberately not an environment variable. It belongs to the brand rather than
+ * to a deployment, and a staging server that quietly rerouted support mail
+ * would be a way to lose a real person's message.
+ */
+export const supportEmail = "support@fiorematch.com";
+
+/**
  * Whether the marketing site is served to the public.
  *
  * FioreMatch ships as a mobile app, and the deployment behind it exists to
