@@ -86,19 +86,31 @@ docker run -p 3000:3000 -e DATABASE_URL=... -e NEXT_PUBLIC_SITE_URL=... fioremat
 
 ## Checks
 
-`.github/workflows/ci.yml` runs lint, typecheck, the migrations, the whole test
-suite and a production build against a real PostgreSQL 16 service — on every
-pull request, and on every push to `fiorematch-main`.
+`.github/workflows/ci.yml` runs lint, typecheck, a dependency audit, the
+migrations, the whole test suite, a production build, and then the browser
+tests against that build — on every pull request, and on every push to
+`fiorematch-main`.
 
 The same sequence is what to run before pushing:
 
 ```bash
 npm run lint
 npm run typecheck
+npm audit --omit=dev --audit-level=high
 npm run db:migrate
 npm test
 npm run build
+
+# The browser tests need the built server and the demo data behind it.
+npm run seed:demo
+npm run start &
+npm run test:browser
 ```
+
+`npm run test:browser` talks to `FM_BASE_URL` (default `http://127.0.0.1:3100`)
+and does not start anything itself, so it can be pointed at a preview
+deployment as easily as at a local server. `CHROMIUM_PATH` overrides the browser
+binary where Playwright's own copy is not what you want.
 
 The migrations run *before* the tests, and they are the real migrations rather
 than a schema push, so a migration that would fail on a deploy fails here
@@ -155,10 +167,13 @@ Named rather than omitted, so the gaps are decisions instead of surprises:
 - **CI checks, it does not deploy.** Nothing publishes an image or runs a
   migration against a real database; both are still done by hand, on purpose,
   because both belong to whoever owns the environment.
-- **Nothing drives a browser.** The suite is unit and database tests. The
-  screenshot pipeline (`npm run capture`) does drive Chromium, but it needs
-  seeded data and a running server, so it stays a command someone runs rather
-  than a check.
+- **Browser coverage is a smoke test, not a suite.** Five checks run against the
+  built server in CI — the home page renders without the browser reporting a
+  fault, Arabic lays out right to left, Discover is refused to a signed-out
+  visitor, the login form works, and Discover shows people whose photos actually
+  load. They catch "the deploy is blank", which nothing else does. They do not
+  cover the product's screens in any depth, and are deliberately few: a browser
+  suite earns its keep only while every failure means something.
 - **No rate-limit store.** `src/lib/rate-limit.ts` is an in-memory fixed window,
   so with more than one instance the effective limit is *instances × limit*. It
   says so in its own comment. Before scaling past one instance this needs a

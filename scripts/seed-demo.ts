@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
+import sharp from "sharp";
 import { db } from "@/db/client";
 import { register } from "@/auth/accounts";
 import { createSession } from "@/auth/session";
+import { approvePhoto, uploadPhoto } from "@/db/photos";
 import {
   matches,
   messages,
@@ -175,6 +177,66 @@ async function reset(): Promise<void> {
   if (demo.length > 0) console.log(`  removed ${demo.length} accounts from a previous run`);
 }
 
+/**
+ * Two approved photos each, through the real upload path.
+ *
+ * The demo cast had none, and a dating product with no faces on it is not a
+ * demo of anything — it is also what the store screenshots were being shot
+ * against, which is worse, because a Discover screenshot full of blank cards is
+ * the listing telling a reviewer the app is empty.
+ *
+ * Deliberately `uploadPhoto` and `approvePhoto` rather than inserted rows.
+ * Inserted rows can name a file that was never written, which is exactly the
+ * fixture bug this replaces: the row exists, the page renders an `<img>`, and
+ * the request 404s. Going through the pipeline means the bytes are processed,
+ * stripped, content-addressed and stored the way a member's would be, so what
+ * the screenshots and the browser tests see is what a member sees.
+ *
+ * Plain gradients rather than faces of people who did not consent to being in
+ * anyone's store listing — §32's licensing rule applied to the obvious case.
+ * The colour is derived from the name so each member differs and every run
+ * produces the same set.
+ */
+async function givePhotos(userId: string, displayName: string): Promise<void> {
+  const hue = [...displayName].reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % 360;
+
+  for (let index = 0; index < 2; index += 1) {
+    const image = await sharp({
+      create: {
+        width: 1024,
+        height: 1024,
+        channels: 3,
+        background: { r: 0, g: 0, b: 0 }
+      }
+    })
+      .composite([
+        {
+          input: Buffer.from(
+            `<svg width="1024" height="1024" xmlns="http://www.w3.org/2000/svg">
+               <defs>
+                 <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                   <stop offset="0%" stop-color="hsl(${(hue + index * 40) % 360},70%,62%)"/>
+                   <stop offset="100%" stop-color="hsl(${(hue + 70 + index * 40) % 360},65%,38%)"/>
+                 </linearGradient>
+               </defs>
+               <rect width="1024" height="1024" fill="url(#g)"/>
+             </svg>`
+          ),
+          top: 0,
+          left: 0
+        }
+      ])
+      .jpeg()
+      .toBuffer();
+
+    const uploaded = await uploadPhoto(userId, image);
+    // A failure here is a broken seed, not a member's bad upload — the fixture
+    // is generated a line above and is known good, so this cannot be shrugged off.
+    if (!uploaded.ok) throw new Error(`seeding a photo failed: ${uploaded.reason}`);
+    await approvePhoto(uploaded.photo.id);
+  }
+}
+
 async function create(character: Character): Promise<string> {
   const result = await register({
     email: `${character.handle}${DEMO_DOMAIN}`,
@@ -232,11 +294,14 @@ async function main(): Promise<void> {
   await reset();
 
   const viewerId = await create(VIEWER);
+  await givePhotos(viewerId, VIEWER.displayName);
   console.log(`  ${VIEWER.displayName.padEnd(10)} viewer`);
 
   const ids = new Map<string, string>();
   for (const character of CANDIDATES) {
-    ids.set(character.handle, await create(character));
+    const id = await create(character);
+    ids.set(character.handle, id);
+    await givePhotos(id, character.displayName);
     console.log(`  ${character.displayName.padEnd(10)} ${character.languages.join("/")}`);
   }
 

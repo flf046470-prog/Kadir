@@ -91,8 +91,36 @@ survives a refactor:
 - **Penetration testing.** This is a code audit. It finds classes of bug that are
   visible in the source; it does not replace someone attacking a running
   deployment.
-- **Dependency vulnerabilities.** Not surveyed here. `npm audit` in CI is the
-  cheap way to keep that honest and is not wired up yet.
 - **NSFW/CSAM screening**, which `ROADMAP.md` already names as a hard launch
   blocker: photos are gated behind human approval, and no automated screening
   exists.
+
+## Dependencies
+
+`npm audit --omit=dev --audit-level=high` runs in CI and currently passes.
+
+Two advisories were found and two `overrides` clear them, both without a major
+upgrade:
+
+- **`sharp` 0.34.5** — inherited libvips CVEs, in the copy Next bundles
+  (`next/node_modules/sharp`) rather than ours, which was already on a patched
+  0.35. It decodes images, so the class matters more than usual, but it was
+  **not reachable**: `next/image` is imported nowhere, so Next's optimiser never
+  runs. Overridden to `^0.35.3` anyway, because one `<Image>` added later would
+  quietly switch that path on, and the images it would process are members'.
+- **`postcss` 8.4.31** — again Next's nested copy, again ours was already
+  patched. Build-time advisories (stringify XSS, `sourceMappingURL` file
+  disclosure) against our own CSS rather than anything a member supplies.
+  Pinned with `"postcss": "$postcss"` so the nested copy follows the one we
+  already resolve.
+
+**One moderate is accepted, not fixed:** `next-intl` ≤ 4.9.1 (an open redirect,
+and prototype pollution via `experimental.messages.precompile` — a flag this
+app does not set). The remedy is `next-intl@4`, a major upgrade across twelve
+locales and every page, which is its own change with its own verification
+rather than something to slip into an audit. `npm audit fix --force` would also
+take `next` to 16 at the same time; it should not be run here.
+
+The gate is deliberately `--omit=dev --audit-level=high`. Advisories in build
+tooling are worth knowing and are not reachable by a member, and a gate that
+fails for things nobody can act on is one people learn to skip.

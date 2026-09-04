@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
@@ -25,6 +26,10 @@
     "store:assets": "npm run store:play && npm run store:appstore && npm run store:microsoft",
     "store:microsoft": "node mobile/microsoft-store/screenshots.mjs",
     "store:microsoft:assets": "node mobile/microsoft-store/assets.mjs"
+  },
+  "overrides": {
+    "sharp": "^0.35.3",
+    "postcss": "$postcss"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

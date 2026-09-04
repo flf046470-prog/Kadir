@@ -66,12 +66,43 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
 
+      # Advisories against what actually ships, at the severity worth stopping a
+      # merge for.
+      #
+      # `--omit=dev` on purpose: an advisory in the build tooling matters but is
+      # not reachable by a member, and a gate that fails for things nobody can
+      # act on is a gate people learn to skip. `high` rather than `moderate` for
+      # the same reason — docs/SECURITY.md records the one moderate currently
+      # accepted, and why clearing it needs its own change rather than a
+      # `--force` that installs a major version.
+      - run: npm audit --omit=dev --audit-level=high
+
       # The schema has to exist before anything reads it. Running the real
       # migrations rather than pushing the schema also means a broken migration
       # fails here instead of on a deploy.
       - run: npm run db:migrate
       - run: npm test
 
-      # Last, because it is the slowest step and a type error would already
-      # have stopped the run.
+      # Slowest, and a type error would already have stopped the run.
       - run: npm run build
+
+      # Everything above can pass while the site renders a blank page: none of
+      # it runs the client half. These five do, against the built server with
+      # the demo data behind it.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run seed:demo
+      - name: Start the server
+        run: |
+          npm run start &
+          # Polled rather than slept, and rather than pulling a wait-on package
+          # in at run time: the readiness probe already answers this question,
+          # and a fixed sleep is either wasted time or a flake.
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:3000/api/health && exit 0
+            sleep 1
+          done
+          echo "the server did not become ready" >&2
+          exit 1
+      - run: npm run test:browser
+        env:
+          FM_BASE_URL: http://127.0.0.1:3000
