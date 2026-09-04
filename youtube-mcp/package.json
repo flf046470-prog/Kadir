@@ -1,0 +1,14 @@
+{
+  "name": "scarewithin-youtube-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Remote MCP server exposing the ScareWithin YouTube channel to Claude over OAuth 2.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node test/smoke.test.js",
+    "dev": "node test/local-server.js"
+  }
+}
