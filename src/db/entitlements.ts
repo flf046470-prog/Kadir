@@ -37,8 +37,25 @@ export type MemberAccess = {
   entitlements: Entitlements;
 };
 
-export async function tierOf(userId: string, now: Date = new Date()): Promise<Tier> {
-  const rows = await db
+/**
+ * A reader that may be the pool or an open transaction.
+ *
+ * Every allowance below takes one, and it has to reach all the way down to the
+ * subscription lookup rather than stopping at the counting query. A function
+ * called with a `tx` that then reads on the pool asks for a *second*
+ * connection while holding the first, and the pool defaults to ten: ten
+ * concurrent charges each hold a connection, each wait for another, and none
+ * can finish. That is a hang of the whole route under load, not a slow query,
+ * and it does not show up until concurrency reaches the pool size.
+ */
+export type Executor = Pick<typeof db, "select">;
+
+export async function tierOf(
+  userId: string,
+  now: Date = new Date(),
+  executor: Executor = db
+): Promise<Tier> {
+  const rows = await executor
     .select({
       tier: subscriptions.tier,
       status: subscriptions.status,
@@ -61,8 +78,12 @@ export async function tierOf(userId: string, now: Date = new Date()): Promise<Ti
   );
 }
 
-export async function entitlementsOf(userId: string, now?: Date): Promise<MemberAccess> {
-  const tier = await tierOf(userId, now);
+export async function entitlementsOf(
+  userId: string,
+  now?: Date,
+  executor: Executor = db
+): Promise<MemberAccess> {
+  const tier = await tierOf(userId, now, executor);
   return { tier, entitlements: entitlementsFor(tier) };
 }
 
@@ -132,9 +153,9 @@ export async function likeAllowance(
    * "one left" and each spent it. Reading and writing have to be one step, and
    * that means one connection.
    */
-  executor: Pick<typeof db, "select"> = db
+  executor: Executor = db
 ): Promise<LikeAllowance> {
-  const { entitlements } = await entitlementsOf(userId, now);
+  const { entitlements } = await entitlementsOf(userId, now, executor);
   const limit = entitlements.dailyLikes;
   if (limit === null) return { allowed: true, used: 0, limit: null };
 
@@ -211,9 +232,9 @@ export async function virtualDateAllowance(
    * already made — so two concurrent acceptances both saw "one left" and each
    * spent it. `acceptInvite` passes its own `tx` for that reason.
    */
-  executor: Pick<typeof db, "select"> = db
+  executor: Executor = db
 ): Promise<LikeAllowance> {
-  const { entitlements } = await entitlementsOf(userId, now);
+  const { entitlements } = await entitlementsOf(userId, now, executor);
   const limit = entitlements.monthlyVirtualDates;
   if (limit === null) return { allowed: true, used: 0, limit: null };
 

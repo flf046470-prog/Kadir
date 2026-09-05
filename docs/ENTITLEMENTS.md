@@ -136,6 +136,16 @@ same connection, under an advisory lock keyed on the member:
   twice: the row is already counted, so the second decision replaces it rather
   than billing for the same person again.
 
+The executor has to reach **all the way down**, to the subscription lookup and
+not just the counting query. A function handed a `tx` that then reads on the
+pool asks for a second connection while holding the first, and the pool defaults
+to ten: ten concurrent charges each hold one, each wait for another, and none
+can finish. That is not a slow query — it is the route hanging, and it appears
+only once concurrency reaches the pool size, so nothing smaller reveals it.
+`tierOf` and `entitlementsOf` therefore take the executor too, and
+`db/pool.integration.test.ts` runs each charging path at twice the pool size and
+fails on a timeout if the shape ever comes back.
+
 ---
 
 ## Virtual dates are charged differently, on purpose
