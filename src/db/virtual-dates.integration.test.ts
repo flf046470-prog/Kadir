@@ -85,18 +85,37 @@ describe("inviting", () => {
   });
 
   /**
-   * Blocking deletes the match, and the invitation cascades from the match
-   * rather than from either member — so a block takes pending invitations with
-   * it without this code knowing blocking exists.
+   * Blocking closes the match rather than deleting it — the messages have to
+   * survive for a report filed moments earlier — so the invitations no longer
+   * disappear by cascade and `blockUser` cancels them itself. Both halves are
+   * asserted: the row is cancelled, and neither member sees it any more.
    */
-  it("leaves no invitation behind when someone blocks", async () => {
+  it("cancels open invitations when someone blocks", async () => {
     const { a, b, matchId } = await matchedPair();
     await inviteToVirtualDate(a, matchId);
 
     await blockUser(b, a);
 
-    expect(await db.select().from(virtualDateInvites)).toHaveLength(0);
+    const rows = await db.select().from(virtualDateInvites);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("cancelled");
+
     expect(await listOpenInvites(b)).toEqual([]);
+    expect(await listOpenInvites(a)).toEqual([]);
+  });
+
+  it("cancels an accepted date when someone blocks", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invite = await inviteToVirtualDate(a, matchId);
+    expect(invite.ok).toBe(true);
+    if (!invite.ok) return;
+
+    await respondToInvite(b, invite.inviteId, "accept");
+    await blockUser(b, a);
+
+    const rows = await db.select().from(virtualDateInvites);
+    expect(rows[0].status).toBe("cancelled");
+    expect(await listUpcomingDates(a)).toEqual([]);
   });
 
   /**

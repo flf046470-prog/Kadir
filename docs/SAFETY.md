@@ -28,12 +28,23 @@ and duplicate reports are cheaper to triage than a missed one.
 
 - The block is enforced **in both directions**, so neither person appears to the
   other in Discover, and neither can start an interaction.
-- **It deletes the existing match**, which cascades. Messages, gifts, games and
-  pending virtual date invitations all go with it, so blocking someone takes
-  every open thread with them and the rest of the codebase never has to know
-  blocking exists.
+- **It closes the existing match.** The conversation, its games and its virtual
+  date invitations all become unreachable for both members — every read of
+  `matches` filters `closed_at is null`, so the rest of the codebase gets the
+  behaviour without knowing blocking exists, and open invitations are cancelled
+  explicitly.
+- **It does not delete anything.** Closing rather than deleting is deliberate:
+  the delete used to cascade to the messages, and report-then-block is the
+  ordinary sequence — a member reports the message that frightened them and
+  blocks the sender in the next tap. What reached the moderation queue was a
+  reason code with a null message id, for exactly the reports most likely to
+  matter. The record survives for the people whose job is to read it; the
+  conversation does not survive for the two members.
+- A report can still be filed about a conversation a block has closed, so the
+  order of the two taps never costs the reporter their evidence.
 - A like recorded before the block is refused at the interaction layer rather
-  than stored, so a block cannot be worked around by timing.
+  than stored, and the block and the like take the same pair lock, so a block
+  cannot be worked around by timing.
 
 ---
 
@@ -47,6 +58,15 @@ Self-reporting is refused. **The reporter is never revealed to the reported
 member** — not in the UI, not in any API response, not in a moderation action
 the subject can see. Reporting someone you are in a conversation with is only
 safe if it is not visible to them.
+
+Both ids in the request are resolved server-side rather than trusted, and the
+message id is the one that matters. Attaching a message to a report **escalates
+it**: any Scam Shield assessment on that message goes straight to human review.
+Nothing checked that the reporter had ever seen the message, so any member could
+push another member's flagged message to the front of the moderation queue — or
+bury the queue in escalations — using ids they had guessed rather than read. The
+message must now be one the reporter can see, written by the person they are
+naming. An id that names nobody is answered 400, not 500.
 
 ---
 

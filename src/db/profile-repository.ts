@@ -1,4 +1,4 @@
-import { eq, and, inArray, ne, or, notInArray, sql, gte, lte } from "drizzle-orm";
+import { eq, and, inArray, isNull, ne, or, notInArray, sql, gte, lte } from "drizzle-orm";
 import { db } from "./client";
 import {
   profiles,
@@ -343,7 +343,8 @@ export async function areMatched(userA: string, userB: string): Promise<boolean>
   const rows = await db
     .select({ id: matches.id })
     .from(matches)
-    .where(and(eq(matches.userAId, low), eq(matches.userBId, high)))
+    // A match a block closed no longer grants "matches only" visibility.
+    .where(and(eq(matches.userAId, low), eq(matches.userBId, high), isNull(matches.closedAt)))
     .limit(1);
   return rows.length > 0;
 }
@@ -353,7 +354,9 @@ export async function matchedUserIds(userId: string): Promise<string[]> {
   const rows = await db
     .select({ a: matches.userAId, b: matches.userBId })
     .from(matches)
-    .where(or(eq(matches.userAId, userId), eq(matches.userBId, userId)));
+    .where(
+      and(or(eq(matches.userAId, userId), eq(matches.userBId, userId)), isNull(matches.closedAt))
+    );
 
   return rows.map((row) => (row.a === userId ? row.b : row.a));
 }

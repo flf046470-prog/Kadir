@@ -114,6 +114,30 @@ API returns the remaining count rather than a reset time.
 
 ---
 
+## Every allowance is counted where it is spent
+
+A limit read on one connection and spent on another is not a limit: it is a
+check-then-act, and every parallel request wins it. The likes route permits two
+hundred a minute, so a daily cap read in the route and written in `recordLike`
+could be stepped over by anyone willing to open two hundred sockets — and the
+cap PLUS is sold to remove was the one being stepped over.
+
+So each allowance is counted **inside the transaction that spends it**, on the
+same connection, under an advisory lock keyed on the member:
+
+- `likeAllowance` and `virtualDateAllowance` both take an executor argument, and
+  the charging path passes its own `tx`.
+- `startBoost` counts the month's claims under `boost:<member>` before inserting
+  the next one, so `monthlyBoostCredits` is spent as the count it is rather than
+  read as a boolean. Its grant rows are keyed on (member, month, ordinal); the
+  key used to be (member, month), which capped every tier at one credit however
+  many it was configured to give.
+- Passes never charge, and re-deciding on a profile already liked never charges
+  twice: the row is already counted, so the second decision replaces it rather
+  than billing for the same person again.
+
+---
+
 ## Virtual dates are charged differently, on purpose
 
 Every other limit is a fairness device. The virtual date ceiling is a **cost

@@ -266,6 +266,73 @@ describe("reports", () => {
       expect(assessments[0].stage).toBe("human_review");
     }
   });
+
+  it("refuses a reported id that names nobody", async () => {
+    const alice = await createTestUser();
+
+    expect(
+      await createReport({
+        reporterId: alice,
+        reportedId: "00000000-0000-4000-8000-000000000000",
+        reason: "harassment"
+      })
+    ).toEqual({ ok: false, reason: "unknown_user" });
+  });
+
+  it("refuses a reported id that is not a uuid", async () => {
+    const alice = await createTestUser();
+
+    expect(
+      await createReport({ reporterId: alice, reportedId: "not-an-id", reason: "harassment" })
+    ).toEqual({ ok: false, reason: "unknown_user" });
+  });
+
+  /**
+   * Attaching a message escalates its Scam Shield assessment to human review.
+   * Nothing checked that the reporter had ever seen the message, so any member
+   * could push any other member's flagged message to the front of the queue —
+   * or bury the queue in escalations — with ids they had guessed rather than
+   * read.
+   */
+  it("refuses a message from a conversation the reporter is not in", async () => {
+    const { alice, matchId } = await matchedPair();
+    const stranger = await createTestUser();
+
+    const sent = await sendMessage(alice, matchId, "add me on whatsapp now");
+    if (!sent.ok) throw new Error("expected ok");
+
+    expect(
+      await createReport({
+        reporterId: stranger,
+        reportedId: alice,
+        messageId: sent.messageId,
+        reason: "scam_or_fraud"
+      })
+    ).toEqual({ ok: false, reason: "invalid_message" });
+
+    for (const assessment of await db.select().from(messageRiskAssessments)) {
+      expect(assessment.stage).not.toBe("human_review");
+    }
+    expect(await db.select().from(reports)).toHaveLength(0);
+  });
+
+  it("refuses a message the reported member did not write", async () => {
+    const { alice, bob, matchId } = await matchedPair();
+
+    const sent = await sendMessage(alice, matchId, "hello");
+    if (!sent.ok) throw new Error("expected ok");
+
+    // Alice is in the conversation and the message is real, but it is her own —
+    // attaching it to a report against Bob names evidence he did not produce.
+    expect(
+      await createReport({
+        reporterId: alice,
+        reportedId: bob,
+        messageId: sent.messageId,
+        reason: "harassment"
+      })
+    ).toEqual({ ok: false, reason: "invalid_message" });
+  });
 });
 
 describe("blocking and conversations", () => {
@@ -278,5 +345,80 @@ describe("blocking and conversations", () => {
     expect(await listConversations(alice)).toEqual([]);
     expect(await listConversations(bob)).toEqual([]);
     expect(await listMessages(alice, matchId)).toBeNull();
+  });
+
+  /**
+   * Report, then block — the ordinary sequence, and the one that used to
+   * destroy its own evidence. Blocking deleted the match, the delete cascaded
+   * to the messages, and what reached the moderation queue was a reason code
+   * with a null message id, for exactly the reports most likely to matter.
+   */
+  it("keeps the reported message after the reporter blocks the sender", async () => {
+    const { alice, bob, matchId } = await matchedPair();
+
+    const sent = await sendMessage(alice, matchId, "add me on whatsapp now");
+    if (!sent.ok) throw new Error("expected ok");
+
+    const filed = await createReport({
+      reporterId: bob,
+      reportedId: alice,
+      messageId: sent.messageId,
+      reason: "scam_or_fraud"
+    });
+    expect(filed.ok).toBe(true);
+
+    await blockUser(bob, alice);
+
+    const [report] = await db.select().from(reports);
+    expect(report.messageId).toBe(sent.messageId);
+
+    const [message] = await db.select().from(messages).where(eq(messages.id, sent.messageId));
+    expect(message.body).toBe("add me on whatsapp now");
+  });
+
+  it("can still file a report about a conversation a block has closed", async () => {
+    const { alice, bob, matchId } = await matchedPair();
+
+    const sent = await sendMessage(alice, matchId, "add me on whatsapp now");
+    if (!sent.ok) throw new Error("expected ok");
+
+    await blockUser(bob, alice);
+
+    const filed = await createReport({
+      reporterId: bob,
+      reportedId: alice,
+      messageId: sent.messageId,
+      reason: "scam_or_fraud"
+    });
+
+    expect(filed.ok).toBe(true);
+  });
+});
+
+describe("the conversation list", () => {
+  it("counts only the member's own unread messages", async () => {
+    const mine = await matchedPair();
+    const theirs = await matchedPair();
+
+    await sendMessage(mine.alice, mine.matchId, "one");
+    await sendMessage(theirs.alice, theirs.matchId, "not mine");
+    await sendMessage(theirs.alice, theirs.matchId, "nor this");
+
+    const [conversation] = await listConversations(mine.bob);
+    expect(conversation.matchId).toBe(mine.matchId);
+    expect(conversation.unreadCount).toBe(1);
+    expect(conversation.lastMessage).toBe("one");
+  });
+
+  it("shows the newest message of each conversation", async () => {
+    const { alice, bob, matchId } = await matchedPair();
+    const elsewhere = await matchedPair();
+
+    await sendMessage(alice, matchId, "first");
+    await sendMessage(bob, matchId, "second");
+    await sendMessage(elsewhere.alice, elsewhere.matchId, "another conversation");
+
+    const own = (await listConversations(alice)).find((row) => row.matchId === matchId);
+    expect(own?.lastMessage).toBe("second");
   });
 });

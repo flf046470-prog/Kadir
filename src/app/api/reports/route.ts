@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   if (!VALID_REASONS.has(input.reason)) return apiError("invalid_reason", 400);
   if (input.reportedId === auth.user.id) return apiError("cannot_report_self", 400);
 
-  const id = await createReport({
+  const result = await createReport({
     reporterId: auth.user.id,
     reportedId: input.reportedId,
     messageId: typeof input.messageId === "string" ? input.messageId : undefined,
@@ -42,5 +42,9 @@ export async function POST(request: NextRequest) {
     details: typeof input.details === "string" ? input.details.slice(0, 1000) : undefined
   });
 
-  return NextResponse.json({ ok: true, reportId: id }, { status: 201 });
+  // 400, not 500: an id that names nobody, or a message the reporter cannot
+  // see, is a bad request rather than a broken server.
+  if (!result.ok) return apiError(result.reason, 400);
+
+  return NextResponse.json({ ok: true, reportId: result.reportId }, { status: 201 });
 }

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "./client";
 import { gameSessions, matches } from "./schema";
 import {
@@ -78,7 +78,9 @@ export async function loadSessionFor(
     })
     .from(gameSessions)
     .innerJoin(matches, eq(matches.id, gameSessions.matchId))
-    .where(eq(gameSessions.id, sessionId))
+    // A closed match takes its games with it: blocking someone must not leave
+    // a turn of theirs waiting for you.
+    .where(and(eq(gameSessions.id, sessionId), isNull(matches.closedAt)))
     .limit(1);
 
   const row = rows[0];
@@ -137,7 +139,7 @@ export async function inviteToGame(
   const matchRows = await db
     .select({ userAId: matches.userAId, userBId: matches.userBId })
     .from(matches)
-    .where(eq(matches.id, matchId))
+    .where(and(eq(matches.id, matchId), isNull(matches.closedAt)))
     .limit(1);
 
   const match = matchRows[0];

@@ -263,3 +263,84 @@ describe("account deletion", () => {
     expect(await resolveSession(token)).toBeNull();
   });
 });
+
+describe("suspension", () => {
+  /**
+   * `authenticate` refused a suspended member at the login form, which reads as
+   * complete but only stops *new* sessions. Suspension does not destroy the
+   * ones that already exist, so somebody a moderator had just suspended kept
+   * full access — messaging, Discover, everything — for the up-to-thirty days
+   * their cookie had left. On a dating product the reason for a suspension is
+   * usually that they are doing something to another member, and the suspension
+   * was silently not stopping it.
+   */
+  it("stops a suspended member's existing session immediately", async () => {
+    const userId = await createTestUser();
+    const { token } = await createSession(userId);
+    expect(await resolveSession(token)).not.toBeNull();
+
+    await db.update(users).set({ suspendedAt: new Date() }).where(eq(users.id, userId));
+
+    expect(await resolveSession(token)).toBeNull();
+  });
+
+  it("restores access when the suspension is lifted", async () => {
+    const userId = await createTestUser();
+    const { token } = await createSession(userId);
+
+    await db.update(users).set({ suspendedAt: new Date() }).where(eq(users.id, userId));
+    expect(await resolveSession(token)).toBeNull();
+
+    // Checked at resolve time rather than by destroying sessions when the flag
+    // is set, so lifting a suspension does not force a re-login — and so the
+    // rule holds however the flag comes to be set.
+    await db.update(users).set({ suspendedAt: null }).where(eq(users.id, userId));
+    expect(await resolveSession(token)).not.toBeNull();
+  });
+
+  it("refuses a suspended member at the login form too", async () => {
+    const email = uniqueEmail();
+    const created = await register({
+      email,
+      password: "correct-horse-battery-staple",
+      displayName: "Suspended",
+      birthdate: "1990-01-01",
+      countryId: "turkey"
+    });
+    if (!created.ok) throw new Error("expected registration to succeed");
+
+    await db.update(users).set({ suspendedAt: new Date() }).where(eq(users.id, created.userId));
+
+    expect(await authenticate(email, "correct-horse-battery-staple")).toBeNull();
+  });
+});
+
+describe("email normalisation", () => {
+  it("finds the same account however the email is spaced or cased", async () => {
+    const email = uniqueEmail();
+    const created = await register({
+      email,
+      password: "correct-horse-battery-staple",
+      displayName: "Normalised",
+      birthdate: "1990-01-01",
+      countryId: "turkey"
+    });
+    if (!created.ok) throw new Error("expected registration to succeed");
+
+    /**
+     * This is what the login route's per-account throttle has to be keyed on.
+     *
+     * It used to key on `toLowerCase()` alone while the lookup trimmed too, so
+     * " victim@example.com" and "victim@example.com " were separate buckets
+     * pointing at one account — a fresh five attempts per variant, and
+     * unlimited variants. The per-account limit was decoration. Asserted here
+     * because the property is that one account is one bucket, which only holds
+     * if both sides use `normalizeEmail`.
+     */
+    for (const variant of [` ${email}`, `${email} `, email.toUpperCase(), `  ${email}  `]) {
+      expect(await authenticate(variant, "correct-horse-battery-staple")).toEqual({
+        userId: created.userId
+      });
+    }
+  });
+});

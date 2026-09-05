@@ -151,7 +151,19 @@ function isUniqueViolation(error: unknown): boolean {
  */
 let dummyHashPromise: Promise<string> | null = null;
 function dummyHash(): Promise<string> {
-  dummyHashPromise ??= hashPassword(`nonexistent-${Math.random()}`);
+  /**
+   * The *promise* is memoised, so a rejection has to clear it.
+   *
+   * A cached rejected promise makes every later call reject too: one transient
+   * failure would turn every unknown-email login into a 500, permanently. And a
+   * 500 for unknown emails beside a 401 for wrong passwords is exactly the
+   * enumeration oracle this function exists to close — the failure would invert
+   * the property rather than merely lose it.
+   */
+  dummyHashPromise ??= hashPassword(`nonexistent-${Math.random()}`).catch((error) => {
+    dummyHashPromise = null;
+    throw error;
+  });
   return dummyHashPromise;
 }
 

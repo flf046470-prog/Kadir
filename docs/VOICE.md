@@ -78,8 +78,8 @@ Text has moderation; audio has none, and the same protections have to exist:
 
 - **Mute and leave must be instant and one action**, and must not depend on the
   other participant's client behaving.
-- **Blocking must end the session.** Blocking already deletes the match and
-  cascades to invitations (`SAFETY.md`); a live room has to be included.
+- **Blocking must end the session.** Blocking already closes the match and
+  cancels its invitations (`SAFETY.md`); a live room has to be included.
 - **Reporting from inside a date** needs to work, and needs to produce something
   a moderator can act on. Without recording — which §31 rules out by default —
   that is a report with no evidence, which is a genuine and unsolved tension.

@@ -145,7 +145,7 @@ describe("likes and matching", () => {
     expect([first.matched, second.matched].filter(Boolean).length).toBeLessThanOrEqual(1);
   });
 
-  it("keeps the first decision if a profile is judged twice", async () => {
+  it("records the latest decision when a profile is judged twice", async () => {
     const alice = await createTestUser();
     const bob = await createTestUser();
 
@@ -154,7 +154,41 @@ describe("likes and matching", () => {
 
     const rows = await db.select().from(likes).where(eq(likes.fromUserId, alice));
     expect(rows).toHaveLength(1);
-    expect(rows[0].kind).toBe("pass");
+    expect(rows[0].kind).toBe("like");
+  });
+
+  /**
+   * The case that made keeping the first decision wrong: a member liked
+   * someone, changed their mind, and was matched with them anyway when the
+   * other side liked back — on a decision they had already withdrawn, and which
+   * the app had told them was recorded.
+   */
+  it("does not match on a like the member has since withdrawn", async () => {
+    const alice = await createTestUser();
+    const bob = await createTestUser();
+
+    await recordLike(alice, bob, "like");
+    await recordLike(alice, bob, "pass");
+
+    const result = await recordLike(bob, alice, "like");
+
+    expect(result.matched).toBe(false);
+    expect(result.matchId).toBeNull();
+    expect(await db.select().from(matches)).toHaveLength(0);
+  });
+
+  it("matches when a pass is changed to a like", async () => {
+    const alice = await createTestUser();
+    const bob = await createTestUser();
+
+    await recordLike(alice, bob, "pass");
+    await recordLike(bob, alice, "like");
+    expect(await db.select().from(matches)).toHaveLength(0);
+
+    const result = await recordLike(alice, bob, "like");
+
+    expect(result.matched).toBe(true);
+    expect(result.matchId).not.toBeNull();
   });
 
   it("refuses a self-like", async () => {
@@ -202,6 +236,29 @@ describe("blocking", () => {
 
     expect(result.matched).toBe(false);
     expect(await db.select().from(likes)).toHaveLength(0);
+  });
+
+  /**
+   * A block and the like that would complete the match, at the same instant.
+   *
+   * The block check used to run on the pool before the transaction opened, so a
+   * block committing in that gap changed nothing: the like went on to create a
+   * match between two people one of whom had just blocked the other, and the
+   * blocker's next screen was a new conversation with them. Both calls now take
+   * the same pair lock, so whichever order they land in, the block wins.
+   */
+  it("never leaves an open match when a block races the deciding like", async () => {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      await resetDatabase();
+
+      const alice = await createTestUser();
+      const bob = await createTestUser();
+      await recordLike(alice, bob, "like");
+
+      await Promise.all([blockUser(bob, alice), recordLike(bob, alice, "like")]);
+
+      expect(await areMatched(alice, bob)).toBe(false);
+    }
   });
 });
 

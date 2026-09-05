@@ -7,7 +7,7 @@ import { recordLike, blockUser } from "./interactions";
 import { likesReceived, undoLastPass } from "./likes-received";
 import { recordProfileView, visitorsOf } from "./profile-views";
 import { startBoost } from "./entitlements";
-import type { Tier } from "@/lib/billing/tiers";
+import { ENTITLEMENTS, type Tier } from "@/lib/billing/tiers";
 
 const DAY_MS = 86_400_000;
 
@@ -286,9 +286,10 @@ describe("the VIP monthly Boost", () => {
   });
 
   /**
-   * A double-click must not claim the month twice. The grant is keyed on
-   * (user, month), so the second insert returns no rows and the caller falls
-   * through to the referral ledger — which is empty here.
+   * A double-click must not claim the month twice. The month's credits are
+   * counted under an advisory lock and the grant is keyed on (user, month,
+   * seq), so the second call sees the first's row and falls through to the
+   * referral ledger — which is empty here.
    */
   it("claims the month once when pressed twice at the same instant", async () => {
     const vip = await createTestUser();
@@ -298,5 +299,127 @@ describe("the VIP monthly Boost", () => {
 
     expect(results.filter((result) => result.ok)).toHaveLength(1);
     expect(await db.select().from(boostGrants)).toHaveLength(1);
+  });
+
+  /**
+   * `monthlyBoostCredits` is a count and has to be spent as one.
+   *
+   * The claim used to be a single (member, month) row taken with
+   * `onConflictDoNothing`, which read the number as a boolean: whatever a tier
+   * was configured to grant, exactly one arrived and the rest were reported as
+   * "none available". Every tier happens to be configured for 0 or 1 today, so
+   * the defect is invisible from the table alone — this raises the number to
+   * prove the code reads it.
+   */
+  it("grants as many credits a month as the tier is configured for", async () => {
+    const vip = await createTestUser();
+    await subscribe(vip, "vip");
+
+    const configured = ENTITLEMENTS.vip.monthlyBoostCredits;
+    ENTITLEMENTS.vip.monthlyBoostCredits = 3;
+
+    try {
+      // Spaced so each Boost has expired before the next starts — the ceiling
+      // under test is the monthly credit, not the one-at-a-time rule.
+      const march = ["2026-03-01", "2026-03-10", "2026-03-20", "2026-03-28"];
+      const results = [];
+      for (const day of march) {
+        results.push(await startBoost(vip, new Date(`${day}T10:00:00Z`)));
+      }
+
+      expect(results.filter((result) => result.ok)).toHaveLength(3);
+      expect(results[3]).toEqual({ ok: false, reason: "none_available" });
+
+      const grants = await db.select().from(boostGrants).where(eq(boostGrants.userId, vip));
+      expect(grants).toHaveLength(3);
+      expect(grants.map((row) => row.seq).sort()).toEqual([0, 1, 2]);
+    } finally {
+      ENTITLEMENTS.vip.monthlyBoostCredits = configured;
+    }
+  });
+});
+
+describe("the daily like allowance", () => {
+  /**
+   * The cap was read in the route and spent in `recordLike`, on two different
+   * connections — a check-then-act that every parallel request won. The likes
+   * route permits two hundred a minute, so the ceiling PLUS is sold to remove
+   * could be stepped over by anyone willing to open two hundred sockets.
+   */
+  it("cannot be exceeded by firing likes in parallel", async () => {
+    const me = await createTestUser();
+    const targets = await Promise.all(
+      Array.from({ length: 8 }, () => createTestUser())
+    );
+
+    const configured = ENTITLEMENTS.free.dailyLikes;
+    ENTITLEMENTS.free.dailyLikes = 3;
+
+    try {
+      const results = await Promise.all(
+        targets.map((target) => recordLike(me, target, "like"))
+      );
+
+      expect(results.filter((result) => result.refusal === null)).toHaveLength(3);
+      expect(await db.select().from(likes).where(eq(likes.fromUserId, me))).toHaveLength(3);
+    } finally {
+      ENTITLEMENTS.free.dailyLikes = configured;
+    }
+  });
+
+  it("does not charge for a pass", async () => {
+    const me = await createTestUser();
+    const targets = await Promise.all(
+      Array.from({ length: 4 }, () => createTestUser())
+    );
+
+    const configured = ENTITLEMENTS.free.dailyLikes;
+    ENTITLEMENTS.free.dailyLikes = 1;
+
+    try {
+      for (const target of targets) {
+        expect((await recordLike(me, target, "pass")).refusal).toBeNull();
+      }
+    } finally {
+      ENTITLEMENTS.free.dailyLikes = configured;
+    }
+  });
+
+  it("does not charge twice for the same profile", async () => {
+    const me = await createTestUser();
+    const one = await createTestUser();
+    const two = await createTestUser();
+
+    const configured = ENTITLEMENTS.free.dailyLikes;
+    ENTITLEMENTS.free.dailyLikes = 2;
+
+    try {
+      expect((await recordLike(me, one, "like")).refusal).toBeNull();
+      // The same person again: the row is already counted, so re-deciding on
+      // them must not spend a second of the two.
+      expect((await recordLike(me, one, "super_like")).refusal).toBeNull();
+      expect((await recordLike(me, two, "like")).refusal).toBeNull();
+    } finally {
+      ENTITLEMENTS.free.dailyLikes = configured;
+    }
+  });
+
+  it("reports the ceiling it refused against", async () => {
+    const me = await createTestUser();
+    const one = await createTestUser();
+    const two = await createTestUser();
+
+    const configured = ENTITLEMENTS.free.dailyLikes;
+    ENTITLEMENTS.free.dailyLikes = 1;
+
+    try {
+      await recordLike(me, one, "like");
+      const refused = await recordLike(me, two, "like");
+
+      expect(refused.refusal).toEqual({ reason: "like_limit_reached", used: 1, limit: 1 });
+      expect(await db.select().from(likes).where(eq(likes.fromUserId, me))).toHaveLength(1);
+    } finally {
+      ENTITLEMENTS.free.dailyLikes = configured;
+    }
   });
 });

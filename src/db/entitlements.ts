@@ -122,7 +122,17 @@ export type LikeAllowance = {
  */
 export async function likeAllowance(
   userId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /**
+   * The transaction to count inside, when the caller has one open.
+   *
+   * `recordLike` passes its own `tx`: counting on the pool from inside an open
+   * transaction reads a different connection, which cannot see the rows that
+   * transaction has already written, so parallel requests each read the same
+   * "one left" and each spent it. Reading and writing have to be one step, and
+   * that means one connection.
+   */
+  executor: Pick<typeof db, "select"> = db
 ): Promise<LikeAllowance> {
   const { entitlements } = await entitlementsOf(userId, now);
   const limit = entitlements.dailyLikes;
@@ -130,7 +140,7 @@ export async function likeAllowance(
 
   const since = new Date(now.getTime() - 24 * 3_600_000);
 
-  const rows = await db
+  const rows = await executor
     .select({ total: count() })
     .from(likes)
     .where(
@@ -291,21 +301,40 @@ export async function startBoost(userId: string, now: Date = new Date()): Promis
      * start one at all, and `boostMinutes: 60` described something that could
      * not happen.
      *
-     * The insert is the claim. `boost_grants` is keyed on (user, month), so a
-     * second attempt in the same month inserts nothing and returns no rows —
-     * idempotent without a read-then-write, and safe under the advisory lock
-     * above even if it were not.
+     * `monthlyBoostCredits` is a count, and it is spent as one.
+     *
+     * The claim used to be a single (member, month) row taken with
+     * `onConflictDoNothing`, which read the number as a boolean: a tier
+     * granting four credits handed out one and told the member the other three
+     * were "none available". What is claimed now is the *next* credit of the
+     * month, numbered by how many are already taken, so the configured number
+     * is the number the member gets.
+     *
+     * The count and the insert are one step because the advisory lock above is
+     * held for both; the primary key on (member, month, seq) is the second line
+     * of defence if that ever stops being true.
      */
     let paid = false;
 
     if (entitlements.monthlyBoostCredits > 0) {
-      const claimed = await tx
-        .insert(boostGrants)
-        .values({ userId, period: monthKey(now) })
-        .onConflictDoNothing()
-        .returning({ period: boostGrants.period });
+      const period = monthKey(now);
 
-      paid = claimed.length > 0;
+      const [spent] = await tx
+        .select({ total: count() })
+        .from(boostGrants)
+        .where(and(eq(boostGrants.userId, userId), eq(boostGrants.period, period)));
+
+      const taken = spent?.total ?? 0;
+
+      if (taken < entitlements.monthlyBoostCredits) {
+        const claimed = await tx
+          .insert(boostGrants)
+          .values({ userId, period, seq: taken })
+          .onConflictDoNothing()
+          .returning({ period: boostGrants.period });
+
+        paid = claimed.length > 0;
+      }
     }
 
     // Spend, then grant, in that order and in one transaction: if the insert

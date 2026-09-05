@@ -128,7 +128,8 @@ export async function inviteToVirtualDate(
 ): Promise<InviteResult> {
   // Resolved through the member, like every other conversation surface: a match
   // that is not theirs is indistinguishable from one that does not exist. This
-  // also covers blocking, because `blockUser` deletes the match.
+  // also covers blocking, because `blockUser` closes the match and every read
+  // of `matches` filters closed rows out.
   const match = await resolveMatchFor(userId, matchId);
   if (!match) return { ok: false, reason: "not_a_match" };
 

@@ -61,7 +61,8 @@ export async function resolveSession(token: string | undefined): Promise<Session
       email: users.email,
       displayName: users.displayName,
       locale: users.locale,
-      deletedAt: users.deletedAt
+      deletedAt: users.deletedAt,
+      suspendedAt: users.suspendedAt
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
@@ -72,6 +73,23 @@ export async function resolveSession(token: string | undefined): Promise<Session
   if (!row) return null;
   // A member who requested deletion must not be able to keep using the account.
   if (row.deletedAt) return null;
+  /**
+   * Nor a suspended one, and this is the check that was missing.
+   *
+   * `authenticate` refuses a suspended member at the login form, which reads as
+   * complete but only stops *new* sessions. Suspension does not destroy the
+   * ones that exist, so somebody a moderator suspended kept full access —
+   * messaging, Discover, everything — for up to the thirty days their cookie
+   * had left. On a dating product the reason for a suspension is usually that
+   * they are doing something to another member, and the suspension was
+   * silently not stopping it.
+   *
+   * Checked here rather than by deleting sessions at suspension time, so it
+   * holds however the flag comes to be set — an admin action, a migration, a
+   * future automated rule — and so lifting a suspension restores access without
+   * forcing a re-login.
+   */
+  if (row.suspendedAt) return null;
 
   return { id: row.id, email: row.email, displayName: row.displayName, locale: row.locale };
 }

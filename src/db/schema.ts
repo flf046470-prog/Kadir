@@ -213,9 +213,18 @@ export const matches = pgTable(
     userBId: uuid("user_b_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /**
+     * Set when a block ended the match. The row and its messages stay, so a
+     * report filed moments before the block still has the message it was about,
+     * but every read of this table filters `closed_at is null` — a closed match
+     * is unreachable for both members.
+     */
+    closedAt: timestamp("closed_at", { withTimezone: true })
   },
   (table) => [
+    // Unique on the pair including closed rows: a block is not a reset, and the
+    // two must not be able to match again behind it.
     uniqueIndex("matches_pair_unique").on(table.userAId, table.userBId),
     index("matches_b_idx").on(table.userBId)
   ]
@@ -824,7 +833,15 @@ export const profileViews = pgTable(
  * Without this VIP's longer Boost was unreachable: `startBoost` spends from the
  * referral reward ledger, so a VIP who had never referred anyone could not
  * start one at all, and `boostMinutes: 60` described a thing that could not
- * happen. One row per member per month, claimed idempotently.
+ * happen.
+ *
+ * One row per credit claimed, not one per month. The key used to be
+ * (member, month), which silently capped every tier at a single credit however
+ * many `monthlyBoostCredits` said they had — the number was read as a boolean,
+ * so a tier offering four would have handed out one and reported the other
+ * three as "none available". `seq` is the ordinal of the claim within the
+ * month, so the count of rows for a month is the number spent and the primary
+ * key still makes a double-claim impossible.
  */
 export const boostGrants = pgTable(
   "boost_grants",
@@ -834,9 +851,11 @@ export const boostGrants = pgTable(
       .references(() => users.id, { onDelete: "cascade" }),
     /** Calendar month the grant belongs to, as `YYYY-MM` in UTC. */
     period: text("period").notNull(),
+    /** 0-based ordinal of this claim within the month. */
+    seq: integer("seq").notNull().default(0),
     grantedAt: timestamp("granted_at", { withTimezone: true }).notNull().defaultNow()
   },
-  (table) => [primaryKey({ columns: [table.userId, table.period] })]
+  (table) => [primaryKey({ columns: [table.userId, table.period, table.seq] })]
 );
 
 /**
@@ -911,11 +930,12 @@ export const virtualDateUsage = pgTable(
 /**
  * An invitation to meet in a virtual date room.
  *
- * Cascades from the match rather than from the two members, and that is the
- * load-bearing choice: `blockUser` deletes the match, so blocking someone takes
- * every invitation between you with it. Without that, a blocked member's
- * pending invite would sit in the recipient's list with no conversation behind
- * it and no way to answer it.
+ * Cascades from the match rather than from the two members, so an invitation
+ * cannot outlive the conversation it belongs to. A block no longer deletes the
+ * match — the messages have to survive for a report filed moments earlier — so
+ * `blockUser` cancels the open invitations itself. Without one or the other, a
+ * blocked member's pending invite would sit in the recipient's list with no
+ * conversation behind it and no way to answer it.
  *
  * `environment` and `scheduledFor` are nullable because an invitation is a
  * question before it is a plan — "shall we?" is a complete invitation, and the
