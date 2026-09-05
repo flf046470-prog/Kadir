@@ -19,6 +19,7 @@
     "capture": "node scripts/capture.mjs",
     "translate:stub": "node scripts/translate-stub.mjs",
     "store:check": "node scripts/store-check.mjs",
+    "cost-model": "node scripts/cost-model.mjs",
     "native:assets": "node mobile/assets/generate.mjs",
     "native:sync": "cap sync",
     "native:android": "cap open android",
