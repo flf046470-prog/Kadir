@@ -4,7 +4,16 @@ import { db } from "./client";
 import { users, photos, reports, moderationActions } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
 import { uploadPhoto } from "./photos";
-import { actOnPhoto, actOnReport, auditTrailFor, queueCounts, photoQueue } from "./moderation";
+import {
+  actOnPhoto,
+  actOnReport,
+  auditTrailFor,
+  queueCounts,
+  photoQueue,
+  reportQueue
+} from "./moderation";
+import { recordLike, blockUser } from "./interactions";
+import { createReport, sendMessage } from "./messaging";
 import { authenticate } from "@/auth/accounts";
 import sharp from "sharp";
 
@@ -235,6 +244,44 @@ describe("report moderation", () => {
 
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toBe("note_required");
+  });
+});
+
+describe("what the moderator can still read", () => {
+  /**
+   * The end-to-end version of the property `blockUser` exists to protect.
+   *
+   * Report, then block, is the ordinary sequence — a member reports the message
+   * that frightened them and blocks the sender in the next tap. Blocking used
+   * to delete the match, which cascaded to the messages, so the queue showed a
+   * reason code and an empty `messageBody` for exactly the reports most likely
+   * to matter. Asserted here rather than only in `messaging` because the
+   * property is about what reaches the person doing the reviewing.
+   */
+  it("still shows the reported message after the reporter blocked the sender", async () => {
+    const reporter = await createTestUser();
+    const reported = await createTestUser();
+
+    await recordLike(reporter, reported, "like");
+    const matched = await recordLike(reported, reporter, "like");
+    if (!matched.matchId) throw new Error("expected a match");
+
+    const sent = await sendMessage(reported, matched.matchId, "send me 500 usdt");
+    if (!sent.ok) throw new Error("expected the message to send");
+
+    const filed = await createReport({
+      reporterId: reporter,
+      reportedId: reported,
+      messageId: sent.messageId,
+      reason: "scam_or_fraud"
+    });
+    expect(filed.ok).toBe(true);
+
+    await blockUser(reporter, reported);
+
+    const queue = await reportQueue();
+    expect(queue).toHaveLength(1);
+    expect(queue[0].messageBody).toBe("send me 500 usdt");
   });
 });
 
