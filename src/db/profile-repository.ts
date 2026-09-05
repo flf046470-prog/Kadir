@@ -13,7 +13,7 @@ import {
 } from "./schema";
 import { defaultFilters, type DiscoveryFilters } from "@/lib/matching/filters";
 import type { GenderPreference } from "@/lib/matching/gender";
-import { isGender } from "@/lib/domain/taxonomies";
+import { genders, isGender } from "@/lib/domain/taxonomies";
 import { defaultVisibility, type MatchProfile, type ProfileVisibility } from "@/lib/domain/profile";
 import type {
   CommunicationStyleId,
@@ -275,21 +275,42 @@ export async function findCandidateIds(
    */
   const viewer = await genderPreferenceOf(viewerId);
 
-  // The viewer is seeking the candidate's gender — unless the viewer stated no
-  // preference, or the candidate has not stated a gender.
+  /**
+   * The viewer is seeking the candidate's gender — unless the viewer stated no
+   * preference, or the candidate has not stated one this taxonomy still knows.
+   *
+   * `not in (genders)` rather than `is null` alone, because `genderPreferenceOf`
+   * reads a retired value back as *unanswered* and this has to agree with it.
+   * Testing only for null would make an out-of-taxonomy row invisible here
+   * while `discoverableBy` showed it to everyone — the two expressions of one
+   * rule disagreeing, in opposite directions.
+   */
   if (viewer.seeking.length > 0) {
     conditions.push(
-      or(sql`${profiles.gender} is null`, inArray(profiles.gender, viewer.seeking))!
+      or(
+        sql`${profiles.gender} is null`,
+        notInArray(profiles.gender, genders as string[]),
+        inArray(profiles.gender, viewer.seeking)
+      )!
     );
   }
 
   // The candidate is seeking the viewer's gender — unless the candidate stated
   // no preference at all, which is what the `not in` half means.
   if (viewer.gender !== null) {
+    // Only rows the taxonomy still knows count as having stated a preference,
+    // for the same reason as above: `genderPreferenceOf` discards the rest, and
+    // a candidate whose only preference is a retired value has, as far as
+    // everything else is concerned, stated none.
     const statedAPreference = db
       .select({ id: profileAttributes.userId })
       .from(profileAttributes)
-      .where(eq(profileAttributes.kind, "seeking"));
+      .where(
+        and(
+          eq(profileAttributes.kind, "seeking"),
+          inArray(profileAttributes.value, genders as string[])
+        )
+      );
 
     const seeksTheViewer = db
       .select({ id: profileAttributes.userId })

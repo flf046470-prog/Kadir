@@ -51,16 +51,24 @@ export async function POST(
   if (!isStore(store)) return apiError("unknown_store", 400);
 
   /**
-   * A crude flood guard, per store, before any work.
+   * A crude flood guard, keyed on the caller rather than on the store.
    *
-   * Deliberately far above what a store produces — this is one request per
-   * subscription event, not per request the member makes — because the cost of
-   * being wrong runs the wrong way here. A limit tight enough to matter would
-   * drop real notifications during a renewal surge, and a dropped refund is
-   * exactly the failure this endpoint exists to prevent. 429 is retryable, so
-   * even then the store comes back.
+   * Per-store was wrong and dangerously so: one bucket shared by everyone who
+   * can reach the endpoint means any anonymous caller can exhaust it and get
+   * the store's own notifications 429'd until it gives up — manufacturing
+   * exactly the dropped refund this route exists to prevent. Keying on the
+   * caller means an abuser can only starve themselves.
+   *
+   * The limit is far above what a store produces (one request per subscription
+   * event) because the cost of being wrong still runs one way: a limit tight
+   * enough to bite would drop real notifications during a renewal surge.
+   *
+   * `x-forwarded-for` is only as trustworthy as the proxy in front of this, so
+   * this is a flood guard and not an access control. The signature is the
+   * access control.
    */
-  const limit = checkRateLimit(`store-notification:${store}`, {
+  const caller = (request.headers.get("x-forwarded-for") ?? "unknown").split(",")[0].trim();
+  const limit = checkRateLimit(`store-notification:${store}:${caller}`, {
     max: 600,
     windowMs: 60_000
   });

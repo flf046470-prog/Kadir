@@ -236,6 +236,51 @@ describe("product metrics", () => {
     expect(metrics.subscriptions.vipShareOfPaying).toBe(0.5);
   });
 
+  /**
+   * `activeTier` grants access for `canceled` and `past_due` inside the paid
+   * period, so both are paying customers as far as this report is concerned.
+   * Counting only `active` under-reported PLUS, VIP and both conversion rates —
+   * while the comment on the query claimed the date decided, not the status.
+   */
+  it("counts everyone who still has the product, not only status=active", async () => {
+    const future = new Date(now.getTime() + 300 * DAY);
+    const members = await Promise.all([member(), member(), member()]);
+
+    await db.insert(subscriptions).values([
+      // Asked to stop, still inside the period they bought.
+      {
+        userId: members[0],
+        tier: "plus",
+        status: "canceled",
+        currentPeriodEnd: future,
+        provider: "microsoft_store",
+        providerRef: "ref-cancelled"
+      },
+      // Card failed, store still retrying; they have not asked to stop.
+      {
+        userId: members[1],
+        tier: "vip",
+        status: "past_due",
+        currentPeriodEnd: future,
+        provider: "microsoft_store",
+        providerRef: "ref-past-due"
+      },
+      // Genuinely gone.
+      {
+        userId: members[2],
+        tier: "vip",
+        status: "expired",
+        currentPeriodEnd: future,
+        provider: "microsoft_store",
+        providerRef: "ref-expired"
+      }
+    ]);
+
+    const metrics = await productMetrics(window);
+
+    expect(metrics.subscriptions).toMatchObject({ plus: 1, vip: 1 });
+  });
+
   it("does not count a lapsed subscription as a paying member", async () => {
     const lapsed = await member();
     await db.insert(subscriptions).values({

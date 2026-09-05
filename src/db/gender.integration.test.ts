@@ -141,6 +141,53 @@ describe("the SQL and the rule agree", () => {
   });
 });
 
+/**
+ * A value the taxonomy has retired is read back as *unanswered*, so the SQL has
+ * to treat it that way too. Testing only for null in the filter would hide such
+ * a member while `discoverableBy` showed them to everyone — the two expressions
+ * of one rule disagreeing, in opposite directions, on the rows nobody looks at.
+ */
+describe("values the taxonomy no longer knows", () => {
+  async function retired(gender: string | null, seeking: string[] = []): Promise<string> {
+    const id = await createTestUser({ complete: true });
+    await db.update(profiles).set({ gender }).where(eq(profiles.userId, id));
+    if (seeking.length > 0) {
+      await db
+        .insert(profileAttributes)
+        .values(seeking.map((value) => ({ userId: id, kind: "seeking", value })));
+    }
+    return id;
+  }
+
+  it("shows a candidate whose gender is a retired value, like an unanswered one", async () => {
+    const viewer = await member("woman", ["man"]);
+    const stale = await retired("retired_value");
+    const unanswered = await member(null);
+
+    const seen = await findCandidateIds(viewer);
+    expect(seen).toContain(stale);
+    expect(seen).toContain(unanswered);
+  });
+
+  it("treats a candidate whose only preference is retired as having none", async () => {
+    const viewer = await member("woman", ["man"]);
+    const stale = await retired("man", ["retired_value"]);
+
+    expect(await findCandidateIds(viewer)).toContain(stale);
+  });
+
+  it("agrees with discoverableBy on those rows", async () => {
+    const viewerShape = { gender: "woman" as const, seeking: ["man" as const] };
+    const viewer = await member(viewerShape.gender, viewerShape.seeking);
+    const stale = await retired("retired_value", ["retired_value"]);
+
+    // Read back the way everything else reads it: unanswered on both counts.
+    expect(await genderPreferenceOf(stale)).toEqual({ gender: null, seeking: [] });
+    expect(discoverableBy(viewerShape, { gender: null, seeking: [] })).toBe(true);
+    expect(await findCandidateIds(viewer)).toContain(stale);
+  });
+});
+
 describe("reading a member's preference back", () => {
   it("returns what was stored", async () => {
     const id = await member("non_binary", ["woman", "man"]);

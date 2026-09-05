@@ -1,4 +1,4 @@
-import { and, count, eq, gt, gte, isNull, lt, sql, type SQLWrapper } from "drizzle-orm";
+import { and, count, eq, gt, gte, inArray, isNull, lt, sql, type SQLWrapper } from "drizzle-orm";
 import { db } from "./client";
 import {
   gifts,
@@ -122,7 +122,23 @@ export async function productMetrics(window: MetricsWindow): Promise<ProductMetr
     db
       .select({ key: subscriptions.tier, count: count() })
       .from(subscriptions)
-      .where(and(gt(subscriptions.currentPeriodEnd, to), eq(subscriptions.status, "active")))
+      .where(
+        and(
+          gt(subscriptions.currentPeriodEnd, to),
+          /**
+           * The same statuses `activeTier` grants access for, not just
+           * `active`.
+           *
+           * Someone who cancelled keeps the period they bought, and someone
+           * whose card failed has not asked to stop — both still have the
+           * product, and both are still paying customers as far as this report
+           * is concerned. Counting only `active` under-reported PLUS and VIP
+           * and both conversion rates, while the comment above claimed the date
+           * decided. `expired` is the one that is genuinely gone.
+           */
+          inArray(subscriptions.status, ["active", "past_due", "canceled"])
+        )
+      )
       .groupBy(subscriptions.tier),
 
     retentionFor(window)

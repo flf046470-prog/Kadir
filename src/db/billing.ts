@@ -67,7 +67,10 @@ export async function recordPurchase(
       status: state.status,
       currentPeriodEnd: state.currentPeriodEnd,
       provider: state.provider,
-      providerRef: state.providerRef
+      providerRef: state.providerRef,
+      // Same reason as the update branch below: this row reflects the store's
+      // answer as of now, and a notification signed before it is stale.
+      notifiedAt: now
     })
     .onConflictDoUpdate({
       target: subscriptions.userId,
@@ -81,6 +84,24 @@ export async function recordPurchase(
         currentPeriodEnd: state.currentPeriodEnd,
         provider: state.provider,
         providerRef: state.providerRef,
+        /**
+         * A redemption is fresher than any notification signed before it, and
+         * has to say so.
+         *
+         * This asked the store directly and got its current answer. Leaving
+         * `notifiedAt` alone let a notification signed *earlier* than this call
+         * still look new to `applyStoreNotification`, which would then apply
+         * older data over it — a member who renewed, whose client reconciled,
+         * then had a stale "cancelled" notification arrive and downgrade them.
+         *
+         * The trade-off is that this is our clock where `signedAt` is the
+         * store's, so a store running behind us could have a genuinely fresh
+         * notification read as stale. That window is seconds and the failure is
+         * to skip one message we already have equal-or-better data than; the
+         * bug it replaces was applying strictly worse data. The next
+         * notification, or the next launch, corrects either way.
+         */
+        notifiedAt: now,
         updatedAt: now
       }
     });

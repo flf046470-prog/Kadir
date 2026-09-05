@@ -313,13 +313,44 @@ describe("applying a store notification", () => {
       applied: false,
       reason: "unknown_subscription"
     });
+    // Not recorded, so the door stays open — recording it would close it for
+    // good, and that is the mistake here no retry could undo.
     expect(await db.select().from(storeNotifications)).toHaveLength(0);
 
-    // The member redeems, and the store's retry now finds a home.
+    /**
+     * Once the member redeems, a retry is *superseded* rather than lost.
+     *
+     * Redemption asked the store directly, so it holds newer truth than a
+     * notification signed before it — which is exactly what `notifiedAt` now
+     * records. The retry is answered "stale", which is a handled outcome, not a
+     * dropped one, and a notification signed *after* the redemption still
+     * applies (the test below).
+     */
     const user = await createTestUser();
     await recordPurchase(user, purchase({ providerRef: "never-redeemed" }), now);
 
+    expect(await applyStoreNotification(orphan, now)).toEqual({
+      applied: false,
+      reason: "stale"
+    });
+  });
+
+  it("applies an orphaned notification whose retry is signed after the redemption", async () => {
+    const providerRef = "redeemed-late";
+    const orphan = notification(
+      { providerRef, refunded: true },
+      { signedAt: new Date(now.getTime() + 2 * DAY) }
+    );
+
+    expect(await applyStoreNotification(orphan, now)).toMatchObject({
+      reason: "unknown_subscription"
+    });
+
+    const user = await createTestUser();
+    await recordPurchase(user, purchase({ providerRef }), now);
+
     expect(await applyStoreNotification(orphan, now)).toMatchObject({ applied: true });
+    expect(await tierOf(user, now)).toBe("free");
   });
 
   it("remembers a notification it decided was stale, so the store stops resending", async () => {
@@ -381,6 +412,52 @@ describe("applying a store notification", () => {
     const stored = Object.values(rows[0]).map(String);
     expect(stored).not.toContain(user);
     expect(stored).not.toContain("token-abc");
+  });
+
+  /**
+   * A client reconcile is fresher than any notification signed before it.
+   *
+   * The sequence that used to downgrade a paying member: they renew, the client
+   * reconciles on launch and writes the new period, then a "cancelled"
+   * notification signed *before* that reconcile arrives late and is applied over
+   * it. `recordPurchase` now advances `notifiedAt`, so the late one is stale.
+   */
+  it("ignores a notification signed before the last client reconcile", async () => {
+    const user = await createTestUser();
+    const reconciledAt = new Date(now.getTime() + 2 * DAY);
+
+    await recordPurchase(
+      user,
+      purchase({ expiresAt: new Date(now.getTime() + 730 * DAY) }),
+      reconciledAt
+    );
+    expect(await tierOf(user, now)).toBe("plus");
+
+    const late = notification(
+      { cancelled: true, expiresAt: new Date(now.getTime() + DAY) },
+      { notificationId: "late-cancel", signedAt: new Date(reconciledAt.getTime() - DAY) }
+    );
+
+    expect(await applyStoreNotification(late, now)).toEqual({
+      applied: false,
+      reason: "stale"
+    });
+    // Still paying, and still on the period the reconcile established.
+    expect(await tierOf(user, new Date(now.getTime() + 400 * DAY))).toBe("plus");
+  });
+
+  it("still applies a notification signed after the last reconcile", async () => {
+    const user = await createTestUser();
+    const reconciledAt = new Date(now.getTime() + 2 * DAY);
+    await recordPurchase(user, purchase(), reconciledAt);
+
+    const refund = notification(
+      { refunded: true },
+      { notificationId: "later-refund", signedAt: new Date(reconciledAt.getTime() + 60_000) }
+    );
+
+    expect(await applyStoreNotification(refund, now)).toMatchObject({ applied: true });
+    expect(await tierOf(user, now)).toBe("free");
   });
 
   it("forgets notifications older than any store would resend", async () => {

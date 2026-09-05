@@ -203,6 +203,16 @@ export async function PATCH(request: NextRequest) {
     }
   });
 
-  const updated = await loadMatchProfile(userId);
-  return NextResponse.json(updated);
+  // The same shape GET returns, including the two fields that ride alongside
+  // the match profile. A PATCH that answered with a narrower object than GET
+  // would silently drop them for any client that renders from the response —
+  // today only the form, which ignores the body, which is exactly how this
+  // stays broken until something reads it.
+  const [updated, gender] = await Promise.all([
+    loadMatchProfile(userId),
+    genderPreferenceOf(userId)
+  ]);
+  if (!updated) return apiError("profile_not_found", 404);
+
+  return NextResponse.json({ ...updated, gender: gender.gender, seeking: gender.seeking });
 }
