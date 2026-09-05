@@ -28,6 +28,7 @@ export function DailyFiveClient({
     done: string;
     noBio: string;
     decided: string;
+    likeLimitReached: string;
   };
 }) {
   const taxonomy = useTranslations("taxonomy");
@@ -35,6 +36,7 @@ export function DailyFiveClient({
   const [decided, setDecided] = useState<Record<string, "like" | "pass" | "super_like">>({});
   const [matched, setMatched] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [limitReached, setLimitReached] = useState(false);
 
   async function judge(profileId: string, kind: "like" | "pass" | "super_like") {
     if (decided[profileId] || busy) return;
@@ -45,6 +47,19 @@ export function DailyFiveClient({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ toUserId: profileId, kind })
       });
+      /**
+       * Out of likes for today.
+       *
+       * Discover has said so since this shipped; here the same 402 returned
+       * silently, so the member tapped Like, the card stayed undecided, and
+       * nothing on screen explained why. A limit the product is willing to
+       * charge to remove has to be legible when it bites.
+       */
+      if (response.status === 402) {
+        setLimitReached(true);
+        return;
+      }
+
       if (!response.ok) return;
 
       const result: { matched?: boolean } = await response.json();
@@ -59,6 +74,15 @@ export function DailyFiveClient({
 
   return (
     <div className="mt-8 space-y-5">
+      {limitReached && (
+        <p
+          role="status"
+          className="rounded-2xl border border-black/5 bg-dusk-50 px-5 py-4 text-sm text-ink/75"
+        >
+          {labels.likeLimitReached}
+        </p>
+      )}
+
       {remaining === 0 && (
         <p className="rounded-2xl border border-bloom-200 bg-bloom-50 px-5 py-4 text-sm font-medium text-ink">
           {labels.done}

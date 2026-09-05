@@ -49,7 +49,8 @@ export default async function DailyFivePage({
             matched: t("matched"),
             done: t("dailyFiveDone"),
             noBio: t("cardNoBio"),
-            decided: t("dailyFiveDecided")
+            decided: t("dailyFiveDecided"),
+            likeLimitReached: t("likeLimitReached")
           }}
         />
       )}
