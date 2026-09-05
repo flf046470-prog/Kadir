@@ -42,6 +42,16 @@ These describe decisions nobody has made yet rather than code that exists.
 | [`MULTIPLAYER.md`](MULTIPLAYER.md) | the same, for room synchronisation |
 | [`ASSET_LICENSES.md`](ASSET_LICENSES.md) | the register — short, because nothing third-party ships yet |
 
+## Waiting on a decision
+
+| | |
+| --- | --- |
+| [`DECISIONS_PENDING.md`](DECISIONS_PENDING.md) | every choice that blocks something, what it costs, and a recommendation |
+
+Start here if you are asking "what is left?". Everything on that list needs
+money, a licence, an account, a legal position, or a machine this repository
+does not have — none of it is unwritten code.
+
 ---
 
 Elsewhere: [`../README.md`](../README.md) is the product and the codebase tour;
