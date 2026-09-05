@@ -1,0 +1,488 @@
+import { and, asc, eq, desc, inArray, isNull, or, ne, sql } from "drizzle-orm";
+import { db } from "./client";
+import { messages, messageRiskAssessments, matches, users, reports } from "./schema";
+import { assessRisk } from "@/lib/safety/scam-shield";
+import { isUuid } from "@/lib/uuid";
+import {
+  ageInHours,
+  conversationAllowance
+} from "@/lib/safety/new-account";
+
+/**
+ * Messaging.
+ *
+ * Authorization is built into every function here rather than left to callers:
+ * each takes the acting member's id and resolves the conversation *through*
+ * them. A member who is not part of a match cannot address it at all, because
+ * there is no code path that looks a conversation up without checking
+ * membership first.
+ */
+
+export const MAX_MESSAGE_LENGTH = 2000;
+
+export type Conversation = {
+  matchId: string;
+  partnerId: string;
+  partnerName: string;
+  lastMessage: string | null;
+  lastMessageAt: Date | null;
+  unreadCount: number;
+};
+
+/** Conversations for a member, newest activity first. */
+export async function listConversations(userId: string): Promise<Conversation[]> {
+  const rows = await db
+    .select({
+      matchId: matches.id,
+      userAId: matches.userAId,
+      userBId: matches.userBId,
+      createdAt: matches.createdAt
+    })
+    .from(matches)
+    .where(
+      and(
+        or(eq(matches.userAId, userId), eq(matches.userBId, userId)),
+        isNull(matches.closedAt)
+      )
+    );
+
+  if (rows.length === 0) return [];
+
+  const partnerIds = rows.map((row) => (row.userAId === userId ? row.userBId : row.userAId));
+  const matchIds = rows.map((row) => row.matchId);
+
+  /**
+   * Both message queries are scoped to *these* matches.
+   *
+   * They were not, and nothing in the result gave that away: the unread query
+   * grouped by match and the last-message query was read through a map keyed by
+   * match, so rows belonging to other people's conversations were fetched and
+   * then discarded. Correct output, over a scan of the whole `messages` table —
+   * the cost of opening the inbox grew with the product rather than with the
+   * member's own conversations.
+   *
+   * `distinct on` does the last-message pick in the database, so what comes
+   * back is one row per conversation rather than every message the member has
+   * ever exchanged, sorted in Node.
+   */
+  const [partners, lastMessages, unread] = await Promise.all([
+    db
+      .select({ id: users.id, displayName: users.displayName })
+      .from(users)
+      .where(inArray(users.id, partnerIds)),
+    db
+      .selectDistinctOn([messages.matchId], {
+        matchId: messages.matchId,
+        body: messages.body,
+        createdAt: messages.createdAt
+      })
+      .from(messages)
+      .where(and(inArray(messages.matchId, matchIds), isNull(messages.deletedAt)))
+      .orderBy(messages.matchId, desc(messages.createdAt)),
+    db
+      .select({ matchId: messages.matchId, count: sql<number>`count(*)::int` })
+      .from(messages)
+      .where(
+        and(
+          inArray(messages.matchId, matchIds),
+          ne(messages.senderId, userId),
+          isNull(messages.readAt),
+          isNull(messages.deletedAt)
+        )
+      )
+      .groupBy(messages.matchId)
+  ]);
+
+  const nameById = new Map(partners.map((partner) => [partner.id, partner.displayName]));
+  const unreadByMatch = new Map(unread.map((row) => [row.matchId, row.count]));
+
+  const latestByMatch = new Map(
+    lastMessages.map((message) => [
+      message.matchId,
+      { body: message.body, createdAt: message.createdAt }
+    ])
+  );
+
+  return rows
+    .map((row) => {
+      const partnerId = row.userAId === userId ? row.userBId : row.userAId;
+      const latest = latestByMatch.get(row.matchId);
+
+      return {
+        matchId: row.matchId,
+        partnerId,
+        partnerName: nameById.get(partnerId) ?? "",
+        lastMessage: latest?.body ?? null,
+        lastMessageAt: latest?.createdAt ?? null,
+        unreadCount: unreadByMatch.get(row.matchId) ?? 0
+      };
+    })
+    .sort((a, b) => {
+      const aTime = a.lastMessageAt?.getTime() ?? 0;
+      const bTime = b.lastMessageAt?.getTime() ?? 0;
+      return bTime - aTime;
+    });
+}
+
+/**
+ * Resolves a match for a member, or null if it isn't theirs. Every other
+ * function goes through this, so membership is checked exactly once and cannot
+ * be skipped.
+ */
+export async function resolveMatchFor(
+  userId: string,
+  matchId: string
+): Promise<{ matchId: string; partnerId: string } | null> {
+  const rows = await db
+    .select({ id: matches.id, userAId: matches.userAId, userBId: matches.userBId })
+    .from(matches)
+    .where(
+      and(
+        eq(matches.id, matchId),
+        or(eq(matches.userAId, userId), eq(matches.userBId, userId)),
+        // A match a block closed is indistinguishable from one that never
+        // existed, which is what makes closing rather than deleting safe.
+        isNull(matches.closedAt)
+      )
+    )
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return null;
+
+  return { matchId: row.id, partnerId: row.userAId === userId ? row.userBId : row.userAId };
+}
+
+export type Message = {
+  id: string;
+  senderId: string;
+  body: string;
+  createdAt: Date;
+  readAt: Date | null;
+  mine: boolean;
+  /** Set when Scam Shield flagged the message and the viewer is the recipient. */
+  warning: { band: string; signals: string[] } | null;
+};
+
+export async function listMessages(userId: string, matchId: string): Promise<Message[] | null> {
+  const match = await resolveMatchFor(userId, matchId);
+  if (!match) return null;
+
+  const rows = await db
+    .select({
+      id: messages.id,
+      senderId: messages.senderId,
+      body: messages.body,
+      createdAt: messages.createdAt,
+      readAt: messages.readAt,
+      band: messageRiskAssessments.band,
+      signals: messageRiskAssessments.signals
+    })
+    .from(messages)
+    .leftJoin(messageRiskAssessments, eq(messageRiskAssessments.messageId, messages.id))
+    .where(and(eq(messages.matchId, matchId), isNull(messages.deletedAt)))
+    .orderBy(asc(messages.createdAt));
+
+  return rows.map((row) => ({
+    id: row.id,
+    senderId: row.senderId,
+    body: row.body,
+    createdAt: row.createdAt,
+    readAt: row.readAt,
+    mine: row.senderId === userId,
+    // The warning is for the person receiving the message. Showing it to the
+    // sender would just teach them which phrasings evade detection.
+    warning:
+      row.senderId !== userId && row.band && row.band !== "none"
+        ? { band: row.band, signals: parseSignals(row.signals) }
+        : null
+  }));
+}
+
+/**
+ * Signals come from a left join, so they may be absent, and they are stored as
+ * JSON text. A malformed row should degrade to "flagged, details unknown"
+ * rather than throwing and taking down the whole conversation view.
+ */
+function parseSignals(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export type SendResult =
+  | { ok: true; messageId: string }
+  | {
+      ok: false;
+      reason: "not_a_match" | "empty" | "too_long" | "new_account_limit";
+      /** For `new_account_limit`, what the cap is — so it can be said out loud. */
+      limit?: number;
+    };
+
+export async function sendMessage(
+  userId: string,
+  matchId: string,
+  body: string,
+  language?: string
+): Promise<SendResult> {
+  const match = await resolveMatchFor(userId, matchId);
+  if (!match) return { ok: false, reason: "not_a_match" };
+
+  const trimmed = body.trim();
+  if (trimmed.length === 0) return { ok: false, reason: "empty" };
+  if (trimmed.length > MAX_MESSAGE_LENGTH) return { ok: false, reason: "too_long" };
+
+  /**
+   * A young account may only open so many conversations a day.
+   *
+   * Checked here rather than in the route because it depends on whether this
+   * message *starts* a conversation, which the route cannot see. Replies are
+   * never limited: the pattern being slowed is one account reaching many
+   * strangers, and someone answering a person who wrote to them is the
+   * opposite of that.
+   */
+  const starting = await isFirstMessageFrom(userId, matchId);
+  if (starting) {
+    const allowance = await conversationAllowanceFor(userId);
+    if (!allowance.allowed) {
+      return { ok: false, reason: "new_account_limit", limit: allowance.limit ?? undefined };
+    }
+  }
+
+  // How many distinct people got a near-identical message recently — the input
+  // Scam Shield needs for its mass-message signal.
+  const identicalRecipients = await countIdenticalRecipients(userId, trimmed);
+
+  const minutesSinceStart = await minutesSinceConversationStart(matchId);
+
+  const risk = assessRisk({
+    text: trimmed,
+    // The language the sender declared, so the detector runs that language's
+    // wording rather than every language's. Absent, it tries them all at a
+    // discount — see `MessageContext.language`.
+    language,
+    identicalMessageRecipients: identicalRecipients,
+    minutesSinceConversationStart: minutesSinceStart
+  });
+
+  return db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(messages)
+      .values({ matchId, senderId: userId, body: trimmed, language: language ?? null })
+      .returning({ id: messages.id });
+
+    if (risk.band !== "none") {
+      await tx.insert(messageRiskAssessments).values({
+        messageId: created.id,
+        band: risk.band,
+        signals: JSON.stringify(risk.signals.map((signal) => signal.id)),
+        // High risk goes straight to a human; everything else starts as a
+        // warning to the recipient and only escalates if they report it.
+        stage: risk.queueForReview ? "human_review" : "warning"
+      });
+    }
+
+    return { ok: true as const, messageId: created.id };
+  });
+}
+
+/** Whether this member has said anything in this match yet. */
+async function isFirstMessageFrom(userId: string, matchId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(and(eq(messages.matchId, matchId), eq(messages.senderId, userId)))
+    .limit(1);
+
+  return rows.length === 0;
+}
+
+/**
+ * How many conversations this member has opened in the last rolling 24 hours,
+ * against what their account age allows.
+ *
+ * "Opened" is the first message *they* sent in a match, so a thread they have
+ * been replying in for a week does not count again today, and a match made
+ * long ago that they only now write to does. The match's own age is
+ * deliberately not the measure: matching is not the act being limited.
+ */
+async function conversationAllowanceFor(userId: string) {
+  const [account] = await db
+    .select({ createdAt: users.createdAt })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+
+  // No row means the caller was already resolved as a match participant, so
+  // this is a race with account deletion rather than a real state. Refusing
+  // would be a confusing error; the insert below will fail on its own.
+  if (!account) return { allowed: true, limit: null as number | null };
+
+  const rows = await db.execute<{ started: number }>(sql`
+    select count(*)::int as started from (
+      select ${messages.matchId}, min(${messages.createdAt}) as first_at
+      from ${messages}
+      where ${messages.senderId} = ${userId}
+      group by ${messages.matchId}
+    ) opened
+    where opened.first_at > now() - interval '1 day'
+  `);
+
+  const startedLastDay = Number(rows[0]?.started ?? 0);
+
+  return conversationAllowance({
+    accountAgeHours: ageInHours(account.createdAt),
+    startedLastDay
+  });
+}
+
+/**
+ * Counts distinct recipients who received the same message text from this
+ * sender in the last day. Compared on exact text, which is the pattern bulk
+ * senders actually produce.
+ */
+async function countIdenticalRecipients(senderId: string, body: string): Promise<number> {
+  const rows = await db
+    .select({ count: sql<number>`count(distinct ${messages.matchId})::int` })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.senderId, senderId),
+        eq(messages.body, body),
+        sql`${messages.createdAt} > now() - interval '1 day'`
+      )
+    );
+
+  return rows[0]?.count ?? 0;
+}
+
+async function minutesSinceConversationStart(matchId: string): Promise<number | undefined> {
+  const rows = await db
+    .select({ createdAt: matches.createdAt })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+
+  const created = rows[0]?.createdAt;
+  if (!created) return undefined;
+
+  return Math.floor((Date.now() - created.getTime()) / 60_000);
+}
+
+/** Marks the partner's messages as read. Never touches the member's own. */
+export async function markRead(userId: string, matchId: string): Promise<boolean> {
+  const match = await resolveMatchFor(userId, matchId);
+  if (!match) return false;
+
+  await db
+    .update(messages)
+    .set({ readAt: new Date() })
+    .where(
+      and(eq(messages.matchId, matchId), ne(messages.senderId, userId), isNull(messages.readAt))
+    );
+
+  return true;
+}
+
+/** Soft-deletes a message. Only the sender may delete their own. */
+export async function deleteMessage(userId: string, messageId: string): Promise<boolean> {
+  const result = await db
+    .update(messages)
+    .set({ deletedAt: new Date() })
+    .where(and(eq(messages.id, messageId), eq(messages.senderId, userId)))
+    .returning({ id: messages.id });
+
+  return result.length > 0;
+}
+
+export type ReportResult =
+  | { ok: true; reportId: string }
+  | { ok: false; reason: "unknown_user" | "invalid_message" };
+
+/**
+ * Files an abuse report.
+ *
+ * Both references are resolved here rather than trusted from the request, and
+ * for two different reasons.
+ *
+ * `reportedId` is checked because an id that is not a member violates the
+ * foreign key, and a constraint violation surfaces as a 500 — the caller is
+ * told the server broke when what happened is that they sent a bad id. A
+ * malformed uuid does not even reach the constraint; Postgres rejects the cast.
+ *
+ * `messageId` is checked because attaching one *escalates* it: any Scam Shield
+ * assessment on that message goes straight to human review. Nothing verified
+ * that the message had anything to do with the reporter, so any member could
+ * push any other member's flagged message to the front of the moderation queue
+ * — or bury the queue in escalations — by naming ids they had never seen. The
+ * message now has to be one the reporter can actually read, written by the
+ * person they are reporting.
+ */
+export async function createReport(input: {
+  reporterId: string;
+  reportedId: string;
+  messageId?: string;
+  reason: string;
+  details?: string;
+}): Promise<ReportResult> {
+  if (!isUuid(input.reportedId)) return { ok: false, reason: "unknown_user" };
+  if (input.messageId !== undefined && !isUuid(input.messageId)) {
+    return { ok: false, reason: "invalid_message" };
+  }
+
+  const target = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, input.reportedId), isNull(users.deletedAt)))
+    .limit(1);
+
+  if (!target[0]) return { ok: false, reason: "unknown_user" };
+
+  if (input.messageId) {
+    const owned = await db
+      .select({ id: messages.id })
+      .from(messages)
+      .innerJoin(matches, eq(matches.id, messages.matchId))
+      .where(
+        and(
+          eq(messages.id, input.messageId),
+          // Sent by the person being reported…
+          eq(messages.senderId, input.reportedId),
+          // …in a conversation the reporter is part of. A closed match still
+          // counts: blocking someone you have just reported is the ordinary
+          // sequence, and the report must not stop working because of it.
+          or(eq(matches.userAId, input.reporterId), eq(matches.userBId, input.reporterId))
+        )
+      )
+      .limit(1);
+
+    if (!owned[0]) return { ok: false, reason: "invalid_message" };
+  }
+
+  return db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(reports)
+      .values({
+        reporterId: input.reporterId,
+        reportedId: input.reportedId,
+        messageId: input.messageId ?? null,
+        reason: input.reason,
+        details: input.details ?? null
+      })
+      .returning({ id: reports.id });
+
+    // A report escalates any assessment on that message to human review.
+    if (input.messageId) {
+      await tx
+        .update(messageRiskAssessments)
+        .set({ stage: "human_review" })
+        .where(eq(messageRiskAssessments.messageId, input.messageId));
+    }
+
+    return { ok: true as const, reportId: created.id };
+  });
+}

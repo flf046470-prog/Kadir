@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The palette, as Android sees it.
+
+    These are the same values as `tailwind.config.ts`, because the shell and the
+    page it loads are one product and a mismatch shows up as a seam at the top
+    of the screen. Anything changed here has to change there too.
+-->
+<resources>
+
+    <!-- Brand. `bloom` is the rose the product leads with, `dusk` the violet
+         it pairs with; `ground` is the tinted white the launch frame sits on. -->
+    <color name="brand_ground">#fff5f7</color>
+    <color name="brand_bloom">#e8446b</color>
+    <color name="brand_bloom_dark">#c62f54</color>
+    <color name="brand_dusk">#6a41e0</color>
+    <color name="brand_ink">#171123</color>
+
+    <!--
+        The running app's chrome is white, not the brand ground.
+
+        `body` is `bg-white` and the app header is `bg-white`, so the status bar
+        has to be white as well — a `#fff5f7` bar above a white header reads as
+        a faint pink stripe the design never asked for. The brand ground belongs
+        to the launch frame, which is a held moment, not to the app.
+    -->
+    <color name="app_chrome">#ffffff</color>
+
+    <!--
+        The names the stock Capacitor theme referenced without ever defining.
+        They resolved from a library default before, which meant the launcher
+        theme was quietly wearing someone else's colours.
+    -->
+    <color name="colorPrimary">#e8446b</color>
+    <color name="colorPrimaryDark">#c62f54</color>
+    <color name="colorAccent">#6a41e0</color>
+</resources>

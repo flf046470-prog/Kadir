@@ -1,0 +1,25 @@
+# Everything the image does not need. Keeping this tight is most of what makes
+# the build fast: an unignored node_modules or .next is copied into the build
+# context before a single instruction runs.
+node_modules
+.next
+.git
+.storage
+.env
+.env.local
+*.log
+
+# The native and store projects. They build elsewhere and are large — the
+# Android build output alone is bigger than the entire server image.
+mobile/android/build
+mobile/android/.gradle
+mobile/ios
+mobile/captures
+mobile/captures-desktop
+mobile/*/assets
+
+# Signing material, in case a keystore is ever left in the working tree.
+*.jks
+*.keystore
+*.p12
+key.properties

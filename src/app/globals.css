@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-white font-sans text-ink antialiased;
+  }
+}
+
+@layer components {
+  .container-fm {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-bloom-500 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-bloom-500/30 transition hover:bg-bloom-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-bloom-500;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full border border-dusk-200 bg-white px-6 py-3 text-sm font-semibold text-dusk-700 transition hover:border-dusk-300 hover:bg-dusk-50;
+  }
+  .card-fm {
+    @apply rounded-2xl border border-black/5 bg-white p-6 shadow-sm shadow-black/[0.03];
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-bloom-600;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Atmosphere and cinematic motion.
+
+   The visual register here is atmospheric light rather than flat colour: two
+   large, soft light sources sit behind the content and drift at different rates
+   as the page scrolls, which separates foreground from background the way a
+   camera move does.
+
+   Everything animates only `transform`, `opacity`, and `filter` so it stays on
+   the compositor. Nothing here moves layout, because the marketing pages are
+   the SEO surface and a shifted heading is a failed Core Web Vital.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  .fm-glow {
+    position: absolute;
+    border-radius: 9999px;
+    /* A soft-edged radial reads as light; a hard-edged one reads as a shape. */
+    filter: blur(80px);
+    opacity: 0.5;
+    will-change: transform;
+  }
+
+  .fm-glow--warm {
+    top: -18%;
+    left: -10%;
+    width: 60vw;
+    height: 60vw;
+    max-width: 780px;
+    max-height: 780px;
+    background: radial-gradient(circle, rgba(251, 111, 146, 0.55), rgba(251, 111, 146, 0) 68%);
+    /* The two layers drift at different rates — that difference is the depth. */
+    transform: translate3d(0, calc(var(--drift, 0) * 70px), 0);
+  }
+
+  .fm-glow--cool {
+    right: -14%;
+    bottom: -24%;
+    width: 68vw;
+    height: 68vw;
+    max-width: 860px;
+    max-height: 860px;
+    background: radial-gradient(circle, rgba(131, 96, 245, 0.5), rgba(131, 96, 245, 0) 70%);
+    transform: translate3d(0, calc(var(--drift, 0) * -110px), 0);
+  }
+
+  /* A dark stage for sections that should feel lit rather than printed. */
+  .fm-stage {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 50% -10%, rgba(131, 96, 245, 0.28), transparent 60%),
+      linear-gradient(180deg, #1a0f42 0%, #171123 55%, #120d1c 100%);
+    color: #f4f2ff;
+  }
+
+  /* Fine grain. Without it, large gradients band visibly on 8-bit displays —
+     the noise dithers the ramp and is what keeps the light looking filmic. */
+  .fm-grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.35;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* Surreal transition: sections dissolve into each other instead of butting
+     up against a hard edge. The mask fades the section's own top and bottom,
+     so no seam is visible whatever colour follows. */
+  .fm-dissolve {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0%,
+      #000 7%,
+      #000 93%,
+      transparent 100%
+    );
+    mask-image: linear-gradient(to bottom, transparent 0%, #000 7%, #000 93%, transparent 100%);
+  }
+
+  /* Content sits above the atmosphere layer. */
+  .fm-above {
+    position: relative;
+    z-index: 2;
+  }
+
+  /* Slow, continuous breathing for a single hero accent. Used once per page at
+     most — repeated, it stops reading as atmosphere and starts as noise. */
+  .fm-breathe {
+    animation: fm-breathe 14s ease-in-out infinite;
+  }
+}
+
+@keyframes fm-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.68;
+  }
+}
+
+/* Reduced motion means none, not less. Drift, breathing, and reveal transitions
+   all stop; the colour and depth remain, because those carry meaning and cause
+   no vestibular problem. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-glow--warm,
+  .fm-glow--cool {
+    transform: none !important;
+  }
+
+  .fm-breathe {
+    animation: none !important;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Scroll-driven scenes.
+
+   `ScrollScene` publishes one number per section — `--scene`, 0 as it enters
+   from below, 1 as it leaves the top — and everything below is arithmetic on
+   that number. No effect here owns a scroll listener; they all read the one
+   the scene already pays for.
+
+   The same two rules as the atmosphere layer apply and are not negotiable:
+   only `transform`, `opacity` and `filter` are animated, and nothing moves
+   layout. A scrubbed margin would shift a heading mid-scroll, which is a
+   failed Core Web Vital on the pages the whole SEO strategy rests on.
+
+   Every rule defaults `--scene` to 1 — the finished state — so a section that
+   never receives a value renders as arrived rather than as a blank stage.
+   --------------------------------------------------------------------------- */
+
+@layer components {
+  /* Text that lights word by word. `--n` is the word count, `--i` the word's
+     index; a word is lit once the scene has travelled past its share of the
+     line. Unlit words stay legible rather than invisible — this is a change of
+     emphasis, not a reveal, and text that flashes in is text a reader loses. */
+  .fm-scrub__word {
+    display: inline-block;
+    opacity: clamp(0.22, calc(var(--scene, 1) * var(--n) - var(--i)), 1);
+    transform: translate3d(0, calc((1 - clamp(0, calc(var(--scene, 1) * var(--n) - var(--i)), 1)) * 6px), 0);
+    will-change: opacity, transform;
+  }
+
+  /* A deck that gathers instead of scrolling away. Each card sticks slightly
+     lower than the one before, so the pile fans. The offset clears the sticky
+     header before the first card lands. */
+  .fm-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .fm-stack__item {
+    position: sticky;
+    top: calc(5.5rem + var(--i) * 0.9rem);
+  }
+
+  /* The hero pulling back as you leave it: a slow scale-down and fade, the
+     shot receding rather than cutting. Scene sits near 0.5 for a hero resting
+     at the top of the page, so the departure is scaled from there. */
+  .fm-scene-depart {
+    opacity: clamp(0, calc((1 - var(--scene, 0.5)) * 2.6), 1);
+    transform: scale(calc(1 - (var(--scene, 0.5) - 0.5) * 0.12));
+    transform-origin: top center;
+    will-change: opacity, transform;
+  }
+
+  /* Depth: a layer that drifts against the scroll. Positive factors trail the
+     scroll, negative ones lead it; the difference between two layers is what
+     the eye reads as distance. */
+  .fm-scene-depth {
+    transform: translate3d(0, calc((var(--scene, 1) - 0.5) * var(--depth, 40px)), 0);
+    will-change: transform;
+  }
+}
+
+/* Reduced motion means none, not less. Every scene rule collapses to its
+   finished state: the words are lit, the deck is a plain column, the hero is
+   simply present. The layout is identical either way, so nothing reflows when
+   a reader flips the preference. */
+@media (prefers-reduced-motion: reduce) {
+  .fm-scrub__word {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+
+  .fm-stack__item {
+    position: static !important;
+  }
+
+  .fm-scene-depart,
+  .fm-scene-depth {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}

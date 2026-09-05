@@ -1,0 +1,387 @@
+import { and, count, desc, eq, gt, gte, inArray, sql } from "drizzle-orm";
+import { db } from "./client";
+import {
+  boostGrants,
+  boosts,
+  likes,
+  subscriptions,
+  translationUsage,
+  virtualDateUsage
+} from "./schema";
+import { advisoryLockKey } from "./advisory-lock";
+import { spendReward } from "./referral";
+import {
+  activeTier,
+  entitlementsFor,
+  type Entitlements,
+  type SubscriptionStatus,
+  type Tier
+} from "@/lib/billing/tiers";
+
+/**
+ * What a member may do, resolved from what they have paid for.
+ *
+ * Every gate in the app goes through `entitlementsOf`. Reading the
+ * subscription row directly from a route would be how one feature ends up
+ * checking `tier === "vip"` while another checks the entitlement, and they
+ * drift the first time pricing changes.
+ *
+ * Boost deliberately spends from the referral reward ledger rather than from a
+ * second wallet of its own. A boost is a boost regardless of whether it was
+ * earned by inviting a friend or bought outright, and two parallel balances
+ * would eventually disagree about how many someone has.
+ */
+
+export type MemberAccess = {
+  tier: Tier;
+  entitlements: Entitlements;
+};
+
+/**
+ * A reader that may be the pool or an open transaction.
+ *
+ * Every allowance below takes one, and it has to reach all the way down to the
+ * subscription lookup rather than stopping at the counting query. A function
+ * called with a `tx` that then reads on the pool asks for a *second*
+ * connection while holding the first, and the pool defaults to ten: ten
+ * concurrent charges each hold a connection, each wait for another, and none
+ * can finish. That is a hang of the whole route under load, not a slow query,
+ * and it does not show up until concurrency reaches the pool size.
+ */
+export type Executor = Pick<typeof db, "select">;
+
+export async function tierOf(
+  userId: string,
+  now: Date = new Date(),
+  executor: Executor = db
+): Promise<Tier> {
+  const rows = await executor
+    .select({
+      tier: subscriptions.tier,
+      status: subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd
+    })
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) return "free";
+
+  return activeTier(
+    {
+      tier: row.tier as Tier,
+      status: row.status as SubscriptionStatus,
+      currentPeriodEnd: row.currentPeriodEnd
+    },
+    now
+  );
+}
+
+export async function entitlementsOf(
+  userId: string,
+  now?: Date,
+  executor: Executor = db
+): Promise<MemberAccess> {
+  const tier = await tierOf(userId, now, executor);
+  return { tier, entitlements: entitlementsFor(tier) };
+}
+
+/** Tiers for several members at once, for ranking a whole feed. */
+export async function tiersOf(
+  userIds: string[],
+  now: Date = new Date()
+): Promise<Map<string, Tier>> {
+  const result = new Map<string, Tier>(userIds.map((id) => [id, "free"]));
+  if (userIds.length === 0) return result;
+
+  const rows = await db
+    .select({
+      userId: subscriptions.userId,
+      tier: subscriptions.tier,
+      status: subscriptions.status,
+      currentPeriodEnd: subscriptions.currentPeriodEnd
+    })
+    .from(subscriptions)
+    .where(inArray(subscriptions.userId, userIds));
+
+  for (const row of rows) {
+    result.set(
+      row.userId,
+      activeTier(
+        {
+          tier: row.tier as Tier,
+          status: row.status as SubscriptionStatus,
+          currentPeriodEnd: row.currentPeriodEnd
+        },
+        now
+      )
+    );
+  }
+
+  return result;
+}
+
+export type LikeAllowance = {
+  allowed: boolean;
+  used: number;
+  /** null when the tier has no limit. */
+  limit: number | null;
+};
+
+/**
+ * How many likes are left today.
+ *
+ * A rolling 24 hours rather than a calendar day, because a calendar day means
+ * a member in Auckland and a member in Los Angeles get their allowance back at
+ * different local times, and whichever timezone the server picks is wrong for
+ * most of the world.
+ *
+ * Passes do not count. The limit exists to slow bulk liking, and penalising
+ * someone for saying no would push them towards liking everything, which is
+ * the behaviour it is meant to discourage.
+ */
+export async function likeAllowance(
+  userId: string,
+  now: Date = new Date(),
+  /**
+   * The transaction to count inside, when the caller has one open.
+   *
+   * `recordLike` passes its own `tx`: counting on the pool from inside an open
+   * transaction reads a different connection, which cannot see the rows that
+   * transaction has already written, so parallel requests each read the same
+   * "one left" and each spent it. Reading and writing have to be one step, and
+   * that means one connection.
+   */
+  executor: Executor = db
+): Promise<LikeAllowance> {
+  const { entitlements } = await entitlementsOf(userId, now, executor);
+  const limit = entitlements.dailyLikes;
+  if (limit === null) return { allowed: true, used: 0, limit: null };
+
+  const since = new Date(now.getTime() - 24 * 3_600_000);
+
+  const rows = await executor
+    .select({ total: count() })
+    .from(likes)
+    .where(
+      and(
+        eq(likes.fromUserId, userId),
+        gte(likes.createdAt, since),
+        sql`${likes.kind} <> 'pass'`
+      )
+    );
+
+  const used = rows[0]?.total ?? 0;
+  return { allowed: used < limit, used, limit };
+}
+
+/**
+ * How many translations are left today.
+ *
+ * The same rolling window as likes, for the same reason: a calendar day resets
+ * at a different local hour for every member, and whichever timezone the server
+ * picks is wrong for most of the world.
+ *
+ * What is counted is translations *bought from the provider*, recorded by
+ * `translateConversation` when it writes a new cache row. Re-reading a
+ * conversation costs nothing and so costs nothing here — a member who scrolls
+ * back through yesterday's messages is not spending today's allowance.
+ */
+export async function translationAllowance(
+  userId: string,
+  now: Date = new Date()
+): Promise<LikeAllowance> {
+  const { entitlements } = await entitlementsOf(userId, now);
+  const limit = entitlements.dailyTranslations;
+  if (limit === null) return { allowed: true, used: 0, limit: null };
+
+  const since = new Date(now.getTime() - 24 * 3_600_000);
+
+  const rows = await db
+    .select({ total: count() })
+    .from(translationUsage)
+    .where(and(eq(translationUsage.userId, userId), gte(translationUsage.createdAt, since)));
+
+  const used = rows[0]?.total ?? 0;
+  return { allowed: used < limit, used, limit };
+}
+
+/**
+ * How many virtual dates are left this month.
+ *
+ * A rolling thirty days rather than a calendar month, for the reason the like
+ * allowance gives and one more of its own: calendar months are 28 to 31 days
+ * long, so a member in February would get the same allowance over three fewer
+ * days than one in March. A rolling window is the same length for everyone, in
+ * every timezone, in every month.
+ *
+ * Counted from `startedAt`, so a date that is still running is already spent.
+ * The alternative — counting completed dates — would let someone open thirty
+ * rooms, leave them all open, and pay for none of them.
+ */
+export async function virtualDateAllowance(
+  userId: string,
+  now: Date = new Date(),
+  /**
+   * The transaction to count inside, when the caller has one open.
+   *
+   * Charging reads this and then writes, and those have to be one atomic step.
+   * Counting on the pool while the caller holds an open transaction reads a
+   * different connection, which cannot see the charges that transaction has
+   * already made — so two concurrent acceptances both saw "one left" and each
+   * spent it. `acceptInvite` passes its own `tx` for that reason.
+   */
+  executor: Executor = db
+): Promise<LikeAllowance> {
+  const { entitlements } = await entitlementsOf(userId, now, executor);
+  const limit = entitlements.monthlyVirtualDates;
+  if (limit === null) return { allowed: true, used: 0, limit: null };
+
+  const since = new Date(now.getTime() - 30 * 24 * 3_600_000);
+
+  const rows = await executor
+    .select({ total: count() })
+    .from(virtualDateUsage)
+    .where(and(eq(virtualDateUsage.userId, userId), gte(virtualDateUsage.startedAt, since)));
+
+  const used = rows[0]?.total ?? 0;
+  return { allowed: used < limit, used, limit };
+}
+
+/** Members whose Boost is running right now. */
+export async function boostedUserIds(
+  candidateIds: string[],
+  now: Date = new Date()
+): Promise<Set<string>> {
+  if (candidateIds.length === 0) return new Set();
+
+  const rows = await db
+    .select({ userId: boosts.userId })
+    .from(boosts)
+    .where(and(inArray(boosts.userId, candidateIds), gt(boosts.expiresAt, now)));
+
+  return new Set(rows.map((row) => row.userId));
+}
+
+/**
+ * The calendar month a grant belongs to, as `YYYY-MM` in UTC.
+ *
+ * UTC rather than the member's local month so the key is stable: deriving it
+ * from a device clock would let someone in one timezone claim December's
+ * credit twice by crossing a boundary.
+ */
+function monthKey(now: Date): string {
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+export type BoostResult =
+  | { ok: true; expiresAt: Date }
+  | { ok: false; reason: "already_running" | "none_available" };
+
+/**
+ * Starts a Boost, paid for out of the member's reward ledger.
+ *
+ * Refuses while one is already running rather than queueing or stacking.
+ * Stacking would let someone spend three boosts for ninety minutes of the same
+ * thirty-minute advantage, and silently consuming the second one to extend the
+ * first is not what "buy a boost" means to the person pressing the button.
+ */
+export async function startBoost(userId: string, now: Date = new Date()): Promise<BoostResult> {
+  const { entitlements } = await entitlementsOf(userId, now);
+
+  return db.transaction(async (tx) => {
+    /**
+     * Serialise this member's boosts for the rest of the transaction.
+     *
+     * Without it a double-click is two calls that both find no boost running,
+     * both take a *different* reward row (the spend uses `skip locked`, so
+     * they do not contend), and both insert — charging twice for one
+     * thirty-minute window. The "already running" check is only a guard if
+     * nothing can start one between the check and the insert.
+     */
+    await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`boost:${userId}`)})`);
+
+    const running = await tx
+      .select({ id: boosts.id })
+      .from(boosts)
+      .where(and(eq(boosts.userId, userId), gt(boosts.expiresAt, now)))
+      .limit(1);
+
+    if (running[0]) return { ok: false as const, reason: "already_running" as const };
+
+    /**
+     * Pay from the subscription's monthly credit first, then the referral
+     * ledger.
+     *
+     * That order matters: the monthly credit expires at the end of the month
+     * and a referral reward does not, so spending the perishable one first is
+     * the only ordering that never destroys value the member earned. VIP's
+     * sixty-minute Boost was unreachable before this — `startBoost` paid only
+     * from referral rewards, so a VIP who had never referred anyone could not
+     * start one at all, and `boostMinutes: 60` described something that could
+     * not happen.
+     *
+     * `monthlyBoostCredits` is a count, and it is spent as one.
+     *
+     * The claim used to be a single (member, month) row taken with
+     * `onConflictDoNothing`, which read the number as a boolean: a tier
+     * granting four credits handed out one and told the member the other three
+     * were "none available". What is claimed now is the *next* credit of the
+     * month, numbered by how many are already taken, so the configured number
+     * is the number the member gets.
+     *
+     * The count and the insert are one step because the advisory lock above is
+     * held for both; the primary key on (member, month, seq) is the second line
+     * of defence if that ever stops being true.
+     */
+    let paid = false;
+
+    if (entitlements.monthlyBoostCredits > 0) {
+      const period = monthKey(now);
+
+      const [spent] = await tx
+        .select({ total: count() })
+        .from(boostGrants)
+        .where(and(eq(boostGrants.userId, userId), eq(boostGrants.period, period)));
+
+      const taken = spent?.total ?? 0;
+
+      if (taken < entitlements.monthlyBoostCredits) {
+        const claimed = await tx
+          .insert(boostGrants)
+          .values({ userId, period, seq: taken })
+          .onConflictDoNothing()
+          .returning({ period: boostGrants.period });
+
+        paid = claimed.length > 0;
+      }
+    }
+
+    // Spend, then grant, in that order and in one transaction: if the insert
+    // failed after a spend outside a transaction the member would have paid
+    // for nothing, and granting first would hand out free boosts on any error.
+    if (!paid) paid = await spendReward(userId, "boost", tx);
+    if (!paid) return { ok: false as const, reason: "none_available" as const };
+
+    const expiresAt = new Date(now.getTime() + entitlements.boostMinutes * 60_000);
+    await tx.insert(boosts).values({ userId, startedAt: now, expiresAt });
+
+    return { ok: true as const, expiresAt };
+  });
+}
+
+/** The member's running Boost, if any. */
+export async function currentBoost(
+  userId: string,
+  now: Date = new Date()
+): Promise<{ expiresAt: Date } | null> {
+  const rows = await db
+    .select({ expiresAt: boosts.expiresAt })
+    .from(boosts)
+    .where(and(eq(boosts.userId, userId), gt(boosts.expiresAt, now)))
+    .orderBy(desc(boosts.expiresAt))
+    .limit(1);
+
+  return rows[0] ?? null;
+}

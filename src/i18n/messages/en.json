@@ -1,0 +1,847 @@
+{
+  "meta": {
+    "siteName": "FioreMatch",
+    "tagline": "Meet Beyond Borders.",
+    "description": "FioreMatch is a global, AI-powered dating platform that helps people meet, match, and connect safely across borders and languages."
+  },
+  "nav": {
+    "dating": "Dating",
+    "international": "International Dating",
+    "features": "Features",
+    "pricing": "Pricing",
+    "safety": "Safety",
+    "about": "About",
+    "contact": "Contact",
+    "login": "Log in",
+    "join": "Join Free",
+    "matching": "How Matching Works",
+    "globalMatch": "Global Match",
+    "conversation": "Conversations",
+    "referral": "Invite a Friend"
+  },
+  "footer": {
+    "product": "Product",
+    "company": "Company",
+    "legal": "Legal",
+    "resources": "Guides",
+    "languages": "Languages",
+    "rights": "All rights reserved.",
+    "madeFor": "Built for people who fall in love across borders.",
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "guidelines": "Community Guidelines",
+    "cookies": "Cookie Policy",
+    "safetyCenter": "Safety Center"
+  },
+  "home": {
+    "heroEyebrow": "Global AI Dating & Social Connection Platform",
+    "heroTitle": "Don't swipe forever. Meet people who actually fit you.",
+    "heroSubtitle": "FioreMatch connects real people across 12+ languages and every timezone with AI matching that actually explains itself, and safety tools that never look away.",
+    "ctaPrimary": "Create your free profile",
+    "ctaSecondary": "See how matching works",
+    "trustBar": "Built with global safety, privacy, and moderation standards from day one.",
+    "statCountries": "190+ countries reachable",
+    "statLanguages": "12 launch languages",
+    "statPrice": "PLUS & VIP from $19.99/year",
+    "sectionHowTitle": "How FioreMatch works",
+    "sectionHowSubtitle": "No gimmicks. Three steps between you and a real connection.",
+    "step1Title": "Build a real profile",
+    "step1Body": "Add photos, your story, languages you speak, and what you're actually looking for. Our AI Profile Assistant helps you say it well without inventing anything about you.",
+    "step2Title": "Discover people who fit",
+    "step2Body": "Swipe through profiles filtered by what matters — location, language, interests, and intent — while our AI quietly ranks compatibility signals in the background.",
+    "step3Title": "Match & talk, safely",
+    "step3Body": "When you both like each other, chat opens instantly. Every conversation is backed by moderation tools, blocking, and reporting that actually get reviewed.",
+    "sectionAiTitle": "AI that explains its matches",
+    "sectionAiBody": "FioreMatch's matching model looks past age and distance — shared interests, relationship goals, lifestyle, and how you actually behave on the app — and tells you why a profile was suggested with a plain-language \"Why we think you may match\" note. No black box, no manipulation dark patterns.",
+    "matchCardTitle": "Why we think you may match",
+    "matchCardReason1": "You both speak English and Spanish, and list travel as a top interest.",
+    "matchCardReason2": "Same relationship intent: long-term.",
+    "matchCardReason3": "Overlapping active hours and a 12km radius.",
+    "sectionGlobalTitle": "Built for the world, not one country",
+    "sectionGlobalBody": "FioreMatch launches in English, Turkish, German, Spanish, French, Italian, Portuguese, Arabic, Japanese, Korean, Hindi, and Indonesian, with local pricing and an architecture ready for translated messaging.",
+    "sectionSafetyTitle": "Safety is a feature, not an afterthought",
+    "sectionSafetyBody": "Spam and fake-account signals, scam pattern detection, and human-reviewed moderation queues protect the platform — AI flags risk, people make the hard calls.",
+    "ctaBandTitle": "Your next real connection is somewhere else in the world.",
+    "ctaBandBody": "Join for free. Upgrade only if PLUS or VIP genuinely helps you meet more people.",
+    "ctaBandButton": "Get started"
+  },
+  "dating": {
+    "title": "Online Dating, Reimagined for a Global World",
+    "subtitle": "FioreMatch is built for people who don't want their dating pool limited by a border, a language, or a stale algorithm.",
+    "intro": "Whether you're looking for a relationship, something casual, or new people to build a life around, FioreMatch gives you real filters, an AI matching layer that explains itself, and a safety team that actually reviews reports — not just a swipe deck.",
+    "filtersTitle": "Filter for what actually matters",
+    "filters": [
+      "Age range and location radius",
+      "Country, city, and languages spoken",
+      "Interests, hobbies, and lifestyle",
+      "Relationship intent — casual, dating, long-term, friendship",
+      "Gender and preference options"
+    ],
+    "browseCountries": "Explore dating by country",
+    "browseCities": "Popular cities on FioreMatch"
+  },
+  "international": {
+    "title": "International Dating Without the Guesswork",
+    "subtitle": "Cross-border relationships are harder to fake and easier to get wrong. FioreMatch is designed around that reality.",
+    "body1": "International dating fails for predictable reasons: language gaps, mismatched expectations about intent, timezone friction, and — too often — scams targeting people who feel far from home. FioreMatch's architecture treats translation, verification signals, and honest intent-setting as core features, not afterthoughts.",
+    "body2": "Every profile states relationship intent and spoken languages up front. Our moderation systems are tuned specifically for cross-border scam patterns — romance scams, fake military or overseas-worker personas, and urgent money requests — so you can focus on getting to know someone real.",
+    "tipsTitle": "Dating across a border, done well",
+    "tips": [
+      "Video call before you get emotionally invested — always.",
+      "Never send money, gift cards, or crypto to someone you haven't met in person.",
+      "Use in-app messaging until real trust is established.",
+      "Report anything that feels like a script, not a conversation."
+    ]
+  },
+  "features": {
+    "title": "Everything you need to meet someone real",
+    "subtitle": "A dating platform built like real software: fast, explainable, and safe by default.",
+    "groups": [
+      {
+        "heading": "Discover & Match",
+        "items": [
+          {
+            "name": "Like, Pass, Super Like",
+            "desc": "Simple, deliberate actions — no infinite dark-pattern swiping."
+          },
+          {
+            "name": "Instant matching",
+            "desc": "Mutual likes open a conversation immediately, no waiting."
+          },
+          {
+            "name": "Precision filters",
+            "desc": "Age, country, city, language, interests, intent, and distance."
+          }
+        ]
+      },
+      {
+        "heading": "AI, used honestly",
+        "items": [
+          {
+            "name": "Explainable AI matching",
+            "desc": "See the plain-language reason behind every suggested match."
+          },
+          {
+            "name": "AI Profile Assistant",
+            "desc": "Get help writing a bio and opening messages — never fabricated facts about you."
+          },
+          {
+            "name": "Behavioral signals",
+            "desc": "Your genuine likes and match history refine future suggestions."
+          }
+        ]
+      },
+      {
+        "heading": "Real-time messaging",
+        "items": [
+          {
+            "name": "Text, emoji, and photos",
+            "desc": "Everything you need to have a real conversation."
+          },
+          {
+            "name": "Read receipts & typing indicators",
+            "desc": "Know when your message landed."
+          },
+          {
+            "name": "Translation-ready architecture",
+            "desc": "Built to support in-chat AI translation as we roll it out."
+          }
+        ]
+      },
+      {
+        "heading": "Safety & moderation",
+        "items": [
+          {
+            "name": "Block & report",
+            "desc": "Available on every profile and every conversation."
+          },
+          {
+            "name": "Fraud & spam detection",
+            "desc": "Automated signals flag suspicious accounts before they reach you."
+          },
+          {
+            "name": "Human-reviewed moderation queue",
+            "desc": "AI flags risk; trained people make the final call on serious reports."
+          }
+        ]
+      }
+    ]
+  },
+  "pricing": {
+    "title": "Simple, honest pricing",
+    "subtitle": "Start free. Upgrade only if PLUS or VIP genuinely helps you meet more people. Prices shown in your local currency where the app store supports it.",
+    "freeName": "Free",
+    "freePrice": "$0",
+    "freePeriod": "forever",
+    "freeDesc": "Everything you need to start meeting people.",
+    "freeFeatures": [
+      "Full profile creation",
+      "Discover, Like, and Pass",
+      "50 Likes a day",
+      "Matching and messaging",
+      "15 message translations a day",
+      "Standard filters",
+      "Block & report tools"
+    ],
+    "plusName": "PLUS",
+    "plusPrice": "$19.99",
+    "plusPeriod": "/ year",
+    "plusDesc": "For people who want more control over who they meet.",
+    "plusFeatures": [
+      "Everything in Free",
+      "Unlimited message translation",
+      "Advanced filters",
+      "200 Likes a day",
+      "See who liked you",
+      "Undo your last pass",
+      "10 gifts a day"
+    ],
+    "vipName": "VIP",
+    "vipPrice": "$49.99",
+    "vipPeriod": "/ year",
+    "vipDesc": "For people who want more control over who finds them.",
+    "vipFeatures": [
+      "Everything in PLUS",
+      "Unlimited Likes and gifts",
+      "See who visited your profile",
+      "Priority visibility in Discover",
+      "VIP badge on your card",
+      "A 60-minute Boost every month"
+    ],
+    "vipBadge": "Most complete",
+    "localNote": "Local pricing follows each app store's country-level pricing tiers — not a raw currency conversion — and is managed centrally so we can adjust fairly by market.",
+    "addonsTitle": "One-time boosts",
+    "addonsSubtitle": "Buy exactly the extra reach you want, only when you want it.",
+    "addons": [
+      {
+        "name": "Boost",
+        "desc": "Jump to the top of Discover in your area for 30 minutes."
+      },
+      {
+        "name": "Super Like",
+        "desc": "Stand out instantly — Super Liked profiles get noticed first."
+      },
+      {
+        "name": "Profile Promotion",
+        "desc": "Extended visibility across your active filters and region."
+      },
+      {
+        "name": "Premium Visibility",
+        "desc": "Priority placement for users actively looking to match today."
+      }
+    ],
+    "cta": "Start free, upgrade anytime"
+  },
+  "safety": {
+    "title": "Safety Center",
+    "subtitle": "Dating only works if it's safe. Here's exactly what FioreMatch does — and what you should do.",
+    "platformTitle": "What FioreMatch does",
+    "platformItems": [
+      "Automated spam and fake-account signal detection",
+      "Scam and fraud pattern detection, tuned for romance-scam tactics",
+      "Suspicious-behavior monitoring across likes, messages, and reports",
+      "One-tap block and report on every profile and conversation",
+      "AI-assisted content moderation with a human-reviewed queue for serious reports",
+      "Full account deletion, on request, at any time"
+    ],
+    "userTitle": "What you should do",
+    "userItems": [
+      "Video call before meeting in person, every time.",
+      "Meet first dates in public places and tell a friend where you're going.",
+      "Never send money, gift cards, or crypto to someone you haven't met.",
+      "Keep conversations in the app until you've built real trust.",
+      "Report anything that feels off — you're never wrong to report."
+    ],
+    "reportTitle": "See something wrong?",
+    "reportBody": "Every profile and conversation has a Report option. Reports involving harassment, fraud signals, or safety threats are prioritized for human review.",
+    "moderationNote": "Our AI never makes final enforcement decisions alone on serious cases — flagged accounts are routed to a moderation queue for human review before major action is taken."
+  },
+  "about": {
+    "title": "About FioreMatch",
+    "subtitle": "A global dating platform built on one idea: real people, real matches, real safety.",
+    "body1": "FioreMatch exists because the best relationships often start with the least likely coincidence — two people, on different sides of a border, deciding to talk. We build the product to make that coincidence more likely, and safer, without pretending distance and difference don't matter.",
+    "body2": "We're global by design: 12 languages at launch, local pricing instead of one-size pricing, and a safety and moderation system built for cross-border risk from day one — not bolted on later.",
+    "valuesTitle": "What we optimize for",
+    "values": [
+      {
+        "name": "Real users",
+        "desc": "No fake accounts, no inflated numbers, no manufactured engagement."
+      },
+      {
+        "name": "Real matches",
+        "desc": "Matching that's explainable, not a black box optimizing for time-in-app."
+      },
+      {
+        "name": "Real safety",
+        "desc": "Moderation that combines AI signal detection with human judgment."
+      },
+      {
+        "name": "Real value",
+        "desc": "Clear pricing — PLUS at $19.99/year, VIP at $49.99 — with no paid extras hidden behind a second paywall."
+      }
+    ]
+  },
+  "contact": {
+    "title": "Contact us",
+    "subtitle": "Support, press, safety concerns, or partnerships — tell us what's up.",
+    "formName": "Name",
+    "formEmail": "Email",
+    "formTopic": "Topic",
+    "formTopicOptions": [
+      "General question",
+      "Account support",
+      "Safety report",
+      "Press",
+      "Partnerships"
+    ],
+    "formMessage": "Message",
+    "formSubmit": "Send message",
+    "formNote": "Messages go to our support inbox by email. We answer in Turkish and English.",
+    "opened": "Your mail app should have opened with the message ready to send. If it did not, write to the address above.",
+    "safetyUrgent": "If you're in immediate danger, contact local emergency services first."
+  },
+  "guidesIndex": {
+    "title": "Guides",
+    "subtitle": "Practical, non-spammy advice on dating internationally and staying safe while you do it."
+  },
+  "auth": {
+    "loginTitle": "Log in to FioreMatch",
+    "loginSubtitle": "Welcome back. Your matches missed you.",
+    "registerTitle": "Create your free profile",
+    "registerSubtitle": "Takes about two minutes. No credit card, ever, to join.",
+    "emailLabel": "Email",
+    "phoneLabel": "Phone number",
+    "passwordLabel": "Password",
+    "nameLabel": "First name",
+    "birthdateLabel": "Date of birth",
+    "loginButton": "Log in",
+    "registerButton": "Create account",
+    "orDivider": "or continue with",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "New to FioreMatch?",
+    "haveAccount": "Already have an account?",
+    "signUpLink": "Sign up free",
+    "logInLink": "Log in",
+    "termsAgree": "By continuing, you agree to our Terms of Service and acknowledge our Privacy Policy.",
+    "countryLabel": "Country",
+    "referredBy": "Invited with code"
+  },
+  "matching": {
+    "title": "How FioreMatch matching actually works",
+    "subtitle": "Don't swipe forever. Meet people who actually fit you.",
+    "intro": "Most dating apps optimise for how long you keep swiping. FioreMatch optimises for how quickly you find someone worth talking to. Here is exactly how our matching works — no black box, no mystique.",
+    "matchmakerTitle": "AI Matchmaker",
+    "matchmakerBody": "Describe what you're looking for in your own words — \"someone who wants a long-term relationship, loves travelling and speaks English\" — and FioreMatch turns it into structured search criteria. The AI can only pick from a fixed vocabulary of goals, interests, languages and cultures, and every criterion is validated before it reaches the matching engine. It cannot invent a requirement you didn't ask for.",
+    "dnaTitle": "Compatibility DNA",
+    "dnaBody": "A short, light quiz plus your profile builds a picture across three plain signals: lifestyle, communication style, and interests. This is not a personality test and produces no psychological label about you. Results are always framed as potential compatibility, never as a scientific verdict.",
+    "fiveTitle": "Today's 5",
+    "fiveBody": "Each day you get up to five strong suggestions — and deliberately fewer when fewer genuinely good matches exist. Padding the list with weak profiles would defeat the point.",
+    "reasonsTitle": "Every match explains itself",
+    "reasonsBody": "Each suggestion carries a \"Why you may match\" list built only from data we actually hold — a shared relationship goal, a language you both speak, an interest you both listed. If we can't back a reason with a real shared value, we don't show it.",
+    "reasonsExampleTitle": "Why you may match",
+    "reasonsExample": [
+      "Same relationship goal: long-term",
+      "You both speak English and Spanish",
+      "Both interested in travel and photography",
+      "Both open to meeting people from other cultures"
+    ],
+    "signalsTitle": "What we score on",
+    "signalsBody": "The matching engine blends these signals, weighted differently in each discovery mode. Anything we don't have data for is treated as unknown — never as agreement.",
+    "signals": [
+      "Relationship goal and match intent",
+      "Shared interests and ideal dates",
+      "Lifestyle and communication compatibility",
+      "Languages spoken, and language-exchange fit",
+      "Location, distance, and future location plans",
+      "Cultural interests",
+      "Travel plans that overlap"
+    ],
+    "notScoredTitle": "What we never score on",
+    "notScoredBody": "The matching engine is only ever given the fields listed above. It never receives — and cannot infer from — ethnicity, religion, health, political views, or income. Cultural interest means what you want to connect with, never an assumption based on where you're from.",
+    "learningTitle": "It learns only from what you tell it",
+    "learningBody": "When you pass on someone, you can optionally say why. That feedback nudges how we weight a signal for you, within strict caps, and decays back toward neutral over time so your suggestions keep widening again. We don't infer preferences from how long you looked at a photo."
+  },
+  "globalMatch": {
+    "title": "Global Match",
+    "subtitle": "Meet beyond borders — on purpose, not by accident.",
+    "intro": "Most apps treat distance as a single slider. FioreMatch treats how you want to connect as a first-class choice, with six discovery modes that each surface something different.",
+    "modesTitle": "Six ways to discover",
+    "modes": [
+      {
+        "name": "Local",
+        "desc": "People near you, with distance weighted heaviest."
+      },
+      {
+        "name": "Country",
+        "desc": "Anyone in your country, distance still matters but less."
+      },
+      {
+        "name": "Global",
+        "desc": "Worldwide, ranked on shared language and interests instead of proximity."
+      },
+      {
+        "name": "Culture",
+        "desc": "People who share your cultural interests, or are open to yours."
+      },
+      {
+        "name": "Language",
+        "desc": "Language exchange — you teach yours, they teach theirs."
+      },
+      {
+        "name": "Travel",
+        "desc": "People whose travel plans overlap with yours, or who live where you're heading."
+      }
+    ],
+    "reachTitle": "Set your reach",
+    "reachBody": "My city · My country · Nearby countries · Worldwide · Specific countries. You choose, and you can change it whenever you like.",
+    "cultureTitle": "Culture Connect",
+    "cultureBody": "Pick the cultures you're genuinely curious about, and optionally flag that you'd like to meet people interested in other cultures. This is about shared curiosity — FioreMatch never treats someone's nationality as a personality trait or infers their culture from where they live.",
+    "languageTitle": "Language Exchange",
+    "languageBody": "Say what you speak and what you're learning. When your languages complement someone else's — you speak Turkish and want Spanish, they speak Spanish and want Turkish — that mutual fit is scored highly. You can use FioreMatch for dating, language exchange, or both.",
+    "travelTitle": "Travel Match & Future Location",
+    "travelBody": "Add a trip — destination, dates, and what you're into — and we can prioritise people who'll be there at the same time, or who already live there. Moving to a new city in six months? Say so, and start meeting people before you arrive. Both are optional, and you control who can see them.",
+    "privacyTitle": "You control what's visible",
+    "privacyBody": "Location, travel plans, future location, languages, cultural interests, and relationship goal each have their own visibility setting: everyone, matches only, or hidden. Hidden fields are stripped before matching even reads them, so they cannot influence your suggestions or leak through a bug. We never show a precise address."
+  },
+  "safetyV2": {
+    "shieldTitle": "Scam Shield",
+    "shieldBody": "FioreMatch watches for the patterns that romance scams actually use — money requests, crypto and investment steering, shortened links, pressure to move to another app within minutes of matching, and the same message blasted at many people at once.",
+    "shieldFlowTitle": "What happens when something is detected",
+    "shieldFlow": [
+      {
+        "step": "Warning",
+        "desc": "You see a plain-language caution telling you exactly what we noticed, so you can judge for yourself."
+      },
+      {
+        "step": "Report",
+        "desc": "Reporting is made prominent rather than buried, if you decide something is wrong."
+      },
+      {
+        "step": "Human review",
+        "desc": "Higher-risk cases go to a trained moderator — not to an automated decision."
+      },
+      {
+        "step": "Action",
+        "desc": "Any enforcement follows a human's decision. It is never the automatic result of a detection."
+      }
+    ],
+    "shieldNoteTitle": "What Scam Shield will not do",
+    "shieldNote": "It will never label someone a scammer automatically, and detection alone never bans an account. Detection is lexical and behavioural only — we never treat someone's nationality, name, language, or photo as a risk signal. We deliberately under-flag: wrongly accusing a real member does more damage than a borderline case that the report flow still catches.",
+    "trustTitle": "Trust Profile",
+    "trustBody": "Profiles show which verifications a member has completed — email, phone, photo, liveness, or identity. Each badge confirms one specific check passed. There is no overall safety score, and we never claim any member is guaranteed to be safe: verification confirms a fact, not a person's intentions. Members without badges are not marked suspicious — an absent badge just means an absent check.",
+    "dateTitle": "Date Safety Mode",
+    "dateBody": "Planning to meet someone? Record who, when, and where, and optionally share those details with one person you trust. You can mark a date as started and completed yourself.",
+    "dateDisclaimer": "Date Safety Mode records a plan and can notify a contact you chose. FioreMatch is not an emergency service: it does not monitor you and cannot respond to an incident. If you're in immediate danger, contact your local emergency services."
+  },
+  "conversation": {
+    "title": "The first message, made easier",
+    "subtitle": "The hardest part of dating apps is the blank text box. These tools help — they never take over.",
+    "icebreakerTitle": "AI Icebreaker",
+    "icebreakerBody": "When you match, FioreMatch finds what you genuinely have in common and suggests an opener based on it. \"You both love travelling — what's the best place you've ever been?\" Categories span friendly, funny, romantic, travel, culture, food, and hobbies.",
+    "coachTitle": "Conversation Coach",
+    "coachBody": "Stuck mid-conversation? Ask for help and get an open-ended question, a follow-up, a topic suggestion, or a reply idea. You pick what to send, edit it however you like, or ignore it entirely.",
+    "gamesTitle": "Match Games",
+    "gamesBody": "Optional mini-games to break the ice: This or That, Would You Rather, Two Truths and a Lie, Quick Questions, and Guess My Answer.",
+    "translationTitle": "AI Translation",
+    "translationBody": "Message across languages, with a one-tap toggle between the translated text and the original — so you can always see exactly what was written. Translation is there to carry meaning across, not to change it.",
+    "boundaryTitle": "Where we draw the line",
+    "boundaryBody": "AI on FioreMatch suggests; it never acts as you. It will not send messages on your behalf, will not carry on a romantic conversation in your place, and will not pretend to be a person. Every message that goes out is one you chose to send."
+  },
+  "taxonomy": {
+    "relationshipGoals": {
+      "long_term": "Long-term relationship",
+      "marriage": "Marriage",
+      "dating": "Dating",
+      "casual": "Casual dating",
+      "friendship": "Friendship",
+      "international": "International relationship",
+      "unsure": "Not sure yet"
+    },
+    "matchIntents": {
+      "serious_relationship": "Serious relationship",
+      "getting_to_know": "Getting to know someone",
+      "international_dating": "International dating",
+      "friendship": "Friendship",
+      "language_exchange": "Language exchange"
+    },
+    "reasons": {
+      "relationship_goal": "Relationship goal",
+      "match_intent": "What you're both looking for",
+      "interests": "Shared interests",
+      "lifestyle": "Lifestyle",
+      "communication": "Communication style",
+      "language": "Shared language",
+      "language_exchange": "Language exchange",
+      "location": "Location",
+      "travel": "Travel plans",
+      "culture": "Culture",
+      "ideal_date": "Ideal date"
+    },
+    "genders": {
+      "woman": "Woman",
+      "man": "Man",
+      "non_binary": "Non-binary"
+    }
+  },
+  "games": {
+    "title": "Match Games",
+    "subtitle": "Optional mini-games that make the first conversation easier.",
+    "fairPlay": "Neither of you can see the other's answer until you've both answered — enforced by the server, not by trusting the app.",
+    "optional": "Games are always optional. Either of you can skip an invite or end a game at any point, and declining is a perfectly normal answer.",
+    "list": [
+      {
+        "name": "This or That",
+        "desc": "Quick either/or picks. Coffee or tea, plan everything or improvise."
+      },
+      {
+        "name": "Would You Rather",
+        "desc": "Two tempting options, no easy answer. A fast way to find out how someone thinks."
+      },
+      {
+        "name": "Two Truths and a Lie",
+        "desc": "Write three statements, one false. Your match guesses which — and the lie stays hidden until they do."
+      },
+      {
+        "name": "Quick Questions",
+        "desc": "Short open questions: best trip, comfort food, the song you have on repeat."
+      },
+      {
+        "name": "Guess My Answer",
+        "desc": "Guess what your match would say, then compare. Usually the funniest of the five."
+      }
+    ],
+    "prompts": {
+      "coffee_tea": {
+        "a": "Coffee",
+        "b": "Tea"
+      },
+      "beach_mountains": {
+        "a": "Beach",
+        "b": "Mountains"
+      },
+      "morning_night": {
+        "a": "Early bird",
+        "b": "Night owl"
+      },
+      "city_countryside": {
+        "a": "City",
+        "b": "Countryside"
+      },
+      "cook_eat_out": {
+        "a": "Cook at home",
+        "b": "Eat out"
+      },
+      "call_text": {
+        "a": "Call",
+        "b": "Text"
+      },
+      "books_films": {
+        "a": "Books",
+        "b": "Films"
+      },
+      "plan_improvise": {
+        "a": "Plan it",
+        "b": "Improvise"
+      },
+      "live_abroad_forever_or_travel_always": {
+        "a": "Live abroad forever",
+        "b": "Travel constantly"
+      },
+      "speak_every_language_or_visit_every_country": {
+        "a": "Speak every language",
+        "b": "Visit every country"
+      },
+      "always_summer_or_always_winter": {
+        "a": "Always summer",
+        "b": "Always winter"
+      },
+      "famous_meal_or_famous_view": {
+        "a": "The best meal",
+        "b": "The best view"
+      },
+      "no_music_or_no_films": {
+        "a": "Give up music",
+        "b": "Give up films"
+      },
+      "meet_your_heroes_or_be_someone_hero": {
+        "a": "Meet your heroes",
+        "b": "Be someone's hero"
+      },
+      "best_trip": "What's the best trip you've ever taken?",
+      "comfort_food": "What's your comfort food?",
+      "song_on_repeat": "What song do you have on repeat right now?",
+      "perfect_sunday": "What does a perfect Sunday look like?",
+      "learning_right_now": "What are you learning at the moment?",
+      "makes_you_laugh": "What reliably makes you laugh?",
+      "my_ideal_first_date": "My ideal first date is...",
+      "my_most_used_emoji": "My most-used emoji is...",
+      "my_go_to_karaoke_song": "My go-to karaoke song is...",
+      "my_dream_city_to_live_in": "The city I'd most like to live in is...",
+      "my_useless_talent": "My most useless talent is..."
+    },
+    "start": "Start a game",
+    "accept": "Accept",
+    "decline": "No thanks",
+    "end": "End this game",
+    "waiting": "Waiting for them to answer.",
+    "yourTurn": "Send",
+    "theirAnswer": "They said",
+    "yourAnswer": "You said",
+    "completed": "You finished a game together.",
+    "declined": "Declined.",
+    "loading": "Loading…",
+    "invitePending": "There is an open game invite on this match."
+  },
+  "referral": {
+    "title": "Invite a friend",
+    "subtitle": "Share FioreMatch with someone who'd actually use it.",
+    "howTitle": "How it works",
+    "how": [
+      "Share your personal referral code or link.",
+      "Your friend signs up and sets up a real profile.",
+      "Once they've verified and started using FioreMatch, your reward unlocks."
+    ],
+    "rewardsTitle": "Rewards",
+    "rewards": [
+      {
+        "name": "Super Like",
+        "desc": "For your first qualified referral."
+      },
+      {
+        "name": "Boost",
+        "desc": "For your second — 30 minutes at the top of Discover."
+      },
+      {
+        "name": "14-day Premium trial",
+        "desc": "For your third. Then the ladder starts again."
+      }
+    ],
+    "fairTitle": "Why rewards unlock later, not instantly",
+    "fairBody": "Paying out the moment someone signs up is exactly what makes referral programmes worth gaming. Rewards unlock once your friend has verified their email and phone, completed a profile, and actually used FioreMatch for a few days. It's slower, and it's the reason the rewards can stay generous.",
+    "abuseTitle": "What we don't allow",
+    "abuseBody": "Referring yourself, creating accounts to farm rewards, or trading codes in bulk. Suspicious referrals are held for human review rather than auto-penalised — sharing your link somewhere popular is not abuse, and we'd rather ask than wrongly punish you.",
+    "outcome": {
+      "granted": "Reward unlocked.",
+      "pendingQualification": "Waiting for your friend to finish setting up and start using FioreMatch.",
+      "heldForReview": "This referral is being reviewed by our team.",
+      "monthlyCapReached": "You've reached this month's reward limit — additional referrals are reviewed manually.",
+      "rejected": "This referral doesn't qualify."
+    },
+    "yourCode": "Your code",
+    "yourLink": "Your invite link",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "walletEmpty": "Nothing to spend yet. Rewards appear here once a friend qualifies.",
+    "statusTitle": "Your invites",
+    "statusEmpty": "Nobody has signed up with your link yet.",
+    "capNote": "{used} of {cap} rewarded referrals used this month.",
+    "countGranted": "Rewarded",
+    "countPending": "In progress",
+    "countTotal": "Total",
+    "qualifyNote": "A reward unlocks once your friend has verified their email and phone, completed a profile, and used FioreMatch on a few separate days.",
+    "reward": {
+      "superLike": "Super Like",
+      "boost": "Boost",
+      "premiumTrial": "Premium trial"
+    },
+    "status": {
+      "granted": "Rewarded",
+      "pendingQualification": "In progress",
+      "heldForReview": "Under review",
+      "rejected": "Not eligible"
+    }
+  },
+  "app": {
+    "discoverTitle": "Discover",
+    "dailyFiveTitle": "Today's 5",
+    "dailyFiveSubtitle": "Five people chosen for you today — not a feed. Decide on each, and the list refreshes tomorrow.",
+    "dailyFiveEmpty": "No strong suggestions today. We would rather show you nothing than pad the list — check back tomorrow.",
+    "dailyFiveDone": "That's today's five. Come back tomorrow for a new set.",
+    "dailyFiveDecided": "Decided",
+    "dailyFiveNav": "Today's 5",
+    "discoverEmpty": "No suggestions right now. Complete your profile, or widen your discovery mode.",
+    "why": "Why you may match",
+    "like": "Like",
+    "pass": "Pass",
+    "superLike": "Super Like",
+    "matched": "It's a match!",
+    "loading": "Loading…",
+    "modeLabel": "Discovery mode",
+    "profileTitle": "Your profile",
+    "profileIntro": "The more you fill in, the better your suggestions get — and everything here is optional.",
+    "save": "Save profile",
+    "saved": "Saved.",
+    "logout": "Log out",
+    "bio": "About you",
+    "interests": "Interests (comma separated)",
+    "goal": "Relationship goal",
+    "city": "City",
+    "country": "Country",
+    "languages": "Languages you speak (comma separated, e.g. en, tr)",
+    "complete": "Show my profile in Discover",
+    "potential": "Potential compatibility",
+    "bandStrong": "Strong",
+    "bandPromising": "Promising",
+    "bandExploring": "Worth exploring",
+    "matchesTitle": "Matches",
+    "matchesEmpty": "No matches yet. Keep discovering.",
+    "sendPlaceholder": "Write a message…",
+    "send": "Send",
+    "noMessages": "Say hello.",
+    "unread": "unread",
+    "block": "Block",
+    "report": "Report",
+    "scamWarningTitle": "Be careful with this message",
+    "scamWarningBody": "This message matches patterns we see in scams. We are not saying this person is a scammer — but never send money, gift cards, or crypto to someone you haven't met, and report anything that feels wrong.",
+    "blockConfirm": "Block this person? Your match and conversation will be removed.",
+    "reportSent": "Report sent. Our team will review it.",
+    "backToMatches": "← Matches",
+    "photos": "Photos",
+    "addPhoto": "Add photo",
+    "photoPending": "Awaiting review",
+    "photoRejected": "Not approved",
+    "photoDelete": "Remove",
+    "photoHelp": "Photos are reviewed before other members can see them. Location data is stripped from every upload.",
+    "photoTooLarge": "That file is too large (max 8 MB).",
+    "photoUnsupported": "Please upload a JPEG, PNG, or WebP image.",
+    "photoTooSmall": "That image is too small (minimum 200×200).",
+    "photoTooMany": "You've reached the photo limit.",
+    "photoFailed": "Upload failed. Please try again.",
+    "moderationTitle": "Moderation",
+    "metricsTitle": "Metrics",
+    "discoverEmptyFiltered": "No one matches these filters right now. Try widening them.",
+    "filters": "Filters",
+    "filterAge": "Age",
+    "filterAgeMin": "Minimum age",
+    "filterAgeMax": "Maximum age",
+    "filterPlaceHint": "Type a place, or pick one of the suggestions.",
+    "filterLanguages": "Languages spoken",
+    "filterLanguagesHint": "Two-letter codes, comma separated — for example: en, tr. Anything else is ignored.",
+    "filterIntent": "What you're looking for",
+    "filterApply": "Apply filters",
+    "filterReset": "Clear",
+    "filterActive": "Filters on",
+    "filterNone": "No filters",
+    "cardSpeaks": "Speaks",
+    "cardNoBio": "No bio yet.",
+    "referralNav": "Invite",
+    "typingIndicator": "typing…",
+    "messageSeen": "Seen",
+    "messageSent": "Sent",
+    "translate": "Translate",
+    "translating": "Translating…",
+    "showOriginal": "Show original",
+    "translatedNote": "Machine translation. Messages are sent to a translation provider to translate them, and the original is shown underneath.",
+    "translateFailed": "Couldn't translate right now. The messages below are the originals.",
+    "boost": "Boost",
+    "boostRunning": "Boost running",
+    "boostNone": "No boosts",
+    "likeLimitReached": "You've used today's likes. They come back through the day, or PLUS and VIP give you more.",
+    "filtersDowngraded": "Language, intent and culture filters are part of PLUS. Showing results without them.",
+    "sendGift": "Send a gift",
+    "giftAllowanceReached": "You've sent today's gifts. More come back through the day, and PLUS and VIP send more.",
+    "giftSent": "You sent this",
+    "giftReceived": "A gift for you",
+    "installPitch": "Add FioreMatch to your home screen",
+    "install": "Install",
+    "installDismiss": "Not now",
+    "deleteTitle": "Delete your account",
+    "deleteBody": "This removes your profile, photos, matches and messages. It cannot be undone, and we cannot bring any of it back for you afterwards.",
+    "deleteConfirmWord": "delete",
+    "deletePrompt": "Type “delete” to confirm.",
+    "deleteButton": "Delete account",
+    "deleteWorking": "Deleting…",
+    "deleteFailed": "That didn't go through. Please try again.",
+    "undoPass": "Undo last pass",
+    "undoPassEmpty": "Nothing to undo yet.",
+    "undoPassLocked": "Undo is a PLUS feature.",
+    "vipBadge": "VIP",
+    "interestNav": "Interest in you",
+    "listLoading": "Loading…",
+    "listUpgrade": "See the plans",
+    "listSuperLike": "Super Like",
+    "listRepeatVisit": "Came back {count} times",
+    "likesTitle": "Who liked you",
+    "likesIntro": "People who liked you and are still waiting for an answer. Once you decide either way, they leave this list.",
+    "likesEmpty": "Nobody is waiting for an answer right now.",
+    "likesLockedTitle": "PLUS shows you who they are",
+    "likesLockedBody": "The count above is real. PLUS puts the names and photos behind it, so you can answer the people who already said yes instead of finding them again in Discover.",
+    "visitorsTitle": "Profile visitors",
+    "visitorsIntro": "People who opened your profile. Everyone who looks is recorded — nobody browses invisibly by not subscribing.",
+    "visitorsEmpty": "Nobody has opened your profile yet.",
+    "visitorsLockedTitle": "VIP shows you who they are",
+    "visitorsLockedBody": "The count above is real. VIP puts names to it, and shows who came back more than once.",
+    "likesCount": "{count, plural, one {# person is waiting for an answer} other {# people are waiting for an answer}}",
+    "visitorsCount": "{count, plural, one {# person opened your profile} other {# people opened your profile}}",
+    "autoTranslated": "You have no language in common, so this is translated automatically.",
+    "theirTime": "Their time",
+    "bothAwake": "Both awake: {from}–{to}",
+    "gender": "Your gender",
+    "genderUnspecified": "Rather not say",
+    "seeking": "Who you want to meet",
+    "seekingHint": "Choose any that apply. Leave all unticked to be shown everyone."
+  },
+  "appOnly": {
+    "tagline": "Meet beyond borders.",
+    "signIn": "Sign in",
+    "body": "FioreMatch is a mobile app. Download it on the App Store or Google Play — or sign in here if you already have an account.",
+    "privacy": "Privacy policy",
+    "terms": "Terms"
+  },
+  "virtualDates": {
+    "title": "Virtual date",
+    "subtitle": "Meet in a shared place instead of a chat window.",
+    "inviteCta": "Invite {name}",
+    "sending": "Sending…",
+    "where": "Where",
+    "when": "When",
+    "whenHelp": "Optional. Leave it empty and arrange the time in chat.",
+    "waitingForThem": "Waiting for {name} to answer.",
+    "invitedYou": "{name} invited you to a virtual date.",
+    "inEnvironment": "In {place}",
+    "scheduledFor": "Scheduled for {when}",
+    "expires": "Expires {when}",
+    "accept": "Accept",
+    "decline": "Decline",
+    "cancel": "Withdraw invitation",
+    "acceptedTitle": "It's a date",
+    "acceptedBody": "{name} is expecting you in {place}.",
+    "declinedNote": "Invitation declined.",
+    "cancelledNote": "Invitation withdrawn.",
+    "allowanceLeft": "{left} of {limit} virtual dates left this month",
+    "allowanceNone": "No virtual dates left this month",
+    "allowanceUnlimited": "Unlimited virtual dates",
+    "lockedWith": "{tier} only",
+    "upgradeNote": "PLUS and VIP open up more places to meet.",
+    "inboxTitle": "Virtual date invitations",
+    "openConversation": "Open conversation",
+    "environments": {
+      "basic_cafe": "Corner café",
+      "sunset_beach": "Sunset beach",
+      "star_observatory": "Star observatory",
+      "luxury_restaurant": "Fine dining",
+      "rooftop": "City rooftop",
+      "tropical_island": "Tropical island"
+    },
+    "errors": {
+      "notFound": "That invitation is no longer there.",
+      "notYours": "Only the person you invited can answer this.",
+      "alreadyPending": "There is already an open invitation with them.",
+      "alreadyAnswered": "This invitation has already been answered.",
+      "expired": "This invitation has expired.",
+      "noDatesLeftYou": "You have used all {limit} of your virtual dates this month.",
+      "noDatesLeftYouPlain": "You have no virtual dates left this month.",
+      "noDatesLeftThem": "They have used all {limit} of their virtual dates this month.",
+      "noDatesLeftThemPlain": "They have no virtual dates left this month.",
+      "unknownEnvironment": "That place is not available.",
+      "environmentLocked": "That place needs a higher plan.",
+      "scheduledInThePast": "Choose a time in the future.",
+      "scheduledTooFar": "A date can be at most {days} days away — the invitation expires before that.",
+      "rateLimited": "That is a lot of invitations. Try again in a minute.",
+      "signedOut": "Your session ended. Sign in again.",
+      "offline": "No connection. Try again.",
+      "unexpected": "That did not work. Try again.",
+      "partnerUnavailable": "They cannot receive virtual date invitations yet. Try again soon."
+    }
+  }
+}

@@ -1,0 +1,847 @@
+{
+  "meta": {
+    "siteName": "FioreMatch",
+    "tagline": "Sınırların Ötesinde Tanış.",
+    "description": "FioreMatch, insanların sınırlar ve diller arasında güvenli şekilde tanışmasını, eşleşmesini ve bağlantı kurmasını sağlayan global, yapay zeka destekli bir dating platformudur."
+  },
+  "nav": {
+    "dating": "Tanışma",
+    "international": "Uluslararası Tanışma",
+    "features": "Özellikler",
+    "pricing": "Fiyatlandırma",
+    "safety": "Güvenlik",
+    "about": "Hakkımızda",
+    "contact": "İletişim",
+    "login": "Giriş yap",
+    "join": "Ücretsiz Katıl",
+    "matching": "Eşleştirme Nasıl Çalışır",
+    "globalMatch": "Global Match",
+    "conversation": "Sohbetler",
+    "referral": "Arkadaşını Davet Et"
+  },
+  "footer": {
+    "product": "Ürün",
+    "company": "Şirket",
+    "legal": "Yasal",
+    "resources": "Rehberler",
+    "languages": "Diller",
+    "rights": "Tüm hakları saklıdır.",
+    "madeFor": "Sınırlar ötesinde aşık olan insanlar için tasarlandı.",
+    "privacy": "Gizlilik Politikası",
+    "terms": "Kullanım Koşulları",
+    "guidelines": "Topluluk Kuralları",
+    "cookies": "Çerez Politikası",
+    "safetyCenter": "Güvenlik Merkezi"
+  },
+  "home": {
+    "heroEyebrow": "Global AI Dating & Sosyal Bağlantı Platformu",
+    "heroTitle": "Sonsuza kadar kaydırma. Sana gerçekten uyan insanlarla tanış.",
+    "heroSubtitle": "FioreMatch, 12'den fazla dilde ve her saat diliminde gerçek insanları; kendini açıklayan yapay zeka eşleştirmesi ve asla gözünü kaçırmayan güvenlik araçlarıyla bir araya getirir.",
+    "ctaPrimary": "Ücretsiz profilini oluştur",
+    "ctaSecondary": "Eşleştirme nasıl çalışır, gör",
+    "trustBar": "İlk günden itibaren global güvenlik, gizlilik ve moderasyon standartlarıyla inşa edildi.",
+    "statCountries": "190+ ülkeye erişim",
+    "statLanguages": "12 lansman dili",
+    "statPrice": "PLUS & VIP yılda $19.99'dan başlıyor",
+    "sectionHowTitle": "FioreMatch nasıl çalışır",
+    "sectionHowSubtitle": "Numara yok. Seninle gerçek bir bağlantı arasında sadece üç adım var.",
+    "step1Title": "Gerçek bir profil oluştur",
+    "step1Body": "Fotoğraflarını, hikayeni, konuştuğun dilleri ve gerçekten ne aradığını ekle. AI Profil Asistanımız, hakkında hiçbir şey uydurmadan bunu iyi anlatmana yardım eder.",
+    "step2Title": "Sana uyan insanları keşfet",
+    "step2Body": "Konum, dil, ilgi alanları ve niyet gibi gerçekten önemli olan kriterlere göre filtrelenmiş profillere göz at; yapay zekamız arka planda uyumluluk sinyallerini sessizce sıralar.",
+    "step3Title": "Eşleş ve güvenle konuş",
+    "step3Body": "Birbirinizi beğendiğinizde sohbet anında açılır. Her konuşma; engelleme, raporlama ve gerçekten incelenen moderasyon araçlarıyla desteklenir.",
+    "sectionAiTitle": "Eşleşmelerini açıklayan yapay zeka",
+    "sectionAiBody": "FioreMatch'in eşleştirme modeli yaş ve mesafenin ötesine bakar — ortak ilgi alanları, ilişki hedefleri, yaşam tarzı ve uygulamadaki gerçek davranışların — ve bir profilin neden önerildiğini sade bir \"Neden eşleşebileceğinizi düşünüyoruz\" notuyla açıklar. Kara kutu yok, manipülatif tasarım yok.",
+    "matchCardTitle": "Neden eşleşebileceğinizi düşünüyoruz",
+    "matchCardReason1": "İkiniz de İngilizce ve İspanyolca konuşuyorsunuz, ikinizin de başlıca ilgi alanı seyahat.",
+    "matchCardReason2": "Aynı ilişki hedefi: uzun süreli.",
+    "matchCardReason3": "Çakışan aktif saatler ve 12 km'lik mesafe.",
+    "sectionGlobalTitle": "Tek bir ülke için değil, dünya için inşa edildi",
+    "sectionGlobalBody": "FioreMatch; İngilizce, Türkçe, Almanca, İspanyolca, Fransızca, İtalyanca, Portekizce, Arapça, Japonca, Korece, Hintçe ve Endonezce dilleriyle, yerel fiyatlandırma ve çevrilmiş mesajlaşmaya hazır bir mimariyle başlıyor.",
+    "sectionSafetyTitle": "Güvenlik sonradan eklenen bir özellik değil",
+    "sectionSafetyBody": "Spam ve sahte hesap sinyalleri, dolandırıcılık örüntü tespiti ve insan incelemeli moderasyon kuyrukları platformu korur — yapay zeka riski işaretler, zor kararları insanlar verir.",
+    "ctaBandTitle": "Bir sonraki gerçek bağlantın dünyanın başka bir yerinde.",
+    "ctaBandBody": "Ücretsiz katıl. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt.",
+    "ctaBandButton": "Hemen başla"
+  },
+  "dating": {
+    "title": "Global Bir Dünya İçin Yeniden Tasarlanmış Online Tanışma",
+    "subtitle": "FioreMatch, tanışma havuzunun bir sınır, bir dil ya da eskimiş bir algoritma tarafından kısıtlanmasını istemeyen insanlar için inşa edildi.",
+    "intro": "İster bir ilişki, ister daha rahat bir tanışıklık, ister hayatını birlikte kuracağın yeni insanlar arıyor ol; FioreMatch sana gerçek filtreler, kendini açıklayan bir AI eşleştirme katmanı ve raporları gerçekten inceleyen bir güvenlik ekibi sunar — sadece bir kaydırma destesi değil.",
+    "filtersTitle": "Gerçekten önemli olana göre filtrele",
+    "filters": [
+      "Yaş aralığı ve konum yarıçapı",
+      "Ülke, şehir ve konuşulan diller",
+      "İlgi alanları, hobiler ve yaşam tarzı",
+      "İlişki niyeti — rahat, ciddi, uzun vadeli, arkadaşlık",
+      "Cinsiyet ve tercih seçenekleri"
+    ],
+    "browseCountries": "Ülkeye göre tanışmayı keşfet",
+    "browseCities": "FioreMatch'te popüler şehirler"
+  },
+  "international": {
+    "title": "Tahmin Yürütmeden Uluslararası Tanışma",
+    "subtitle": "Sınır ötesi ilişkilerde sahteciliği fark etmek daha zor, hata yapmak ise daha kolaydır. FioreMatch bu gerçeklik üzerine tasarlandı.",
+    "body1": "Uluslararası tanışma genelde öngörülebilir nedenlerle başarısız olur: dil farkı, niyet konusunda uyuşmayan beklentiler, saat dilimi sürtünmesi ve çoğu zaman evden uzak hisseden insanları hedef alan dolandırıcılık. FioreMatch'in mimarisi çeviri, doğrulama sinyalleri ve dürüst niyet belirtmeyi sonradan eklenen değil, temel özellikler olarak ele alır.",
+    "body2": "Her profil, konuştuğu dilleri ve ilişki niyetini baştan belirtir. Moderasyon sistemlerimiz özellikle sınır ötesi dolandırıcılık örüntüleri için ayarlandı — romantik dolandırıcılık, sahte asker ya da yurt dışında çalışan kimlikleri ve acil para talepleri — böylece sen gerçek biriyle tanışmaya odaklanabilirsin.",
+    "tipsTitle": "Sınır ötesi tanışmayı doğru yapmak",
+    "tips": [
+      "Duygusal olarak bağlanmadan önce mutlaka görüntülü görüş.",
+      "Yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme.",
+      "Gerçek güven oluşana kadar uygulama içi mesajlaşmayı kullan.",
+      "Bir sohbet değil de bir senaryo gibi hissettiren her şeyi bildir."
+    ]
+  },
+  "features": {
+    "title": "Gerçek biriyle tanışmak için ihtiyacın olan her şey",
+    "subtitle": "Gerçek bir yazılım gibi inşa edilmiş bir tanışma platformu: hızlı, açıklanabilir ve varsayılan olarak güvenli.",
+    "groups": [
+      {
+        "heading": "Keşfet & Eşleş",
+        "items": [
+          {
+            "name": "Beğen, Geç, Süper Beğen",
+            "desc": "Basit, bilinçli işlemler — sonsuz kaydırma tuzağı yok."
+          },
+          {
+            "name": "Anında eşleşme",
+            "desc": "Karşılıklı beğeniler beklemeden hemen sohbeti açar."
+          },
+          {
+            "name": "Hassas filtreler",
+            "desc": "Yaş, ülke, şehir, dil, ilgi alanı, niyet ve mesafe."
+          }
+        ]
+      },
+      {
+        "heading": "Dürüstçe kullanılan yapay zeka",
+        "items": [
+          {
+            "name": "Açıklanabilir AI eşleştirme",
+            "desc": "Önerilen her eşleşmenin sade dildeki nedenini gör."
+          },
+          {
+            "name": "AI Profil Asistanı",
+            "desc": "Bio ve ilk mesaj yazmakta yardım al — hakkında hiçbir şey uydurulmaz."
+          },
+          {
+            "name": "Davranışsal sinyaller",
+            "desc": "Gerçek beğenilerin ve eşleşme geçmişin gelecekteki önerileri iyileştirir."
+          }
+        ]
+      },
+      {
+        "heading": "Gerçek zamanlı mesajlaşma",
+        "items": [
+          {
+            "name": "Metin, emoji ve fotoğraf",
+            "desc": "Gerçek bir sohbet için gereken her şey."
+          },
+          {
+            "name": "Okundu bilgisi ve yazıyor göstergesi",
+            "desc": "Mesajının ulaştığını bil."
+          },
+          {
+            "name": "Çeviriye hazır mimari",
+            "desc": "Uygulama içi AI çevirisini devreye alacağımız şekilde inşa edildi."
+          }
+        ]
+      },
+      {
+        "heading": "Güvenlik & moderasyon",
+        "items": [
+          {
+            "name": "Engelle & bildir",
+            "desc": "Her profilde ve her sohbette mevcut."
+          },
+          {
+            "name": "Dolandırıcılık ve spam tespiti",
+            "desc": "Otomatik sinyaller şüpheli hesapları sana ulaşmadan işaretler."
+          },
+          {
+            "name": "İnsan incelemeli moderasyon kuyruğu",
+            "desc": "Yapay zeka riski işaretler; ciddi raporlarda son kararı eğitimli insanlar verir."
+          }
+        ]
+      }
+    ]
+  },
+  "pricing": {
+    "title": "Basit, dürüst fiyatlandırma",
+    "subtitle": "Ücretsiz başla. PLUS veya VIP sana gerçekten daha fazla insanla tanışmanda yardımcı oluyorsa yükselt. Fiyatlar, uygulama mağazasının desteklediği yerlerde kendi para biriminde gösterilir.",
+    "freeName": "Ücretsiz",
+    "freePrice": "$0",
+    "freePeriod": "süresiz",
+    "freeDesc": "İnsanlarla tanışmaya başlamak için ihtiyacın olan her şey.",
+    "freeFeatures": [
+      "Tam profil oluşturma",
+      "Keşfet, Beğen ve Geç",
+      "Günde 50 Beğeni",
+      "Eşleşme ve mesajlaşma",
+      "Günde 15 mesaj çevirisi",
+      "Standart filtreler",
+      "Engelleme ve bildirme araçları"
+    ],
+    "plusName": "PLUS",
+    "plusPrice": "$19.99",
+    "plusPeriod": "/ yıl",
+    "plusDesc": "Kiminle tanışacağı üzerinde daha fazla kontrol isteyenler için.",
+    "plusFeatures": [
+      "Ücretsiz paketteki her şey",
+      "Sınırsız mesaj çevirisi",
+      "Gelişmiş filtreler",
+      "Günde 200 Beğeni",
+      "Seni kimlerin beğendiğini gör",
+      "Son geçişini geri al",
+      "Günde 10 hediye"
+    ],
+    "vipName": "VIP",
+    "vipPrice": "$49.99",
+    "vipPeriod": "/ yıl",
+    "vipDesc": "Kimin kendisini bulacağı üzerinde daha fazla kontrol isteyenler için.",
+    "vipFeatures": [
+      "PLUS paketteki her şey",
+      "Sınırsız Beğeni ve hediye",
+      "Profilini kimlerin ziyaret ettiğini gör",
+      "Keşfet'te öncelikli görünürlük",
+      "Kartında VIP rozeti",
+      "Her ay 60 dakikalık Boost"
+    ],
+    "vipBadge": "En kapsamlı",
+    "localNote": "Yerel fiyatlar, ham bir döviz dönüşümü değil, uygulama mağazalarının ülke bazlı fiyat kademelerini takip eder ve pazarlara adil şekilde ayarlayabilmemiz için merkezi olarak yönetilir.",
+    "addonsTitle": "Tek seferlik boost'lar",
+    "addonsSubtitle": "İstediğin ekstra erişimi, tam istediğin zaman satın al.",
+    "addons": [
+      {
+        "name": "Boost",
+        "desc": "Bölgende 30 dakika boyunca Keşfet'in en üstüne çık."
+      },
+      {
+        "name": "Süper Beğeni",
+        "desc": "Hemen öne çık — Süper Beğenilen profiller ilk fark edilenlerdir."
+      },
+      {
+        "name": "Profil Tanıtımı",
+        "desc": "Aktif filtrelerin ve bölgende genişletilmiş görünürlük."
+      },
+      {
+        "name": "Premium Görünürlük",
+        "desc": "Bugün eşleşmeye çalışan kullanıcılar için öncelikli yerleşim."
+      }
+    ],
+    "cta": "Ücretsiz başla, istediğin an yükselt"
+  },
+  "safety": {
+    "title": "Güvenlik Merkezi",
+    "subtitle": "Tanışma ancak güvenliyse işe yarar. FioreMatch'in tam olarak ne yaptığı — ve senin ne yapman gerektiği burada.",
+    "platformTitle": "FioreMatch ne yapar",
+    "platformItems": [
+      "Otomatik spam ve sahte hesap sinyali tespiti",
+      "Romantik dolandırıcılık taktiklerine göre ayarlanmış dolandırıcılık örüntü tespiti",
+      "Beğeniler, mesajlar ve raporlar genelinde şüpheli davranış izleme",
+      "Her profilde ve sohbette tek dokunuşla engelleme ve bildirme",
+      "Ciddi raporlar için insan incelemeli kuyruğa sahip AI destekli içerik moderasyonu",
+      "İstek üzerine her an tam hesap silme"
+    ],
+    "userTitle": "Senin yapman gerekenler",
+    "userItems": [
+      "Yüz yüze görüşmeden önce her zaman görüntülü konuş.",
+      "İlk buluşmaları herkese açık yerlerde yap ve nereye gittiğini bir arkadaşına söyle.",
+      "Yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme.",
+      "Gerçek bir güven oluşana kadar konuşmaları uygulama içinde tut.",
+      "Tuhaf gelen her şeyi bildir — bildirmekte asla haksız değilsin."
+    ],
+    "reportTitle": "Yanlış bir şey mi gördün?",
+    "reportBody": "Her profilde ve sohbette bir Bildir seçeneği var. Taciz, dolandırıcılık sinyali veya güvenlik tehdidi içeren raporlar insan incelemesi için önceliklendirilir.",
+    "moderationNote": "Yapay zekamız ciddi vakalarda asla tek başına nihai bir yaptırım kararı vermez — işaretlenen hesaplar büyük bir işlem alınmadan önce insan incelemesi için moderasyon kuyruğuna yönlendirilir."
+  },
+  "about": {
+    "title": "FioreMatch Hakkında",
+    "subtitle": "Tek bir fikir üzerine kurulu global bir tanışma platformu: gerçek insanlar, gerçek eşleşmeler, gerçek güvenlik.",
+    "body1": "FioreMatch, en iyi ilişkilerin genelde en olası olmayan rastlantıyla başladığı fikriyle var: sınırın iki yakasındaki iki insanın konuşmaya karar vermesi. Biz ürünü, mesafe ve farklılığın önemli olmadığını iddia etmeden, bu rastlantıyı daha olası ve daha güvenli hale getirmek için inşa ediyoruz.",
+    "body2": "Tasarım gereği globaliz: lansmanda 12 dil, tek tip yerine yerel fiyatlandırma ve sonradan eklenmeyen, ilk günden sınır ötesi risk için inşa edilmiş bir güvenlik ve moderasyon sistemi.",
+    "valuesTitle": "Neyi optimize ediyoruz",
+    "values": [
+      {
+        "name": "Gerçek kullanıcılar",
+        "desc": "Sahte hesap yok, şişirilmiş rakam yok, yapay etkileşim yok."
+      },
+      {
+        "name": "Gerçek eşleşmeler",
+        "desc": "Uygulamada geçirilen zamanı optimize eden bir kara kutu değil, açıklanabilir eşleştirme."
+      },
+      {
+        "name": "Gerçek güvenlik",
+        "desc": "AI sinyal tespitini insan muhakemesiyle birleştiren moderasyon."
+      },
+      {
+        "name": "Gerçek değer",
+        "desc": "Açık fiyat — PLUS yılda $19.99, VIP yılda $49.99 — ikinci bir ödeme duvarının arkasına saklanan ek yok."
+      }
+    ]
+  },
+  "contact": {
+    "title": "Bize ulaşın",
+    "subtitle": "Destek, basın, güvenlik endişeleri veya iş birlikleri — bize ne olduğunu anlat.",
+    "formName": "İsim",
+    "formEmail": "E-posta",
+    "formTopic": "Konu",
+    "formTopicOptions": [
+      "Genel soru",
+      "Hesap desteği",
+      "Güvenlik bildirimi",
+      "Basın",
+      "İş birlikleri"
+    ],
+    "formMessage": "Mesaj",
+    "formSubmit": "Mesaj gönder",
+    "formNote": "Mesajlar e-posta ile destek kutumuza ulaşır. Türkçe ve İngilizce yanıtlıyoruz.",
+    "opened": "Mesaj hazır hâlde e-posta uygulamanızda açılmış olmalı. Açılmadıysa yukarıdaki adrese yazın.",
+    "safetyUrgent": "Acil bir tehlikedeysen önce yerel acil durum servislerine ulaş."
+  },
+  "guidesIndex": {
+    "title": "Rehberler",
+    "subtitle": "Uluslararası tanışma ve bunu yaparken güvende kalma konusunda pratik, spam olmayan tavsiyeler."
+  },
+  "auth": {
+    "loginTitle": "FioreMatch'e giriş yap",
+    "loginSubtitle": "Tekrar hoş geldin. Eşleşmelerin seni özledi.",
+    "registerTitle": "Ücretsiz profilini oluştur",
+    "registerSubtitle": "Yaklaşık iki dakika sürer. Katılmak için asla kredi kartı gerekmez.",
+    "emailLabel": "E-posta",
+    "phoneLabel": "Telefon numarası",
+    "passwordLabel": "Şifre",
+    "nameLabel": "Ad",
+    "birthdateLabel": "Doğum tarihi",
+    "loginButton": "Giriş yap",
+    "registerButton": "Hesap oluştur",
+    "orDivider": "veya şununla devam et",
+    "forgotPassword": "Şifreni mi unuttun?",
+    "noAccount": "FioreMatch'te yeni misin?",
+    "haveAccount": "Zaten bir hesabın var mı?",
+    "signUpLink": "Ücretsiz kaydol",
+    "logInLink": "Giriş yap",
+    "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun.",
+    "countryLabel": "Ülke",
+    "referredBy": "Davet kodu"
+  },
+  "matching": {
+    "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",
+    "subtitle": "Sonsuza kadar kaydırma. Sana gerçekten uyan insanlarla tanış.",
+    "intro": "Çoğu dating uygulaması ne kadar süre kaydırmaya devam ettiğini optimize eder. FioreMatch, konuşmaya değer birini ne kadar hızlı bulduğunu optimize eder. Eşleştirmemizin nasıl çalıştığı tam olarak burada — kara kutu yok, gizem yok.",
+    "matchmakerTitle": "AI Matchmaker",
+    "matchmakerBody": "Ne aradığını kendi kelimelerinle anlat — \"uzun süreli ilişki isteyen, seyahat etmeyi seven ve İngilizce konuşan biri\" — FioreMatch bunu yapılandırılmış arama kriterlerine dönüştürsün. Yapay zeka yalnızca sabit bir hedef, ilgi alanı, dil ve kültür sözlüğünden seçim yapabilir ve her kriter eşleştirme motoruna ulaşmadan önce doğrulanır. Senin istemediğin bir koşulu uyduramaz.",
+    "dnaTitle": "Compatibility DNA",
+    "dnaBody": "Kısa ve hafif bir test ile profilin, üç sade sinyal üzerinden bir resim oluşturur: yaşam tarzı, iletişim tarzı ve ilgi alanları. Bu bir kişilik testi değildir ve hakkında hiçbir psikolojik etiket üretmez. Sonuçlar her zaman bilimsel bir hüküm olarak değil, potansiyel uyumluluk olarak sunulur.",
+    "fiveTitle": "Today's 5",
+    "fiveBody": "Her gün en fazla beş güçlü öneri alırsın — gerçekten iyi eşleşme daha azsa bilinçli olarak daha az. Listeyi zayıf profillerle doldurmak zaten amacı bozardı.",
+    "reasonsTitle": "Her eşleşme kendini açıklar",
+    "reasonsBody": "Her öneri, yalnızca gerçekten sahip olduğumuz verilerden oluşturulmuş bir \"Neden eşleşebilirsiniz\" listesi taşır — ortak bir ilişki hedefi, ikinizin de konuştuğu bir dil, ikinizin de belirttiği bir ilgi alanı. Bir nedeni gerçek bir ortak değerle destekleyemiyorsak, onu göstermeyiz.",
+    "reasonsExampleTitle": "Neden eşleşebilirsiniz",
+    "reasonsExample": [
+      "Aynı ilişki hedefi: uzun süreli",
+      "İkiniz de İngilizce ve İspanyolca konuşuyorsunuz",
+      "İkiniz de seyahat ve fotoğrafçılıkla ilgileniyorsunuz",
+      "İkiniz de farklı kültürlerden insanlarla tanışmaya açıksınız"
+    ],
+    "signalsTitle": "Neyi puanlıyoruz",
+    "signalsBody": "Eşleştirme motoru bu sinyalleri, her keşfetme modunda farklı ağırlıklarla harmanlar. Verisi olmayan hiçbir şey uyum sayılmaz — bilinmeyen olarak ele alınır.",
+    "signals": [
+      "İlişki hedefi ve eşleşme niyeti",
+      "Ortak ilgi alanları ve ideal buluşmalar",
+      "Yaşam tarzı ve iletişim uyumu",
+      "Konuşulan diller ve dil değişimi uyumu",
+      "Konum, mesafe ve gelecekteki konum planları",
+      "Kültürel ilgi alanları",
+      "Örtüşen seyahat planları"
+    ],
+    "notScoredTitle": "Neyi asla puanlamıyoruz",
+    "notScoredBody": "Eşleştirme motoruna yalnızca yukarıdaki alanlar verilir. Etnik köken, din, sağlık, siyasi görüş veya gelir bilgisini asla almaz ve bunları çıkarsayamaz. Kültürel ilgi, nereli olduğuna dayalı bir varsayım değil, neyle bağ kurmak istediğin anlamına gelir.",
+    "learningTitle": "Yalnızca senin söylediklerinden öğrenir",
+    "learningBody": "Birini geçtiğinde istersen nedenini söyleyebilirsin. Bu geri bildirim, senin için bir sinyalin ağırlığını sıkı sınırlar içinde ayarlar ve zamanla nötre doğru geri çekilir; böylece önerilerin yeniden genişlemeye devam eder. Bir fotoğrafa ne kadar baktığından tercih çıkarmıyoruz."
+  },
+  "globalMatch": {
+    "title": "Global Match",
+    "subtitle": "Sınırların ötesinde tanış — tesadüfen değil, bilerek.",
+    "intro": "Çoğu uygulama mesafeyi tek bir kaydırıcı olarak görür. FioreMatch, nasıl bağ kurmak istediğini birinci sınıf bir tercih olarak ele alır; her biri farklı bir şey öne çıkaran altı keşfetme modu sunar.",
+    "modesTitle": "Keşfetmenin altı yolu",
+    "modes": [
+      {
+        "name": "Local",
+        "desc": "Yakınındaki insanlar, mesafe en ağır basan kriter."
+      },
+      {
+        "name": "Country",
+        "desc": "Ülkendeki herkes; mesafe hâlâ önemli ama daha az."
+      },
+      {
+        "name": "Global",
+        "desc": "Dünya geneli, yakınlık yerine ortak dil ve ilgi alanlarına göre sıralanır."
+      },
+      {
+        "name": "Culture",
+        "desc": "Kültürel ilgi alanlarını paylaşan ya da seninkilere açık olan insanlar."
+      },
+      {
+        "name": "Language",
+        "desc": "Dil değişimi — sen kendi dilini, o kendi dilini öğretir."
+      },
+      {
+        "name": "Travel",
+        "desc": "Seyahat planları seninkiyle örtüşen ya da gideceğin yerde yaşayan insanlar."
+      }
+    ],
+    "reachTitle": "Erişimini belirle",
+    "reachBody": "Şehrim · Ülkem · Yakın ülkeler · Dünya geneli · Belirli ülkeler. Sen seçersin ve istediğin zaman değiştirirsin.",
+    "cultureTitle": "Culture Connect",
+    "cultureBody": "Gerçekten merak ettiğin kültürleri seç ve istersen başka kültürlerle ilgilenen insanlarla tanışmak istediğini belirt. Bu ortak merakla ilgilidir — FioreMatch hiç kimsenin milliyetini bir kişilik özelliği olarak görmez ve yaşadığı yerden kültürünü çıkarsamaz.",
+    "languageTitle": "Language Exchange",
+    "languageBody": "Ne konuştuğunu ve ne öğrendiğini belirt. Dillerin bir başkasınınkini tamamladığında — sen Türkçe konuşup İspanyolca istiyorsun, o İspanyolca konuşup Türkçe istiyor — bu karşılıklı uyum yüksek puan alır. FioreMatch'i tanışma, dil değişimi veya ikisi için birden kullanabilirsin.",
+    "travelTitle": "Travel Match & Future Location",
+    "travelBody": "Bir seyahat ekle — varış yeri, tarihler ve ilgi alanların — biz de aynı anda orada olacak ya da hâlihazırda orada yaşayan insanları önceliklendirelim. Altı ay içinde yeni bir şehre mi taşınıyorsun? Belirt ve daha varmadan insanlarla tanışmaya başla. İkisi de isteğe bağlıdır ve kimin göreceğini sen kontrol edersin.",
+    "privacyTitle": "Neyin görüneceğini sen belirlersin",
+    "privacyBody": "Konum, seyahat planları, gelecekteki konum, diller, kültürel ilgi alanları ve ilişki hedefinin her birinin kendi görünürlük ayarı vardır: herkes, yalnızca eşleşmeler veya gizli. Gizli alanlar, eşleştirme onları okumadan önce ayıklanır; bu yüzden önerilerini etkileyemez veya bir hatadan sızamaz. Kesin adresi asla göstermiyoruz."
+  },
+  "safetyV2": {
+    "shieldTitle": "Scam Shield",
+    "shieldBody": "FioreMatch, romantik dolandırıcılıkların gerçekten kullandığı kalıpları izler — para talepleri, kripto ve yatırım yönlendirmesi, kısaltılmış linkler, eşleşmeden dakikalar sonra başka bir uygulamaya geçme baskısı ve aynı mesajın çok sayıda kişiye toplu gönderilmesi.",
+    "shieldFlowTitle": "Bir şey tespit edilince ne olur",
+    "shieldFlow": [
+      {
+        "step": "Uyarı",
+        "desc": "Tam olarak neyi fark ettiğimizi anlatan sade bir uyarı görürsün; kararı sen verirsin."
+      },
+      {
+        "step": "Bildirim",
+        "desc": "Bir şeyin yanlış olduğuna karar verirsen, bildirme seçeneği gizlenmez, öne çıkarılır."
+      },
+      {
+        "step": "İnsan incelemesi",
+        "desc": "Yüksek riskli vakalar otomatik bir karara değil, eğitimli bir moderatöre gider."
+      },
+      {
+        "step": "İşlem",
+        "desc": "Her yaptırım bir insanın kararını takip eder. Asla bir tespitin otomatik sonucu değildir."
+      }
+    ],
+    "shieldNoteTitle": "Scam Shield'in yapmayacakları",
+    "shieldNote": "Hiç kimseyi otomatik olarak dolandırıcı ilan etmez ve tespit tek başına asla bir hesabı kapatmaz. Tespit yalnızca metinsel ve davranışsaldır — hiç kimsenin milliyetini, adını, dilini veya fotoğrafını risk sinyali saymayız. Bilinçli olarak az işaretleriz: gerçek bir üyeyi haksız yere suçlamak, bildirim akışının zaten yakalayacağı sınırdaki bir vakadan daha çok zarar verir.",
+    "trustTitle": "Trust Profile",
+    "trustBody": "Profiller, bir üyenin tamamladığı doğrulamaları gösterir — e-posta, telefon, fotoğraf, canlılık veya kimlik. Her rozet belirli bir kontrolün geçtiğini onaylar. Genel bir güvenlik puanı yoktur ve hiçbir üyenin güvenli olduğunu garanti etmeyiz: doğrulama bir olguyu onaylar, bir kişinin niyetini değil. Rozeti olmayan üyeler şüpheli olarak işaretlenmez — eksik rozet yalnızca eksik bir kontrol demektir.",
+    "dateTitle": "Date Safety Mode",
+    "dateBody": "Biriyle buluşmayı mı planlıyorsun? Kiminle, ne zaman ve nerede olduğunu kaydet, istersen bu bilgileri güvendiğin bir kişiyle paylaş. Buluşmayı başladı ve tamamlandı olarak kendin işaretleyebilirsin.",
+    "dateDisclaimer": "Date Safety Mode bir planı kaydeder ve senin seçtiğin bir kişiye bildirim gönderebilir. FioreMatch bir acil yardım servisi değildir: seni izlemez ve bir olaya müdahale edemez. Acil bir tehlikedeysen yerel acil durum servislerine ulaş."
+  },
+  "conversation": {
+    "title": "İlk mesaj, artık daha kolay",
+    "subtitle": "Dating uygulamalarının en zor kısmı boş metin kutusudur. Bu araçlar yardım eder — asla yerini almaz.",
+    "icebreakerTitle": "AI Icebreaker",
+    "icebreakerBody": "Eşleştiğinizde FioreMatch gerçekten ortak olan noktaları bulur ve buna dayalı bir açılış önerir. \"İkiniz de seyahat etmeyi seviyorsunuz — gittiğin en güzel yer neresiydi?\" Kategoriler; samimi, esprili, romantik, seyahat, kültür, yemek ve hobileri kapsar.",
+    "coachTitle": "Conversation Coach",
+    "coachBody": "Konuşmanın ortasında tıkandın mı? Yardım iste; açık uçlu bir soru, bir devam sorusu, bir konu önerisi veya bir cevap fikri al. Ne göndereceğini sen seçersin, dilediğin gibi düzenlersin veya tamamen görmezden gelirsin.",
+    "gamesTitle": "Match Games",
+    "gamesBody": "Buzu kırmak için isteğe bağlı mini oyunlar: This or That, Would You Rather, Two Truths and a Lie, Quick Questions ve Guess My Answer.",
+    "translationTitle": "AI Translation",
+    "translationBody": "Diller arasında mesajlaş; çevrilmiş metinle orijinali arasında tek dokunuşla geçiş yap — böylece tam olarak ne yazıldığını her zaman görebilirsin. Çeviri anlamı taşımak içindir, değiştirmek için değil.",
+    "boundaryTitle": "Sınırı nerede çiziyoruz",
+    "boundaryBody": "FioreMatch'te yapay zeka önerir; asla senin yerine hareket etmez. Senin adına mesaj göndermez, senin yerine romantik bir konuşma yürütmez ve bir insanmış gibi davranmaz. Giden her mesaj, senin göndermeyi seçtiğin mesajdır."
+  },
+  "taxonomy": {
+    "relationshipGoals": {
+      "long_term": "Uzun süreli ilişki",
+      "marriage": "Evlilik",
+      "dating": "Tanışma",
+      "casual": "Rahat tanışma",
+      "friendship": "Arkadaşlık",
+      "international": "Uluslararası ilişki",
+      "unsure": "Henüz emin değilim"
+    },
+    "matchIntents": {
+      "serious_relationship": "Ciddi ilişki",
+      "getting_to_know": "Birini tanımak",
+      "international_dating": "Uluslararası tanışma",
+      "friendship": "Arkadaşlık",
+      "language_exchange": "Dil değişimi"
+    },
+    "reasons": {
+      "relationship_goal": "İlişki hedefi",
+      "match_intent": "İkinizin de aradığı",
+      "interests": "Ortak ilgi alanları",
+      "lifestyle": "Yaşam tarzı",
+      "communication": "İletişim tarzı",
+      "language": "Ortak dil",
+      "language_exchange": "Dil değişimi",
+      "location": "Konum",
+      "travel": "Seyahat planları",
+      "culture": "Kültür",
+      "ideal_date": "İdeal buluşma"
+    },
+    "genders": {
+      "woman": "Kadın",
+      "man": "Erkek",
+      "non_binary": "Non-binary"
+    }
+  },
+  "games": {
+    "title": "Eşleşme Oyunları",
+    "subtitle": "İlk sohbeti kolaylaştıran isteğe bağlı mini oyunlar.",
+    "fairPlay": "İkiniz de cevap verene kadar hiçbiriniz diğerinin cevabını göremez — bunu uygulamaya güvenerek değil, sunucu zorunlu kılarak sağlıyoruz.",
+    "optional": "Oyunlar her zaman isteğe bağlıdır. İkiniz de bir daveti atlayabilir veya oyunu istediğiniz an bitirebilirsiniz; reddetmek gayet normal bir cevaptır.",
+    "list": [
+      {
+        "name": "Bu mu, Şu mu?",
+        "desc": "Hızlı ya o ya bu seçimleri. Kahve mi çay mı, her şeyi planlamak mı doğaçlama mı."
+      },
+      {
+        "name": "Hangisini Seçersin?",
+        "desc": "İki cazip seçenek, kolay cevap yok. Birinin nasıl düşündüğünü anlamanın hızlı yolu."
+      },
+      {
+        "name": "İki Doğru Bir Yalan",
+        "desc": "Biri yalan olmak üzere üç cümle yaz. Eşleşmen hangisi olduğunu tahmin etsin — tahmin edene kadar yalan gizli kalır."
+      },
+      {
+        "name": "Hızlı Sorular",
+        "desc": "Kısa açık uçlu sorular: en iyi seyahat, teselli yemeği, sürekli dinlediğin şarkı."
+      },
+      {
+        "name": "Cevabımı Tahmin Et",
+        "desc": "Eşleşmenin ne diyeceğini tahmin et, sonra karşılaştır. Genelde beşinin en eğlencelisi."
+      }
+    ],
+    "prompts": {
+      "coffee_tea": {
+        "a": "Kahve",
+        "b": "Çay"
+      },
+      "beach_mountains": {
+        "a": "Deniz",
+        "b": "Dağ"
+      },
+      "morning_night": {
+        "a": "Erkenci",
+        "b": "Gece kuşu"
+      },
+      "city_countryside": {
+        "a": "Şehir",
+        "b": "Kırsal"
+      },
+      "cook_eat_out": {
+        "a": "Evde yemek yapmak",
+        "b": "Dışarıda yemek"
+      },
+      "call_text": {
+        "a": "Aramak",
+        "b": "Mesajlaşmak"
+      },
+      "books_films": {
+        "a": "Kitaplar",
+        "b": "Filmler"
+      },
+      "plan_improvise": {
+        "a": "Planlamak",
+        "b": "Doğaçlama"
+      },
+      "live_abroad_forever_or_travel_always": {
+        "a": "Sonsuza dek yurt dışında yaşamak",
+        "b": "Sürekli seyahat etmek"
+      },
+      "speak_every_language_or_visit_every_country": {
+        "a": "Her dili konuşmak",
+        "b": "Her ülkeyi görmek"
+      },
+      "always_summer_or_always_winter": {
+        "a": "Hep yaz",
+        "b": "Hep kış"
+      },
+      "famous_meal_or_famous_view": {
+        "a": "En iyi yemek",
+        "b": "En iyi manzara"
+      },
+      "no_music_or_no_films": {
+        "a": "Müzikten vazgeçmek",
+        "b": "Filmlerden vazgeçmek"
+      },
+      "meet_your_heroes_or_be_someone_hero": {
+        "a": "Kahramanlarınla tanışmak",
+        "b": "Birinin kahramanı olmak"
+      },
+      "best_trip": "Şimdiye kadar yaptığın en iyi seyahat hangisiydi?",
+      "comfort_food": "Teselli yemeğin nedir?",
+      "song_on_repeat": "Şu sıralar sürekli dinlediğin şarkı hangisi?",
+      "perfect_sunday": "Mükemmel bir pazar günü nasıl geçer?",
+      "learning_right_now": "Şu anda ne öğreniyorsun?",
+      "makes_you_laugh": "Seni kesinlikle güldüren şey nedir?",
+      "my_ideal_first_date": "Benim ideal ilk buluşmam...",
+      "my_most_used_emoji": "En çok kullandığım emoji...",
+      "my_go_to_karaoke_song": "Karaoke şarkım...",
+      "my_dream_city_to_live_in": "Yaşamak isteyeceğim şehir...",
+      "my_useless_talent": "En işe yaramaz yeteneğim..."
+    },
+    "start": "Oyun başlat",
+    "accept": "Kabul et",
+    "decline": "Şimdi değil",
+    "end": "Oyunu bitir",
+    "waiting": "Onun cevabı bekleniyor.",
+    "yourTurn": "Gönder",
+    "theirAnswer": "O şöyle dedi",
+    "yourAnswer": "Sen şöyle dedin",
+    "completed": "Birlikte bir oyunu tamamladınız.",
+    "declined": "Reddedildi.",
+    "loading": "Yükleniyor…",
+    "invitePending": "Bu eşleşmede açık bir oyun daveti var."
+  },
+  "referral": {
+    "title": "Bir arkadaşını davet et",
+    "subtitle": "FioreMatch'i gerçekten kullanacak biriyle paylaş.",
+    "howTitle": "Nasıl çalışır",
+    "how": [
+      "Kişisel davet kodunu veya bağlantını paylaş.",
+      "Arkadaşın kaydolsun ve gerçek bir profil oluştursun.",
+      "Doğrulamasını tamamlayıp FioreMatch'i kullanmaya başladığında ödülün açılır."
+    ],
+    "rewardsTitle": "Ödüller",
+    "rewards": [
+      {
+        "name": "Süper Beğeni",
+        "desc": "İlk geçerli davetin için."
+      },
+      {
+        "name": "Boost",
+        "desc": "İkincisi için — Keşfet'in en üstünde 30 dakika."
+      },
+      {
+        "name": "14 günlük Premium deneme",
+        "desc": "Üçüncüsü için. Sonra sıra baştan başlar."
+      }
+    ],
+    "fairTitle": "Ödüller neden anında değil sonra açılıyor",
+    "fairBody": "Birisi kaydolur olmaz ödeme yapmak, davet programlarını tam da suistimale açık hale getiren şeydir. Ödüller; arkadaşın e-postasını ve telefonunu doğruladığında, profilini tamamladığında ve FioreMatch'i birkaç gün gerçekten kullandığında açılır. Daha yavaş, ama ödüllerin cömert kalabilmesinin sebebi bu.",
+    "abuseTitle": "İzin vermediklerimiz",
+    "abuseBody": "Kendini davet etmek, ödül toplamak için hesap açmak veya kodları toplu takas etmek. Şüpheli davetler otomatik cezalandırılmaz, insan incelemesine alınır — bağlantını popüler bir yerde paylaşmak suistimal değildir ve seni haksız yere cezalandırmaktansa sormayı tercih ederiz.",
+    "outcome": {
+      "granted": "Ödül açıldı.",
+      "pendingQualification": "Arkadaşının kurulumu tamamlayıp FioreMatch'i kullanmaya başlaması bekleniyor.",
+      "heldForReview": "Bu davet ekibimiz tarafından inceleniyor.",
+      "monthlyCapReached": "Bu ayki ödül sınırına ulaştın — ek davetler manuel olarak inceleniyor.",
+      "rejected": "Bu davet geçerli değil."
+    },
+    "yourCode": "Kodunuz",
+    "yourLink": "Davet bağlantınız",
+    "copy": "Bağlantıyı kopyala",
+    "copied": "Kopyalandı",
+    "walletEmpty": "Henüz kullanılacak bir ödül yok. Arkadaşınız koşulları tamamlayınca burada görünür.",
+    "statusTitle": "Davetleriniz",
+    "statusEmpty": "Bağlantınızla henüz kimse kaydolmadı.",
+    "capNote": "Bu ay {cap} ödüllü davetin {used} tanesi kullanıldı.",
+    "countGranted": "Ödüllendirilen",
+    "countPending": "Devam eden",
+    "countTotal": "Toplam",
+    "qualifyNote": "Ödül; arkadaşınız e-postasını ve telefonunu doğrulayıp profilini tamamladıktan ve FioreMatch'i birkaç ayrı gün kullandıktan sonra açılır.",
+    "reward": {
+      "superLike": "Super Like",
+      "boost": "Boost",
+      "premiumTrial": "Premium deneme"
+    },
+    "status": {
+      "granted": "Ödüllendirildi",
+      "pendingQualification": "Devam ediyor",
+      "heldForReview": "İncelemede",
+      "rejected": "Uygun değil"
+    }
+  },
+  "app": {
+    "discoverTitle": "Keşfet",
+    "dailyFiveTitle": "Günün 5'i",
+    "dailyFiveSubtitle": "Bugün senin için seçilen beş kişi — akış değil. Her biri için karar ver, liste yarın yenilenir.",
+    "dailyFiveEmpty": "Bugün güçlü bir öneri çıkmadı. Listeyi doldurmaktansa boş bırakmayı tercih ederiz — yarın tekrar bak.",
+    "dailyFiveDone": "Günün beşi bu kadar. Yeni bir set için yarın gel.",
+    "dailyFiveDecided": "Karar verildi",
+    "dailyFiveNav": "Günün 5'i",
+    "discoverEmpty": "Şu an öneri yok. Profilini tamamla veya keşfetme modunu genişlet.",
+    "why": "Neden eşleşebilirsiniz",
+    "like": "Beğen",
+    "pass": "Geç",
+    "superLike": "Süper Beğeni",
+    "matched": "Eşleştiniz!",
+    "loading": "Yükleniyor…",
+    "modeLabel": "Keşfetme modu",
+    "profileTitle": "Profilin",
+    "profileIntro": "Ne kadar çok doldurursan öneriler o kadar iyileşir — ve buradaki her şey isteğe bağlı.",
+    "save": "Profili kaydet",
+    "saved": "Kaydedildi.",
+    "logout": "Çıkış yap",
+    "bio": "Hakkında",
+    "interests": "İlgi alanları (virgülle ayır)",
+    "goal": "İlişki hedefi",
+    "city": "Şehir",
+    "country": "Ülke",
+    "languages": "Konuştuğun diller (virgülle ayır, örn. tr, en)",
+    "complete": "Profilimi Keşfet'te göster",
+    "potential": "Potansiyel uyumluluk",
+    "bandStrong": "Güçlü",
+    "bandPromising": "Umut verici",
+    "bandExploring": "Keşfetmeye değer",
+    "matchesTitle": "Eşleşmeler",
+    "matchesEmpty": "Henüz eşleşme yok. Keşfetmeye devam et.",
+    "sendPlaceholder": "Bir mesaj yaz…",
+    "send": "Gönder",
+    "noMessages": "Merhaba de.",
+    "unread": "okunmamış",
+    "block": "Engelle",
+    "report": "Bildir",
+    "scamWarningTitle": "Bu mesaja karşı dikkatli ol",
+    "scamWarningBody": "Bu mesaj, dolandırıcılıklarda gördüğümüz kalıplarla eşleşiyor. Bu kişinin dolandırıcı olduğunu söylemiyoruz — ama yüz yüze tanışmadığın birine asla para, hediye kartı veya kripto gönderme ve yanlış hissettiren her şeyi bildir.",
+    "blockConfirm": "Bu kişiyi engelle? Eşleşmen ve sohbetin kaldırılacak.",
+    "reportSent": "Bildirim gönderildi. Ekibimiz inceleyecek.",
+    "backToMatches": "← Eşleşmeler",
+    "photos": "Fotoğraflar",
+    "addPhoto": "Fotoğraf ekle",
+    "photoPending": "İnceleme bekliyor",
+    "photoRejected": "Onaylanmadı",
+    "photoDelete": "Kaldır",
+    "photoHelp": "Fotoğraflar, diğer üyeler görebilmeden önce inceleniyor. Her yüklemeden konum bilgisi temizleniyor.",
+    "photoTooLarge": "Bu dosya çok büyük (en fazla 8 MB).",
+    "photoUnsupported": "Lütfen JPEG, PNG veya WebP bir görsel yükle.",
+    "photoTooSmall": "Bu görsel çok küçük (en az 200×200).",
+    "photoTooMany": "Fotoğraf sınırına ulaştın.",
+    "photoFailed": "Yükleme başarısız. Lütfen tekrar dene.",
+    "moderationTitle": "Moderasyon",
+    "metricsTitle": "Metrikler",
+    "discoverEmptyFiltered": "Bu filtrelerle şu anda kimse yok. Filtreleri genişletmeyi deneyin.",
+    "filters": "Filtreler",
+    "filterAge": "Yaş",
+    "filterAgeMin": "En küçük yaş",
+    "filterAgeMax": "En büyük yaş",
+    "filterPlaceHint": "Bir yer yazın veya önerilerden seçin.",
+    "filterLanguages": "Konuştuğu diller",
+    "filterLanguagesHint": "Virgülle ayrılmış iki harfli kodlar — örneğin: en, tr. Diğerleri yok sayılır.",
+    "filterIntent": "Ne arıyorsunuz",
+    "filterApply": "Filtreleri uygula",
+    "filterReset": "Temizle",
+    "filterActive": "Filtreler açık",
+    "filterNone": "Filtre yok",
+    "cardSpeaks": "Konuştuğu diller",
+    "cardNoBio": "Henüz biyografi yok.",
+    "referralNav": "Davet et",
+    "typingIndicator": "yazıyor…",
+    "messageSeen": "Görüldü",
+    "messageSent": "Gönderildi",
+    "translate": "Çevir",
+    "translating": "Çevriliyor…",
+    "showOriginal": "Orijinali göster",
+    "translatedNote": "Makine çevirisi. Mesajlar çeviri için bir çeviri sağlayıcısına gönderilir; orijinali altta gösterilir.",
+    "translateFailed": "Şu anda çevrilemedi. Aşağıdaki mesajlar orijinalleridir.",
+    "boost": "Boost",
+    "boostRunning": "Boost aktif",
+    "boostNone": "Boost yok",
+    "likeLimitReached": "Bugünkü beğenileriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını verir.",
+    "filtersDowngraded": "Dil, niyet ve kültür filtreleri PLUS'a dahildir. Sonuçlar bu filtreler olmadan gösteriliyor.",
+    "sendGift": "Hediye gönder",
+    "giftAllowanceReached": "Bugünkü hediyeleriniz doldu. Gün içinde yenilenir; PLUS ve VIP daha fazlasını gönderir.",
+    "giftSent": "Gönderdiniz",
+    "giftReceived": "Size bir hediye",
+    "installPitch": "FioreMatch'i ana ekranınıza ekleyin",
+    "install": "Yükle",
+    "installDismiss": "Şimdi değil",
+    "deleteTitle": "Hesabınızı silin",
+    "deleteBody": "Bu işlem profilinizi, fotoğraflarınızı, eşleşmelerinizi ve mesajlarınızı kaldırır. Geri alınamaz ve sonrasında hiçbirini sizin için geri getiremeyiz.",
+    "deleteConfirmWord": "sil",
+    "deletePrompt": "Onaylamak için “sil” yazın.",
+    "deleteButton": "Hesabı sil",
+    "deleteWorking": "Siliniyor…",
+    "deleteFailed": "İşlem tamamlanamadı. Lütfen tekrar deneyin.",
+    "undoPass": "Son geçişi geri al",
+    "undoPassEmpty": "Geri alınacak bir şey yok.",
+    "undoPassLocked": "Geri alma bir PLUS özelliği.",
+    "vipBadge": "VIP",
+    "interestNav": "Sana ilgi gösterenler",
+    "listLoading": "Yükleniyor…",
+    "listUpgrade": "Planlara bak",
+    "listSuperLike": "Süper Beğeni",
+    "listRepeatVisit": "{count} kez baktı",
+    "likesTitle": "Seni beğenenler",
+    "likesIntro": "Seni beğenmiş ve hâlâ cevap bekleyen kişiler. Sen karar verdiğin an — beğen ya da geç — bu listeden çıkarlar.",
+    "likesEmpty": "Şu an cevap bekleyen kimse yok.",
+    "likesLockedTitle": "PLUS kim olduklarını gösterir",
+    "likesLockedBody": "Yukarıdaki sayı gerçek. PLUS bu sayının arkasındaki isimleri ve fotoğrafları açıyor; böylece sana zaten evet demiş kişileri Keşfet'te yeniden aramak yerine doğrudan cevaplayabilirsin.",
+    "visitorsTitle": "Profil ziyaretçileri",
+    "visitorsIntro": "Profilini açan kişiler. Bakan herkes kaydediliyor — abone olmayarak görünmez gezilmiyor.",
+    "visitorsEmpty": "Profilini henüz kimse açmadı.",
+    "visitorsLockedTitle": "VIP kim olduklarını gösterir",
+    "visitorsLockedBody": "Yukarıdaki sayı gerçek. VIP bu sayıya isim veriyor ve birden fazla kez dönenleri gösteriyor.",
+    "likesCount": "{count, plural, other {# kişi cevabını bekliyor}}",
+    "visitorsCount": "{count, plural, other {# kişi profilini açtı}}",
+    "autoTranslated": "Ortak bir diliniz yok, bu yüzden otomatik çevriliyor.",
+    "theirTime": "Onun saati",
+    "bothAwake": "Ortak saatler: {from}–{to}",
+    "gender": "Cinsiyetin",
+    "genderUnspecified": "Belirtmek istemiyorum",
+    "seeking": "Kiminle tanışmak istiyorsun",
+    "seekingHint": "Uygun olanları seç. Hiçbirini seçmezsen herkes gösterilir."
+  },
+  "appOnly": {
+    "tagline": "Sınırların ötesinde tanış.",
+    "signIn": "Giriş yap",
+    "body": "FioreMatch bir mobil uygulama. App Store veya Google Play'den indir — hesabın varsa buradan giriş yapabilirsin.",
+    "privacy": "Gizlilik politikası",
+    "terms": "Kullanım koşulları"
+  },
+  "virtualDates": {
+    "title": "Sanal buluşma",
+    "subtitle": "Sohbet penceresi yerine ortak bir mekânda buluşun.",
+    "inviteCta": "{name} kişisini davet et",
+    "sending": "Gönderiliyor…",
+    "where": "Nerede",
+    "when": "Ne zaman",
+    "whenHelp": "İsteğe bağlı. Boş bırakırsanız saati sohbette kararlaştırırsınız.",
+    "waitingForThem": "{name} kişisinin yanıtı bekleniyor.",
+    "invitedYou": "{name} sizi sanal buluşmaya davet etti.",
+    "inEnvironment": "{place} mekânında",
+    "scheduledFor": "{when} için planlandı",
+    "expires": "{when} tarihinde sona eriyor",
+    "accept": "Kabul et",
+    "decline": "Reddet",
+    "cancel": "Daveti geri çek",
+    "acceptedTitle": "Buluşma ayarlandı",
+    "acceptedBody": "{name} sizi {place} mekânında bekliyor.",
+    "declinedNote": "Davet reddedildi.",
+    "cancelledNote": "Davet geri çekildi.",
+    "allowanceLeft": "Bu ayki {limit} sanal buluşmadan {left} tanesi kaldı",
+    "allowanceNone": "Bu ay sanal buluşma hakkınız kalmadı",
+    "allowanceUnlimited": "Sınırsız sanal buluşma",
+    "lockedWith": "Yalnızca {tier}",
+    "upgradeNote": "PLUS ve VIP daha fazla buluşma mekânı açar.",
+    "inboxTitle": "Sanal buluşma davetleri",
+    "openConversation": "Sohbeti aç",
+    "environments": {
+      "basic_cafe": "Köşedeki kafe",
+      "sunset_beach": "Gün batımında sahil",
+      "star_observatory": "Yıldız gözlemevi",
+      "luxury_restaurant": "Şık restoran",
+      "rooftop": "Şehir manzaralı teras",
+      "tropical_island": "Tropik ada"
+    },
+    "errors": {
+      "notFound": "Bu davet artık mevcut değil.",
+      "notYours": "Bu daveti yalnızca davet ettiğiniz kişi yanıtlayabilir.",
+      "alreadyPending": "Bu kişiyle zaten açık bir davetiniz var.",
+      "alreadyAnswered": "Bu davet zaten yanıtlanmış.",
+      "expired": "Bu davetin süresi doldu.",
+      "noDatesLeftYou": "Bu ayki {limit} sanal buluşma hakkınızın tamamını kullandınız.",
+      "noDatesLeftYouPlain": "Bu ay sanal buluşma hakkınız kalmadı.",
+      "noDatesLeftThem": "Karşı taraf bu ayki {limit} sanal buluşma hakkının tamamını kullanmış.",
+      "noDatesLeftThemPlain": "Karşı tarafın bu ay sanal buluşma hakkı kalmamış.",
+      "unknownEnvironment": "Böyle bir mekân yok.",
+      "environmentLocked": "Bu mekân için daha üst bir plan gerekiyor.",
+      "scheduledInThePast": "Gelecekte bir zaman seçin.",
+      "scheduledTooFar": "Buluşma en fazla {days} gün sonrası için ayarlanabilir — davet o tarihten önce sona eriyor.",
+      "rateLimited": "Çok fazla davet gönderdiniz. Bir dakika sonra tekrar deneyin.",
+      "signedOut": "Oturumunuz sona erdi. Tekrar giriş yapın.",
+      "offline": "Bağlantı yok. Tekrar deneyin.",
+      "unexpected": "Bu işlem tamamlanamadı. Tekrar deneyin.",
+      "partnerUnavailable": "Bu kişi henüz sanal randevu daveti alamıyor. Biraz sonra tekrar dene."
+    }
+  }
+}

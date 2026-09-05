@@ -1,0 +1,200 @@
+# Deployment
+
+The server is a standard Next.js application with a PostgreSQL database. There
+is nothing exotic in here: no queue, no worker, no cache tier, no object storage
+unless photos are configured to use one.
+
+Everything below assumes you have chosen a host and a database. Neither choice
+is made in this repository, deliberately — both cost money and both are hard to
+reverse, so they belong to whoever pays for them.
+
+---
+
+## What has to exist first
+
+| | Why |
+| --- | --- |
+| A PostgreSQL 16 database | Everything. There is no fallback store. |
+| A domain with TLS | Deep links, the PWA manifest, and both stores refuse plain HTTP. |
+| `DATABASE_URL` | The one required variable. |
+| `NEXT_PUBLIC_SITE_URL` | Canonical URLs and referral links are built from it. |
+
+Everything else in `.env.example` is optional and switches a feature on. Unset,
+each one is *off* rather than broken: no translation provider means no
+translation, no S3 bucket means photos on local disk, no Microsoft credentials
+means Windows purchases answer "not open".
+
+**One exception, and it is the launch blocker.** Photo screening unset does not
+mean "photos are not screened and that is fine" — it means every upload waits
+for a human, which is safe but does not scale. Before opening public signups,
+wire both screening drivers and set `REQUIRE_PHOTO_SCREENING=true`, which makes
+the upload endpoint answer 503 rather than filling a queue nobody can keep up
+with. See [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md).
+
+## Migrations
+
+```bash
+npm run db:migrate
+```
+
+Run it before the new version starts serving, not after. Every migration so far
+is additive — new tables and columns — so an old instance keeps working against
+a migrated database, which is what makes a rolling deploy safe. **If that ever
+stops being true, this line has to change**, and the migration that breaks it
+should say so in its own commit.
+
+## Running it
+
+Two ways, and the difference matters more than it looks.
+
+### `npm run start`
+
+The ordinary Next.js production server. Needs `node_modules` present.
+
+```bash
+npm ci
+npm run build
+npm run start
+```
+
+This is the path every check in this repository has been run against.
+
+### The container
+
+`Dockerfile` builds a three-stage image around `output: standalone`, which
+traces the modules the server actually reaches and writes a `server.js` that
+runs without `node_modules`. The runtime image carries the application and
+nothing else, runs as an unprivileged user, and has a `HEALTHCHECK` that reaches
+`/api/health`.
+
+```bash
+docker build -t fiorematch .
+docker run -p 3000:3000 -e DATABASE_URL=... -e NEXT_PUBLIC_SITE_URL=... fiorematch
+```
+
+> **Verify page rendering on the first deploy, before trusting this image.**
+>
+> The standalone server was exercised in the development sandbox and behaved in
+> a way I could not fully explain: `/api/health` and the other API routes answer
+> correctly, but page routes returned 500 with
+> `getaddrinfo EMFILE localhost`, which is libuv's error when it cannot use its
+> thread pool. The process showed a single thread, where the ordinary
+> `next-server` process on the same machine showed eleven.
+>
+> That pattern points at a sandbox restriction on thread creation rather than at
+> the application or the Dockerfile — the same code serves the same pages
+> correctly under `npm run start`, and the standalone build itself succeeds.
+> But I could not prove it, and the honest position is that **standalone page
+> rendering is unverified**.
+>
+> So: after the first `docker run`, request a page — not just `/api/health` —
+> and confirm it returns 200. If it does not, `npm run start` is a working
+> fallback and the container is the thing to debug, not the app.
+
+## Checks
+
+`.github/workflows/ci.yml` runs lint, typecheck, a dependency audit, the
+migrations, the whole test suite, a production build, and then the browser
+tests against that build — on every pull request, and on every push to
+`fiorematch-main`.
+
+The same sequence is what to run before pushing:
+
+```bash
+npm run lint
+npm run typecheck
+npm audit --omit=dev --audit-level=high
+npm run db:migrate
+npm test
+npm run build
+
+# The browser tests need the built server and the demo data behind it.
+npm run seed:demo
+npm run start &
+npm run test:browser
+```
+
+`npm run test:browser` talks to `FM_BASE_URL` (default `http://127.0.0.1:3100`)
+and does not start anything itself, so it can be pointed at a preview
+deployment as easily as at a local server. `CHROMIUM_PATH` overrides the browser
+binary where Playwright's own copy is not what you want.
+
+The migrations run *before* the tests, and they are the real migrations rather
+than a schema push, so a migration that would fail on a deploy fails here
+instead — in the cheap place.
+
+The workflow lives on this branch only. Several unrelated applications share
+this repository on different branch trees, and a pull request runs the workflow
+from its own head, so this checks FioreMatch and nothing else.
+
+## Store notifications
+
+`POST /api/billing/notifications/[store]` has to be reachable from the public
+internet, without a session, or refunds never reach the server. It is the only
+unauthenticated write in the application, and what stands in for the session is
+the signature check inside the store's driver — so **it must not be put behind
+an IP allowlist that assumes the stores publish stable addresses**, and equally
+must not be exempted from TLS.
+
+No driver exists for any store yet, so today it answers `503` to everything.
+That is the safe direction: nothing is written until a driver can prove a
+notification was signed. Configure a store's credentials and the same URL starts
+accepting that store's notifications and no others.
+
+Its replies are addressed to a machine that retries: `503` and `429` mean "come
+back", `400` means "stop". Anything in front of this route — a proxy, a WAF, a
+rate limiter — that turns a retryable answer into a final one will silently
+discard the notifications sent during an incident, and a discarded refund is a
+subscription that keeps running after the money went back.
+
+## Health
+
+`GET /api/health` reaches the database and answers `200` or `503`. It is a
+*readiness* probe: an instance that is running but cannot read should leave the
+load balancer rotation rather than serve errors to every signed-in member.
+
+It deliberately reveals nothing else — no version, no commit, no environment, no
+error text. It answers to anyone who can reach the port, and a version string is
+a free hint about which advisories apply.
+
+## The mobile shells depend on this
+
+`capacitor.config.ts` bakes `CAPACITOR_SERVER_URL` into the native builds at
+`npx cap sync` time. Until the server is live at that URL, the Android and iOS
+apps open `mobile/shell/error.html` — the branded offline screen — rather than
+the app. That is the shell working correctly, not a failure.
+
+This is also why deployment comes before the VR work: a headset has nothing to
+connect to until this exists.
+
+## What is not here yet
+
+Named rather than omitted, so the gaps are decisions instead of surprises:
+
+- **CI checks, it does not deploy.** Nothing publishes an image or runs a
+  migration against a real database; both are still done by hand, on purpose,
+  because both belong to whoever owns the environment.
+- **Browser coverage is a smoke test, not a suite.** Five checks run against the
+  built server in CI — the home page renders without the browser reporting a
+  fault, Arabic lays out right to left, Discover is refused to a signed-out
+  visitor, the login form works, and Discover shows people whose photos actually
+  load. They catch "the deploy is blank", which nothing else does. They do not
+  cover the product's screens in any depth, and are deliberately few: a browser
+  suite earns its keep only while every failure means something.
+- **No rate-limit store.** `src/lib/rate-limit.ts` is an in-memory fixed window,
+  so with more than one instance the effective limit is *instances × limit*. It
+  says so in its own comment. Before scaling past one instance this needs a
+  shared store.
+- **Photo screening has no drivers.** The pipeline, the interfaces and the
+  tests are built; PhotoDNA and a classifier need accounts, and PhotoDNA's is
+  an application with third-party vetting rather than a signup. This is the one
+  gap on this list that blocks a launch rather than merely being absent.
+- **No backups.** A managed database usually provides them; confirm rather than
+  assume, and test a restore before it matters.
+- **No error reporting.** Failures reach the container log and nowhere else.
+- **No analytics vendor, deliberately.** `/app/admin/metrics` counts the
+  product's own tables when someone opens it. There is nothing to configure and
+  nothing to send, which is the point: the alternative is shipping dating
+  behaviour to a third party. What it costs is that every number is computed on
+  demand — fine at this size, and the first thing to revisit if the page gets
+  slow rather than the first thing to replace with a tracker.
