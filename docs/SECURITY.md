@@ -121,6 +121,21 @@ locales and every page, which is its own change with its own verification
 rather than something to slip into an audit. `npm audit fix --force` would also
 take `next` to 16 at the same time; it should not be run here.
 
+**The open redirect was probed rather than assumed.** Against the running
+server, every classic vector — `//host`, `/tr//host`, `///host`, `/\host`,
+`/tr/\/host`, `/tr/../..//host`, `//host:80`, `/tr//@host` — redirects to *this*
+origin, not off it: Next normalises the path before next-intl sees it, and
+following the chain to completion never leaves the host. Encoded and
+whitespace variants 404.
+
+That is not a claim that the advisory is fully mitigated — its precise vector is
+not published here, and a future route could reintroduce the class. It does mean
+the practical exposure today is materially lower than the severity implies, and
+it is backed by the structural property that **no route in this application
+redirects to a target taken from a request** (grepped for; there are none).
+
+Re-probe after any change to `middleware.ts` or the locale routing.
+
 The gate is deliberately `--omit=dev --audit-level=high`. Advisories in build
 tooling are worth knowing and are not reachable by a member, and a gate that
 fails for things nobody can act on is one people learn to skip.
