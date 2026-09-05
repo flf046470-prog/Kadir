@@ -94,6 +94,43 @@ describe("the live configuration", () => {
     resetFlagConfig();
     expect(() => flagConfig()).toThrow(/not valid JSON/);
   });
+
+  /**
+   * The failure this file exists to prevent, and the one it used to allow.
+   *
+   * Unknown flag *names* threw; unknown keys inside an entry did not. A
+   * mistyped kill switch therefore parsed cleanly, left the feature at full
+   * rollout, and said nothing — while the operator believed it was off. Anyone
+   * reaching for a kill switch is already having a bad day.
+   */
+  it("throws on a mistyped key inside an entry, rather than ignoring it", () => {
+    process.env.FEATURE_FLAGS = JSON.stringify({ ai_translation: { kill: true } });
+    resetFlagConfig();
+
+    expect(() => flagConfig()).toThrow(/unknown key\(s\) kill/);
+  });
+
+  it("names every unrecognised key, so one fix covers them all", () => {
+    process.env.FEATURE_FLAGS = JSON.stringify({
+      ai_translation: { rollout: 5, enabled: true, percent: 50 }
+    });
+    resetFlagConfig();
+
+    expect(() => flagConfig()).toThrow(/enabled, percent/);
+  });
+
+  it("still accepts every key it does understand", () => {
+    process.env.FEATURE_FLAGS = JSON.stringify({
+      ai_translation: { rollout: 25, killed: false, alwaysOn: ["someone"] }
+    });
+    resetFlagConfig();
+
+    expect(flagConfig().ai_translation).toEqual({
+      rollout: 25,
+      killed: false,
+      alwaysOn: ["someone"]
+    });
+  });
 });
 
 describe("reading a flag for a member", () => {

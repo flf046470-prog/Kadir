@@ -840,7 +840,8 @@
       "rateLimited": "That is a lot of invitations. Try again in a minute.",
       "signedOut": "Your session ended. Sign in again.",
       "offline": "No connection. Try again.",
-      "unexpected": "That did not work. Try again."
+      "unexpected": "That did not work. Try again.",
+      "partnerUnavailable": "They cannot receive virtual date invitations yet. Try again soon."
     }
   }
 }

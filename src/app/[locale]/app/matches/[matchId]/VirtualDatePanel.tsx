@@ -79,10 +79,27 @@ export function VirtualDatePanel({
     }
   }
 
-  // Rendered only for members the feature is on for — the page decides that on
-  // the server — so anything else here is a load that has not finished or one
-  // that failed, and neither is worth a placeholder for a secondary panel.
-  if (!view?.available) return null;
+  /**
+   * Rendered only for members the feature is on for — the page decides that on
+   * the server — so an unavailable view is usually a load that has not
+   * finished, and a secondary panel is not worth a placeholder for that.
+   *
+   * The error is the exception, and it used to be swallowed here: a failed
+   * action reloads, the reload sets `view` to null, and returning early on that
+   * discarded the message set a line earlier. Going offline and tapping Invite
+   * made the whole panel disappear rather than say anything.
+   */
+  if (!view?.available) {
+    if (!error) return null;
+
+    return (
+      <section className="mt-8 border-t border-black/10 pt-6">
+        <p className="text-sm text-bloom-600" role="alert">
+          {error}
+        </p>
+      </section>
+    );
+  }
 
   const invite = view.invites.find((row) => row.matchId === matchId) ?? null;
   const at = (iso: string) =>

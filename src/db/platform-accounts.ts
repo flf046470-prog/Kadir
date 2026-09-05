@@ -39,6 +39,11 @@ export async function linkPlatformAccount(
   identity: VerifiedPlatformIdentity,
   now: Date = new Date()
 ): Promise<LinkResult> {
+  // Postgres' unique_violation. Matched on the code rather than the message,
+  // which is localised and version-dependent.
+  const isUniqueViolation = (error: unknown) =>
+    typeof error === "object" && error !== null && (error as { code?: string }).code === "23505";
+
   const claimed = await db
     .select({ userId: userPlatformAccounts.userId })
     .from(userPlatformAccounts)
@@ -55,23 +60,33 @@ export async function linkPlatformAccount(
 
   /**
    * Keyed on (user, platform), so re-linking after switching Steam accounts
-   * replaces the identity rather than adding a second one. The other unique
-   * index — (platform, identity) — is what the check above anticipates; it
-   * would reject this insert anyway, and the check exists so the caller gets a
-   * reason rather than a constraint violation.
+   * replaces the identity rather than adding a second one.
+   *
+   * The other unique index — (platform, identity) — is what the check above
+   * anticipates, and an upsert can only name one conflict target. The check and
+   * this insert are two statements, so between them the same platform identity
+   * can be claimed by somebody else: a real race, since a linking flow is
+   * exactly where two devices act at once. That arrives as a constraint
+   * violation meaning precisely what the check means, so it is translated into
+   * the same refusal rather than surfacing as a 500.
    */
-  await db
-    .insert(userPlatformAccounts)
-    .values({
-      userId,
-      platform: identity.platform,
-      platformUserId: identity.platformUserId,
-      lastLoginAt: now
-    })
-    .onConflictDoUpdate({
-      target: [userPlatformAccounts.userId, userPlatformAccounts.platform],
-      set: { platformUserId: identity.platformUserId, lastLoginAt: now }
-    });
+  try {
+    await db
+      .insert(userPlatformAccounts)
+      .values({
+        userId,
+        platform: identity.platform,
+        platformUserId: identity.platformUserId,
+        lastLoginAt: now
+      })
+      .onConflictDoUpdate({
+        target: [userPlatformAccounts.userId, userPlatformAccounts.platform],
+        set: { platformUserId: identity.platformUserId, lastLoginAt: now }
+      });
+  } catch (error) {
+    if (isUniqueViolation(error)) return { ok: false, reason: "linked_to_another_account" };
+    throw error;
+  }
 
   return { ok: true };
 }

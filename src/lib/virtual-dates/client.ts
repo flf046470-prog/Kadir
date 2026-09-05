@@ -98,6 +98,7 @@ const REFUSAL_KEYS: Record<Refusal, string> = {
   environment_locked: "errors.environmentLocked",
   scheduled_in_the_past: "errors.scheduledInThePast",
   scheduled_too_far: "errors.scheduledTooFar",
+  partner_unavailable: "errors.partnerUnavailable",
   rate_limited: "errors.rateLimited",
   invalid_body: "errors.unexpected",
   unauthorized: "errors.signedOut",

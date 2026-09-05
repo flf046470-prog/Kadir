@@ -291,6 +291,138 @@ describe("the monthly allowance", () => {
   });
 });
 
+/**
+ * During a staged rollout the sender and the recipient are separate questions,
+ * because bucketing is per member. Without this the invitation is created, holds
+ * the match's one pending slot for a week, and sits unrendered on a screen the
+ * recipient's build does not draw — invisible to them, un-retryable for the
+ * sender.
+ */
+describe("inviting someone the rollout has not reached", () => {
+  it("refuses rather than creating an invitation they cannot see", async () => {
+    const { a, b, matchId } = await matchedPair();
+
+    const result = await inviteToVirtualDate(a, matchId, { canReceive: () => false });
+
+    expect(result).toEqual({ ok: false, reason: "partner_unavailable" });
+    expect(await db.select().from(virtualDateInvites)).toHaveLength(0);
+    // And the slot is still free, so it works the moment they are included.
+    expect(await inviteToVirtualDate(a, matchId, { canReceive: () => true })).toMatchObject({
+      ok: true
+    });
+    expect((await listOpenInvites(b))[0]).toBeDefined();
+  });
+
+  it("asks about the partner, not the sender", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const asked: string[] = [];
+
+    await inviteToVirtualDate(a, matchId, {
+      canReceive: (partnerId) => {
+        asked.push(partnerId);
+        return true;
+      }
+    });
+
+    expect(asked).toEqual([b]);
+  });
+});
+
+/**
+ * The allowance is a cost control, so charging twice for one date — or once for
+ * none — is the failure that matters most here. Both were possible before the
+ * accept path became a single locked transaction.
+ */
+describe("accepting concurrently", () => {
+  it("charges one date when the same invitation is accepted twice at once", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invite = await inviteToVirtualDate(a, matchId);
+    const inviteId = (invite as { inviteId: string }).inviteId;
+
+    const results = await Promise.all([
+      respondToInvite(b, inviteId, "accept"),
+      respondToInvite(b, inviteId, "accept")
+    ]);
+
+    // One acceptance, and the loser is told why rather than silently succeeding.
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toMatchObject([
+      { reason: "already_answered" }
+    ]);
+
+    // One date means one usage row each, not two.
+    expect(await db.select().from(virtualDateUsage)).toHaveLength(2);
+    expect((await virtualDateAllowance(a)).used).toBe(1);
+    expect((await virtualDateAllowance(b)).used).toBe(1);
+  });
+
+  /**
+   * Two *different* invitations accepted at once by a member with one date
+   * left. The status guard cannot help — the rows differ — which is what the
+   * per-member advisory lock is for.
+   */
+  it("does not let a member spend past their limit by accepting at once", async () => {
+    const me = await createTestUser();
+    const free = ENTITLEMENTS.free.monthlyVirtualDates!;
+
+    for (let i = 0; i < free - 1; i += 1) {
+      await db.insert(virtualDateUsage).values({ userId: me, startedAt: new Date() });
+    }
+    expect((await virtualDateAllowance(me)).used).toBe(free - 1);
+
+    const inviteIds: string[] = [];
+    for (let i = 0; i < 2; i += 1) {
+      const other = await createTestUser();
+      const [userAId, userBId] = [me, other].sort();
+      const [match] = await db
+        .insert(matches)
+        .values({ userAId, userBId })
+        .returning({ id: matches.id });
+      const invite = await inviteToVirtualDate(other, match.id);
+      inviteIds.push((invite as { inviteId: string }).inviteId);
+    }
+
+    const results = await Promise.all(inviteIds.map((id) => respondToInvite(me, id, "accept")));
+
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.filter((result) => !result.ok)).toMatchObject([{ reason: "no_dates_left" }]);
+    expect((await virtualDateAllowance(me)).used).toBe(free);
+  });
+
+  /**
+   * A refusal has to undo the claim, or the invitation is left answered and
+   * uncharged — a date nobody can have and nobody paid for, with no way back
+   * to it because a second attempt would be told it was already answered.
+   */
+  it("leaves the invitation pending when the acceptance is refused", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invite = await inviteToVirtualDate(a, matchId);
+    const inviteId = (invite as { inviteId: string }).inviteId;
+
+    // The sender spends their whole month between inviting and being answered.
+    const free = ENTITLEMENTS.free.monthlyVirtualDates!;
+    for (let i = 0; i < free; i += 1) {
+      await db.insert(virtualDateUsage).values({ userId: a, startedAt: new Date() });
+    }
+
+    expect(await respondToInvite(b, inviteId, "accept")).toMatchObject({
+      ok: false,
+      reason: "no_dates_left",
+      who: "them"
+    });
+
+    const [row] = await db
+      .select()
+      .from(virtualDateInvites)
+      .where(eq(virtualDateInvites.id, inviteId));
+
+    expect(row.status).toBe("pending");
+    expect(row.respondedAt).toBeNull();
+    // And nothing was charged to the recipient either.
+    expect((await virtualDateAllowance(b)).used).toBe(0);
+  });
+});
+
 describe("answering", () => {
   it("lets only the recipient answer", async () => {
     const { a, b, matchId } = await matchedPair();

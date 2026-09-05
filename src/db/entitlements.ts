@@ -191,7 +191,17 @@ export async function translationAllowance(
  */
 export async function virtualDateAllowance(
   userId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /**
+   * The transaction to count inside, when the caller has one open.
+   *
+   * Charging reads this and then writes, and those have to be one atomic step.
+   * Counting on the pool while the caller holds an open transaction reads a
+   * different connection, which cannot see the charges that transaction has
+   * already made — so two concurrent acceptances both saw "one left" and each
+   * spent it. `acceptInvite` passes its own `tx` for that reason.
+   */
+  executor: Pick<typeof db, "select"> = db
 ): Promise<LikeAllowance> {
   const { entitlements } = await entitlementsOf(userId, now);
   const limit = entitlements.monthlyVirtualDates;
@@ -199,7 +209,7 @@ export async function virtualDateAllowance(
 
   const since = new Date(now.getTime() - 30 * 24 * 3_600_000);
 
-  const rows = await db
+  const rows = await executor
     .select({ total: count() })
     .from(virtualDateUsage)
     .where(and(eq(virtualDateUsage.userId, userId), gte(virtualDateUsage.startedAt, since)));

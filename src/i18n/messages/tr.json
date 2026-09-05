@@ -840,7 +840,8 @@
       "rateLimited": "Çok fazla davet gönderdiniz. Bir dakika sonra tekrar deneyin.",
       "signedOut": "Oturumunuz sona erdi. Tekrar giriş yapın.",
       "offline": "Bağlantı yok. Tekrar deneyin.",
-      "unexpected": "Bu işlem tamamlanamadı. Tekrar deneyin."
+      "unexpected": "Bu işlem tamamlanamadı. Tekrar deneyin.",
+      "partnerUnavailable": "Bu kişi henüz sanal randevu daveti alamıyor. Biraz sonra tekrar dene."
     }
   }
 }

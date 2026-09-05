@@ -74,6 +74,25 @@ function parseEntry(name: string, raw: unknown): FlagConfig {
     config.alwaysOn = entry.alwaysOn as string[];
   }
 
+  /**
+   * A key this does not understand is a typo, and a typo here fails silently in
+   * the worst possible direction.
+   *
+   * Unknown *flag names* already threw; unknown keys inside an entry did not.
+   * So `{"ai_translation":{"kill":true}}` parsed cleanly, left the feature at
+   * full rollout, and told the operator nothing — while they believed the kill
+   * switch was thrown. That is the one mistake this file exists to prevent,
+   * because the reason anyone reaches for a kill switch is that something is
+   * already going wrong.
+   */
+  const known = ["rollout", "killed", "alwaysOn"];
+  const unknown = Object.keys(entry).filter((key) => !known.includes(key));
+  if (unknown.length > 0) {
+    throw new Error(
+      `${ENV_VAR}["${name}"] has unknown key(s) ${unknown.join(", ")} — expected ${known.join(", ")}`
+    );
+  }
+
   return config;
 }
 

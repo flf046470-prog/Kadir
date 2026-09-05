@@ -98,7 +98,16 @@ export async function POST(request: NextRequest) {
     if (Number.isNaN(scheduledFor.getTime())) return apiError("invalid_body", 400);
   }
 
-  const result = await inviteToVirtualDate(auth.user.id, matchId, { environment, scheduledFor });
+  const result = await inviteToVirtualDate(auth.user.id, matchId, {
+    environment,
+    scheduledFor,
+    /**
+     * The rollout buckets per member, so "may this member send" and "may that
+     * member receive" are different questions. Asked here rather than in the
+     * db module, which keeps knowing nothing about flags.
+     */
+    canReceive: (partnerId) => featureEnabled("virtual_dates", partnerId)
+  });
 
   if (!result.ok) {
     if (result.reason === "not_a_match") return apiError("not_found", 404);

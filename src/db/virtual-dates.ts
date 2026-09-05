@@ -2,6 +2,7 @@ import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { db } from "./client";
 import { users, virtualDateInvites, virtualDateUsage } from "./schema";
 import { resolveMatchFor } from "./messaging";
+import { advisoryLockKey } from "./advisory-lock";
 import { tierOf, virtualDateAllowance } from "./entitlements";
 import { environmentFor } from "@/lib/virtual-dates/environments";
 import { INVITE_TTL_DAYS, UNSCHEDULED_DATE_HOURS } from "@/lib/virtual-dates/rules";
@@ -59,7 +60,17 @@ export type InviteResult =
         | "unknown_environment"
         | "environment_locked"
         | "scheduled_in_the_past"
-        | "scheduled_too_far";
+        | "scheduled_too_far"
+        /**
+         * The other member cannot receive this yet.
+         *
+         * Only reachable during a staged rollout: the sender is in the cohort
+         * and the recipient is not. Without it, the invitation is created,
+         * consumes the match's single pending slot for a week, and sits on a
+         * screen the recipient's build does not render — so they never see it,
+         * never answer it, and the sender cannot send another.
+         */
+        | "partner_unavailable";
       /** For `no_dates_left`, the ceiling — so the client can name it. */
       limit?: number;
     };
@@ -73,7 +84,25 @@ export type InviteResult =
  * looks at it. Scoped to one match when a match is in hand, so the common path
  * writes almost nothing.
  */
-async function expireStale(matchId?: string): Promise<void> {
+async function expireStale(scope: { matchId?: string; userId?: string } = {}): Promise<void> {
+  /**
+   * Always scoped to something. Unscoped, every read of one member's
+   * invitations scanned and locked every pending row in the table — work
+   * proportional to the whole product for a question about one person, on the
+   * path a client polls. The indexes are keyed by match and by member, and one
+   * of the two is always in hand at the call site.
+   */
+  const within = scope.matchId
+    ? [eq(virtualDateInvites.matchId, scope.matchId)]
+    : scope.userId
+      ? [
+          or(
+            eq(virtualDateInvites.fromUserId, scope.userId),
+            eq(virtualDateInvites.toUserId, scope.userId)
+          )!
+        ]
+      : [];
+
   await db
     .update(virtualDateInvites)
     .set({ status: "expired" })
@@ -81,7 +110,7 @@ async function expireStale(matchId?: string): Promise<void> {
       and(
         eq(virtualDateInvites.status, "pending"),
         sql`${virtualDateInvites.expiresAt} <= now()`,
-        ...(matchId ? [eq(virtualDateInvites.matchId, matchId)] : [])
+        ...within
       )
     );
 }
@@ -89,7 +118,12 @@ async function expireStale(matchId?: string): Promise<void> {
 export async function inviteToVirtualDate(
   userId: string,
   matchId: string,
-  options: { environment?: string | null; scheduledFor?: Date | null } = {},
+  options: {
+    environment?: string | null;
+    scheduledFor?: Date | null;
+    /** Whether the partner may receive this — see `partner_unavailable`. */
+    canReceive?: (partnerId: string) => boolean;
+  } = {},
   now: Date = new Date()
 ): Promise<InviteResult> {
   // Resolved through the member, like every other conversation surface: a match
@@ -97,6 +131,20 @@ export async function inviteToVirtualDate(
   // also covers blocking, because `blockUser` deletes the match.
   const match = await resolveMatchFor(userId, matchId);
   if (!match) return { ok: false, reason: "not_a_match" };
+
+  /**
+   * The recipient has to be able to receive it, not just the sender to send it.
+   *
+   * During a staged rollout the two are different questions: bucketing is per
+   * member, so an inviter inside the cohort can have a match outside it. The
+   * invitation would be created, hold that match's one pending slot for a week,
+   * and sit unrendered on the other person's screen — invisible to them and
+   * un-retryable for the sender. Injected by the caller so this module keeps
+   * knowing nothing about flags.
+   */
+  if (options.canReceive && !options.canReceive(match.partnerId)) {
+    return { ok: false, reason: "partner_unavailable" };
+  }
 
   const expiresAt = new Date(now.getTime() + INVITE_TTL_DAYS * 24 * 3_600_000);
 
@@ -133,7 +181,7 @@ export async function inviteToVirtualDate(
     return { ok: false, reason: "no_dates_left", limit: allowance.limit ?? undefined };
   }
 
-  await expireStale(matchId);
+  await expireStale({ matchId });
 
   /**
    * The unique partial index is what enforces one open invitation per match.
@@ -203,7 +251,7 @@ export async function respondToInvite(
 
   if (invite.status !== "pending") return { ok: false, reason: "already_answered" };
   if (invite.expiresAt.getTime() <= now.getTime()) {
-    await expireStale(invite.matchId);
+    await expireStale({ matchId: invite.matchId });
     return { ok: false, reason: "expired" };
   }
 
@@ -217,37 +265,64 @@ export async function respondToInvite(
   }
 
   /**
-   * Both allowances, checked at the moment the room would exist.
+   * The claim, both allowance checks and the two charges are one transaction.
    *
-   * The inviter's is re-checked rather than trusted from invite time: an
-   * invitation can sit for a week, and they may have spent their month in the
-   * meantime. Accepting an invitation the sender can no longer honour would
-   * charge the recipient for a date that cannot happen.
-   */
-  const [mine, theirs] = await Promise.all([
-    virtualDateAllowance(userId, now),
-    virtualDateAllowance(invite.fromUserId, now)
-  ]);
-
-  if (!mine.allowed) {
-    return { ok: false, reason: "no_dates_left", who: "you", limit: mine.limit ?? undefined };
-  }
-  if (!theirs.allowed) {
-    return { ok: false, reason: "no_dates_left", who: "them", limit: theirs.limit ?? undefined };
-  }
-
-  /**
-   * The answer and the two charges land together or not at all.
+   * They have to be, and the reason is two distinct races that both end with
+   * somebody getting a date they did not pay for:
    *
-   * A crash between them would either give away a date nobody paid for or
-   * charge for one that never got accepted, and both are the kind of thing
-   * nobody notices until a month's numbers are wrong.
+   *  - **The same invitation, accepted twice.** Two taps on a slow connection.
+   *    Without a `status = 'pending'` guard on the update, both commit and each
+   *    inserts a full pair of usage rows — one date costing two of each
+   *    member's five. `inviteToVirtualDate` and `cancelInvite` already guard
+   *    this way; this path did not.
+   *  - **Two different invitations, accepted at once.** The status guard does
+   *    not help here, because the two rows are different. Both calls read "one
+   *    left" before either writes, and the month ends at six of five.
+   *
+   * The advisory locks fix the second: every acceptance takes one per member,
+   * so any two acceptances sharing a member serialise. Taken in sorted order
+   * because two people accepting each other's invitations simultaneously would
+   * otherwise take the same pair in opposite orders and deadlock. The same
+   * mechanism guards the like/match path, for the same kind of reason.
    */
-  await db.transaction(async (tx) => {
-    await tx
+  const [first, second] = [userId, invite.fromUserId].sort();
+
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`vdate:${first}`)})`);
+    await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`vdate:${second}`)})`);
+
+    // Claim it, and only if it is still pending. The second of two concurrent
+    // accepts finds nothing to claim and is told so.
+    const claimed = await tx
       .update(virtualDateInvites)
       .set({ status: "accepted", respondedAt: now })
-      .where(eq(virtualDateInvites.id, inviteId));
+      .where(and(eq(virtualDateInvites.id, inviteId), eq(virtualDateInvites.status, "pending")))
+      .returning({ id: virtualDateInvites.id });
+
+    if (!claimed[0]) return { ok: false as const, reason: "already_answered" as const };
+
+    /**
+     * Both allowances, counted inside this transaction so they see the charges
+     * it has already made, and at the moment the room would exist.
+     *
+     * The inviter's is re-checked rather than trusted from invite time: an
+     * invitation can sit for a week, and they may have spent their month
+     * meanwhile. Accepting one the sender can no longer honour would charge the
+     * recipient for a date that cannot happen.
+     */
+    const [mine, theirs] = await Promise.all([
+      virtualDateAllowance(userId, now, tx),
+      virtualDateAllowance(invite.fromUserId, now, tx)
+    ]);
+
+    /**
+     * A refusal has to undo the claim, or the invitation is left answered and
+     * uncharged — a date nobody can have and nobody paid for. Throwing rolls
+     * the whole transaction back; the sentinel carries which side ran out so
+     * the caller can still say whose allowance it was.
+     */
+    if (!mine.allowed) throw new OutOfDates("you", mine.limit);
+    if (!theirs.allowed) throw new OutOfDates("them", theirs.limit);
 
     await tx.insert(virtualDateUsage).values([
       {
@@ -263,9 +338,35 @@ export async function respondToInvite(
         startedAt: now
       }
     ]);
-  });
 
-  return { ok: true, status: "accepted" };
+    return { ok: true as const, status: "accepted" as const };
+  }).catch((error) => {
+    if (error instanceof OutOfDates) {
+      return {
+        ok: false as const,
+        reason: "no_dates_left" as const,
+        who: error.who,
+        limit: error.limit ?? undefined
+      };
+    }
+    throw error;
+  });
+}
+
+/**
+ * Carries a refusal out through a rollback.
+ *
+ * Not an error condition in the ordinary sense — it is one of the documented
+ * answers — but it has to travel as one, because rolling the transaction back
+ * is the only way to release the claim on the invitation.
+ */
+class OutOfDates extends Error {
+  constructor(
+    readonly who: "you" | "them",
+    readonly limit: number | null
+  ) {
+    super("no dates left");
+  }
 }
 
 /** Withdrawing an invitation you sent. */
@@ -311,7 +412,7 @@ export async function listOpenInvites(
   userId: string,
   now: Date = new Date()
 ): Promise<VirtualDateInvite[]> {
-  await expireStale();
+  await expireStale({ userId });
 
   const rows = await db
     .select()
