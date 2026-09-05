@@ -24,6 +24,13 @@ each one is *off* rather than broken: no translation provider means no
 translation, no S3 bucket means photos on local disk, no Microsoft credentials
 means Windows purchases answer "not open".
 
+**One exception, and it is the launch blocker.** Photo screening unset does not
+mean "photos are not screened and that is fine" — it means every upload waits
+for a human, which is safe but does not scale. Before opening public signups,
+wire both screening drivers and set `REQUIRE_PHOTO_SCREENING=true`, which makes
+the upload endpoint answer 503 rather than filling a queue nobody can keep up
+with. See [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md).
+
 ## Migrations
 
 ```bash
@@ -178,6 +185,10 @@ Named rather than omitted, so the gaps are decisions instead of surprises:
   so with more than one instance the effective limit is *instances × limit*. It
   says so in its own comment. Before scaling past one instance this needs a
   shared store.
+- **Photo screening has no drivers.** The pipeline, the interfaces and the
+  tests are built; PhotoDNA and a classifier need accounts, and PhotoDNA's is
+  an application with third-party vetting rather than a signup. This is the one
+  gap on this list that blocks a launch rather than merely being absent.
 - **No backups.** A managed database usually provides them; confirm rather than
   assume, and test a restore before it matters.
 - **No error reporting.** Failures reach the container log and nowhere else.

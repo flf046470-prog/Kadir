@@ -251,10 +251,15 @@ export const blocks = pgTable(
  * its owner. That is the safe default: an un-screened photo reaching other
  * members is the failure mode that matters, so the system fails closed.
  *
- * **Launch blocker:** automated NSFW and CSAM screening (e.g. a hash-matching
- * service such as PhotoDNA, plus a classifier) MUST be wired into the approval
- * path before public signups. Nothing in this repository performs that
- * screening — `approvePhoto` is the hook it belongs in. See docs/ARCHITECTURE.md.
+ * Screening runs in `uploadPhoto`, before the bytes are stored, and writes what
+ * it found into `moderationNote` so the queue can be triaged. It never sets
+ * `approved` — the most permissive outcome is "a person should look at this".
+ *
+ * **Launch blocker:** the two screening *drivers* are unwritten, because both
+ * need accounts. Unconfigured, they decline, and a declined check leaves the
+ * photo pending — safe, but it does not scale. Public signups must not open
+ * until PhotoDNA and a classifier are wired and `REQUIRE_PHOTO_SCREENING` is
+ * on. See docs/PHOTO_SCREENING.md.
  */
 export const photos = pgTable(
   "photos",

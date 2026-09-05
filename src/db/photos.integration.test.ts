@@ -15,19 +15,25 @@ import {
   MAX_PHOTOS_PER_USER
 } from "./photos";
 import { hasExif, processUpload, sniffFormat, MIN_DIMENSION } from "@/lib/photos/process";
-import { setStorageDriver } from "@/lib/storage";
+import { setStorageDriver, storage } from "@/lib/storage";
 import { LocalStorageDriver } from "@/lib/storage/local";
+import { setContentClassifier, setHashMatcher } from "@/lib/safety/screening-drivers";
+import type { ContentClassifier, HashMatcher } from "@/lib/safety/screening";
 
 const TEST_ROOT = join(process.cwd(), ".storage-test");
 
 beforeEach(async () => {
   await resetDatabase();
   setStorageDriver(new LocalStorageDriver(TEST_ROOT));
+  setHashMatcher(null);
+  setContentClassifier(null);
 });
 
 afterAll(async () => {
   await rm(TEST_ROOT, { recursive: true, force: true });
   setStorageDriver(null);
+  setHashMatcher(null);
+  setContentClassifier(null);
 });
 
 /** A valid JPEG carrying EXIF, including GPS coordinates. */
@@ -287,5 +293,159 @@ describe("storage driver", () => {
   it("refuses a key that escapes the storage root", async () => {
     const driver = new LocalStorageDriver(TEST_ROOT);
     await expect(driver.put("../../escaped.webp", Buffer.from("x"), "image/webp")).rejects.toThrow();
+  });
+});
+
+describe("screening on upload", () => {
+  const matching: HashMatcher = {
+    name: "fake-photodna",
+    match: async () => ({ matched: true, source: "photodna" })
+  };
+  const clean: HashMatcher = { name: "fake-photodna", match: async () => ({ matched: false }) };
+
+  const rejecting: ContentClassifier = {
+    name: "fake-classifier",
+    classify: async () => ({ decision: "reject", category: "explicit", confidence: 0.98 })
+  };
+  const passing: ContentClassifier = {
+    name: "fake-classifier",
+    classify: async () => ({ decision: "clean" })
+  };
+
+  it("still admits an ordinary photo, pending review", async () => {
+    setHashMatcher(clean);
+    setContentClassifier(passing);
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+
+    expect(uploaded.ok).toBe(true);
+    if (!uploaded.ok) return;
+    // Screening advises the queue; it does not empty it.
+    expect(uploaded.photo.moderationStatus).toBe("pending");
+  });
+
+  it("records what screening found, so the queue can be triaged", async () => {
+    setHashMatcher(clean);
+    setContentClassifier({
+      name: "fake-classifier",
+      classify: async () => ({ decision: "uncertain", category: "suggestive", confidence: 0.7 })
+    });
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+    if (!uploaded.ok) throw new Error("expected ok");
+
+    const [queued] = await pendingPhotos();
+    expect(queued.moderationNote).toBe("hash:no_match classifier:suggestive@0.70");
+  });
+
+  it("refuses a photo the classifier rejects, and stores nothing", async () => {
+    setHashMatcher(clean);
+    setContentClassifier(rejecting);
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+
+    expect(uploaded).toEqual({ ok: false, reason: "rejected" });
+    expect(await pendingPhotos()).toHaveLength(0);
+  });
+
+  /**
+   * The bytes must never reach our own bucket. Storing and then deleting means
+   * the material existed on our infrastructure, with whatever replication and
+   * backup retention that bucket has, for however long the round trip took.
+   */
+  it("never writes a hash-matched photo to storage", async () => {
+    const written: string[] = [];
+    const driver = new LocalStorageDriver(TEST_ROOT);
+    setStorageDriver({
+      put: async (key, body, type) => {
+        written.push(key);
+        return driver.put(key, body, type);
+      },
+      get: (key) => driver.get(key),
+      delete: (key) => driver.delete(key),
+      urlFor: (key) => driver.urlFor(key)
+    });
+
+    setHashMatcher(matching);
+    setContentClassifier(passing);
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+
+    expect(uploaded).toEqual({ ok: false, reason: "rejected" });
+    expect(written).toEqual([]);
+    expect(await pendingPhotos()).toHaveLength(0);
+  });
+
+  /**
+   * A member whose photo hash-matched must not be able to tell that from an
+   * ordinary rejection — a distinguishable response is a free oracle for
+   * testing which images are on the list.
+   */
+  it("answers a hash match exactly as it answers a rejection", async () => {
+    const userId = await createTestUser();
+
+    setHashMatcher(matching);
+    setContentClassifier(passing);
+    const blocked = await uploadPhoto(userId, await plainPhoto());
+
+    setHashMatcher(clean);
+    setContentClassifier(rejecting);
+    const rejected = await uploadPhoto(userId, await plainPhoto());
+
+    expect(blocked).toEqual(rejected);
+  });
+
+  it("admits photos with no screening configured, as it did before", async () => {
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+
+    expect(uploaded.ok).toBe(true);
+    const [queued] = await pendingPhotos();
+    expect(queued.moderationNote).toBe(
+      "hash:no_hash_matcher_configured classifier:no_classifier_configured"
+    );
+  });
+
+  it("refuses every upload when screening is required but absent", async () => {
+    process.env.REQUIRE_PHOTO_SCREENING = "true";
+    try {
+      const userId = await createTestUser();
+      const uploaded = await uploadPhoto(userId, await plainPhoto());
+
+      expect(uploaded).toEqual({ ok: false, reason: "screening_unavailable" });
+    } finally {
+      delete process.env.REQUIRE_PHOTO_SCREENING;
+    }
+  });
+
+  it("still tells the member when their file was the problem", async () => {
+    process.env.REQUIRE_PHOTO_SCREENING = "true";
+    try {
+      const userId = await createTestUser();
+      // Screening is unavailable *and* the file is bad. The file is the answer
+      // they can act on, so it wins.
+      const uploaded = await uploadPhoto(userId, Buffer.from("this is not an image"));
+
+      expect(uploaded).toEqual({ ok: false, reason: "unsupported_format" });
+    } finally {
+      delete process.env.REQUIRE_PHOTO_SCREENING;
+    }
+  });
+
+  it("accepts uploads when screening is required and configured", async () => {
+    process.env.REQUIRE_PHOTO_SCREENING = "true";
+    setHashMatcher(clean);
+    setContentClassifier(passing);
+    try {
+      const userId = await createTestUser();
+      expect((await uploadPhoto(userId, await plainPhoto())).ok).toBe(true);
+    } finally {
+      delete process.env.REQUIRE_PHOTO_SCREENING;
+    }
   });
 });

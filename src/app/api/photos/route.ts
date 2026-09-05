@@ -32,7 +32,18 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const result = await uploadPhoto(auth.user.id, buffer);
 
-  if (!result.ok) return apiError(result.reason, 400);
+  /**
+   * 503 for a deployment that cannot screen, 400 for everything else.
+   *
+   * The member did nothing wrong and retrying with a different photo will not
+   * help, so this is the server saying it is not open for uploads — the same
+   * distinction `/billing` draws between a refused purchase and an unconfigured
+   * store. A 400 would send someone into a loop cropping a photo that was never
+   * the problem.
+   */
+  if (!result.ok) {
+    return apiError(result.reason, result.reason === "screening_unavailable" ? 503 : 400);
+  }
 
   return NextResponse.json({ photo: result.photo }, { status: 201 });
 }

@@ -135,9 +135,12 @@ should not accept public signups.
   action alone on serious cases
 - Moderator tooling: case view, action log, appeal trail
 - **Automated NSFW and CSAM screening for photos — a hard launch blocker.**
-  Photos are already gated behind approval and `approvePhoto` is the hook, but
-  no automated screening exists. Public signups must not open until a
-  hash-matching service (e.g. PhotoDNA) and a classifier are wired in.
+  The pipeline is built: `uploadPhoto` screens before storing, hash matching
+  runs ahead of classification and short-circuits on a match, and both halves
+  fail closed when unconfigured. The two drivers are unwritten because they
+  need accounts — PhotoDNA requires an application and vetting, so start it
+  early. Public signups must not open until both are wired and
+  `REQUIRE_PHOTO_SCREENING` is on. See `docs/PHOTO_SCREENING.md`.
 
 ---
 

@@ -4,6 +4,12 @@ import { photos } from "./schema";
 import { storage } from "@/lib/storage";
 import { contentKey } from "@/lib/storage/driver";
 import { processUpload, type ProcessError } from "@/lib/photos/process";
+import { screenPhoto, screeningConfigured } from "@/lib/safety/screening";
+import {
+  contentClassifier,
+  hashMatcher,
+  screeningRequired
+} from "@/lib/safety/screening-drivers";
 
 /**
  * Profile photos.
@@ -26,7 +32,10 @@ export type PhotoRecord = {
 
 export type UploadResult =
   | { ok: true; photo: PhotoRecord }
-  | { ok: false; reason: ProcessError | "too_many_photos" };
+  | {
+      ok: false;
+      reason: ProcessError | "too_many_photos" | "screening_unavailable" | "rejected";
+    };
 
 export async function uploadPhoto(userId: string, input: Buffer): Promise<UploadResult> {
   const existing = await db
@@ -41,6 +50,53 @@ export async function uploadPhoto(userId: string, input: Buffer): Promise<Upload
   const processed = await processUpload(input);
   if (!processed.ok) return { ok: false, reason: processed.reason };
 
+  const matcher = hashMatcher();
+  const classifier = contentClassifier();
+
+  /**
+   * A deployment can be configured to refuse uploads it cannot screen.
+   *
+   * Checked after processing so a member still gets the specific answer when
+   * their file was the problem — telling someone screening is unavailable when
+   * what they actually uploaded was a 30MB PDF helps nobody.
+   */
+  if (screeningRequired() && !screeningConfigured(matcher, classifier)) {
+    return { ok: false, reason: "screening_unavailable" };
+  }
+
+  /**
+   * Screened before it is stored, not after.
+   *
+   * The bytes reach a provider either way, but a photo that hash-matches known
+   * illegal material must never land in our own object storage — putting it
+   * there and deleting it afterwards means it existed on our infrastructure,
+   * with whatever replication and backup retention that bucket has, for
+   * however long the round trip took.
+   *
+   * The *processed* bytes are screened rather than the upload: that is what
+   * would be published, and re-encoding has already stripped EXIF and any
+   * metadata payload, so the classifier sees the image members would see.
+   */
+  const outcome = await screenPhoto(processed.photo.body, matcher, classifier);
+
+  if (outcome.status === "blocked" || outcome.status === "rejected") {
+    /**
+     * One answer for both, deliberately.
+     *
+     * A member whose photo hash-matched must not be able to tell that from an
+     * ordinary rejection. A distinguishable response is a free oracle for
+     * testing which images are on the list, and the people who would use it
+     * that way are exactly the ones the list exists to catch.
+     *
+     * What should follow a `blocked` outcome — retention, notification,
+     * reporting — is a legal question rather than a product one, and is
+     * deliberately not implemented here. `docs/PHOTO_SCREENING.md` states it as
+     * an open item rather than leaving a half-built reporting path nobody has
+     * had a lawyer read.
+     */
+    return { ok: false, reason: "rejected" };
+  }
+
   const key = contentKey(processed.photo.hash, processed.photo.extension);
   await storage().put(key, processed.photo.body, processed.photo.contentType);
 
@@ -51,8 +107,11 @@ export async function uploadPhoto(userId: string, input: Buffer): Promise<Upload
       storageKey: key,
       width: processed.photo.width,
       height: processed.photo.height,
-      position: existing[0]?.count ?? 0
-      // moderationStatus defaults to "pending" — deliberately not set here.
+      position: existing[0]?.count ?? 0,
+      // Still "pending" by default, and still not set here: screening advises
+      // the queue, it does not empty it. The note records what screening found
+      // so a reviewer knows which items to start with.
+      moderationNote: outcome.note
     })
     .returning();
 

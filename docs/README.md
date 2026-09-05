@@ -11,6 +11,7 @@ The fifteen documents §53 asks for, and where each one is.
 | [`ENTITLEMENTS.md`](ENTITLEMENTS.md) | the three tiers, where each limit is enforced, and why |
 | [`PAYMENTS.md`](PAYMENTS.md) | store verification, notifications, what is unwired |
 | [`SAFETY.md`](SAFETY.md) | blocking, reporting, Scam Shield, moderation |
+| [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md) | the launch blocker: which services, what is built, what is not |
 | [`AI_SAFETY.md`](AI_SAFETY.md) | the rules the AI itself obeys |
 | [`PRIVACY.md`](PRIVACY.md) | what is not collected, and why that is the design |
 | [`SECURITY.md`](SECURITY.md) | §30's controls, audited, with how each was checked |

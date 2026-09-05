@@ -82,6 +82,13 @@ Two lines are `$0` and genuinely are: push delivery (APNs and FCM do not charge
 to send) and monitoring — the second being a gap rather than a saving, since
 nothing is wired.
 
+`photoScreening` prices only the classifier, at Rekognition's verified
+$0.001/image. The hash-matching half is free — PhotoDNA costs approved
+organisations nothing — and that is stated rather than blended into one rate,
+because it means the *legally* load-bearing check is not the one under cost
+pressure. The line is charged against new members rather than monthly actives,
+since screening happens on upload and uploads cluster at registration.
+
 ---
 
 ## Assumptions worth arguing with

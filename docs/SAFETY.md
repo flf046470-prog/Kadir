@@ -106,11 +106,29 @@ than trusting a static mount.
 **EXIF and GPS are stripped on upload**, before the file is stored. A photo
 taken at home carries the home address, and members do not know that.
 
-> **`approvePhoto` is the hook automated screening belongs in, and there is
-> none.** No NSFW classifier, no CSAM hash matching. `ROADMAP.md` names this a
-> **hard launch blocker**: public signups must not open until a hash-matching
-> service and a classifier are wired in. Human-only review does not scale past a
-> handful of uploads a day, and the failure mode is not a bad screenshot.
+**Automated screening runs before the photo is stored.** Two separate checks,
+because they are two different questions: perceptual hash matching against known
+illegal material, which is a legal event with no threshold to tune, and a
+classifier, which produces advice for the moderation queue. A hash match
+short-circuits before the classifier is asked, and a matched photo never reaches
+our own object storage at all. A match and an ordinary rejection return the
+*same* answer to the member — a distinguishable one would be a free oracle for
+testing which images are on the list.
+
+The most permissive outcome the pipeline can produce is `review`. Screening
+advises the queue; it does not empty it.
+
+> **Both drivers are still unwritten, and this remains a hard launch blocker.**
+> The interfaces, pipeline and tests exist; PhotoDNA and a classifier need
+> accounts. Nothing is stubbed — an unconfigured driver declines, and declining
+> leaves the photo pending, exactly as before. A driver that returned "clean"
+> without asking anything would turn the queue that is currently keeping
+> unscreened photos off the product into an empty list that looks like success.
+>
+> `REQUIRE_PHOTO_SCREENING=true` refuses uploads outright rather than piling up
+> a queue nobody can keep up with. **Set it in production before public
+> signups.** [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md) has the services, the
+> costs, and what each driver has to do.
 
 ---
 

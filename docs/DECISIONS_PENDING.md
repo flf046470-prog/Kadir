@@ -15,23 +15,35 @@ recommendation. The recommendation is a starting position, not a decision.
 
 ## 1. Photo screening — the hard launch blocker
 
-**Blocked:** public signups. Not the code, which is ready for it: `approvePhoto`
-in `db/photos.ts` is the hook, and a pending photo is already visible only to its
-owner, so the system fails closed while this is missing.
+**Blocked:** public signups. Not the code: the screening pipeline is built,
+tested and wired into `uploadPhoto`, which now screens a photo *before* it is
+stored. What is missing is the two drivers behind it, and those need accounts.
+A pending photo is visible only to its owner, so the system fails closed while
+they are absent.
 
 **Why it is a blocker and not a nice-to-have:** an unscreened photo reaching
 other members is the failure mode that ends a dating product, and CSAM is a legal
 matter in every market this ships to, Turkey included. No amount of human
 moderation covers the window between upload and review.
 
-**The choice:** a hash-matching service (PhotoDNA or equivalent) for known
-material, plus a classifier for the rest. Both are paid third-party services, and
-picking one is a §57 item — a paid-service selection and a data-processing
-relationship, since member photos leave your infrastructure.
+**The choice, and the recommendation, are now in
+[`PHOTO_SCREENING.md`](PHOTO_SCREENING.md)** — which services, what they cost,
+and what each driver has to do. In short:
 
-**Recommendation:** treat this as the first cheque you write, before hosting.
-Everything else on this list can wait for revenue; this cannot wait for signups.
-`docs/SAFETY.md` and the comment on the `photos` table both name it.
+- **PhotoDNA Cloud Service** for hash matching. Free for approved organisations,
+  but access needs an application and third-party vetting, so **start it now**:
+  it is the longest-lead item on the whole launch checklist, and the answer does
+  not come the same day.
+- **Sightengine's free tier** for classification at launch, moving to **AWS
+  Rekognition** past roughly 30,000 photos a month.
+
+The pipeline that consumes both is built and tested; the drivers are the
+remaining work, and each is a contained piece against a documented interface.
+
+Two things on this remain genuinely yours to decide: whether member photos
+going to Microsoft and to a classifier is recorded properly under KVKK, and what
+follows a hash match — retention, notification, reporting. The second is a
+question for a Turkish lawyer, not for this repository.
 
 ---
 
@@ -154,10 +166,10 @@ match the reservation, so doing it in the other order means rebuilding.
 
 ## What is not on this list
 
-Everything else. The web application is built, tested and audited: 1006 tests,
-lint and typecheck clean, a production build, five browser tests against a real
-Chromium, and four code-review passes that between them found twenty-five
-defects, all fixed and each with a regression test.
+Everything else. The web application is built, tested and audited: over a
+thousand tests, lint and typecheck clean, a production build, five browser tests
+against a real Chromium, and four code-review passes that between them found
+twenty-five defects, all fixed and each with a regression test.
 
 Where a document says something is "not built", it means a decision above has not
 been made — not that code is missing behind it. `docs/README.md` separates the

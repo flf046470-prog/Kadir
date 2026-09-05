@@ -39,6 +39,16 @@ const ASSUMPTIONS = {
   translationsPerActiveMonth: 40,
   /** Virtual date minutes per active member per month, once VR exists. */
   virtualDateMinutesPerActiveMonth: 20,
+  /**
+   * Photos screened per *signup*, not per active member.
+   *
+   * Screening is charged on upload, and uploads cluster at registration: six is
+   * the profile cap, and someone who fills it does so in their first session.
+   * Scaling this with monthly actives would model a member re-screening the
+   * same photos every month, which is not what happens. Four of six is the
+   * guess — most people do not fill the grid.
+   */
+  photosScreenedPerSignup: 4,
   /** Corporate tax on profit. Turkey's headline rate. */
   taxRate: 0.25
 };
@@ -98,6 +108,19 @@ const PRICES = {
     unit: "USD per million characters",
     verified: false,
     source: "DeepL API Pro class pricing; page not machine-readable"
+  },
+  /**
+   * Only the classifier is priced. PhotoDNA is free for approved organisations,
+   * so the hash-matching half of screening genuinely costs nothing — and that
+   * is worth stating rather than folding into one blended rate, because it
+   * means the *legally* load-bearing check is not the one under cost pressure.
+   */
+  photoScreeningPerImage: {
+    value: 0.001,
+    unit: "USD per image",
+    verified: true,
+    source: "AWS Rekognition DetectModerationLabels, first 1M images/month",
+    note: "Sightengine's free tier (2,000/month) covers launch at $0. This models the paid steady state. See docs/PHOTO_SCREENING.md."
   },
   voicePerMinute: {
     value: 0.0015,
@@ -171,6 +194,19 @@ function model(users, assumptions, prices, tiers) {
     database: prices.databasePerMonth.value * Math.sqrt(users / 10_000),
     bandwidth: active * gbEgressPerActive * prices.bandwidthPerGb.value,
     storage: users * gbStoredPerMember * prices.storagePerGbMonth.value,
+    /**
+     * Charged against *new* members, since screening happens on upload.
+     *
+     * `users` is the installed base, so a twelfth of it approximates a month's
+     * signups at steady state. That understates a growth year and overstates a
+     * flat one; it is the right order of magnitude either way, and this line is
+     * small enough at every scale that a better model would not change a
+     * decision.
+     */
+    photoScreening:
+      (users / 12) *
+      assumptions.photosScreenedPerSignup *
+      prices.photoScreeningPerImage.value,
     translation:
       (active * assumptions.translationsPerActiveMonth * 120) /
       1_000_000 *
