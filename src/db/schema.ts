@@ -78,6 +78,17 @@ export const profiles = pgTable(
       .primaryKey()
       .references(() => users.id, { onDelete: "cascade" }),
     bio: text("bio"),
+    /**
+     * woman | man | non_binary, or null for a member who has not answered.
+     *
+     * Nullable on purpose, and it has to stay that way. Making it required
+     * would either lock every existing member out of Discover on the migration
+     * that introduced it, or force a value on their behalf — and a guessed
+     * gender is worse than an absent one. `discoverableBy` treats null as "no
+     * constraint" in both directions, so an unanswered profile keeps working
+     * while the member is asked.
+     */
+    gender: text("gender"),
     /** Coarse location only. */
     cityId: text("city_id"),
     countryId: text("country_id").notNull(),
@@ -109,7 +120,8 @@ export const profileAttributes = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     /** interest | ideal_date | communication_style | language_spoken |
-     *  language_learning | culture_interest | match_intent | future_plan */
+     *  language_learning | culture_interest | match_intent | future_plan |
+     *  seeking */
     kind: text("kind").notNull(),
     value: text("value").notNull()
   },

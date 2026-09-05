@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/auth/guard";
-import { loadMatchProfile } from "@/db/profile-repository";
+import { loadMatchProfile, genderPreferenceOf } from "@/db/profile-repository";
 import { ProfileForm } from "./ProfileForm";
 import { PhotoManager } from "./PhotoManager";
 import { DeleteAccount } from "./DeleteAccount";
@@ -18,9 +18,12 @@ export default async function ProfilePage({
   const user = await currentUser();
   if (!user) redirect(`/${locale}/login`);
 
-  const [t, profile] = await Promise.all([
+  const [t, profile, gender] = await Promise.all([
     getTranslations({ locale, namespace: "app" }),
-    loadMatchProfile(user.id)
+    loadMatchProfile(user.id),
+    // Read separately from the match profile, which is what the engine sees —
+    // see the note in the profile route's GET.
+    genderPreferenceOf(user.id)
   ]);
 
   return (
@@ -34,7 +37,9 @@ export default async function ProfilePage({
           countryId: profile?.countryId ?? "",
           relationshipGoal: profile?.relationshipGoal ?? "unsure",
           interests: profile?.interests ?? [],
-          languagesSpoken: profile?.languagesSpoken ?? []
+          languagesSpoken: profile?.languagesSpoken ?? [],
+          gender: gender.gender,
+          seeking: gender.seeking
         }}
         labels={{
           bio: t("bio"),
@@ -43,6 +48,10 @@ export default async function ProfilePage({
           city: t("city"),
           country: t("country"),
           languages: t("languages"),
+          gender: t("gender"),
+          genderUnspecified: t("genderUnspecified"),
+          seeking: t("seeking"),
+          seekingHint: t("seekingHint"),
           complete: t("complete"),
           save: t("save"),
           saved: t("saved"),

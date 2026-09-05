@@ -97,6 +97,11 @@ concurrency test, which now guards it.
   vocabulary before it reaches a query
 - Profile cards on Discover: name, age, city, goal, bio and languages, with
   each member's visibility settings applied server-side
+- Gender and who a member wants to meet, as two separate fields, filtered
+  **mutually** — each has to be seeking the other's gender. Unanswered means "no
+  constraint" on both sides, so introducing the field did not empty anyone's
+  feed. It is a hard filter in SQL and deliberately never reaches the scoring
+  engine, so nothing can start scoring on gender.
 
 Filters live in the URL rather than in browser storage: a reload keeps them, a
 link carries them, and nothing about a member's search is left behind on a
@@ -106,7 +111,8 @@ matches almost nobody and looks like an empty product.
 
 Still to build:
 
-- Distance filter, and gender / preference filtering (needs those fields first)
+- Distance filter (needs a coordinate the product deliberately does not store —
+  city centroids are the likely answer, not device location)
 - Real-time delivery (the conversation view polls today), typing indicators
 - Photo sharing in messages
 - Today's 5 surface

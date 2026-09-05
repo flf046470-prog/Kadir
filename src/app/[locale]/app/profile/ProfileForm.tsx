@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
-import { relationshipGoals } from "@/lib/domain/taxonomies";
+import { genders, relationshipGoals } from "@/lib/domain/taxonomies";
 
 type Initial = {
   cityId: string;
@@ -11,6 +11,9 @@ type Initial = {
   relationshipGoal: string;
   interests: string[];
   languagesSpoken: string[];
+  /** Null when not answered — which is a real state, not a missing value. */
+  gender: string | null;
+  seeking: string[];
 };
 
 type Labels = {
@@ -20,6 +23,10 @@ type Labels = {
   city: string;
   country: string;
   languages: string;
+  gender: string;
+  genderUnspecified: string;
+  seeking: string;
+  seekingHint: string;
   complete: string;
   save: string;
   saved: string;
@@ -68,6 +75,10 @@ export function ProfileForm({
         cityId: form.get("cityId"),
         countryId: form.get("countryId"),
         relationshipGoal: form.get("relationshipGoal"),
+        // "" is the "rather not say" option, and clears the field rather than
+        // storing an empty string.
+        gender: form.get("gender") === "" ? null : form.get("gender"),
+        seeking: form.getAll("seeking").map(String),
         interests: splitList(String(form.get("interests") ?? "")),
         languagesSpoken: splitList(String(form.get("languagesSpoken") ?? "")),
         markComplete: form.get("complete") === "on"
@@ -111,6 +122,50 @@ export function ProfileForm({
             ))}
           </select>
         </div>
+
+        <div>
+          <label className="text-sm font-medium text-ink" htmlFor="gender">
+            {labels.gender}
+          </label>
+          <select
+            id="gender"
+            name="gender"
+            defaultValue={initial.gender ?? ""}
+            className="mt-1 w-full rounded-lg border border-black/10 px-4 py-2.5 text-sm"
+          >
+            {/*
+              First, and selected when nothing is stored. Not answering has to be
+              a visible choice rather than the absence of one — and it keeps
+              working: an unanswered profile is shown to everyone and sees
+              everyone.
+            */}
+            <option value="">{labels.genderUnspecified}</option>
+            {genders.map((gender) => (
+              <option key={gender} value={gender}>
+                {taxonomy(`genders.${gender}`)}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <fieldset>
+          <legend className="text-sm font-medium text-ink">{labels.seeking}</legend>
+          <p className="mt-1 text-xs text-ink/50">{labels.seekingHint}</p>
+          <div className="mt-2 flex flex-wrap gap-4">
+            {genders.map((gender) => (
+              <label key={gender} className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  name="seeking"
+                  value={gender}
+                  defaultChecked={initial.seeking.includes(gender)}
+                  className="h-4 w-4"
+                />
+                {taxonomy(`genders.${gender}`)}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         <Field id="interests" label={labels.interests} defaultValue={initial.interests.join(", ")} />
         <Field

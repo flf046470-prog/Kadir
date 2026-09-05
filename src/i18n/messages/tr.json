@@ -476,6 +476,11 @@
       "travel": "Seyahat planları",
       "culture": "Kültür",
       "ideal_date": "İdeal buluşma"
+    },
+    "genders": {
+      "woman": "Kadın",
+      "man": "Erkek",
+      "non_binary": "Non-binary"
     }
   },
   "games": {
@@ -770,7 +775,11 @@
     "visitorsCount": "{count, plural, other {# kişi profilini açtı}}",
     "autoTranslated": "Ortak bir diliniz yok, bu yüzden otomatik çevriliyor.",
     "theirTime": "Onun saati",
-    "bothAwake": "Ortak saatler: {from}–{to}"
+    "bothAwake": "Ortak saatler: {from}–{to}",
+    "gender": "Cinsiyetin",
+    "genderUnspecified": "Belirtmek istemiyorum",
+    "seeking": "Kiminle tanışmak istiyorsun",
+    "seekingHint": "Uygun olanları seç. Hiçbirini seçmezsen herkes gösterilir."
   },
   "appOnly": {
     "tagline": "Sınırların ötesinde tanış.",

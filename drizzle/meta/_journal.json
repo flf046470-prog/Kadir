@@ -120,6 +120,13 @@
       "when": 1788533003501,
       "tag": "0016_daffy_roulette",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788618206428,
+      "tag": "0017_slim_adam_destine",
+      "breakpoints": true
     }
   ]
 }

@@ -4,10 +4,12 @@ import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { slugifyPlace } from "@/lib/domain/places";
 import { db } from "@/db/client";
 import { profiles, profileAttributes, profileVisibility } from "@/db/schema";
-import { loadMatchProfile } from "@/db/profile-repository";
+import { loadMatchProfile, genderPreferenceOf } from "@/db/profile-repository";
 import {
   cultures,
+  genders,
   idealDates,
+  isGender,
   matchIntents,
   relationshipGoals,
   communicationStyles
@@ -37,10 +39,25 @@ export async function GET() {
   const auth = await requireUser();
   if (isUnauthorized(auth)) return auth.response;
 
-  const profile = await loadMatchProfile(auth.user.id);
+  const [profile, gender] = await Promise.all([
+    loadMatchProfile(auth.user.id),
+    genderPreferenceOf(auth.user.id)
+  ]);
   if (!profile) return apiError("profile_not_found", 404);
 
-  return NextResponse.json(profile);
+  /**
+   * Gender rides alongside `MatchProfile` rather than inside it, deliberately.
+   *
+   * `MatchProfile` is what the matching *engine* receives, and gender is a hard
+   * filter applied in SQL before scoring ever happens — not a signal. Putting
+   * it in that type would place it in front of `scoreMatch`, where a later
+   * signal could start scoring on it, which is scoring on gender.
+   * `docs/AI_SAFETY.md` draws that line; this keeps it drawn.
+   *
+   * The member's own screen still needs both values to render, which is what
+   * this is for.
+   */
+  return NextResponse.json({ ...profile, gender: gender.gender, seeking: gender.seeking });
 }
 
 function cleanList(value: unknown, allowed: Set<string> | RegExp): string[] {
@@ -108,6 +125,19 @@ export async function PATCH(request: NextRequest) {
   if (typeof input.openToOtherCultures === "boolean") {
     profileUpdate.openToOtherCultures = input.openToOtherCultures;
   }
+  /**
+   * Gender can be set, and can be cleared back to unanswered.
+   *
+   * `null` is a meaningful value here rather than a missing one, so a member
+   * who answered by accident — or who would rather not say — can go back.
+   * Anything outside the taxonomy is ignored, like every other closed
+   * vocabulary in this handler.
+   */
+  if (input.gender === null) {
+    profileUpdate.gender = null;
+  } else if (typeof input.gender === "string" && isGender(input.gender)) {
+    profileUpdate.gender = input.gender;
+  }
   if (input.markComplete === true) profileUpdate.completedAt = new Date();
 
   const attributeUpdates: { kind: string; values: string[] }[] = [];
@@ -124,6 +154,9 @@ export async function PATCH(request: NextRequest) {
   addIf("communicationStyles", "communication_style", VALID_COMMS);
   addIf("languagesSpoken", "language_spoken", LANGUAGE_TAG);
   addIf("languagesLearning", "language_learning", LANGUAGE_TAG);
+  // Sending `seeking: []` clears it, which reads as "no preference" rather than
+  // "nobody" — see `discoverableBy`.
+  addIf("seeking", "seeking", new Set<string>(genders));
 
   const visibilityUpdate: Record<string, string> = {};
   const visibilityFields = [

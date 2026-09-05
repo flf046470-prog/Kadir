@@ -12,6 +12,8 @@ import {
   users
 } from "./schema";
 import { defaultFilters, type DiscoveryFilters } from "@/lib/matching/filters";
+import type { GenderPreference } from "@/lib/matching/gender";
+import { isGender } from "@/lib/domain/taxonomies";
 import { defaultVisibility, type MatchProfile, type ProfileVisibility } from "@/lib/domain/profile";
 import type {
   CommunicationStyleId,
@@ -153,6 +155,36 @@ export async function loadMatchProfile(userId: string): Promise<MatchProfile | n
  * already-judged member is never even read into memory — the cheapest place to
  * enforce it and the hardest place to forget.
  */
+/**
+ * One member's gender and who they are seeking.
+ *
+ * Both may be unanswered, and the shape says so rather than substituting a
+ * default — the whole filter depends on being able to tell "no preference" from
+ * "seeking nobody".
+ */
+export async function genderPreferenceOf(userId: string): Promise<GenderPreference> {
+  const [profile, seeking] = await Promise.all([
+    db
+      .select({ gender: profiles.gender })
+      .from(profiles)
+      .where(eq(profiles.userId, userId))
+      .limit(1),
+    db
+      .select({ value: profileAttributes.value })
+      .from(profileAttributes)
+      .where(and(eq(profileAttributes.userId, userId), eq(profileAttributes.kind, "seeking")))
+  ]);
+
+  const gender = profile[0]?.gender ?? null;
+
+  return {
+    // A value the taxonomy no longer knows is treated as unanswered rather than
+    // trusted into a filter, the way every other closed vocabulary here is read.
+    gender: gender && isGender(gender) ? gender : null,
+    seeking: seeking.map((row) => row.value).filter(isGender)
+  };
+}
+
 export async function findCandidateIds(
   viewerId: string,
   options: { countryId?: string; limit?: number; filters?: DiscoveryFilters } = {}
@@ -227,6 +259,51 @@ export async function findCandidateIds(
       .where(and(eq(profileAttributes.kind, kind), inArray(profileAttributes.value, values)));
 
     conditions.push(inArray(profiles.userId, holders));
+  }
+
+  /**
+   * Gender, both ways round.
+   *
+   * `discoverableBy` in `lib/matching/gender.ts` states the rule and is the
+   * readable version of it; this is the same rule pushed into SQL, so the
+   * database filters rather than the engine discarding rows afterwards. The two
+   * have to agree, and `gender.integration.test.ts` checks them against each
+   * other rather than trusting that they do.
+   *
+   * Each half is skipped when the relevant side has not answered. That is what
+   * keeps every existing member's feed working on the deploy that adds this.
+   */
+  const viewer = await genderPreferenceOf(viewerId);
+
+  // The viewer is seeking the candidate's gender — unless the viewer stated no
+  // preference, or the candidate has not stated a gender.
+  if (viewer.seeking.length > 0) {
+    conditions.push(
+      or(sql`${profiles.gender} is null`, inArray(profiles.gender, viewer.seeking))!
+    );
+  }
+
+  // The candidate is seeking the viewer's gender — unless the candidate stated
+  // no preference at all, which is what the `not in` half means.
+  if (viewer.gender !== null) {
+    const statedAPreference = db
+      .select({ id: profileAttributes.userId })
+      .from(profileAttributes)
+      .where(eq(profileAttributes.kind, "seeking"));
+
+    const seeksTheViewer = db
+      .select({ id: profileAttributes.userId })
+      .from(profileAttributes)
+      .where(
+        and(eq(profileAttributes.kind, "seeking"), eq(profileAttributes.value, viewer.gender))
+      );
+
+    conditions.push(
+      or(
+        notInArray(profiles.userId, statedAPreference),
+        inArray(profiles.userId, seeksTheViewer)
+      )!
+    );
   }
 
   const rows = await db

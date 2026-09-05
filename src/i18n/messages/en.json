@@ -476,6 +476,11 @@
       "travel": "Travel plans",
       "culture": "Culture",
       "ideal_date": "Ideal date"
+    },
+    "genders": {
+      "woman": "Woman",
+      "man": "Man",
+      "non_binary": "Non-binary"
     }
   },
   "games": {
@@ -770,7 +775,11 @@
     "visitorsCount": "{count, plural, one {# person opened your profile} other {# people opened your profile}}",
     "autoTranslated": "You have no language in common, so this is translated automatically.",
     "theirTime": "Their time",
-    "bothAwake": "Both awake: {from}–{to}"
+    "bothAwake": "Both awake: {from}–{to}",
+    "gender": "Your gender",
+    "genderUnspecified": "Rather not say",
+    "seeking": "Who you want to meet",
+    "seekingHint": "Choose any that apply. Leave all unticked to be shown everyone."
   },
   "appOnly": {
     "tagline": "Meet beyond borders.",

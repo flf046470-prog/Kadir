@@ -7,6 +7,31 @@
  * the i18n catalogs (key pattern: `taxonomy.<group>.<id>`).
  */
 
+/**
+ * Gender, and who a member wants to meet — two separate fields on purpose.
+ *
+ * Collapsing them into one "looking for men / women" setting is the oldest
+ * mistake in this category of product: it treats a person's own identity and
+ * their attraction as the same question. That is wrong for anyone whose two
+ * answers differ, and it has no coherent answer at all for a non-binary member.
+ *
+ * The list is closed because it reaches a SQL filter and free text cannot be
+ * matched on. `non_binary` is in the vocabulary from the start rather than
+ * added later, because retrofitting it is how a product ends up with it on the
+ * profile screen and missing from the filter.
+ *
+ * There is deliberately no "other". A bucket meaning "not one of the above" is
+ * not a gender, and inside a filter it behaves as one — which is worse for the
+ * people in it than being absent.
+ */
+export type GenderId = "woman" | "man" | "non_binary";
+
+export const genders: GenderId[] = ["woman", "man", "non_binary"];
+
+export function isGender(value: string): value is GenderId {
+  return (genders as string[]).includes(value);
+}
+
 export type RelationshipGoalId =
   | "long_term"
   | "marriage"
