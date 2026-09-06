@@ -273,6 +273,43 @@ you would rather not run any of this. These scripts exist so the manifest is our
 whatever a generator inferred — in particular the two things below — and so the package can be
 built in CI rather than on somebody's laptop.
 
+### Store listing art
+
+The package carries the tiles Windows draws once the app is installed. The listing page — what
+someone sees before they install anything — takes a separate set, uploaded in Partner Center:
+
+```bash
+npm run build:client && npm run pack:msstore:listing
+```
+
+That writes `packaging/microsoft-store/listing/`:
+
+| Image | Size | Made how |
+| --- | --- | --- |
+| `logos/PosterArt-720x1080.png` | 720 x 1080 (2:3) | drawn — the main logo image for a game |
+| `logos/BoxArt-1080x1080.png` | 1080 x 1080 (1:1) | drawn — used when poster art is absent |
+| `logos/AppTileIcon-300x300.png` | 300 x 300 (1:1) | drawn — takes priority over the package icon |
+| `logos/SuperHeroArt-1920x1080.png` | 1920 x 1080 (16:9) | captured — no text, no UI; trailers need it |
+| `screenshots/*.png` | 1366 x 768 | captured, one per mode, with the HUD |
+
+Two kinds of image made two ways, because they answer different questions. Screenshots and hero
+art are frames of the running game: Microsoft asks for "a dynamic image that relates to the app",
+and a real frame is exactly that. Poster and box art are drawn from the app icon's own kangaroo —
+for a game these are the Store's *logo* images, sitting small in a grid next to every other
+listing, and a captured frame reads as mud at that size.
+
+The captures walk the map, look around, hop, and keep the frame with the most detail in it, because
+half the spawn points face the empty edge of the level and "minimize empty space" is in the
+guidance. Everything drawn is confined to the top two-thirds: the Store writes its own text across
+the bottom third.
+
+Xbox art and the 2:1 holographic image are deliberately not generated — the manifest targets
+`Windows.Desktop` only, and art for a device family the package does not declare is a
+certification note rather than a bonus.
+
+Captions for each screenshot are written to `listing/captions.txt`; Partner Center takes one per
+screenshot, 200 characters or fewer.
+
 ### Two things that are not defaults
 
 - **`ApplicationContentUriRules`.** Without a rule covering the origin, Windows treats the app's

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error -- the packaging scripts are plain ESM JavaScript, deliberately un-typed.
-import { compose, decodePng, encodePng, parseHex, resize } from './png.mjs';
+import { compose, decodePng, encodePng, keyOut, parseHex, resize, trim } from './png.mjs';
 
 /**
  * The hand-rolled PNG codec, tested because it is hand-rolled.
@@ -193,5 +193,109 @@ describe('colour parsing', () => {
   it('refuses anything else rather than rendering a black tile', () => {
     expect(() => parseHex('green')).toThrow(/bad colour/);
     expect(() => parseHex('#fff')).toThrow(/bad colour/);
+  });
+});
+
+describe('keyOut', () => {
+  const px = (image: { data: Uint8Array; width: number }, x: number, y: number) => {
+    const i = (y * image.width + x) * 4;
+    return [...image.data.slice(i, i + 4)];
+  };
+
+  it('makes the keyed colour fully transparent', () => {
+    const image = solid(2, 2, [29, 58, 36, 255]);
+    expect(px(keyOut(image, '#1d3a24'), 0, 0)).toEqual([29, 58, 36, 0]);
+  });
+
+  it('leaves a colour outside the feather band untouched', () => {
+    const image = solid(2, 2, [224, 164, 94, 255]);
+    expect(px(keyOut(image, '#1d3a24'), 1, 1)).toEqual([224, 164, 94, 255]);
+  });
+
+  it('fades alpha across the feather band instead of cutting hard', () => {
+    // 30 away from the target: 10 past a tolerance of 20, a quarter of the way through a
+    // feather of 40, so a quarter of the original alpha survives.
+    const image = solid(1, 1, [59, 58, 36, 255]);
+    expect(px(keyOut(image, '#1d3a24', { tolerance: 20, feather: 40 }), 0, 0)[3]).toBe(64);
+  });
+
+  it('measures distance per channel, not as a sum', () => {
+    // Three channels each 15 away. Euclidean distance is 26 and would key this out at
+    // tolerance 20; Chebyshev is 15, which is what "close to that colour" has to mean.
+    const image = solid(1, 1, [44, 43, 51, 255]);
+    expect(px(keyOut(image, '#1d3a24', { tolerance: 20, feather: 0 }), 0, 0)[3]).toBe(0);
+    const further = solid(1, 1, [29, 58, 61, 255]);
+    expect(px(keyOut(further, '#1d3a24', { tolerance: 20, feather: 0 }), 0, 0)[3]).toBe(255);
+  });
+
+  it('does not change the image it was given', () => {
+    const image = solid(2, 2, [29, 58, 36, 255]);
+    keyOut(image, '#1d3a24');
+    expect(px(image, 0, 0)).toEqual([29, 58, 36, 255]);
+  });
+
+  it('separates the real icon into subject and background', () => {
+    const image = keyOut(icon(), '#1d3a24');
+    let opaque = 0;
+    for (let i = 3; i < image.data.length; i += 4) if (image.data[i] > 200) opaque++;
+    const fraction = opaque / (image.width * image.height);
+    // The kangaroo covers roughly a seventh of the icon; the rest is background and corners.
+    expect(fraction).toBeGreaterThan(0.1);
+    expect(fraction).toBeLessThan(0.2);
+  });
+});
+
+describe('trim', () => {
+  /** A transparent canvas with one opaque rectangle in it. */
+  function withBox(width: number, height: number, box: { x: number; y: number; w: number; h: number }) {
+    const data = new Uint8Array(width * height * 4);
+    for (let y = box.y; y < box.y + box.h; y++) {
+      for (let x = box.x; x < box.x + box.w; x++) data.set([255, 0, 0, 255], (y * width + x) * 4);
+    }
+    return { width, height, data };
+  }
+
+  it('crops to the opaque bounds', () => {
+    const out = trim(withBox(20, 30, { x: 4, y: 9, w: 5, h: 7 }));
+    expect([out.width, out.height]).toEqual([5, 7]);
+  });
+
+  it('keeps the pixels, not just the size', () => {
+    const image = withBox(8, 8, { x: 2, y: 3, w: 2, h: 2 });
+    // Mark one corner so a crop at the wrong offset shows up as the wrong colour.
+    image.data.set([0, 255, 0, 255], (3 * 8 + 2) * 4);
+    const out = trim(image);
+    expect([...out.data.slice(0, 4)]).toEqual([0, 255, 0, 255]);
+    expect([...out.data.slice(4, 8)]).toEqual([255, 0, 0, 255]);
+  });
+
+  it('returns the image unchanged when nothing is opaque', () => {
+    const empty = { width: 4, height: 4, data: new Uint8Array(4 * 4 * 4) };
+    expect(trim(empty)).toBe(empty);
+  });
+
+  it('leaves an already-tight image alone', () => {
+    const out = trim(withBox(6, 6, { x: 0, y: 0, w: 6, h: 6 }));
+    expect([out.width, out.height]).toEqual([6, 6]);
+  });
+
+  it('tightens the keyed icon around the kangaroo', () => {
+    const keyed = keyOut(icon(), '#1d3a24');
+    const out = trim(keyed);
+    expect(out.width).toBeLessThan(keyed.width);
+    expect(out.height).toBeLessThan(keyed.height);
+    // Every edge of the result must now touch the subject, or the crop was not tight.
+    const opaqueInRow = (y: number) => {
+      for (let x = 0; x < out.width; x++) if (out.data[(y * out.width + x) * 4 + 3] > 8) return true;
+      return false;
+    };
+    const opaqueInColumn = (x: number) => {
+      for (let y = 0; y < out.height; y++) if (out.data[(y * out.width + x) * 4 + 3] > 8) return true;
+      return false;
+    };
+    expect(opaqueInRow(0)).toBe(true);
+    expect(opaqueInRow(out.height - 1)).toBe(true);
+    expect(opaqueInColumn(0)).toBe(true);
+    expect(opaqueInColumn(out.width - 1)).toBe(true);
   });
 });

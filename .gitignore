@@ -53,6 +53,7 @@ packaging/*/build/
 # per-account and must not be committed; the tile art is regenerated from icons/icon-1024.png by
 # `npm run pack:msstore`, so committing it would only let it drift from the source icon.
 packaging/microsoft-store/build/
+packaging/*/listing/
 packaging/**/*.msix
 packaging/**/*.msixbundle
 packaging/**/*.appx

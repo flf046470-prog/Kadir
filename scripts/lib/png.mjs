@@ -205,6 +205,72 @@ export function parseHex(hex) {
 }
 
 /**
+ * Knock a flat background colour out to transparency, leaving the subject.
+ *
+ * The app icon is a kangaroo on a dark green square, and Store key art wants the kangaroo without
+ * the square — an app-icon tile reads as a utility, a silhouette reads as a game. The icon is two
+ * flat colours, so a colour key is exact rather than approximate here.
+ *
+ * Distance is per-channel Chebyshev rather than Euclidean: it is the one that says "no channel is
+ * further than this from the target", which is what "close to that flat colour" actually means,
+ * and it will not let a large drift in one channel hide behind two small ones. `feather` fades
+ * alpha across the band just outside the tolerance so an antialiased edge does not turn into a
+ * hard, jagged cut.
+ *
+ * @param {Image} image
+ * @returns {Image}
+ */
+export function keyOut(image, colour, { tolerance = 20, feather = 40 } = {}) {
+  const [tr, tg, tb] = parseHex(colour);
+  const data = new Uint8Array(image.data);
+  for (let i = 0; i < data.length; i += 4) {
+    const distance = Math.max(Math.abs(data[i] - tr), Math.abs(data[i + 1] - tg), Math.abs(data[i + 2] - tb));
+    if (distance <= tolerance) data[i + 3] = 0;
+    else if (distance < tolerance + feather) data[i + 3] = Math.round((data[i + 3] * (distance - tolerance)) / feather);
+  }
+  return { width: image.width, height: image.height, data };
+}
+
+/**
+ * Crop to the bounding box of everything that is not transparent.
+ *
+ * Keying a square icon leaves the subject floating in a mostly-empty square, and CSS sizing then
+ * fits the *square*, not the subject — which is why the kangaroo on the first cover looked small
+ * however large the box was set. Trimming first makes "60% of the short side" mean 60% of
+ * kangaroo. Returns the image unchanged when there is nothing opaque to crop to, because a
+ * zero-by-zero image is a worse answer than the one you already had.
+ *
+ * @param {Image} image
+ * @returns {Image}
+ */
+export function trim(image, alphaThreshold = 8) {
+  let top = image.height;
+  let left = image.width;
+  let right = -1;
+  let bottom = -1;
+
+  for (let y = 0; y < image.height; y++) {
+    for (let x = 0; x < image.width; x++) {
+      if (image.data[(y * image.width + x) * 4 + 3] <= alphaThreshold) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  if (right < left || bottom < top) return image;
+
+  const width = right - left + 1;
+  const height = bottom - top + 1;
+  const data = new Uint8Array(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const from = ((y + top) * image.width + left) * 4;
+    data.set(image.data.subarray(from, from + width * 4), y * width * 4);
+  }
+  return { width, height, data };
+}
+
+/**
  * Place a logo on a canvas of a given size and background.
  *
  * `padding` is the fraction of the *short* side left as margin. Windows tiles are read at a
