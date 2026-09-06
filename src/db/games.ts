@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "./client";
 import { gameSessions, matches } from "./schema";
+import { advisoryLockKey } from "./advisory-lock";
 import {
   canTransition,
   pickPrompts,
@@ -63,9 +64,14 @@ function isGameId(value: string): value is GameId {
  */
 export async function loadSessionFor(
   sessionId: string,
-  userId: string
+  userId: string,
+  /**
+   * The transaction to read inside. `answerRound` passes its own `tx` so the
+   * rounds it modifies are the rounds it re-read under the lock.
+   */
+  executor: Pick<typeof db, "select"> = db
 ): Promise<SessionAccess | null> {
-  const rows = await db
+  const rows = await executor
     .select({
       id: gameSessions.id,
       matchId: gameSessions.matchId,
@@ -214,29 +220,51 @@ export type AnswerOutcome =
   | { ok: true; status: GameStatus }
   | { ok: false; reason: string };
 
-/** Records one answer, through the engine, and persists the result. */
+/**
+ * Records one answer, through the engine, and persists the result.
+ *
+ * **Read, modify and write are one transaction, under a lock on the session.**
+ * Every round of every game lives in a single JSON column, so persisting an
+ * answer rewrites the whole array — and a turn-based game between two people is
+ * an invitation to answer at the same moment. Without the lock, both players
+ * read the same rounds, each added their own answer to their own copy, and
+ * whichever update landed second silently discarded the other. The player whose
+ * answer vanished saw it accepted and then gone, with nothing to retry against
+ * because the round now looked answered by the other side.
+ *
+ * The lock is on the session rather than the match: two sessions on one match
+ * cannot both be open, but a finished one is still answerable in principle and
+ * has no business waiting on a live one.
+ */
 export async function answerRound(
   sessionId: string,
   userId: string,
   roundIndex: number,
   value: string
 ): Promise<AnswerOutcome> {
-  const access = await loadSessionFor(sessionId, userId);
-  if (!access) return { ok: false, reason: "not_found" };
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`game:${sessionId}`)})`);
 
-  const result = submitAnswer(access.session, roundIndex, access.slot, value);
-  if (!result.ok) return { ok: false, reason: result.reason };
+    // Re-read inside the lock. Loading before it would make the lock decorative
+    // — the rounds this answer is applied to have to be the rounds nobody else
+    // can be modifying.
+    const access = await loadSessionFor(sessionId, userId, tx);
+    if (!access) return { ok: false as const, reason: "not_found" };
 
-  await db
-    .update(gameSessions)
-    .set({
-      rounds: JSON.stringify(result.session.rounds),
-      status: result.session.status,
-      updatedAt: new Date()
-    })
-    .where(eq(gameSessions.id, sessionId));
+    const result = submitAnswer(access.session, roundIndex, access.slot, value);
+    if (!result.ok) return { ok: false as const, reason: result.reason };
 
-  return { ok: true, status: result.session.status };
+    await tx
+      .update(gameSessions)
+      .set({
+        rounds: JSON.stringify(result.session.rounds),
+        status: result.session.status,
+        updatedAt: new Date()
+      })
+      .where(eq(gameSessions.id, sessionId));
+
+    return { ok: true as const, status: result.session.status };
+  });
 }
 
 export type SessionView = {
@@ -264,18 +292,58 @@ export function viewSession(access: SessionAccess): SessionView {
   };
 }
 
-/** Every session on a match, newest first, redacted for this viewer. */
+/**
+ * Every session on a match, newest first, redacted for this viewer.
+ *
+ * One query rather than one per session. It read the ids and then called
+ * `loadSessionFor` in a loop, so opening a conversation with a long game
+ * history cost a round trip per game for rows a single join already had — the
+ * same pattern `listVisiblePhotosFor` was written to replace, and the same fix.
+ *
+ * Membership is still resolved through the match, in SQL, so an outsider gets
+ * an empty list rather than a redacted one: the join simply matches nothing.
+ */
 export async function sessionsForMatch(matchId: string, userId: string): Promise<SessionView[]> {
   const rows = await db
-    .select({ id: gameSessions.id })
+    .select({
+      id: gameSessions.id,
+      matchId: gameSessions.matchId,
+      game: gameSessions.game,
+      status: gameSessions.status,
+      targetRounds: gameSessions.targetRounds,
+      rounds: gameSessions.rounds,
+      userAId: matches.userAId,
+      userBId: matches.userBId
+    })
     .from(gameSessions)
-    .where(eq(gameSessions.matchId, matchId))
+    .innerJoin(matches, eq(matches.id, gameSessions.matchId))
+    .where(and(eq(gameSessions.matchId, matchId), isNull(matches.closedAt)))
     .orderBy(desc(gameSessions.createdAt));
 
   const views: SessionView[] = [];
+
   for (const row of rows) {
-    const access = await loadSessionFor(row.id, userId);
-    if (access) views.push(viewSession(access));
+    if (row.userAId !== userId && row.userBId !== userId) continue;
+    if (!isGameId(row.game)) continue;
+
+    const slot: PlayerSlot = row.userAId === userId ? "a" : "b";
+
+    views.push(
+      viewSession({
+        session: {
+          id: row.id,
+          game: row.game,
+          status: row.status as GameStatus,
+          rounds: parseRounds(row.rounds),
+          targetRounds: row.targetRounds
+        },
+        matchId: row.matchId,
+        slot,
+        partnerId: slot === "a" ? row.userBId : row.userAId,
+        status: row.status as GameStatus
+      })
+    );
   }
+
   return views;
 }

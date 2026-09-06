@@ -93,6 +93,53 @@ describe("fair reveal", () => {
     expect(revealed.rounds[0].partnerAnswer?.value).toBe("a");
   });
 
+  /**
+   * Both players answering the same instant is the ordinary case in a
+   * turn-based game, not an edge one. Every round lives in a single JSON
+   * column, so persisting an answer rewrites the whole array: without a lock
+   * both players read the same rounds, each added their own answer to their own
+   * copy, and whichever update landed second discarded the other. The player
+   * whose answer vanished saw it accepted and then gone.
+   */
+  it("keeps both answers when the two players answer at the same moment", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invite = await inviteToGame(a, matchId, "this_or_that");
+    if (!invite.ok) throw new Error("setup failed");
+    await setSessionStatus(invite.sessionId, b, "active");
+
+    const [first, second] = await Promise.all([
+      answerRound(invite.sessionId, a, 0, "a"),
+      answerRound(invite.sessionId, b, 0, "b")
+    ]);
+
+    expect(first).toMatchObject({ ok: true });
+    expect(second).toMatchObject({ ok: true });
+
+    // Both answers survived, so the round reveals rather than sitting half
+    // answered with one player's choice silently gone.
+    const view = viewSession((await loadSessionFor(invite.sessionId, a))!);
+    expect(view.rounds[0].revealed).toBe(true);
+    expect(view.rounds[0].ownAnswer?.value).toBe("a");
+    expect(view.rounds[0].partnerAnswer?.value).toBe("b");
+  });
+
+  /** The same race across different rounds — neither answer may be lost. */
+  it("keeps answers to different rounds written at the same moment", async () => {
+    const { a, b, matchId } = await matchedPair();
+    const invite = await inviteToGame(a, matchId, "this_or_that");
+    if (!invite.ok) throw new Error("setup failed");
+    await setSessionStatus(invite.sessionId, b, "active");
+
+    await Promise.all([
+      answerRound(invite.sessionId, a, 0, "a"),
+      answerRound(invite.sessionId, a, 1, "a")
+    ]);
+
+    const view = viewSession((await loadSessionFor(invite.sessionId, a))!);
+    expect(view.rounds[0].ownAnswer?.value).toBe("a");
+    expect(view.rounds[1].ownAnswer?.value).toBe("a");
+  });
+
   it("refuses a second answer to the same round", async () => {
     const { a, b, matchId } = await matchedPair();
     const invite = await inviteToGame(a, matchId, "this_or_that");
