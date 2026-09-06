@@ -1,6 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import { dailySuggestions } from "./schema";
+import { advisoryLockKey } from "./advisory-lock";
 import {
   findCandidateIds,
   loadMatchProfile,
@@ -48,8 +49,12 @@ export function utcDay(now: Date = new Date()): string {
 
 type StoredRow = { suggestedUserId: string; score: number; reasons: string; rank: number };
 
-async function readStored(userId: string, forDate: string): Promise<StoredRow[]> {
-  return db
+async function readStored(
+  userId: string,
+  forDate: string,
+  executor: Pick<typeof db, "select"> = db
+): Promise<StoredRow[]> {
+  return executor
     .select({
       suggestedUserId: dailySuggestions.suggestedUserId,
       score: dailySuggestions.score,
@@ -77,7 +82,16 @@ function parseReasons(raw: string): MatchReason[] {
   }
 }
 
-async function choose(userId: string, forDate: string): Promise<StoredRow[]> {
+/**
+ * Picks and stores the day's list.
+ *
+ * Exported for the concurrency test rather than for callers — `todaysFive` is
+ * the entry point. The guarantee worth testing is that a second selection
+ * racing a first *adopts* the stored list instead of adding to it, and that
+ * cannot be forced through `todaysFive`, which reads the stored list first and
+ * only reaches here when it is empty.
+ */
+export async function chooseForDay(userId: string, forDate: string): Promise<StoredRow[]> {
   const viewer = await loadMatchProfile(userId);
   if (!viewer) return [];
 
@@ -112,20 +126,42 @@ async function choose(userId: string, forDate: string): Promise<StoredRow[]> {
     rank: index
   }));
 
-  if (rows.length > 0) {
-    await db
-      .insert(dailySuggestions)
-      .values(rows.map((row) => ({ userId, forDate, ...row })))
-      // Two tabs opening the page at once both try to write the day's list.
-      // The first one wins; the second is a no-op rather than an error.
-      .onConflictDoNothing();
+  if (rows.length === 0) return rows;
 
-    // Read back rather than trusting the local copy: if another request won
-    // the race, its list is the day's list and this one must agree with it.
-    return readStored(userId, forDate);
-  }
+  /**
+   * The day's list is written all at once or not at all.
+   *
+   * `onConflictDoNothing` was not enough, and the reason is the key: the
+   * primary key is (member, date, *suggested member*), not (member, date,
+   * rank). Two tabs opening the page at the same instant both compute a list,
+   * and those lists need not agree — `findCandidateIds` drops anyone the
+   * viewer has judged, so a pass in one tab is enough to change what the other
+   * one picks, and a new signup does it too. The overlap then conflicted and
+   * was skipped while the differences inserted, so the day ended up with eight
+   * rows carrying duplicate ranks: "Today's 5" became Today's 8, in an order
+   * that depended on which row the database returned first.
+   *
+   * That is precisely the promise this file exists to keep — "the same five
+   * people all day, in the same order, however many times the page is opened"
+   * — so the check and the write are one step under a lock on the member's day.
+   * The scoring above stays outside it: it loads two hundred profiles and runs
+   * the engine, and holding a connection through that is what
+   * `db/pool.integration.test.ts` exists to catch.
+   */
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(${advisoryLockKey(`daily:${userId}:${forDate}`)})`
+    );
 
-  return rows;
+    // Another request may have won while this one was scoring. Its list is the
+    // day's list, and this one agrees with it rather than adding to it.
+    const existing = await readStored(userId, forDate, tx);
+    if (existing.length > 0) return existing;
+
+    await tx.insert(dailySuggestions).values(rows.map((row) => ({ userId, forDate, ...row })));
+
+    return rows;
+  });
 }
 
 /**
@@ -140,7 +176,7 @@ export async function todaysFive(
   forDate: string = utcDay()
 ): Promise<DailySuggestion[]> {
   const stored = (await readStored(userId, forDate)) ?? [];
-  const rows = stored.length > 0 ? stored : await choose(userId, forDate);
+  const rows = stored.length > 0 ? stored : await chooseForDay(userId, forDate);
   if (rows.length === 0) return [];
 
   const ids = rows.map((row) => row.suggestedUserId);
