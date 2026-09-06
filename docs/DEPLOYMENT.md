@@ -31,6 +31,66 @@ wire both screening drivers and set `REQUIRE_PHOTO_SCREENING=true`, which makes
 the upload endpoint answer 503 rather than filling a queue nobody can keep up
 with. See [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md).
 
+## A working preview on Vercel
+
+A preview with no database serves the marketing site and fails on everything
+behind sign-in, which is enough to check the copy and not enough to walk
+through the product. Two attachments fix that, and they are separate decisions.
+
+### 1. Postgres
+
+In the project's **Storage** tab, create a Postgres database and attach it. The
+integration writes the connection variables itself — no copying. It writes
+`POSTGRES_URL` among them, which is why `db/client.ts` accepts that name as well
+as `DATABASE_URL`: a deploy with a database plainly attached in the dashboard
+should not fail with "DATABASE_URL is not set".
+
+Then, from a machine that can reach it:
+
+```bash
+DATABASE_URL='<the UNPOOLED connection string>' npm run db:migrate
+DATABASE_URL='<the UNPOOLED connection string>' npm run seed:demo
+```
+
+**Unpooled for both.** The pooled URL goes through PgBouncer in transaction
+mode, which does not carry the session state DDL and advisory locks need —
+migrations appear to succeed and leave the schema half-applied. Vercel exposes
+the direct one as `DATABASE_URL_UNPOOLED` or `POSTGRES_URL_NON_POOLING`. The
+running app wants the *pooled* one; only these two commands want the direct one.
+
+`DATABASE_POOL_MAX` defaults to 3 on Vercel rather than 10, because every warm
+function instance keeps its own pool and a hundred-connection ceiling is
+exhausted by the tenth instance. Raise it only behind a pooler.
+
+### 2. Photos
+
+Photos need object storage. Without it the app writes to local disk, and on a
+serverless platform that disk is read-only and thrown away between invocations —
+so uploads fail and seeded photos are not there to serve. Discover renders
+cards with no images, which reads as broken rather than as unconfigured.
+
+Any S3-compatible bucket works; the driver takes an endpoint and path-style
+addressing, so Cloudflare R2, Backblaze B2 and Supabase Storage are all fine
+alongside AWS. Set `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, and
+for anything but AWS `S3_ENDPOINT` (`S3_REGION=auto` suits R2).
+
+Seed **after** the bucket is attached, so the demo photos are written to it
+rather than to whatever disk ran the seeder:
+
+```bash
+DATABASE_URL='<unpooled>' S3_BUCKET=... S3_ENDPOINT=... \
+  S3_ACCESS_KEY_ID=... S3_SECRET_ACCESS_KEY=... npm run seed:demo
+```
+
+> **A preview database is not a staging database.** `seed:demo` creates accounts
+> whose password is a constant in this repository. That is safe while Vercel
+> Authentication is on — the default for previews, and what makes these URLs
+> ask for a login. Turning that off to show somebody makes those accounts
+> reachable by anyone who has read the repo. Keep the protection on, or seed
+> nothing.
+
+---
+
 ## Publishing before signups open
 
 These are two decisions, and `SIGNUPS=closed` is what keeps them apart.

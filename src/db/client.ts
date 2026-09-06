@@ -8,15 +8,45 @@ import * as schema from "./schema";
  * The URL comes from the environment only — there is no in-code default and no
  * fallback credential, so a misconfigured deploy fails loudly at startup rather
  * than silently connecting somewhere unintended.
+ *
+ * `POSTGRES_URL` is accepted as the same thing under a different name, because
+ * that is what Vercel's own Postgres integration writes and it is not
+ * negotiable from this side: attaching a database there sets the variables for
+ * you, and a deploy that has a working database but calls it by the platform's
+ * name would fail with "DATABASE_URL is not set" while the dashboard showed a
+ * database plainly connected. That is a confusing failure, not a safe one.
+ *
+ * This is not a fallback *credential* — both names are the operator's own
+ * configuration, and with neither set it still throws.
  */
 function connectionString(): string {
-  const url = process.env.DATABASE_URL;
+  const url = process.env.DATABASE_URL ?? process.env.POSTGRES_URL;
   if (!url) {
     throw new Error(
-      "DATABASE_URL is not set. Copy .env.example to .env.local and set it before starting."
+      "Neither DATABASE_URL nor POSTGRES_URL is set. Copy .env.example to .env.local and set one before starting."
     );
   }
   return url;
+}
+
+/**
+ * How many connections one instance may open.
+ *
+ * Ten is right for a long-lived server and wrong for a serverless one: every
+ * warm function instance keeps its own pool, so ten becomes ten *per instance*
+ * and a managed Postgres with a hundred-connection ceiling is exhausted by the
+ * tenth instance — which arrives as "too many clients" under exactly the load
+ * the platform exists to absorb.
+ *
+ * Three on Vercel, because the most any single request opens in parallel is a
+ * handful (`listConversations` fans out three ways), and the pooler in front of
+ * a managed database is what absorbs concurrency beyond that. `DATABASE_POOL_MAX`
+ * overrides either default.
+ */
+function poolMax(): number {
+  const configured = process.env.DATABASE_POOL_MAX;
+  if (configured) return Number(configured);
+  return process.env.VERCEL ? 3 : 10;
 }
 
 declare global {
@@ -26,7 +56,7 @@ declare global {
 
 function createClient() {
   const client = postgres(connectionString(), {
-    max: Number(process.env.DATABASE_POOL_MAX ?? 10),
+    max: poolMax(),
     // Fail fast rather than hanging a request behind an unreachable database.
     connect_timeout: 10
   });
