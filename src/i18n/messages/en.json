@@ -327,7 +327,8 @@
     "referredBy": "Invited with code",
     "signupsClosedTitle": "Not open yet",
     "signupsClosedBody": "FioreMatch is not accepting new members yet. We are finishing the safety checks every photo goes through before anyone can see it, and we would rather open late than open without them.",
-    "signupsClosedHaveAccount": "Already have an account?"
+    "signupsClosedHaveAccount": "Already have an account?",
+    "signupsClosedCta": "Opening soon"
   },
   "matching": {
     "title": "How FioreMatch matching actually works",

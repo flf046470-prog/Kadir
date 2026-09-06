@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { buildMetadata } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
 import { AuthForm } from "../AuthForm";
+import { signupsOpen } from "@/lib/site";
 
 export async function generateMetadata({
   params
@@ -45,8 +46,13 @@ export default async function LoginPage({
         />
 
         <div className="mt-6 flex items-center justify-between text-sm">
+          {/*
+            A plain link rather than a `JoinLink`: this is the "no account?"
+            line under a sign-in form, not a call to action, and the wording
+            has to change with it rather than becoming a button label.
+          */}
           <Link href="/register" className="font-medium text-bloom-600 hover:underline">
-            {t("noAccount")} {t("signUpLink")}
+            {signupsOpen() ? `${t("noAccount")} ${t("signUpLink")}` : t("signupsClosedCta")}
           </Link>
           <span className="text-ink/40">{t("forgotPassword")}</span>
         </div>

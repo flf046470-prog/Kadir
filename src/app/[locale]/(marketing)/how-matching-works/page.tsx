@@ -6,6 +6,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { Link } from "@/i18n/navigation";
 import { buildMetadata, faqSchema } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
+import { JoinLink } from "@/components/JoinLink";
 
 export async function generateMetadata({
   params
@@ -92,9 +93,7 @@ export default function HowMatchingWorksPage() {
           <Link href="/global-match" className="btn-secondary">
             {nav("globalMatch")}
           </Link>
-          <Link href="/register" className="btn-primary">
-            {home("ctaPrimary")}
-          </Link>
+          <JoinLink className="btn-primary" label={home("ctaPrimary")} />
         </div>
       </section>
     </>

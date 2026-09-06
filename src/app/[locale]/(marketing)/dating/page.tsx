@@ -6,6 +6,7 @@ import { PageHero } from "@/components/PageHero";
 import { buildMetadata } from "@/lib/seo";
 import { countries, cities } from "@/lib/countries-data";
 import type { Locale } from "@/i18n/locales";
+import { JoinLink } from "@/components/JoinLink";
 
 export async function generateMetadata({
   params
@@ -30,9 +31,7 @@ export default function DatingPage() {
     <>
       <PageHero eyebrow="FioreMatch" title={t("title")} subtitle={t("subtitle")}>
         <div className="mt-8">
-          <Link href="/register" className="btn-primary">
-            {t("title")}
-          </Link>
+          <JoinLink className="btn-primary" label={t("title")} />
         </div>
       </PageHero>
 

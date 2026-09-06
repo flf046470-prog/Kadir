@@ -5,6 +5,7 @@ import { PageHero } from "@/components/PageHero";
 import { Link } from "@/i18n/navigation";
 import { buildMetadata } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
+import { JoinLink } from "@/components/JoinLink";
 
 type RewardItem = { name: string; desc: string };
 
@@ -69,9 +70,7 @@ export default function ReferralPage() {
       </section>
 
       <section className="container-fm py-14">
-        <Link href="/register" className="btn-primary">
-          {home("ctaPrimary")}
-        </Link>
+        <JoinLink className="btn-primary" label={home("ctaPrimary")} />
       </section>
     </>
   );

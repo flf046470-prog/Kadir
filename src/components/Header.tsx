@@ -4,6 +4,7 @@ import { Logo } from "./Logo";
 import { LanguageSwitcher } from "./LanguageSwitcher";
 import { HeaderShell } from "./HeaderShell";
 import { publicSiteEnabled } from "@/lib/site";
+import { JoinLink } from "@/components/JoinLink";
 
 /**
  * Marketing header.
@@ -56,9 +57,7 @@ export function Header() {
           >
             {t("login")}
           </Link>
-          <Link href="/register" className="btn-primary !px-5 !py-2 text-sm">
-            {t("join")}
-          </Link>
+          <JoinLink className="btn-primary !px-5 !py-2 text-sm" label={t("join")} />
         </div>
       </div>
     </HeaderShell>

@@ -11,6 +11,7 @@ import { buildMetadata, softwareApplicationSchema, faqSchema } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
 import { publicSiteEnabled } from "@/lib/site";
 import { AppOnlyHome } from "./AppOnlyHome";
+import { JoinLink } from "@/components/JoinLink";
 
 export async function generateMetadata({
   params
@@ -94,9 +95,7 @@ export default async function HomePage({
 
           <Reveal delay={240}>
             <div className="mt-9 flex flex-wrap items-center gap-4">
-              <Link href="/register" className="btn-primary">
-                {t("ctaPrimary")}
-              </Link>
+              <JoinLink className="btn-primary" label={t("ctaPrimary")} />
               <Link
                 href="/features"
                 className="inline-flex items-center justify-center rounded-full border border-white/25 px-6 py-3 text-sm font-semibold text-white/90 transition hover:border-white/50 hover:bg-white/5"
@@ -216,9 +215,7 @@ export default async function HomePage({
             <p className="mt-2 max-w-xl text-ink/70">{t("ctaBandBody")}</p>
           </Reveal>
           <Reveal delay={120} className="shrink-0">
-            <Link href="/register" className="btn-primary">
-              {t("ctaBandButton")}
-            </Link>
+            <JoinLink className="btn-primary" label={t("ctaBandButton")} />
           </Reveal>
         </div>
       </section>

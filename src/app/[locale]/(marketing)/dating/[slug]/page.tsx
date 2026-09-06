@@ -8,6 +8,7 @@ import { buildMetadata, faqSchema } from "@/lib/seo";
 import { countries, cities } from "@/lib/countries-data";
 import type { Locale } from "@/i18n/locales";
 import { locales } from "@/i18n/locales";
+import { JoinLink } from "@/components/JoinLink";
 
 export function generateStaticParams() {
   const slugs = [...Object.keys(countries), ...Object.keys(cities)];
@@ -74,9 +75,7 @@ export default async function DatingSlugPage({
         <JsonLd data={faqSchema(faqs)} />
         <PageHero eyebrow={c.region} title={`Dating in ${c.name}`} subtitle={c.intro}>
           <div className="mt-8">
-            <Link href="/register" className="btn-primary">
-              Create your free profile
-            </Link>
+            <JoinLink label="Create your free profile" />
           </div>
         </PageHero>
         <section className="container-fm py-16">
@@ -123,9 +122,7 @@ export default async function DatingSlugPage({
         subtitle={city.intro}
       >
         <div className="mt-8">
-          <Link href="/register" className="btn-primary">
-            Create your free profile
-          </Link>
+          <JoinLink label="Create your free profile" />
         </div>
       </PageHero>
       <section className="container-fm py-16">

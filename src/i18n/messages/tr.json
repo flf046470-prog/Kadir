@@ -327,7 +327,8 @@
     "referredBy": "Davet kodu",
     "signupsClosedTitle": "Henüz açık değil",
     "signupsClosedBody": "FioreMatch henüz yeni üye almıyor. Her fotoğrafın kimseye görünmeden önce geçtiği güvenlik kontrollerini tamamlıyoruz — geç açmayı, onlarsız açmaya tercih ediyoruz.",
-    "signupsClosedHaveAccount": "Zaten hesabınız var mı?"
+    "signupsClosedHaveAccount": "Zaten hesabınız var mı?",
+    "signupsClosedCta": "Yakında açılıyor"
   },
   "matching": {
     "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",
