@@ -5,8 +5,19 @@ import { createSession, SESSION_COOKIE, sessionCookieOptions } from "@/auth/sess
 import { apiError } from "@/auth/guard";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { attachReferral } from "@/db/referral";
+import { signupsOpen } from "@/lib/site";
 
 export async function POST(request: NextRequest) {
+  /**
+   * Checked before anything else, and answered 503 rather than 403.
+   *
+   * The deployment is not accepting registrations yet; the caller has done
+   * nothing wrong and there is nothing they can change to succeed. This is the
+   * server-side half of the switch — the form is hidden too, but a hidden form
+   * is a UI decision and this is the one that actually holds.
+   */
+  if (!signupsOpen()) return apiError("signups_closed", 503);
+
   // Registration is the cheapest endpoint to abuse for account farming.
   const limit = checkRateLimit(`register:${clientKey(request)}`, { max: 5, windowMs: 60_000 });
   if (!limit.allowed) return apiError("rate_limited", 429);

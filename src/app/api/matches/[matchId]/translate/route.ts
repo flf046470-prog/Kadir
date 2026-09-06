@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
 import { translateConversation } from "@/db/translations";
 import { translationEnabled } from "@/lib/translate";
-import { translationAllowance } from "@/db/entitlements";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { featureEnabled } from "@/lib/flags/server";
 
@@ -49,22 +48,23 @@ export async function GET(
   const limit = checkRateLimit(`translate:${auth.user.id}`, { max: 30, windowMs: 60_000 });
   if (!limit.allowed) return apiError("rate_limited", 429);
 
+  const { matchId } = await params;
+  const target = request.nextUrl.searchParams.get("to") ?? auth.user.locale ?? "en";
+
   /**
-   * What this call may buy from the provider, resolved before the work.
+   * The budget is resolved inside `translateConversation`, not here.
+   *
+   * Reading it here and spending it there was a check-then-act across two
+   * connections with a provider round trip in between, and this route allows
+   * thirty calls a minute against a free ceiling of fifteen a day. It is now
+   * claimed under a lock in the same transaction that records it.
    *
    * A member already at zero still reaches the translation rather than a 402:
    * everything already cached is theirs to read, and the response says the
    * limit was reached so the conversation can state it once instead of quietly
    * showing untranslated text and looking broken.
    */
-  const allowance = await translationAllowance(auth.user.id);
-  const budget =
-    allowance.limit === null ? null : Math.max(allowance.limit - allowance.used, 0);
-
-  const { matchId } = await params;
-  const target = request.nextUrl.searchParams.get("to") ?? auth.user.locale ?? "en";
-
-  const result = await translateConversation(auth.user.id, matchId, target, budget);
+  const result = await translateConversation(auth.user.id, matchId, target);
   if (result === null) return apiError("not_found", 404);
 
   return NextResponse.json(

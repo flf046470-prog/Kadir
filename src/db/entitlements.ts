@@ -190,15 +190,22 @@ export async function likeAllowance(
  */
 export async function translationAllowance(
   userId: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  /**
+   * The transaction to count inside. `translateConversation` claims its budget
+   * under a lock and passes its own `tx`, for the reason the like allowance
+   * gives — and with more at stake, since what this one meters is bought from
+   * a provider by the character.
+   */
+  executor: Executor = db
 ): Promise<LikeAllowance> {
-  const { entitlements } = await entitlementsOf(userId, now);
+  const { entitlements } = await entitlementsOf(userId, now, executor);
   const limit = entitlements.dailyTranslations;
   if (limit === null) return { allowed: true, used: 0, limit: null };
 
   const since = new Date(now.getTime() - 24 * 3_600_000);
 
-  const rows = await db
+  const rows = await executor
     .select({ total: count() })
     .from(translationUsage)
     .where(and(eq(translationUsage.userId, userId), gte(translationUsage.createdAt, since)));

@@ -4,6 +4,7 @@ import { subscriptions, virtualDateInvites } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
 import { recordLike } from "./interactions";
 import { inviteToVirtualDate, respondToInvite } from "./virtual-dates";
+import { sendGift } from "./gifts";
 
 /**
  * The connection pool is a shared, exhaustible resource, and a transaction that
@@ -48,6 +49,31 @@ describe("charging paths under pool pressure", () => {
 
     const outcome = await within(
       Promise.all(targets.map((target) => recordLike(me, target, "like")))
+    );
+
+    expect(outcome).toBe("done");
+  }, 40_000);
+
+  it("sends more concurrent gifts than the pool has connections", async () => {
+    const a = await createTestUser();
+    const b = await createTestUser();
+    await recordLike(a, b, "like");
+    const matched = await recordLike(b, a, "like");
+    if (!matched.matchId) throw new Error("expected a match");
+
+    // VIP: the allowance still runs, it just never refuses, so what is under
+    // test is the connection use rather than the ceiling.
+    await db.insert(subscriptions).values({
+      userId: a,
+      tier: "vip",
+      status: "active",
+      currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000)
+    });
+
+    const outcome = await within(
+      Promise.all(
+        Array.from({ length: OVER_POOL }, () => sendGift(a, matched.matchId!, "rose"))
+      )
     );
 
     expect(outcome).toBe("done");

@@ -40,6 +40,33 @@ export function publicSiteEnabled(): boolean {
 }
 
 /**
+ * Whether new members may register.
+ *
+ * The counterpart to `PUBLIC_SITE`, and the switch that makes an early launch
+ * safe. Photo screening blocks *signups* specifically — an unscreened photo
+ * reaching another member is the failure it prevents, and no photo can reach
+ * anyone before there is somebody to upload it. The marketing site carries no
+ * such dependency: twelve locales of location pages and guides can be indexed,
+ * start accruing the age that search ranking is mostly made of, and be linked
+ * from anywhere, while the product behind them stays shut.
+ *
+ * So this exists to let the two be decided separately. Publish the site the day
+ * the domain resolves; open registration the day PhotoDNA answers.
+ *
+ * Existing members are unaffected — they sign in, message, and keep everything
+ * they have. Closing signups is not a maintenance mode, and treating it as one
+ * would punish the people already there for a gate that is about people who
+ * are not.
+ *
+ * On by default: a deployment that had to be told to accept registrations would
+ * be a poor default for anyone running this locally, and forgetting it leaves
+ * an empty product rather than an unsafe one.
+ */
+export function signupsOpen(): boolean {
+  return process.env.SIGNUPS !== "closed";
+}
+
+/**
  * Hosts a deep link may route into the app.
  *
  * Derived from `siteUrl` rather than written out again, so the allowlist

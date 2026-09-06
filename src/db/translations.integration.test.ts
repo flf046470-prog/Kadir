@@ -8,6 +8,7 @@ import { sendMessage } from "./messaging";
 import { translateConversation, MAX_BATCH } from "./translations";
 import { setTranslator } from "@/lib/translate";
 import type { Translator } from "@/lib/translate";
+import { ENTITLEMENTS } from "@/lib/billing/tiers";
 
 /** Records every call, so the tests can assert on what was *not* sent. */
 class StubTranslator implements Translator {
@@ -181,13 +182,29 @@ describe("the cache", () => {
 });
 
 describe("bounds", () => {
+  /**
+   * `MAX_BATCH` and the daily allowance are two different ceilings, and this
+   * is the batch one: how much a *single* request will ask the provider for,
+   * so opening a long conversation cannot become a thousand-segment bill.
+   *
+   * Run with the allowance removed, because otherwise the free tier's fifteen
+   * a day is what stops it and the batch bound is never reached — the test
+   * would pass while asserting nothing about the thing it names.
+   */
   it("translates at most a screenful, newest first", async () => {
     const { a, b, matchId } = await conversation();
     for (let i = 0; i < MAX_BATCH + 5; i++) {
       await sendMessage(b, matchId, `Message ${i}`, "en");
     }
 
-    const result = await translateConversation(a, matchId, "tr");
+    const configured = ENTITLEMENTS.free.dailyTranslations;
+    ENTITLEMENTS.free.dailyTranslations = null;
+    let result;
+    try {
+      result = await translateConversation(a, matchId, "tr");
+    } finally {
+      ENTITLEMENTS.free.dailyTranslations = configured;
+    }
 
     expect(Object.keys(result!.translations)).toHaveLength(MAX_BATCH);
     expect(stub.calls[0]?.texts).toContain(`Message ${MAX_BATCH + 4}`);
@@ -236,10 +253,27 @@ describe("the translation allowance", () => {
     return { a, b, matchId };
   }
 
-  it("buys only as many translations as the budget allows", async () => {
+  /**
+   * The ceiling is the tier's, and it is now read inside the transaction that
+   * spends it rather than handed in by the caller. Raising and lowering the
+   * configured number is how these tests reach it — the same way the like and
+   * boost allowances are tested, and it exercises the real path rather than an
+   * injected budget the production code no longer has.
+   */
+  async function withDailyLimit<T>(limit: number | null, work: () => Promise<T>): Promise<T> {
+    const configured = ENTITLEMENTS.free.dailyTranslations;
+    ENTITLEMENTS.free.dailyTranslations = limit;
+    try {
+      return await work();
+    } finally {
+      ENTITLEMENTS.free.dailyTranslations = configured;
+    }
+  }
+
+  it("buys only as many translations as the allowance allows", async () => {
     const { a, matchId } = await withMessages(6);
 
-    const result = await translateConversation(a, matchId, "tr", 2);
+    const result = await withDailyLimit(2, () => translateConversation(a, matchId, "tr"));
 
     expect(Object.keys(result!.translations)).toHaveLength(2);
     expect(result!.limitReached).toBe(true);
@@ -251,10 +285,10 @@ describe("the translation allowance", () => {
    * the conversation, so spending the allowance on the top of it would leave
    * every message they can actually see untranslated.
    */
-  it("spends the budget on the newest messages, not the oldest", async () => {
+  it("spends the allowance on the newest messages, not the oldest", async () => {
     const { a, matchId } = await withMessages(5);
 
-    await translateConversation(a, matchId, "tr", 2);
+    await withDailyLimit(2, () => translateConversation(a, matchId, "tr"));
 
     expect(stub.calls.flatMap((call) => call.texts).sort()).toEqual(["mesaj 3", "mesaj 4"]);
   });
@@ -262,10 +296,55 @@ describe("the translation allowance", () => {
   it("does not report a limit when everything fitted", async () => {
     const { a, matchId } = await withMessages(3);
 
-    const result = await translateConversation(a, matchId, "tr", 10);
+    const result = await withDailyLimit(10, () => translateConversation(a, matchId, "tr"));
 
     expect(result!.limitReached).toBe(false);
     expect(Object.keys(result!.translations)).toHaveLength(3);
+  });
+
+  /**
+   * The defect this replaces: the budget was applied with `slice(-budget)`, and
+   * `slice(-0)` is `slice(0)` — the whole array. A member who had spent every
+   * translation of the day was handed an unmetered batch on every call after
+   * that, so the limit did nothing at exactly the point it was supposed to
+   * start working, on the one line that costs money per character.
+   */
+  it("buys nothing once the allowance is exhausted", async () => {
+    const { a, matchId } = await withMessages(6);
+
+    await withDailyLimit(2, async () => {
+      await translateConversation(a, matchId, "tr");
+      stub.calls = [];
+
+      const result = await translateConversation(a, matchId, "tr");
+
+      // Two are cached from the first call and stay readable; nothing new is
+      // bought, and the caller is told the ceiling was hit.
+      expect(stub.calls).toHaveLength(0);
+      expect(Object.keys(result!.translations)).toHaveLength(2);
+      expect(result!.limitReached).toBe(true);
+    });
+
+    expect(await db.select().from(translationUsage)).toHaveLength(2);
+  });
+
+  /**
+   * The route permits thirty calls a minute against a free ceiling of fifteen a
+   * day. Read on the pool and spent later, every parallel caller saw the same
+   * remaining budget and every one of them bought — on the most expensive line
+   * in the cost model.
+   */
+  it("cannot be exceeded by translating in parallel", async () => {
+    const { a, matchId } = await withMessages(8);
+
+    await withDailyLimit(3, async () => {
+      await Promise.all(
+        Array.from({ length: 6 }, () => translateConversation(a, matchId, "tr"))
+      );
+    });
+
+    expect(await db.select().from(translationUsage)).toHaveLength(3);
+    expect(stub.calls.flatMap((call) => call.texts)).toHaveLength(3);
   });
 
   /**
@@ -275,27 +354,30 @@ describe("the translation allowance", () => {
    * member scrolling back through a conversation they translated yesterday
    * should not watch it revert to a language they cannot read.
    */
-  it("still serves cached translations once the budget is spent", async () => {
+  it("still serves cached translations once the allowance is spent", async () => {
     const { a, matchId } = await withMessages(2);
-    await translateConversation(a, matchId, "tr", 2);
-    stub.calls = [];
 
-    const result = await translateConversation(a, matchId, "tr", 0);
+    await withDailyLimit(2, async () => {
+      await translateConversation(a, matchId, "tr");
+      stub.calls = [];
 
-    expect(Object.keys(result!.translations)).toHaveLength(2);
-    expect(result!.limitReached).toBe(false);
-    expect(stub.calls).toHaveLength(0);
+      const result = await translateConversation(a, matchId, "tr");
+
+      expect(Object.keys(result!.translations)).toHaveLength(2);
+      expect(result!.limitReached).toBe(false);
+      expect(stub.calls).toHaveLength(0);
+    });
   });
 
   it("charges the allowance for new translations only, never for cache hits", async () => {
     const { a, matchId } = await withMessages(3);
 
-    await translateConversation(a, matchId, "tr", null);
+    await translateConversation(a, matchId, "tr");
     const afterFirst = await db.select().from(translationUsage);
 
     // Reading the same conversation again costs the provider nothing, so it
     // must cost the member nothing.
-    await translateConversation(a, matchId, "tr", null);
+    await translateConversation(a, matchId, "tr");
     const afterSecond = await db.select().from(translationUsage);
 
     expect(afterFirst).toHaveLength(3);
@@ -305,12 +387,17 @@ describe("the translation allowance", () => {
   /**
    * A failed provider call must not be billed to the member. Otherwise an
    * outage silently eats a free member's day.
+   *
+   * The allowance is now claimed *before* the provider is asked, so this is a
+   * refund rather than a not-yet-charged: the receipts for the failed group are
+   * deleted. Claiming up front is what stops parallel callers all believing
+   * they have room; refunding is what keeps this property alongside it.
    */
   it("does not spend the allowance when the provider fails", async () => {
     const { a, matchId } = await withMessages(2);
     stub.failNext = true;
 
-    const result = await translateConversation(a, matchId, "tr", null);
+    const result = await translateConversation(a, matchId, "tr");
 
     expect(result!.degraded).toBe(true);
     expect(await db.select().from(translationUsage)).toHaveLength(0);

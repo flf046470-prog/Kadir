@@ -108,6 +108,24 @@ describe("the daily allowance", () => {
     expect(await db.select().from(gifts)).toHaveLength(limit);
   });
 
+  /**
+   * The route allows twenty sends a minute and the free tier allows three a
+   * day. Read on the pool and written separately, every parallel request saw
+   * the same "three left" and every one of them sent — a limit a subscription
+   * is sold to raise, stepped over by anyone willing to open twenty sockets.
+   */
+  it("cannot be exceeded by sending in parallel", async () => {
+    const { a, matchId } = await matchedPair();
+    const limit = ENTITLEMENTS.free.dailyGifts!;
+
+    const results = await Promise.all(
+      Array.from({ length: limit * 4 }, () => sendGift(a, matchId, "rose"))
+    );
+
+    expect(results.filter((result) => result.ok)).toHaveLength(limit);
+    expect(await db.select().from(gifts)).toHaveLength(limit);
+  });
+
   it("rolls off after twenty-four hours", async () => {
     const { a, matchId } = await matchedPair();
     const limit = ENTITLEMENTS.free.dailyGifts!;

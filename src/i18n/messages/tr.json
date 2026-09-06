@@ -324,7 +324,10 @@
     "logInLink": "Giriş yap",
     "termsAgree": "Devam ederek Kullanım Koşullarımızı kabul etmiş ve Gizlilik Politikamızı okuduğunu onaylamış olursun.",
     "countryLabel": "Ülke",
-    "referredBy": "Davet kodu"
+    "referredBy": "Davet kodu",
+    "signupsClosedTitle": "Henüz açık değil",
+    "signupsClosedBody": "FioreMatch henüz yeni üye almıyor. Her fotoğrafın kimseye görünmeden önce geçtiği güvenlik kontrollerini tamamlıyoruz — geç açmayı, onlarsız açmaya tercih ediyoruz.",
+    "signupsClosedHaveAccount": "Zaten hesabınız var mı?"
   },
   "matching": {
     "title": "FioreMatch eşleştirmesi gerçekte nasıl çalışır",

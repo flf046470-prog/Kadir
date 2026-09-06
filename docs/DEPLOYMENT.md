@@ -31,6 +31,29 @@ wire both screening drivers and set `REQUIRE_PHOTO_SCREENING=true`, which makes
 the upload endpoint answer 503 rather than filling a queue nobody can keep up
 with. See [`PHOTO_SCREENING.md`](PHOTO_SCREENING.md).
 
+## Publishing before signups open
+
+These are two decisions, and `SIGNUPS=closed` is what keeps them apart.
+
+Photo screening blocks **signups** specifically: no photo can reach another
+member before there is somebody to upload it. The marketing site carries no such
+dependency — twelve locales of location pages and guides, and search ranking is
+mostly made of age, so every week they are not indexed is a week that cannot be
+bought back later.
+
+So the sequence that loses nothing:
+
+1. Point the domain at the host, deploy with `SIGNUPS=closed`. The site is live
+   and indexable; `/register` explains rather than 404s, so the links being
+   indexed now are the ones that will work later.
+2. Apply for PhotoDNA. It is an application with third-party vetting, so this is
+   the wait, and it runs in parallel with the site accruing age.
+3. When the drivers are wired, set `REQUIRE_PHOTO_SCREENING=true`, drop
+   `SIGNUPS`, and redeploy.
+
+Existing members are never affected by step 1 — they sign in, message and keep
+everything. Closing signups is not a maintenance mode.
+
 ## Migrations
 
 ```bash

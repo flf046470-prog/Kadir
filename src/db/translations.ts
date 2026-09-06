@@ -1,7 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "./client";
 import { messageTranslations, messages, translationUsage } from "./schema";
 import { resolveMatchFor } from "./messaging";
+import { translationAllowance } from "./entitlements";
+import { advisoryLockKey } from "./advisory-lock";
 import { translationEnabled, translator } from "@/lib/translate";
 
 /**
@@ -59,14 +61,7 @@ export async function translateConversation(
   userId: string,
   matchId: string,
   targetLanguage: string,
-  /**
-   * How many *new* translations this member may buy on this call.
-   *
-   * `null` is unlimited. Cached messages are always returned whatever the
-   * budget: they have already been paid for, and hiding them would mean a free
-   * member watching yesterday's conversation go untranslated as they scroll.
-   */
-  budget: number | null = null
+  now: Date = new Date()
 ): Promise<TranslateResult | null> {
   const match = await resolveMatchFor(userId, matchId);
   if (!match) return null;
@@ -104,14 +99,66 @@ export async function translateConversation(
   if (allMissing.length === 0) return { translations, degraded: false, limitReached: false };
 
   /**
-   * Spend the allowance on the newest messages.
+   * The allowance is claimed here, in one short transaction, before a single
+   * character is bought.
    *
-   * A member near their limit gets the end of the conversation translated
-   * rather than the start of it — the part they are reading right now. Taking
-   * from the front would translate messages that have already scrolled away and
-   * leave the live ones in a language they cannot read.
+   * It used to be read in the route and spent here, on two connections with a
+   * whole translation round trip between them. The route permits thirty calls
+   * a minute and the free tier allows fifteen translations a day, so thirty
+   * parallel requests each read "fifteen left" and each bought up to fifteen —
+   * four hundred and fifty provider-billed translations against a ceiling of
+   * fifteen. This is the most expensive line in `cost-model.mjs`, so of every
+   * allowance in the product it is the one that must not be a check-then-act.
+   *
+   * The transaction is deliberately short and holds no network call. Keeping a
+   * pool connection open across a provider round trip is the deadlock
+   * `db/pool.integration.test.ts` exists to catch; the budget is claimed, the
+   * transaction commits, and only then does the provider get asked.
    */
-  const missing = budget === null ? allMissing : allMissing.slice(-Math.max(budget, 0));
+  const claim = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`translate:${userId}`)})`);
+
+    const allowance = await translationAllowance(userId, now, tx);
+    const budget =
+      allowance.limit === null ? null : Math.max(allowance.limit - allowance.used, 0);
+
+    /**
+     * `budget === 0` is spelled out rather than left to `slice`.
+     *
+     * `slice(-0)` is `slice(0)`, which returns the *whole* array — so a member
+     * who had used every translation of the day was handed an unmetered batch
+     * on every call after that. The limit did nothing precisely once it was
+     * supposed to start working, on the one line that costs money per
+     * character. Negative zero is why: it is the one budget value where
+     * "take the last n" has no sensible reading.
+     */
+    const spend =
+      budget === null ? allMissing : budget === 0 ? [] : allMissing.slice(-budget);
+
+    if (spend.length === 0) return { spend, receipts: new Map<string, string>() };
+
+    /**
+     * The usage rows are written *before* the provider is called, so the budget
+     * is spent the moment it is committed to. A failed group is refunded below
+     * — the alternative, writing them afterwards, is what let parallel callers
+     * agree they all had room.
+     */
+    const written = await tx
+      .insert(translationUsage)
+      .values(
+        spend.map((row) => ({
+          userId,
+          messageId: row.id,
+          targetLanguage,
+          createdAt: now
+        }))
+      )
+      .returning({ id: translationUsage.id, messageId: translationUsage.messageId });
+
+    return { spend, receipts: new Map(written.map((row) => [row.messageId, row.id])) };
+  });
+
+  const missing = claim.spend;
   const limitReached = missing.length < allMissing.length;
 
   if (missing.length === 0) return { translations, degraded: false, limitReached };
@@ -142,6 +189,26 @@ export async function translateConversation(
       // fails: the reader sees the original text and a quiet notice.
       console.error("Translation provider failed", error);
       degraded = true;
+
+      /**
+       * Refund this group's claim.
+       *
+       * The allowance is spent up front so that parallel callers cannot all
+       * believe they have room; the cost of that is that a provider failure
+       * has already charged the member. Deleting the receipts restores the
+       * property the old ordering had for free — nobody pays an allowance for
+       * a translation they did not receive — without giving back the
+       * atomicity. Only this group's rows go: the other languages in this
+       * request may have succeeded.
+       */
+      const refunds = group
+        .map((row) => claim.receipts.get(row.id))
+        .filter((id): id is string => id !== undefined);
+
+      if (refunds.length > 0) {
+        await db.delete(translationUsage).where(inArray(translationUsage.id, refunds));
+      }
+
       continue;
     }
 
@@ -155,21 +222,6 @@ export async function translateConversation(
     // Two tabs can race the same untranslated message. Whichever lands first
     // wins; the other's identical result is discarded rather than erroring.
     await db.insert(messageTranslations).values(rowsToCache).onConflictDoNothing();
-
-    /**
-     * The allowance ledger, written only for translations actually bought.
-     *
-     * This sits after the provider call rather than before it, so a member is
-     * not charged an allowance for a translation the provider failed to
-     * return — the `continue` above skips this along with the cache write.
-     */
-    await db.insert(translationUsage).values(
-      rowsToCache.map((row) => ({
-        userId,
-        messageId: row.messageId,
-        targetLanguage
-      }))
-    );
 
     for (const row of rowsToCache) translations[row.messageId] = row.body;
   }

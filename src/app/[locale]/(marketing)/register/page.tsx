@@ -5,6 +5,7 @@ import { buildMetadata } from "@/lib/seo";
 import type { Locale } from "@/i18n/locales";
 import { AuthForm } from "../AuthForm";
 import { normalizeCode } from "@/lib/referral/codes";
+import { signupsOpen } from "@/lib/site";
 
 export async function generateMetadata({
   params
@@ -35,6 +36,37 @@ export default async function RegisterPage({
   // stray spacing, is shown back in the form exactly as it will be stored.
   const raw = (await searchParams).ref;
   const referralCode = typeof raw === "string" ? (normalizeCode(raw) ?? undefined) : undefined;
+
+  /**
+   * The page stays, the form goes.
+   *
+   * A deployment can publish the marketing site before it can safely accept
+   * members — photo screening blocks signups specifically, and the twelve
+   * locales of location pages behind this have no such dependency. Every link
+   * pointing here still resolves, and says why rather than 404ing, so the
+   * indexing that starts now is not throwing away the page it will need.
+   *
+   * The API refuses independently. This is the half people see; that is the
+   * half that holds.
+   */
+  if (!signupsOpen()) {
+    return (
+      <section className="bg-aurora flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
+        <div className="w-full max-w-md rounded-3xl border border-black/5 bg-white p-8 shadow-sm">
+          <h1 className="font-display text-2xl font-semibold text-ink">
+            {t("signupsClosedTitle")}
+          </h1>
+          <p className="mt-3 text-ink/70">{t("signupsClosedBody")}</p>
+          <p className="mt-6 text-sm text-ink/60">
+            {t("signupsClosedHaveAccount")}{" "}
+            <Link href="/login" className="font-medium text-bloom-600 hover:underline">
+              {t("logInLink")}
+            </Link>
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="bg-aurora flex min-h-[calc(100vh-4rem)] items-center justify-center py-16">
