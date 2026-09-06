@@ -48,10 +48,16 @@ These describe decisions nobody has made yet rather than code that exists.
 | | |
 | --- | --- |
 | [`DECISIONS_PENDING.md`](DECISIONS_PENDING.md) | every choice that blocks something, what it costs, and a recommendation |
+| [`LAUNCH_ORDER.md`](LAUNCH_ORDER.md) | the same work sequenced by what has to exist before what — site and apps together |
 
 Start here if you are asking "what is left?". Everything on that list needs
 money, a licence, an account, a legal position, or a machine this repository
 does not have — none of it is unwritten code.
+
+Read `LAUNCH_ORDER.md` instead if the question is "what do I do first?".
+`DECISIONS_PENDING.md` is sorted by what blocks a launch most, which is not the
+order the work is done in — two of its entries can be started this morning and
+one of them gates everything else by weeks.
 
 ---
 
