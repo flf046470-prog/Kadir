@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 
-type PhotoItem = { id: string; url: string; displayName: string; createdAt: string };
+type PhotoItem = {
+  id: string;
+  url: string;
+  displayName: string;
+  screeningNote: string | null;
+  createdAt: string;
+};
 type ReportItem = {
   id: string;
   reportedName: string;
@@ -105,6 +111,17 @@ export function ModerationConsole({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={photo.url} alt="" className="aspect-square w-full rounded-lg object-cover" />
               <p className="mt-3 text-sm font-medium text-ink">{photo.displayName}</p>
+              {/*
+                What screening found, verbatim rather than prettified. A
+                reviewer working a queue of two hundred needs to know which
+                items a machine already looked at and what it thought — and the
+                raw form is greppable, which a translated sentence is not.
+              */}
+              {photo.screeningNote && (
+                <p className="mt-1 font-mono text-[11px] leading-tight text-ink/50">
+                  {photo.screeningNote}
+                </p>
+              )}
               <input
                 type="text"
                 placeholder="Reason (required to reject)"

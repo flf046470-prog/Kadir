@@ -126,6 +126,22 @@ describe("photo moderation", () => {
     expect(await db.select().from(moderationActions)).toHaveLength(1);
   });
 
+  /**
+   * The note is written so a reviewer can triage; if the queue does not carry
+   * it, recording it was pointless. Asserted here rather than only at the
+   * upload site, because the two are separable and the useful half is this one.
+   */
+  it("carries what screening found into the queue", async () => {
+    const member = await createTestUser();
+    const uploaded = await uploadPhoto(member, await photoBytes());
+    if (!uploaded.ok) throw new Error("expected ok");
+
+    const [queued] = await photoQueue();
+    expect(queued.screeningNote).toBe(
+      "hash:no_hash_matcher_configured classifier:no_classifier_configured"
+    );
+  });
+
   it("shows pending photos in the queue and removes them once decided", async () => {
     const moderator = await makeModerator();
     const member = await createTestUser();

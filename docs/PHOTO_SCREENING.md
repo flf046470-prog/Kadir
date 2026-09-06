@@ -103,7 +103,7 @@ Everything above the drivers.
   member**. A distinguishable response is a free oracle for testing which images
   are on the list.
 
-Twelve unit tests and eleven integration tests cover it.
+Twelve unit tests and twelve integration tests cover it.
 
 ## What is not built, and why
 

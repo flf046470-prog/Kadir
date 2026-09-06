@@ -58,6 +58,13 @@ export type PhotoQueueItem = {
   url: string;
   width: number;
   height: number;
+  /**
+   * What automated screening found, or null on a photo uploaded before
+   * screening existed. Carried to the console because a queue where every item
+   * looks identical tells the reviewer nothing about where to start — which was
+   * the entire reason for recording it.
+   */
+  screeningNote: string | null;
   createdAt: Date;
 };
 
@@ -70,6 +77,7 @@ export async function photoQueue(limit = 30): Promise<PhotoQueueItem[]> {
       width: photos.width,
       height: photos.height,
       createdAt: photos.createdAt,
+      screeningNote: photos.screeningNote,
       displayName: users.displayName
     })
     .from(photos)
@@ -85,6 +93,7 @@ export async function photoQueue(limit = 30): Promise<PhotoQueueItem[]> {
     url: storage().urlFor(row.storageKey),
     width: row.width,
     height: row.height,
+    screeningNote: row.screeningNote,
     createdAt: row.createdAt
   }));
 }

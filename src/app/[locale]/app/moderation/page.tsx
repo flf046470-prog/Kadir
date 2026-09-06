@@ -27,6 +27,7 @@ export default async function ModerationPage() {
         id: photo.id,
         url: photo.url,
         displayName: photo.displayName,
+        screeningNote: photo.screeningNote,
         createdAt: photo.createdAt.toISOString()
       }))}
       initialReports={reports.map((report) => ({
