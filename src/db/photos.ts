@@ -77,7 +77,16 @@ export async function uploadPhoto(userId: string, input: Buffer): Promise<Upload
    * would be published, and re-encoding has already stripped EXIF and any
    * metadata payload, so the classifier sees the image members would see.
    */
-  const outcome = await screenPhoto(processed.photo.body, matcher, classifier);
+  const outcome = await screenPhoto(
+    {
+      body: processed.photo.body,
+      contentType: processed.photo.contentType,
+      width: processed.photo.width,
+      height: processed.photo.height
+    },
+    matcher,
+    classifier
+  );
 
   if (outcome.status === "blocked" || outcome.status === "rejected") {
     /**
@@ -109,9 +118,9 @@ export async function uploadPhoto(userId: string, input: Buffer): Promise<Upload
       height: processed.photo.height,
       position: existing[0]?.count ?? 0,
       // Still "pending" by default, and still not set here: screening advises
-      // the queue, it does not empty it. The note records what screening found
-      // so a reviewer knows which items to start with.
-      moderationNote: outcome.note
+      // the queue, it does not empty it. The note goes in its own column so a
+      // moderator's later note does not overwrite what screening found.
+      screeningNote: outcome.note
     })
     .returning();
 

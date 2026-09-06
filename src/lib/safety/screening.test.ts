@@ -10,7 +10,18 @@ import {
   type HashMatcher
 } from "./screening";
 
-const IMAGE = Buffer.from("not really an image, and nothing here decodes it");
+/**
+ * Nothing here decodes the bytes — the drivers under test are fakes, and what
+ * is being asserted is the pipeline's routing. The shape matters, though: a
+ * driver is handed the content type because the published bytes are WebP and
+ * some providers (Rekognition among them) take only JPEG or PNG.
+ */
+const IMAGE = {
+  body: Buffer.from("not really an image, and nothing here decodes it"),
+  contentType: "image/webp",
+  width: 800,
+  height: 800
+};
 
 function matcherReturning(result: HashMatch, name = "fake"): HashMatcher {
   return { name, match: async () => result };

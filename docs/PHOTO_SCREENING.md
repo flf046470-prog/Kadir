@@ -92,11 +92,18 @@ Everything above the drivers.
   lands in our own bucket; storing and deleting would mean it existed on our
   infrastructure, with that bucket's replication and backup retention, for
   however long the round trip took.
+- What screening found goes in `photos.screening_note`, **its own column**. It
+  shared `moderation_note` at first, so approving a photo overwrote the
+  verdict — destroying the record for the one case worth learning from:
+  screening called it clean, a person approved it, and it turned out to be
+  wrong. The machine's observation and the human's decision are two different
+  records, the same way `message_risk_assessments` is a table about messages
+  rather than a column on them.
 - A hash match and a classifier rejection return **the same answer to the
   member**. A distinguishable response is a free oracle for testing which images
   are on the list.
 
-Twelve unit tests and nine integration tests cover it.
+Twelve unit tests and eleven integration tests cover it.
 
 ## What is not built, and why
 
@@ -114,7 +121,18 @@ What each has to do:
 - **Sightengine** — POST to `/1.0/check.json` with `models=nudity-2.1,offensive`
   and read the class probabilities.
 - **Rekognition** — `DetectModerationLabels`, then map its taxonomy onto
-  `ClassifierCategory`.
+  `ClassifierCategory`. The mapping is the real work: it is where the
+  swimsuit-versus-nudity threshold gets decided.
+
+> **Transcode first.** The bytes a driver receives are **WebP** — every upload
+> is re-encoded to strip EXIF, and WebP is what gets published. Rekognition's
+> `DetectModerationLabels` accepts **JPEG and PNG only** and answers
+> `InvalidImageFormatException` for anything else, so a driver that forwards
+> these bytes unchanged fails on every single photo, with an error that reads
+> like a bad upload rather than a wrong format. `ScreenedImage` carries the
+> content type and the dimensions for exactly this reason: a driver that needs
+> a different format has `sharp` and should transcode knowingly, rather than
+> discovering the constraint in production.
 
 **Automatic approval.** The most permissive outcome the pipeline can produce is
 `review`. Approving automatically needs a measured false-negative rate on this

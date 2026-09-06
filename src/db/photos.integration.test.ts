@@ -1,4 +1,7 @@
 import { describe, expect, it, beforeEach, afterAll } from "vitest";
+import { eq } from "drizzle-orm";
+import { db } from "./client";
+import { photos } from "./schema";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import sharp, { type Sharp } from "sharp";
@@ -337,7 +340,7 @@ describe("screening on upload", () => {
     if (!uploaded.ok) throw new Error("expected ok");
 
     const [queued] = await pendingPhotos();
-    expect(queued.moderationNote).toBe("hash:no_match classifier:suggestive@0.70");
+    expect(queued.screeningNote).toBe("hash:no_match classifier:suggestive@0.70");
   });
 
   it("refuses a photo the classifier rejects, and stores nothing", async () => {
@@ -406,9 +409,52 @@ describe("screening on upload", () => {
 
     expect(uploaded.ok).toBe(true);
     const [queued] = await pendingPhotos();
-    expect(queued.moderationNote).toBe(
+    expect(queued.screeningNote).toBe(
       "hash:no_hash_matcher_configured classifier:no_classifier_configured"
     );
+  });
+
+  /**
+   * The machine's observation and the human's decision are two different
+   * records. They shared one column, so approving a photo overwrote what
+   * screening had said — destroying the evidence for the one case worth
+   * learning from: screening called it clean, a person approved it, and it
+   * turned out to be wrong. Without the verdict there is nothing to tune the
+   * threshold against.
+   */
+  it("keeps the screening verdict after a moderator writes their own note", async () => {
+    setHashMatcher(clean);
+    setContentClassifier({
+      name: "fake-classifier",
+      classify: async () => ({ decision: "uncertain", category: "suggestive", confidence: 0.7 })
+    });
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+    if (!uploaded.ok) throw new Error("expected ok");
+
+    await approvePhoto(uploaded.photo.id, "Looked at it, it is fine");
+
+    const [row] = await db.select().from(photos).where(eq(photos.id, uploaded.photo.id));
+    expect(row.moderationNote).toBe("Looked at it, it is fine");
+    expect(row.screeningNote).toBe("hash:no_match classifier:suggestive@0.70");
+  });
+
+  it("keeps it after a rejection too", async () => {
+    setHashMatcher(clean);
+    setContentClassifier(passing);
+    const userId = await createTestUser();
+
+    const uploaded = await uploadPhoto(userId, await plainPhoto());
+    if (!uploaded.ok) throw new Error("expected ok");
+
+    await rejectPhoto(uploaded.photo.id, "Not a photo of a person");
+
+    const [row] = await db.select().from(photos).where(eq(photos.id, uploaded.photo.id));
+    expect(row.moderationNote).toBe("Not a photo of a person");
+    // The classifier said clean and a human disagreed — precisely the pair
+    // worth being able to count later.
+    expect(row.screeningNote).toBe("hash:no_match classifier:clean");
   });
 
   it("refuses every upload when screening is required but absent", async () => {

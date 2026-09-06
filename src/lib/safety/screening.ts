@@ -32,6 +32,31 @@
  */
 
 /**
+ * The image handed to a driver, and what it actually is.
+ *
+ * The content type is carried rather than assumed, because **the bytes are
+ * WebP** — `processUpload` re-encodes every upload to strip EXIF, and WebP is
+ * what gets published. That matters at the driver boundary and would otherwise
+ * be discovered the hard way: AWS Rekognition's `DetectModerationLabels`
+ * accepts **JPEG and PNG only** and answers `InvalidImageFormatException` for
+ * anything else, so a Rekognition driver handed these bytes fails on every
+ * photo, with an error that reads like a bad upload rather than a wrong format.
+ *
+ * A driver that needs a different format transcodes — it has `sharp` — and the
+ * type is here so it knows to, rather than guessing from a bare Buffer.
+ *
+ * Dimensions travel for the same reason: providers cap image size, and a driver
+ * that has to downscale should not have to decode the image to find out.
+ */
+export type ScreenedImage = {
+  body: Buffer;
+  /** Always `image/webp` today. Carried anyway — see above. */
+  contentType: string;
+  width: number;
+  height: number;
+};
+
+/**
  * The answer to "is this known illegal material?".
  *
  * Deliberately not an enum with a "maybe": perceptual hash matching answers yes
@@ -46,7 +71,7 @@ export type HashMatch =
 export interface HashMatcher {
   /** `"none"` when nothing is configured. Ops asserts on this before launch. */
   readonly name: string;
-  match(image: Buffer): Promise<HashMatch>;
+  match(image: ScreenedImage): Promise<HashMatch>;
 }
 
 /**
@@ -101,7 +126,7 @@ export type ClassifierCategory = (typeof CLASSIFIER_CATEGORIES)[number];
 
 export interface ContentClassifier {
   readonly name: string;
-  classify(image: Buffer): Promise<ClassifierVerdict>;
+  classify(image: ScreenedImage): Promise<ClassifierVerdict>;
 }
 
 export class NoContentClassifier implements ContentClassifier {
@@ -141,7 +166,7 @@ export type ScreeningOutcome =
  * photo that fooled the classifier reached members with nobody having looked.
  */
 export async function screenPhoto(
-  image: Buffer,
+  image: ScreenedImage,
   matcher: HashMatcher,
   classifier: ContentClassifier
 ): Promise<ScreeningOutcome> {

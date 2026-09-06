@@ -276,7 +276,21 @@ export const photos = pgTable(
     position: integer("position").notNull().default(0),
     /** pending | approved | rejected */
     moderationStatus: text("moderation_status").notNull().default("pending"),
+    /** What the reviewing moderator wrote. Theirs alone. */
     moderationNote: text("moderation_note"),
+    /**
+     * What automated screening found, in its own column.
+     *
+     * Separate from `moderationNote` because the machine's observation and the
+     * human's decision are two different records, and the same argument
+     * `messageRiskAssessments` makes applies here: a risk signal is an
+     * observation *about* a photo rather than a property of it. Sharing one
+     * column meant `approvePhoto` overwrote the screening verdict with the
+     * moderator's note, so the one case worth learning from — screening said
+     * clean, a human approved, and it turned out to be wrong — destroyed the
+     * evidence needed to tune the threshold.
+     */
+    screeningNote: text("screening_note"),
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
   },

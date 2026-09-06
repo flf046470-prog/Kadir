@@ -134,6 +134,13 @@
       "when": 1788636559470,
       "tag": "0018_steep_romulus",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788678988657,
+      "tag": "0019_chief_titanium_man",
+      "breakpoints": true
     }
   ]
 }
