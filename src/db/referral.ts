@@ -214,12 +214,22 @@ async function isCircular(referrerId: string, refereeId: string): Promise<boolea
   return rows.length > 0;
 }
 
-/** Referrals this referrer has been paid for in the calendar month of `at` (UTC). */
-async function rewardedThisMonth(referrerId: string, at: Date): Promise<number> {
+/**
+ * Referrals this referrer has been paid for in the calendar month of `at` (UTC).
+ *
+ * Takes an executor because this is the one input to the decision that other
+ * referrals change. It has to be counted inside the transaction that writes,
+ * under the same lock — see `decideAndPersist`.
+ */
+async function rewardedThisMonth(
+  referrerId: string,
+  at: Date,
+  executor: Pick<typeof db, "select"> = db
+): Promise<number> {
   const start = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), 1));
   const next = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1));
 
-  const rows = await db
+  const rows = await executor
     .select({ total: count() })
     .from(referrals)
     .where(
@@ -303,7 +313,14 @@ export async function evaluateReferral(
     refereeActiveDays: facts.activeDays
   };
 
-  const decision = decideReward({
+  /**
+   * Everything the decision needs *except* the month's payout count.
+   *
+   * These are facts about this referee and this referrer's own history, and no
+   * concurrent referral changes them, so they are gathered here and the
+   * transaction below stays short.
+   */
+  const context = {
     referral,
     sameAccount: row.referrerId === refereeId,
     // Device fingerprinting and payments do not exist yet. These are reported
@@ -314,37 +331,51 @@ export async function evaluateReferral(
     samePaymentMethod: false,
     referralsInLastHour: await referralsInHourAround(row.referrerId, row.signedUpAt),
     circular: await isCircular(row.referrerId, refereeId),
-    disposableEmail: isDisposableEmail(facts.email),
-    rewardedThisMonth: await rewardedThisMonth(row.referrerId, now)
-  });
+    disposableEmail: isDisposableEmail(facts.email)
+  };
 
-  // Nothing changed yet — leave the row alone so `decided_at` keeps meaning
-  // "when this stopped being provisional" rather than "last time anyone looked".
-  if (decision.outcome === "pending_qualification") return decision;
-
-  return persistDecision(refereeId, row.referrerId, decision, now);
+  return decideAndPersist(refereeId, row.referrerId, context, now);
 }
 
 /**
- * Writes the outcome and, when granted, the reward rows.
+ * Decides and writes, both inside the lock.
  *
- * The update is conditional on the row still being pending, which is what makes
- * a double payout impossible: two concurrent evaluations both read "pending",
- * both decide "granted", and exactly one of them updates a row. The loser sees
- * zero rows back and grants nothing.
+ * **The month's payout count has to be read here, not before.** It was read on
+ * the pool and passed in, and the comment on this function claimed the advisory
+ * lock stopped two friends qualifying at the same moment from slipping past the
+ * monthly cap. It did not: both evaluations counted "nineteen paid" on the
+ * pool, both decided "granted", and then both took the lock in turn and each
+ * updated its *own* referral row — different referees, so the conditional
+ * update that prevents double-paying one referral does nothing to prevent
+ * over-paying twenty of them. The lock serialised two decisions that had
+ * already been made.
  *
- * The advisory lock is a separate concern — it serialises *different* referees
- * belonging to the same referrer, so two friends qualifying at the same moment
- * cannot both slip past the monthly cap.
+ * It is worse than one over-payment, because the same count also picks the
+ * reward: `rewardsFor(rewardedThisMonth)` walks a ladder, so two referrals
+ * reading the same stale count are handed the same rung.
+ *
+ * The conditional update stays, and still does its own job: two evaluations of
+ * *the same* referee both read "pending", both decide "granted", and exactly
+ * one updates a row. The loser sees zero rows back and grants nothing.
  */
-async function persistDecision(
+async function decideAndPersist(
   refereeId: string,
   referrerId: string,
-  decision: RewardDecision,
+  context: Omit<Parameters<typeof decideReward>[0], "rewardedThisMonth">,
   now: Date
 ): Promise<RewardDecision> {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(${advisoryLockKey(`referral:${referrerId}`)})`);
+
+    const decision = decideReward({
+      ...context,
+      rewardedThisMonth: await rewardedThisMonth(referrerId, now, tx)
+    });
+
+    // Nothing changed yet — leave the row alone so `decided_at` keeps meaning
+    // "when this stopped being provisional" rather than "last time anyone
+    // looked".
+    if (decision.outcome === "pending_qualification") return decision;
 
     const updated = await tx
       .update(referrals)

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "./client";
 import { likes, profiles, referralRewards, referrals, users } from "./schema";
 import { createTestUser, resetDatabase } from "./test-helpers";
@@ -424,6 +424,64 @@ describe("the monthly cap", () => {
     const decision = await evaluateReferral(referee, A_WEEK_LATER);
     expect(decision?.outcome).toBe("held_for_review");
     expect(decision?.reasonKey).toBe("referral.outcome.monthlyCapReached");
+  });
+
+  /**
+   * The count was read on the pool and the decision made before the lock was
+   * taken, so friends qualifying at the same moment each saw the same
+   * "nineteen paid", each decided "granted", and each then updated its own
+   * referral row — different referees, so the conditional update that stops one
+   * referral being paid twice does nothing to stop twenty being over-paid.
+   *
+   * The reward matters as much as the cap: `rewardsFor(rewardedThisMonth)`
+   * walks a ladder, so referrals reading the same stale count are handed the
+   * same rung. Both are asserted.
+   */
+  it("cannot be exceeded by qualifying in parallel", async () => {
+    const referrer = await createTestUser();
+    const code = await codeFor(referrer);
+
+    // One place left in the month.
+    for (let i = 0; i < MAX_REWARDED_REFERRALS_PER_MONTH - 1; i++) {
+      const filler = await createTestUser();
+      await db.insert(referrals).values({
+        refereeId: filler,
+        referrerId: referrer,
+        code,
+        outcome: "granted",
+        signedUpAt: new Date(A_WEEK_LATER.getTime() - (i + 1) * 3_600_000 * 2),
+        decidedAt: A_WEEK_LATER
+      });
+    }
+
+    // Four friends qualify at once. Spread across the week so the burst signal
+    // does not fire and hold them all for review for the wrong reason.
+    const referees: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      const referee = await createTestUser();
+      await attachReferral(referee, code);
+      await makeQualified(referee);
+      await db
+        .update(referrals)
+        .set({ signedUpAt: new Date(Date.now() - (i + 1) * DAY_MS) })
+        .where(eq(referrals.refereeId, referee));
+      referees.push(referee);
+    }
+
+    const decisions = await Promise.all(
+      referees.map((referee) => evaluateReferral(referee, A_WEEK_LATER))
+    );
+
+    expect(decisions.filter((d) => d?.outcome === "granted")).toHaveLength(1);
+
+    const granted = await db
+      .select()
+      .from(referrals)
+      .where(and(eq(referrals.referrerId, referrer), eq(referrals.outcome, "granted")));
+    expect(granted).toHaveLength(MAX_REWARDED_REFERRALS_PER_MONTH);
+
+    // Exactly one payout, so exactly one rung of the ladder was spent.
+    expect(await db.select().from(referralRewards)).toHaveLength(1);
   });
 });
 
