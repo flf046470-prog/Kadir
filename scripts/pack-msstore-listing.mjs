@@ -441,7 +441,9 @@ function report(extra) {
     console.log(`\nUpload at https://partner.microsoft.com/dashboard → your app → Store listings.`);
     console.log(`Captions for each screenshot are in listing/captions.txt.`);
   }
-  if (extra) console.log(`\n${extra}`);
+  // Only when it actually passed. Printing "checks passed" above a list of problems is the kind
+  // of output that trains people to stop reading it.
+  if (extra && problems.length === 0) console.log(`\n${extra}`);
   if (problems.length > 0) {
     console.error(`\n\x1b[31m${problems.length} problem(s):\x1b[0m`);
     for (const p of problems) console.error(`  - ${p}`);

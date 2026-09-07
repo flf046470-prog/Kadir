@@ -23,6 +23,10 @@ jobs:
       - run: npm run pack:quest:check
       - run: npm run pack:phone:check
       - run: npm run pack:msstore:check
+      # Listing art: the browser-driven captures need Playwright and run in the browser job's
+      # world, but the size table, the source icon and the one asset that needs no browser are
+      # checkable here — and that is where a wrong size would otherwise sit until upload.
+      - run: npm run pack:msstore:listing:check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
