@@ -298,17 +298,43 @@ async function main() {
   const publicDir = join(process.cwd(), "public", "screenshots");
   await mkdir(publicDir, { recursive: true });
 
+  /**
+   * Only what *this* run captured is published.
+   *
+   * This used to copy whatever was on disk and swallow the error when there
+   * was nothing there, on the reasoning that "a screen that failed above has
+   * no file to copy". That is true exactly once. On every later run the failed
+   * screen still has last week's file sitting beside the fresh ones, so a run
+   * that printed `03-otomatik-ceviri  FAILED` went on to print `4/4 copied`
+   * and publish the stale image — and, because copying rewrites the
+   * modification time, it made the stale copy *look* newer than the
+   * translations it no longer matched. `store:check`'s "predates tr.json"
+   * warning is a timestamp comparison, so the one guard that would have caught
+   * this is precisely what it defeated.
+   *
+   * A stale screenshot shipping unnoticed is the failure this whole script
+   * exists to prevent, and it was reintroducing it three lines from the end.
+   */
+  const captured = new Set(shot);
+  const notCaptured = [];
   let published = 0;
+
   for (const [from, to] of PUBLISHED) {
-    try {
-      await copyFile(join(process.cwd(), from), join(publicDir, to));
-      published += 1;
-    } catch {
-      // A screen that failed above has no file to copy. Already counted as a
-      // failure there; not worth reporting the same problem twice.
+    const source = join(process.cwd(), from);
+    if (!captured.has(source)) {
+      notCaptured.push(from);
+      continue;
     }
+    await copyFile(source, join(publicDir, to));
+    published += 1;
   }
+
   console.log(`\n${published}/${PUBLISHED.length} copied to public/screenshots/`);
+  if (notCaptured.length > 0) {
+    // Loudly. The file still in public/ is older than this run, and with the
+    // copy skipped its timestamp still says so — but only if someone looks.
+    console.log(`  not republished, left stale: ${notCaptured.join(", ")}`);
+  }
 
   console.log(`${shot.length} captured, ${skipped.length} skipped or failed`);
   if (skipped.length > 0) {
