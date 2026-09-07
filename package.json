@@ -18,6 +18,7 @@
     "seed:demo": "tsx scripts/seed-demo.ts",
     "capture": "node scripts/capture.mjs",
     "icons": "node scripts/generate-icons.mjs",
+    "brand:sheet": "node scripts/brand-sheet.mjs",
     "translate:stub": "node scripts/translate-stub.mjs",
     "store:check": "node scripts/store-check.mjs",
     "cost-model": "node scripts/cost-model.mjs",
