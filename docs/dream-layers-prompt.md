@@ -11,8 +11,17 @@
 ### 0.1 What you are building
 
 A **Roblox multiplayer horror game** for 1–6 players called *Dream Layers: Don't Wake Up*.
-Players descend through progressively hostile dream layers, completing objectives while a
-server-authoritative monster hunts them.
+
+Players lie down on beds in a waking room, take a sedative, and go under together. Inside,
+they work through five dreams, each locked behind a puzzle whose answer is not in the room
+they are standing in — it is one dream-layer further down. Failing a puzzle, or being caught
+by the server-authoritative monster that hunts them, does not kill anyone: **it drops them a
+level deeper**, into the same dream, distorted. Getting back up is a designed action with a
+cost. The run ends when the sedative wears off, and only the players standing together at
+the surface wake up.
+
+The full model — the two axes, descent, the kick, stability, and Limbo — is section 3.2.
+Read it before writing anything, because it is the game.
 
 ### 0.2 What you are delivering
 
@@ -89,6 +98,8 @@ Explicitly out of scope. Building them is a defect, not a bonus.
 - Anti-cheat that inspects the client (memory scanning, injected-script detection). Server
   authority and validation only.
 - A web dashboard, analytics backend, or anything outside Roblox.
+- Real time dilation across depths (deeper layers running on a slower clock). The sedative
+  clock is real seconds at every depth; deeper layers only *display* wrong time. See 3.2.7.
 - Gore, dismemberment, or explicit body horror. Roblox moderation constrains this; the horror
   is atmospheric, not graphic. Keep it 13+ appropriate.
 
@@ -192,7 +203,9 @@ Hard numbers. Measure them; do not assert them.
 | Active `RunService` connections (server) | 1 |
 | Active `RunService` connections (client) | 2 |
 | Parts per built layer | ≤ 4,000 |
-| Simultaneously active monster instances | ≤ 2 |
+| Layers built simultaneously (3.2.10) | ≤ 3 |
+| Parts across all concurrent layers | ≤ 10,000 |
+| Simultaneously active monster instances | ≤ 3 — one per active layer |
 | `PathfindingService:ComputeAsync` calls | ≤ 4 per second across all monsters |
 | Remote traffic per player | ≤ 20 events/sec sustained |
 | Post-processing effects active at once | ≤ 4 |
@@ -229,32 +242,255 @@ makes services individually testable.
 
 Client controllers follow the identical shape.
 
-### 3.2 Round state machine
+### 3.2 The dream stack — the core loop
+
+**Read this subsection before anything else in section 3. It defines what the game is.**
+
+Players do not walk into a dream. They lie down on a bed in the waking room, take a
+sedative, and go under together. From that moment the run is a stack, navigated on two
+independent axes:
+
+- **The dream axis** — *which* dream you are in: House → School → Corridor → Hospital →
+  Broken Dream (section 5). Advancing along it is the goal.
+- **The depth axis** — *how deep inside the current dream* you are: `0, 1, 2, 3, Limbo`.
+  Depth 0 is the dream as authored. Every level below is that same dream, distorted.
+
+**Failing does not kill. Failing drops you a level.**
+
+#### 3.2.1 The loop
+
+1. You arrive at depth 0 of a dream. Its objective is locked behind something you do not
+   yet know — a code, a symbol order, a name, a room number.
+2. The information needed to unlock it is **not at depth 0**. It is one level down, held in
+   distorted form: a number written backwards on a deeper wall, a photograph whose subject
+   is the answer, the same corridor with exactly one door numbered differently.
+3. You can descend deliberately (at a descent point) or involuntarily (puzzle stability
+   exhausted, or caught by the monster). Both use the same code path. There is no death
+   screen mid-run.
+4. Down there you find the fragment — and you must **kick** back up to apply it.
+5. Objectives may only be completed at depth 0. Knowledge travels up; progress happens at
+   the surface.
+
+That is the entire design: **depth is not a punishment, it is where the answers live, and
+the price of going there is that you have to climb back out.**
+
+This replaces the old "death → spectator" loop completely. A player who fails at minute
+three does not sit and watch for seventeen minutes; they are somewhere worse, still playing.
+
+#### 3.2.2 Depth is a pure distortion of one descriptor
+
+No new level is authored for depth. Depth 1 of the House **is** the House descriptor put
+through a pure function:
+
+```lua
+export type DistortionProfile = {
+    depth: number,
+    saturation: number,             -- 1.0 at depth 0, falling with depth
+    fogEnd: number,
+    lightRangeScale: number,
+    gravityScale: number,
+    monsterSpeedScale: number,
+    monsterDetectionScale: number,
+    propDuplicationChance: number,
+    geometryJitterStuds: number,
+    hudTruthfulness: number,        -- 1.0 = the HUD never lies; below 1.0 it may
+}
+
+Distortion.forDepth(depth: number): DistortionProfile
+LayerDistorter.apply(d: LayerDescriptor, depth: number, seed: number): LayerDescriptor
+```
+
+Both are pure `f(data) -> data` per section 0.4 — plain numbers only, no `Color3`, no
+`Vector3`, no `game` — so both are unit-tested headlessly. The builder from 3.4 is unchanged;
+it receives a distorted descriptor and does not know the difference.
+
+The one thing depth *does* add per dream is the answer itself:
+
+```lua
+export type FragmentDescriptor = {
+    id: string,
+    depth: number,                  -- which level down it lives on
+    answersObjective: string,       -- ObjectiveDescriptor id it unlocks
+    presentation: "Written" | "Spoken" | "Spatial" | "Numeric",
+    roomId: string,
+    propKind: string,
+    payloadKey: string,             -- resolved against the round seed
+}
+```
+
+`LayerDescriptor` gains `depthFragments: { FragmentDescriptor }`.
+
+**The payload is derived from the round seed, never hardcoded.** The code on the safe is
+different every round, so the answer cannot be memorised or looked up on a wiki — only found.
+This is the strongest replayability lever in the project and it costs one seeded lookup.
+
+#### 3.2.3 Descent
+
+Three triggers, one code path:
+
+| Trigger | Cost |
+|---|---|
+| Puzzle stability exhausted | involuntary |
+| Downed by the monster and not revived within `reviveWindow` | involuntary |
+| Stepping into a descent point (a bathtub, a stairwell, an open lift shaft) | voluntary |
+
+Descent is never an instant teleport. It is a three-second fall: control is kept, the camera
+inverts, the ambient bed cuts to nothing, and the new layer fades in underneath. The player
+must be able to tell they fell rather than lagged.
+
+#### 3.2.4 The kick
+
+Climbing is a designed action, not a menu button.
+
+- Every layer at depth ≥ 1 contains one or two **kick points**, placed by the builder and
+  guaranteed reachable — the generator must prove reachability, not assume it.
+- A kick raises **exactly one** level. Depth 3 → surface is three kicks.
+- A kick costs `Stability` (3.2.5). It is cheaper when a teammate one level up triggers it
+  with you — a *synchronised kick* — and full price solo.
+- **Kicks never fail.** A failed kick strands a player with no counterplay, which is not
+  tension, it is a dead session.
+- Solo runs must stay completable: the spec is 1–6 players, so every kick point must be
+  operable by one person at a higher cost, never *only* by a pair.
+
+#### 3.2.5 Stability — the run's real resource
+
+One team-wide value, 0–100. It replaces lives. Illustrative starting values; the real ones
+live in `DepthConfig` and are tuned:
+
+| Event | Δ |
+|---|---|
+| Round start | 100 |
+| Failed puzzle attempt | −4 |
+| Involuntary descent | −10 |
+| Voluntary descent | −5 |
+| Synchronised kick | −6 |
+| Solo kick | −12 |
+| Monster attack landing | −8 |
+| Objective step completed | +15 |
+| Sedative dose found in loot | +20 |
+| Per minute elapsed | −2 |
+
+At **0 stability no kick is available** and depth becomes one-way. That is the death spiral,
+and it must be audible before it is fatal: the ambient bed acquires a low sub-bass that was
+not there before, so players feel the run turning without being told.
+
+#### 3.2.6 Limbo
+
+Depth 4, reached only by descending from depth 3 — three total failures with no recovery
+in between.
+
+- No objectives, no monster, no items. A grey shore at the wrong scale with one authored
+  structure in it.
+- You cannot kick yourself out. A teammate at depth ≤ 2 must complete a call ritual at a
+  kick point to pull you up, costing 30 stability.
+- A solo player who reaches Limbo is finished. This is the **only** unrecoverable state in
+  the game, and `YOU NEVER WOKE UP` belongs here rather than at the first mistake.
+- Limbo must be quiet and beautiful, not hostile. It is the failure players will describe to
+  someone else afterwards, which is the entire point of section 11.
+
+#### 3.2.7 The sedative clock
+
+- One global timer, `GameConfig.sedativeSeconds` (default 900), in **real** seconds,
+  unaffected by depth.
+- Deeper layers *show* wrong time — clocks read impossible values, the HUD timer stutters
+  and skips. This is presentation only.
+- **Do not implement real time dilation.** Inception's deeper-is-slower rule makes round
+  length unpredictable and the state machine untestable. If it is ever wanted it belongs in
+  a P2 modifier, never in the core loop.
+- On expiry: every player at depth 0 standing on the wake point wakes, and their run resolves
+  by how far along the dream axis they reached. Everyone deeper does not wake.
+
+#### 3.2.8 Waking up — the finale
+
+The old `Escape` state becomes a **synchronised kick**: every surviving player must be at
+depth 0 and on the wake point inside the same ten-second window.
+
+Reaching depth 0 alone is not enough. One player stuck deep strands the team, which is the
+strongest cooperative pressure this design has, and the sedative clock is what makes it
+urgent instead of merely annoying.
+
+#### 3.2.9 Round state machine
 
 One authoritative enum, one owner (`MatchService`), one replicated snapshot.
 
 ```
-Lobby → Countdown → Loading → InLayer → LayerTransition → Escape → Results → Lobby
-                        ↑__________________|
+Lobby → Bedding → Countdown → Loading → InDream ⇄ DepthTransition → Waking → Results → Lobby
+                                           ↑                                      |
+                                           |______________________________________|
 ```
 
+- `Bedding` is the ready-up state: players lie down on beds instead of pressing a queue
+  button. Keep a plain button as well — the diegetic version must not be the only way in.
+- `DepthTransition` covers **both** directions; descent and kick share it.
 - Only `MatchService` may change state. Everything else observes.
-- State changes broadcast a versioned snapshot: `{ state, layerIndex, roundId, seed, endsAt }`.
+- The snapshot is `{ state, dreamIndex, roundId, seed, endsAt, stability }`. Each player's
+  own `depth` replicates to them in full and to teammates as a bare integer.
 - Late joiners receive the snapshot immediately and are placed in the lobby, never dropped
-  into a running layer.
+  into a running dream at any depth.
 - `roundId` increments every round; every deferred callback checks its captured `roundId`
-  against the current one and no-ops on mismatch. This is how you avoid the classic
-  "last round's monster spawned into the new round" bug.
+  against the current one and no-ops on mismatch. With layers now living and dying mid-round
+  this matters more than before, not less: a descent callback that fires after its layer was
+  destroyed must do nothing.
+
+#### 3.2.10 Concurrency — the real technical risk of this design
+
+Players split across depths, so several layers are alive at once. This is the cost of the
+whole idea and it must be bounded explicitly:
+
+- **At most three layer instances built simultaneously.** A fourth requires an empty one to
+  be destroyed first.
+- Layers stack in one `Workspace` at `Y = -3000 * depth`, are built lazily when the first
+  player arrives, and are destroyed twenty seconds after the last one leaves.
+- `workspace.StreamingEnabled = true`, with the monster model and objective props marked
+  `Persistent`. Three concurrent layers do not fit the budget without streaming.
+- Section 2.8's part and memory budgets are **per active layer**, and the sum across
+  concurrent layers must stay within 2.5× the single-layer budget.
+- Each active layer runs its own monster instance. Section 3.6's AI budget is per instance,
+  and `MonsterService` must stagger think ticks across frames so N brains do not cost N×
+  the raycasts in a single frame.
+
+#### 3.2.11 Splitting the team
+
+- Players at different depths cannot see or collide with one another.
+- They can *hear* one another across exactly one depth boundary — footsteps, breathing, doors,
+  heavily low-passed and delayed. Two levels apart is silence. This is positional game audio,
+  not voice chat, which stays out of scope per section 1.
+- The HUD lists each teammate's name and depth. Never their position.
+- Treat this as a feature, not a failure mode: **design at least one puzzle per dream that is
+  easier with a player deliberately parked one level down**, so descending is sometimes the
+  clever play rather than the punished one.
+
+#### 3.2.12 What the game is allowed to lie about
+
+At depth ≥ 2, `hudTruthfulness < 1` permits the depth indicator to occasionally show the
+wrong number. Against that, every player starts with a **totem**: hold it still for two
+seconds and it reports your true depth, on a 45-second cooldown.
+
+Totem *skins* may be sold. Totem *function* may never be sold, upgraded, timed, or gated —
+see the balance guardrail in section 4. An information item that paying players read faster
+is a pay-to-win item wearing a costume.
 
 ### 3.3 Player state
 
 ```lua
-export type PlayerRuntimeState = "Lobby" | "Alive" | "Downed" | "Spectating" | "Escaped"
+export type PlayerRuntimeState = "Lobby" | "Alive" | "Downed" | "Falling" | "Kicking"
+    | "Lost" | "Awake"
+
+export type PlayerDepthState = {
+    depth: number,          -- 0..3, or DepthConfig.limboDepth
+    enteredAt: number,
+    lastKickAt: number?,
+}
 ```
 
 Stored server-side in a `PlayerStateService`. Replicated to the owning client in full and
-to other clients in a redacted form (teammate name + alive/dead only — never position,
-never inventory, never fear).
+to other clients in a redacted form (teammate name, alive/dead, and **depth as a bare
+integer** — never position, never inventory, never fear).
+
+`Downed` is a real state with a timer, not a synonym for dead: a downed player is revivable
+by a teammate at the same depth for `reviveWindow` seconds, and descends when it expires
+(3.2.3). `Lost` is Limbo. `Awake` is a resolved run. There is **no mid-round spectator
+state** — that is the point of the whole design.
 
 ### 3.4 Layers are data, not code
 
@@ -282,8 +518,11 @@ export type LayerDescriptor = {
     rooms: { RoomDescriptor },        -- Authored: fixed layout graph
     generator: GeneratorConfig?,      -- Procedural: rules for assembly
     objectives: { ObjectiveDescriptor },
+    depthFragments: { FragmentDescriptor },   -- the answers, living below (3.2.2)
     monster: MonsterProfile,
     eventTable: EventWeightTable,
+    descentPoints: { { roomId: string, propKind: string } },
+    kickPoints: { { roomId: string, requiresPartner: boolean } },
 }
 ```
 
@@ -380,17 +619,25 @@ with synthetic perception snapshots.
 | `RequestToggleFlashlight` | C→S | — | rate limit 4/s, has flashlight |
 | `RequestSubmitCode` | C→S | `puzzleId: string, code: string` | ≤ 16 chars, near puzzle, attempt cooldown |
 | `RequestQueue` / `RequestLeaveQueue` | C→S | — | state is Lobby |
-| `RequestSpectateTarget` | C→S | `userId: number` | caller is spectating, target alive |
 | `RequestPurchase` | C→S | `sku: string` | sku exists; server calls `PromptProductPurchase` |
 | `RequestEquipCosmetic` | C→S | `cosmeticId: string` | owned per server-side profile |
 | `InventorySync` | S→C | own inventory only | — |
 | `ObjectiveSync` | S→C | objective display state | — |
 | `FearSync` | S→C | own fear only | — |
+| `DepthSync` | S→C | own depth, teammate depths as integers | — |
+| `StabilitySync` | S→C | team stability | — |
 | `HorrorCue` | S→C | `cueId, params` | — |
 | `EndingCinematic` | S→C | `endingId` | — |
 
+**The dream stack adds no client→server remotes.** Bedding down, descending, kicking,
+reviving a downed teammate, the Limbo call ritual, and the wake point are all
+`ProximityPrompt` interactions on world instances, so they arrive through the existing
+`RequestInteract` and are validated by tag and distance like everything else. Reading the
+totem is `RequestUseItem` on the slot holding it. If you find yourself adding
+`RequestKickUp`, you have moved a decision to the client that belongs on the server.
+
 Notice what is absent: no `GrantCoins`, no `CompleteObjective`, no `DealDamage`, no
-`ReviveMe`. Those are server-internal.
+`ReviveMe`, no `SetDepth`. Those are server-internal.
 
 ---
 
@@ -399,48 +646,77 @@ Notice what is absent: no `GrantCoins`, no `CompleteObjective`, no `DealDamage`,
 Build **P0 completely before starting P1.** A finished P0 is worth more than a broken P2.
 
 ### P0 — Playable vertical slice (must ship)
+
+**One dream, two depths.** That is the slice. It proves the core loop; five dreams do not
+make it truer, they only make it longer.
+
 1. Rojo project builds; lint, typecheck, and tests pass.
-2. Lobby with functioning Play/queue, 10 s countdown, cancel-before-start.
-3. `MatchService` round state machine, 1–6 players, late joiners safe.
-4. Layer 1 (The House) fully built from descriptors, with one objective chain.
-5. Item + inventory system, 6 slots, server-authoritative, `ProximityPrompt` pickups.
-6. Flashlight with battery drain, flicker, and findable batteries.
-7. Monster AI with all seven states, one profile, and the linger/retreat behaviour.
-8. Fear system with heartbeat/breathing/vignette/whisper response curve.
-9. Death → spectator with player cycling; all-dead → `YOU NEVER WOKE UP` → lobby.
-10. HUD: objective, stamina, battery, fear, inventory, teammate status.
-11. DataStore save/load of coins, XP, level, with session locking and `BindToClose`.
-12. Rate limiting and validation on every remote.
-13. Mobile + gamepad input parity via `ContextActionService` and `ProximityPrompt`.
+2. Waking room with beds: lie down to ready up, plain button as the accessible equivalent,
+   10 s countdown, cancel-before-start.
+3. `MatchService` state machine including `DepthTransition`, 1–6 players, late joiners safe.
+4. Dream 1 (The House) built from descriptors at **depth 0 and depth 1**, the second produced
+   entirely by `LayerDistorter` — no second authored layout.
+5. One objective chain whose answer is a seeded fragment placed at depth 1.
+6. Descent from all three triggers, and a working kick, both through `DepthTransition`.
+7. Team-wide stability with the full ledger, the 0-stability lockout, and its audio tell.
+8. Item + inventory system, 6 slots, server-authoritative, `ProximityPrompt` pickups.
+9. Flashlight with battery drain, flicker, and findable batteries.
+10. Monster AI with all seven states, one profile, and the linger/retreat behaviour, running
+    correctly with **two layer instances alive at once**.
+11. Downed state with teammate revive, and descent when the revive window expires.
+12. Fear system with heartbeat/breathing/vignette/whisper response curve.
+13. Sedative clock, wake point, and the synchronised-kick finale.
+14. HUD: objective, stamina, battery, fear, inventory, **own depth, teammate depths**,
+    stability, sedative timer. Plus the totem.
+15. DataStore save/load of coins, XP, level, with session locking and `BindToClose`.
+16. Rate limiting and validation on every remote.
+17. Mobile + gamepad input parity via `ContextActionService` and `ProximityPrompt`.
 
 ### P1 — Full content
-14. Layers 2 (School), 3 (Endless Corridor, procedural), 4 (Hospital), 5 (Broken Dream).
-15. `RandomEventService` with the five rarity tiers.
-16. Puzzle system (codes, symbol matching, switch sequences, audio cues).
-17. Layer transitions with portals, loading screen, and per-layer lighting/audio profiles.
-18. Escape sequence: 5 dream anchors, collapse, chase, countdown, final portal.
-19. Rewards, XP curve, levels, collectibles.
-20. Three endings (Normal / Bad / Secret) with cinematic screens.
+18. Dreams 2 (School), 3 (Endless Corridor, procedural), 4 (Hospital), 5 (Broken Dream),
+    each with fragments authored for depths 1–3.
+19. Depths 2 and 3, Limbo, and the call ritual that pulls a teammate out of it.
+20. `RandomEventService` with the five rarity tiers.
+21. Puzzle system (codes, symbol matching, switch sequences, audio cues), all seed-derived.
+22. At least one puzzle per dream that is *easier* with a teammate parked one level down.
+23. Dream transitions with portals, loading screen, and per-dream lighting/audio profiles.
+24. Cross-depth teammate audio: one boundary, low-passed and delayed; two is silence.
+25. Rewards, XP curve, levels, collectibles.
+26. Three endings (Normal / Bad / Secret) with cinematic screens.
 
 ### P2 — Economy and polish
-21. Shop (flashlights, cosmetics, emotes, boosts) with `sku`-driven catalogue.
-22. Gamepasses (VIP, Extra Emotes, Premium Flashlight, Cosmetic Pack).
-23. Developer products (Revive, Coin Pack, XP Boost, Temporary Protection) + `ProcessReceipt`.
-24. VIP perks: nametag, cosmetic, flashlight skin, lobby area, emotes. **No gameplay advantage.**
-25. Secrets, hidden rooms, mysterious lobby NPC dialogue, daily reward.
-26. Private-server compatibility (`game.PrivateServerId ~= ""` → same rules, saving intact).
+27. Shop (flashlights, totem skins, cosmetics, emotes, boosts) with `sku`-driven catalogue.
+28. Gamepasses (VIP, Extra Emotes, Premium Flashlight, Cosmetic Pack).
+29. Developer products (Revive, Coin Pack, XP Boost, Temporary Protection) + `ProcessReceipt`.
+30. VIP perks: nametag, cosmetic, flashlight skin, totem skin, waking-room area, emotes.
+    **No gameplay advantage.**
+31. Secrets, hidden rooms, mysterious NPC dialogue in the waking room, daily reward.
+32. Nightmare modifiers: a `ModifierDescriptor` layer over the existing descriptors
+    (*No Flashlight*, *Two Monsters*, *Silent Monster*, *Fragile*, *Inverted*), rotating on a
+    seed derived from the week number. Zero new art, zero new levels, a different game weekly.
+33. Private-server compatibility (`game.PrivateServerId ~= ""` → same rules, saving intact).
 
 ### Balance guardrail
 A player who has spent nothing must be able to reach every ending. Paid items may only grant
 convenience (a second revive, faster battery recharge, cosmetics, XP rate). No paid item may
 increase damage, reduce monster detection, or unlock content gates.
 
+Three additions this design makes explicit, because they are the tempting ones:
+**stability may not be bought**, **kicks may not be discounted**, and **the totem's function
+may not be improved**. Information and mobility are the two things depth costs you; selling
+either sells the game.
+
 ---
 
 ## 5. Content spec per layer
 
-For each layer, produce a `LayerDescriptor` plus its prop kinds. Keep the descriptions below
+For each dream, produce a `LayerDescriptor` plus its prop kinds. Keep the descriptions below
 as design intent — the implementation is data.
+
+**Everything here describes depth 0.** Depths 1–3 of each dream are generated from these same
+descriptors by `LayerDistorter` (3.2.2) and are never authored by hand. What *is* authored per
+dream is its `depthFragments`: the answers, and which level down each one lives on. When you
+read "objective pool" below, assume each objective's answer is a fragment somewhere beneath it.
 
 **Layer 1 — The House.** Bedroom, hallway, kitchen, bathroom, living room, basement, yard.
 Starts ordinary. Abnormalities escalate on an objective-progress clock, not a wall clock:
@@ -472,11 +748,15 @@ one raises fear and attracts the monster. Two monster profiles active, more aggr
 
 **Layer 5 — The Broken Dream.** Reality failing: floating rooms, inverted buildings, stairs
 that connect impossibly, duplicated props, a distorted skybox, fragments of Layers 1–4
-appearing in the void. Objective: activate 5 dream anchors. On the fifth, the collapse
-begins — a 90 s countdown, geometry destroyed progressively behind the players, a permanent
-chase, and a final portal. Reaching it is the Normal Ending. Failing the countdown is the
-Bad Ending. Having collected the hidden collectibles across all layers opens a sixth anchor
-and the Secret Ending.
+appearing in the void. Objective: activate 5 dream anchors, whose sequence is a
+fragment held at depth 3. On the fifth, the collapse begins — a 90 s countdown, geometry
+destroyed progressively behind the players, a permanent chase, and the wake point. Everyone
+reaching it and kicking together (3.2.8) is the Normal Ending. Failing the countdown, or
+kicking while a teammate is still deep, is the Bad Ending. Having collected the hidden
+collectibles across all dreams opens a sixth anchor and the Secret Ending.
+
+This is also the one place where descent is not a setback but the intended route: the fifth
+anchor cannot be reached from the surface at all.
 
 ---
 
@@ -510,14 +790,18 @@ use a dedicated invisible emitter). Every sound ID may be empty; the game must s
 Every tunable value lives in `shared/Config/`, one module per domain, all `--!strict`, all
 exporting a frozen table with a documented type:
 
-`GameConfig` · `LayerConfig` · `MonsterConfig` · `ItemConfig` · `ShopConfig` ·
+`GameConfig` · `LayerConfig` · `DepthConfig` · `MonsterConfig` · `ItemConfig` · `ShopConfig` ·
 `ProductConfig` · `FearConfig` · `FlashlightConfig` · `AssetConfig` · `EventConfig` ·
 `RewardConfig` · `DebugConfig`
 
+`DepthConfig` owns everything in 3.2: `maxDepth`, `limboDepth`, `sedativeSeconds`, the
+stability table, kick costs, `reviveWindow`, `maxConcurrentLayers`, `layerYSpacing`,
+`layerDestroyGraceSeconds`, and the per-depth distortion curve.
+
 Rules:
 - No magic numbers anywhere else in the codebase. If a number affects gameplay, it is in a config.
-- `DebugConfig` exposes `forceSeed`, `skipToLayer`, `disableMonster`, `infiniteBattery`,
-  `verboseLogging`. All default `false`/`nil` and are ignored unless the place is in Studio
+- `DebugConfig` exposes `forceSeed`, `skipToLayer`, `forceDepth`, `disableMonster`,
+  `infiniteBattery`, `infiniteStability`, `verboseLogging`. All default `false`/`nil` and are ignored unless the place is in Studio
   (`RunService:IsStudio()`).
 - Configs are validated at startup by a `ConfigValidator` that errors loudly on a malformed
   entry rather than failing silently mid-round.
@@ -551,6 +835,19 @@ Add `game/scripts/check.sh` running all five. Unit tests must cover, at minimum:
 - receipt idempotency: the same `PurchaseId` grants once across simulated retries.
 - data migration: a v1 profile upgrades to the current schema with no field loss.
 - rate limiter: a burst above budget is rejected and recovers after the window.
+- distortion: `Distortion.forDepth` is monotonic in the fields that should be (light range
+  falls, monster speed rises), clamped at `maxDepth`, and identical for identical input.
+- layer distorter: `LayerDistorter.apply(d, 0, seed)` returns a descriptor equivalent to `d`;
+  the same `(d, depth, seed)` always produces an identical table; room and doorway counts are
+  preserved so a distorted layer is never made unreachable.
+- fragment placement: every objective that requires a fragment has exactly one reachable
+  fragment placed at some depth ≥ 1; two different seeds produce two different payloads.
+- stability ledger: a pure `applyEvent(stability, event) -> stability` clamps to 0–100,
+  and a scripted sequence of failures reaches 0 in the expected number of steps.
+- kick legality: a kick is refused at 0 stability, refused from Limbo, always available at
+  depth ≥ 1 with stability, and raises depth by exactly one.
+- descent: all three triggers produce the same depth delta; descending from `maxDepth`
+  yields Limbo; nothing descends past Limbo.
 
 Target: **≥ 40 assertions across ≥ 8 suites.** Tests that only assert `require` succeeded do
 not count.
@@ -594,17 +891,19 @@ run the automated checks and commit before continuing.
 | # | Milestone | Definition of done |
 |---|---|---|
 | M1 | Tooling + architecture skeleton | `rojo build` succeeds; lint/typecheck/test commands run; service lifecycle, Remotes, Trove, Rng, scheduler, configs exist and are tested |
-| M2 | Lobby + match state machine | 1–6 players queue, count down, cancel, transition; late join safe; round state unit-tested |
-| M3 | Layer 1 + builder + props | `LayerDescriptor` → instances; House playable end to end; part budget met |
-| M4 | Items, inventory, interactions, objectives | Full objective chain completable solo; all server-validated |
-| M5 | Monster AI + fear + flashlight | Brain unit-tested; linger behaviour observable; fear effects tuned |
-| M6 | Death, spectator, game over | All-dead path returns to lobby cleanly with zero leaked connections |
-| M7 | Layers 2–5 + procedural corridor + events | Seeded generation tested; all five layers reachable |
-| M8 | Data, rewards, XP, levels | Session locking, migration, `BindToClose` verified |
-| M9 | Shop, gamepasses, products, revive | Works fully with all IDs set to `0` |
-| M10 | Secrets, endings, replayability | Three endings reachable; collectibles persist |
-| M11 | Mobile/console, optimization, security pass | Budgets measured; checklist in §9 signed off |
-| M12 | Polish + documentation | README, TESTING.md, config documentation complete |
+| M2 | Waking room + match state machine | 1–6 players bed down, count down, cancel, transition; late join safe; round state unit-tested |
+| M3 | Dream 1 + builder + props | `LayerDescriptor` → instances; the House playable end to end at depth 0; part budget met |
+| M4 | Distortion + depth 1 | `Distortion` and `LayerDistorter` pure and unit-tested; depth 1 built from the same descriptor; two layers alive at once inside budget |
+| M5 | Descent, kick, stability | All three descent triggers, kick, the stability ledger, and the 0-stability lockout; every rule in 3.2 unit-tested |
+| M6 | Items, inventory, interactions, objectives, fragments | Objective chain completable solo, requiring a real descent to find its seeded fragment; all server-validated |
+| M7 | Monster AI + fear + flashlight | Brain unit-tested; linger behaviour observable; N brains staggered across frames; downed → revive → descent path clean with zero leaked connections |
+| M8 | Sedative clock + waking | Timer, wake point, synchronised kick, Limbo, the call ritual, and the three run resolutions |
+| M9 | Dreams 2–5, depths 2–3, procedural corridor, events | Seeded generation tested; all five dreams and every depth reachable |
+| M10 | Data, rewards, XP, levels | Session locking, migration, `BindToClose` verified |
+| M11 | Shop, gamepasses, products, revive | Works fully with all IDs set to `0` |
+| M12 | Secrets, endings, modifiers, replayability | Three endings reachable; collectibles persist; modifier rotation deterministic |
+| M13 | Mobile/console, optimization, security pass | Budgets measured with three concurrent layers; checklist in §9 signed off |
+| M14 | Polish + documentation | README, TESTING.md, config documentation complete |
 
 Commit message format: `M<n>: <what changed>`. One milestone per commit minimum, more is fine.
 Never commit a state where `check.sh` fails.
@@ -644,10 +943,13 @@ The project is complete when **all** of the following hold:
 7. Grep confirms exactly one `ProcessReceipt` assignment and one `Heartbeat` connection per side.
 
 **Human-verifiable (documented in `TESTING.md`, not claimed as tested):**
-8. The 20-step player journey — join lobby, start, Layer 1 through 5, explore, collect,
-   complete objectives, encounter events and the monster, die or survive, spectate, revive,
-   reach an ending, receive rewards, return to lobby, save, rejoin with progress intact,
-   purchase safely, replay with a different experience — is walkable in Studio.
+8. The full player journey — enter the waking room, lie down, go under, explore dream 1,
+   fail a puzzle and *fall* rather than die, find the fragment below, kick back up, apply it,
+   watch stability drop, be downed and revived, be downed and not revived, reach Limbo and be
+   pulled out, advance through dreams 2–5, encounter events and the monster at more than one
+   depth simultaneously, reach the wake point, kick together, receive rewards, return to the
+   waking room, save, rejoin with progress intact, purchase safely, and replay to find the
+   seeded answers are different — is walkable in Studio.
 
 **Reported honestly:**
 9. `game/README.md` states exactly what was implemented, what was stubbed and why, which
