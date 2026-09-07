@@ -1,0 +1,25 @@
+# Anything here would be copied into the build context and then thrown away, or — worse —
+# baked into the image. node_modules is the expensive one: it is reinstalled from the lockfile
+# inside the image, and copying a host tree in would ship the host's platform binaries.
+node_modules
+**/node_modules
+dist
+dist-*
+
+# Release artifacts and store packaging output. The signing key must never enter an image.
+packaging/**/*.keystore
+packaging/**/*.jks
+packaging/**/*.apk
+packaging/**/*.aab
+packaging/meta-quest/app
+packaging/meta-quest/build
+packaging/meta-quest/.gradle
+packaging/steam/steamworks
+
+.git
+.github
+coverage
+*.log
+data/*.json
+.env
+.env.*
