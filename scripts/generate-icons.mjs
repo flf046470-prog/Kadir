@@ -21,6 +21,7 @@ import { markSvg } from "./brand-mark.mjs";
  */
 
 const OUT = join(process.cwd(), "public", "icons");
+const PUBLIC = join(process.cwd(), "public");
 
 const targets = [
   { file: "icon-192.png", size: 192, scale: 0.78 },
@@ -40,3 +41,18 @@ for (const target of targets) {
   await writeFile(join(OUT, target.file), png);
   console.log(`${target.file}  ${png.length} bytes`);
 }
+
+/**
+ * The favicon, written rather than hand-kept.
+ *
+ * It held its own copy of the path — a third one, beside the generator and the
+ * header lockup — so the tab icon and the app icon were only the same flower
+ * for as long as somebody remembered to edit both. Now it is an output.
+ *
+ * Transparent ground: this is what a browser tab, a bookmark bar and a Windows
+ * tile all draw their own background behind, and the mark reads on light and
+ * dark alike.
+ */
+const favicon = markSvg({ width: 64, scale: 1 });
+await writeFile(join(PUBLIC, "icon.svg"), `${favicon}\n`);
+console.log(`icon.svg  ${favicon.length} bytes`);

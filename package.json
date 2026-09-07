@@ -17,6 +17,7 @@
     "db:normalise-places": "tsx scripts/normalise-places.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "capture": "node scripts/capture.mjs",
+    "icons": "node scripts/generate-icons.mjs",
     "translate:stub": "node scripts/translate-stub.mjs",
     "store:check": "node scripts/store-check.mjs",
     "cost-model": "node scripts/cost-model.mjs",

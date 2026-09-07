@@ -44,13 +44,23 @@
   </head>
   <body>
     <main>
-      <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
+      <!--
+        The mark, inline.
+
+        It is a copy of what `scripts/brand-mark.mjs` draws, which is normally
+        the thing to avoid — but the whole point of this page is that it works
+        with no network, and an <img> pointing at the icon would be a request
+        at exactly the moment there is nothing to serve it. So the copy stays,
+        and `src/components/Logo.test.ts` asserts it still matches the
+        generator, which turns "somebody has to remember" into a failing test.
+      -->
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true">
         <defs>
-          <linearGradient id="g" x1="4.5" y1="4.5" x2="27.5" y2="24.5" gradientUnits="userSpaceOnUse">
-            <stop stop-color="#fb6f92" /><stop offset="1" stop-color="#8360f5" />
+          <linearGradient id="g" x1="5" y1="4" x2="27" y2="27" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#fb6f92" /><stop offset="1" stop-color="#9a7bfa" />
           </linearGradient>
         </defs>
-        <path d="M14 24.5s-9.5-5.86-9.5-13.02C4.5 7.4 7.55 4.5 11.1 4.5c1.99 0 3.7 1 4.9 2.62A6.02 6.02 0 0 1 20.9 4.5c3.55 0 6.6 2.9 6.6 6.98C27.5 18.64 18 24.5 14 24.5Z" fill="url(#g)" />
+        <path d="M16 15A6.73 6.73 0 0 1 16 3.8A6.73 6.73 0 0 1 16 15ZM16.95 15.69A6.73 6.73 0 0 1 27.6 12.23A6.73 6.73 0 0 1 16.95 15.69ZM16.59 16.81A6.73 6.73 0 0 1 23.17 25.87A6.73 6.73 0 0 1 16.59 16.81ZM15.41 16.81A6.73 6.73 0 0 1 8.83 25.87A6.73 6.73 0 0 1 15.41 16.81ZM15.05 15.69A6.73 6.73 0 0 1 4.4 12.23A6.73 6.73 0 0 1 15.05 15.69Z" fill="url(#g)" />
       </svg>
 
       <h1>You're offline</h1>

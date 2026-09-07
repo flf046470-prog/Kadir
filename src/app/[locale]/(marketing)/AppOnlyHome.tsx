@@ -1,4 +1,5 @@
 import { Link } from "@/i18n/navigation";
+import { BrandMark } from "@/components/BrandMark";
 
 /**
  * What the bare domain shows when the marketing site is switched off.
@@ -26,18 +27,7 @@ export function AppOnlyHome({
 }) {
   return (
     <section className="container-fm flex min-h-[70vh] max-w-lg flex-col items-center justify-center py-20 text-center">
-      <svg viewBox="0 0 28 28" className="h-14 w-14" aria-hidden="true">
-        <defs>
-          <linearGradient id="mark" x1="4.5" y1="4.5" x2="27.5" y2="24.5" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#fb6f92" />
-            <stop offset="1" stopColor="#8360f5" />
-          </linearGradient>
-        </defs>
-        <path
-          fill="url(#mark)"
-          d="M14 24.5s-9.5-5.86-9.5-13.02C4.5 7.4 7.55 4.5 11.1 4.5c1.99 0 3.7 1 4.9 2.62A6.02 6.02 0 0 1 20.9 4.5c3.55 0 6.6 2.9 6.6 6.98C27.5 18.64 18 24.5 14 24.5Z"
-        />
-      </svg>
+      <BrandMark gradientId="fm-apponly-grad" className="h-14 w-14" />
 
       <h1 className="mt-6 font-display text-3xl font-semibold text-ink">FioreMatch</h1>
       <p className="mt-2 text-lg text-ink/70">{labels.tagline}</p>
