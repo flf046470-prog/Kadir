@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
+import { loadLocalEnv } from "@/lib/env";
 import { db } from "@/db/client";
 import { register } from "@/auth/accounts";
 import { createSession } from "@/auth/session";
@@ -291,7 +292,17 @@ async function create(character: Character): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
+  // tsx starts a plain Node process, so nothing has read `.env.local` yet —
+  // and that is where `.env.example` tells you to put `DATABASE_URL`. Without
+  // this, the very first command in `capture.mjs`'s instructions threw
+  // "DATABASE_URL is not set" at an operator who had set it.
+  loadLocalEnv();
+
+  if (!process.env.DATABASE_URL) {
+    throw new Error(
+      "DATABASE_URL is not set. Copy .env.example to .env.local and set it, or export it."
+    );
+  }
 
   /**
    * A guard, not a formality.
