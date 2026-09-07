@@ -16,6 +16,19 @@ import type { ReactNode } from "react";
  * Sticky needs an ancestor that scrolls but does not clip, which is why the
  * wrapper sets no `overflow`. Adding one anywhere above this breaks the effect
  * silently — the cards simply scroll away as normal.
+ *
+ * **`--n` is what lets the pile recede.** Sticky alone gathers the cards, but
+ * a gathered pile of opaque cards on a near-white page is indistinguishable
+ * from one card: the last one lands on top and the two beneath it are a pair
+ * of 14px slivers of white on white. So the card underneath has to *recede* —
+ * scale back and dim — as the next one covers it, and that needs each card to
+ * know its share of the section's travel. `--i` gives it its place in the
+ * deck; `--n` gives it the size of the deck; the surrounding `ScrollScene`
+ * gives it `--scene`, and the arithmetic happens in the stylesheet.
+ *
+ * Without a `ScrollScene` above it, `--scene` defaults to its finished value
+ * and the deck is a plain sticky stack — which is exactly what it was before,
+ * so the component stays usable on its own.
  */
 export function StackCards({
   children,
@@ -25,7 +38,7 @@ export function StackCards({
   className?: string;
 }) {
   return (
-    <div className={`fm-stack ${className}`}>
+    <div className={`fm-stack ${className}`} style={{ "--n": children.length } as React.CSSProperties}>
       {children.map((child, index) => (
         <div key={index} className="fm-stack__item" style={{ "--i": index } as React.CSSProperties}>
           {child}

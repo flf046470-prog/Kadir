@@ -192,7 +192,42 @@
 
   .fm-stack__item {
     position: sticky;
-    top: calc(5.5rem + var(--i) * 0.9rem);
+    top: calc(5.5rem + var(--i) * 1.35rem);
+  }
+
+  /* The card underneath recedes as the next one lands on it.
+
+     Sticky on its own gathers the deck but does not *show* a deck. The cards
+     are opaque and the page ground is nearly white, so three gathered cards
+     rendered as one card with a pair of pale slivers behind it — which reads
+     as "the other two vanished", not as a pile. The reader loses steps 01 and
+     02 at exactly the moment the section is trying to say the three
+     accumulate.
+
+     So each card scales back and dims once its share of the section's travel
+     has passed. That is the same arithmetic `.fm-scrub__word` runs on the same
+     `--scene`: no second scroll listener, no new timeline API, and the same
+     fallback — with no scene above it the value rests at its finished state,
+     every card sits at full size, and the deck is the plain sticky stack it
+     was before.
+
+     Progress runs 0 to n-1 rather than 0 to n, which is what keeps the top of
+     the pile at full strength: at the end of the window card n-1 has had
+     nothing land on it, so its `--covered` is exactly 0. Scaling by n instead
+     left every card — including the one the reader is looking at — sitting
+     permanently dimmed.
+
+     Applied to the child rather than the sticky box itself: a transform on a
+     `position: sticky` element is legal, but it also makes that element a
+     containing block for fixed descendants and shifts what `top` is measured
+     against in some engines. Moving it one level in leaves the stickiness
+     untouched and animates only the card's own face. */
+  .fm-stack__item > * {
+    --covered: clamp(0, calc(var(--scene, 0) * (var(--n, 1) - 1) - var(--i)), 1);
+    transform: scale(calc(1 - var(--covered) * 0.045));
+    opacity: calc(1 - var(--covered) * 0.4);
+    transform-origin: top center;
+    will-change: transform, opacity;
   }
 
   /* The hero pulling back as you leave it: a slow scale-down and fade, the
@@ -226,6 +261,11 @@
 
   .fm-stack__item {
     position: static !important;
+  }
+
+  .fm-stack__item > * {
+    transform: none !important;
+    opacity: 1 !important;
   }
 
   .fm-scene-depart,

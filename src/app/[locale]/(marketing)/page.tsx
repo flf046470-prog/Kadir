@@ -144,18 +144,30 @@ export default async function HomePage({
           </div>
         </Reveal>
 
-        <StackCards className="mt-12">
-          {steps.map((step) => (
-            <div
-              key={step.n}
-              className="card-fm border-black/[0.07] shadow-lg shadow-black/[0.06] sm:p-8"
-            >
-              <span className="font-display text-3xl text-bloom-300">{step.n}</span>
-              <h3 className="mt-4 text-xl font-semibold text-ink">{step.title}</h3>
-              <p className="mt-2 max-w-2xl text-ink/70">{step.body}</p>
-            </div>
-          ))}
-        </StackCards>
+        {/* The scene wraps the deck alone, not the heading above it.
+
+            Gathering is only half the effect: the card being covered has to
+            recede as well, or three opaque cards on a near-white ground pile
+            into something that reads as one card and the reader loses steps 01
+            and 02. That recede has to be keyed to the *pile forming*, which
+            happens in the middle of the deck's travel — with the scene
+            measured across the whole section it was already saturated at 1
+            before the first card had even pinned, so every card was dimmed
+            before the reader reached it. Hence the window. */}
+        <ScrollScene from={0.45} to={0.78} rest={0}>
+          <StackCards className="mt-12">
+            {steps.map((step) => (
+              <div
+                key={step.n}
+                className="card-fm border-black/[0.07] shadow-lg shadow-black/[0.06] sm:p-8"
+              >
+                <span className="font-display text-3xl text-bloom-300">{step.n}</span>
+                <h3 className="mt-4 text-xl font-semibold text-ink">{step.title}</h3>
+                <p className="mt-2 max-w-2xl text-ink/70">{step.body}</p>
+              </div>
+            ))}
+          </StackCards>
+        </ScrollScene>
       </section>
 
       <ScrollScene as="section" className="fm-stage fm-grain fm-dissolve py-28 text-white">
