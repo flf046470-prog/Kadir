@@ -30,7 +30,9 @@
     "store:appstore": "node mobile/app-store/screenshots.mjs",
     "store:assets": "npm run store:play && npm run store:appstore && npm run store:microsoft",
     "store:microsoft": "node mobile/microsoft-store/screenshots.mjs",
-    "store:microsoft:assets": "node mobile/microsoft-store/assets.mjs"
+    "store:microsoft:assets": "node mobile/microsoft-store/assets.mjs",
+    "store:steam": "node mobile/steam/assets.mjs",
+    "store:meta": "node mobile/meta-store/assets.mjs"
   },
   "overrides": {
     "sharp": "^0.35.3",

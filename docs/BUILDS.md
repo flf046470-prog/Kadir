@@ -16,9 +16,9 @@ Written after producing them rather than before, so what is below has been run.
 | Android APK (sideload, testing) | ✅ signed | `./gradlew :app:assembleRelease` |
 | iOS | ⚠️ project only | needs macOS + Xcode to archive |
 | Microsoft Store (MSIX) | ⚠️ assets only | needs PWABuilder or Windows |
-| Meta Quest | ❌ | needs Unity |
+| Meta Quest | ⚠️ store art only | needs Unity for the build |
 | Windows PC VR | ❌ | needs Unity |
-| Steam | ❌ | needs Unity **and** a Steamworks account |
+| Steam | ⚠️ store art only | needs a build **and** a Steamworks account |
 | Epic | ❌ | needs Unity **and** an Epic publisher account |
 
 The four VR rows are one blocker, not four: there is no Unity project in this
@@ -61,14 +61,15 @@ Outputs land in `app/build/outputs/`. Verified from this repository:
 | --- | --- |
 | Application id | `com.fiorematch.app` |
 | Version | `1.0` (versionCode 1) |
-| Bundle | 4.0 MB, signed, `META-INF/UPLOAD.RSA` present |
+| Bundle | 4.0 MB. Signed only when a keystore is in the environment — see below |
 | ABIs | arm64-v8a, armeabi-v7a, x86, x86_64 |
 
 **The keystore is never in this repository, and the build reflects that.** The
 signing config reads `ANDROID_KEYSTORE_PATH` from the environment; unset, the
-build still succeeds and produces an *unsigned* bundle. That is deliberate —
-someone building to look at the app should not need a signing key — but it means
-"the build worked" is not the same as "the artefact is uploadable". Check for the
+build still succeeds and produces an *unsigned* bundle, and the APK renames
+itself `app-release-unsigned.apk` to say so. That is deliberate — someone
+building to look at the app should not need a signing key — but it means "the
+build worked" is not the same as "the artefact is uploadable". Check for the
 signature before trusting one:
 
 ```bash
@@ -77,19 +78,31 @@ $ANDROID_HOME/build-tools/*/apksigner verify --print-certs \
   app/build/outputs/apk/release/app-release.apk
 ```
 
+**`ANDROID_HOME` must be set**, or Gradle fails at
+`:app:bundleReleaseResources` with "SDK location not found" — which reads like
+a broken project and is only a missing variable:
+
+```bash
+export ANDROID_HOME=/opt/android-sdk   # wherever the SDK actually is
+```
+
 ### Last steps
 
-1. **Bump `versionCode`** in `mobile/android/app/build.gradle`. Play refuses a
+1. **Sign it.** The bundle in `app/build/outputs/bundle/release/` is current
+   with the app icon and the site, and is *unsigned* — this environment holds
+   no keystore and must not. Rebuild with `ANDROID_KEYSTORE_PATH` and the two
+   passwords set, on a machine that has the key.
+2. **Bump `versionCode`** in `mobile/android/app/build.gradle`. Play refuses a
    bundle whose code is not higher than the last one uploaded, and it is the one
    thing here that cannot be derived.
-2. **Enrol in Play App Signing.** The key above is the *upload* key; Google
+3. **Enrol in Play App Signing.** The key above is the *upload* key; Google
    re-signs with the app key it holds. Losing the upload key is recoverable,
    losing an app key is not — which is the whole reason for the split.
-3. **Set `ANDROID_CERT_FINGERPRINTS`** on the deployment to the SHA-256 of the
+4. **Set `ANDROID_CERT_FINGERPRINTS`** on the deployment to the SHA-256 of the
    certificate Play signs with — not the upload one, once App Signing is on.
    `/.well-known/assetlinks.json` 404s until it is set, and a wrong value is
    worse than none: deep links stop opening the app and nothing reports it.
-4. `npm run store:check`, then the checklist in
+5. `npm run store:check`, then the checklist in
    `mobile/play-store/submission.md`.
 
 ---
@@ -146,3 +159,26 @@ screenshots are older than the copy they show. Exits non-zero on a blocker.
 It cannot confirm that a store's current requirements are what the listings
 assume — §51 is explicit about not making that assumption, and the report says so
 on every run. That part is a person reading each store's documentation.
+
+---
+
+## Steam and the Meta Horizon Store
+
+Both now have their **store art** generated, and neither has a build.
+
+```bash
+npm run store:steam   # 11 images at Valve's sizes  -> mobile/steam/assets/
+npm run store:meta    #  6 images at Meta's sizes   -> mobile/meta-store/assets/
+```
+
+The art is drawn from `scripts/brand-mark.mjs` like every other image here, so
+the capsules cannot drift from the app icon.
+
+What is missing in both cases is an executable: Steam distributes a desktop
+binary and the Horizon Store distributes a headset APK, and FioreMatch has
+neither. Each folder's `submission.md` sets out what the build would be, what
+the accounts cost, and — for both — the store-policy question that should be
+answered before any fee is paid rather than during review.
+
+Neither is on the critical path. `docs/LAUNCH_ORDER.md` puts them in Stage 6,
+after there are members.
