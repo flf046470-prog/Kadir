@@ -685,26 +685,145 @@ make it truer, they only make it longer.
 26. Three endings (Normal / Bad / Secret) with cinematic screens.
 
 ### P2 — Economy and polish
-27. Shop (flashlights, totem skins, cosmetics, emotes, boosts) with `sku`-driven catalogue.
-28. Gamepasses (VIP, Extra Emotes, Premium Flashlight, Cosmetic Pack).
-29. Developer products (Revive, Coin Pack, XP Boost, Temporary Protection) + `ProcessReceipt`.
-30. VIP perks: nametag, cosmetic, flashlight skin, totem skin, waking-room area, emotes.
-    **No gameplay advantage.**
+27. Shop with a `sku`-driven catalogue, every entry declaring its `category` (4.1).
+28. Gamepasses — the nine in 4.2. **`ProcessReceipt` assigned exactly once**, in one module.
+29. Developer products — the two in 4.3, plus the receipt-idempotency machinery.
+30. The Nightmare Pass season track (4.4), free and paid lanes, cosmetics only.
 31. Secrets, hidden rooms, mysterious NPC dialogue in the waking room, daily reward.
 32. Nightmare modifiers: a `ModifierDescriptor` layer over the existing descriptors
     (*No Flashlight*, *Two Monsters*, *Silent Monster*, *Fragile*, *Inverted*), rotating on a
     seed derived from the week number. Zero new art, zero new levels, a different game weekly.
 33. Private-server compatibility (`game.PrivateServerId ~= ""` → same rules, saving intact).
 
-### Balance guardrail
-A player who has spent nothing must be able to reach every ending. Paid items may only grant
-convenience (a second revive, faster battery recharge, cosmetics, XP rate). No paid item may
-increase damage, reduce monster detection, or unlock content gates.
+---
 
-Three additions this design makes explicit, because they are the tempting ones:
-**stability may not be bought**, **kicks may not be discounted**, and **the totem's function
-may not be improved**. Information and mobility are the two things depth costs you; selling
-either sells the game.
+## 4.1 The balance guardrail, as a test rather than a hope
+
+A player who has spent nothing must be able to reach every ending. That sentence is easy to
+agree with and easy to violate, so here it is as something you can actually apply:
+
+> **The observer test.** Put two players in the same round: one has spent nothing, one has
+> bought everything. An observer watching *the round* — not the lobby, not the results
+> screen — must not be able to tell which is which from what happens.
+
+Anything that fails that test is forbidden no matter how it is priced, bundled, or named.
+
+**The three permitted categories.** Every purchasable entry declares exactly one:
+
+| `category` | What it may touch | Example |
+|---|---|---|
+| `Appearance` | How you and your things look, to you and to others | Totem skin, sleepwear, nameplate |
+| `OwnHistory` | Information about runs **you have already finished** | Dream Journal |
+| `OutOfRoundRate` | How fast cosmetic currency and levels accrue | Double coins, XP boost |
+
+There is no fourth category. If an idea needs one, it fails the test.
+
+**Machine-checked, not reviewed.** `ConfigValidator` rejects the build when any catalogue
+entry declares a category outside those three, when a paid entry sets
+`grantsGameplayAdvantage`, or when a developer product declares anything but
+`OutOfRoundRate`. A guardrail nobody enforces is a comment.
+
+### Why `OwnHistory` is narrow on purpose
+
+The Dream Journal may show which dreams you have cleared, your personal bests, and the
+fragments you personally found **in runs that are already over**. It may never show anything
+about the round in progress, and it may never show a fragment's location for the current
+seed. Fragment payloads are derived from the round seed precisely so that knowledge cannot be
+looked up (3.2.2); selling a lookup would undo the single strongest replayability lever in
+the project.
+
+---
+
+## 4.2 Gamepasses
+
+Nine, all one-time and permanent. Every id lives in `AssetConfig.gamepasses`, defaults to
+`0`, and the game must be fully playable with all of them unset.
+
+| Pass | Grants | `category` |
+|---|---|---|
+| **VIP** | Nameplate, chat colour, a private alcove with your own bed in the waking room, one exclusive emote, +25% coins | `Appearance` + `OutOfRoundRate` |
+| **Sleepwear Pack** | Outfit set — pyjamas, hospital gown, nightshirt, bare feet | `Appearance` |
+| **Totem Collection** | Totem skins. Identical read time, identical cooldown, identical truth | `Appearance` |
+| **Flashlight Skins** | Housing and beam colour. **No** range, battery, or detection change | `Appearance` |
+| **Emote Pack** | Extra emotes, usable in the waking room and mid-dream | `Appearance` |
+| **Dream Journal** | Your finished-run history, per 4.1 | `OwnHistory` |
+| **Waking Room Décor** | Decorate your bed area; other players see it | `Appearance` |
+| **Double Coins** | Coin rate, stacking additively with VIP, capped at ×2 total | `OutOfRoundRate` |
+| **Founder's Mark** | Time-limited on sale, permanent once owned: nameplate and badge | `Appearance` |
+
+### One deliberate removal: the Premium Flashlight tier
+
+Earlier drafts sold a flashlight tier with up to 20% more range, capped by the guardrail.
+**Cut it.** It fails the observer test outright — the paid player's light visibly reaches
+further, in the round, in front of everyone.
+
+All three tiers (Basic, Advanced, Premium) stay in the game and stay findable as loot. What
+is sold is the *skin*. This costs one revenue line and buys the only thing that makes the
+other eight defensible.
+
+---
+
+## 4.3 Developer products
+
+**No developer product may affect a round in progress.** Two survive that rule:
+
+| Product | Grants | `category` |
+|---|---|---|
+| **Coin Pack** | Cosmetic currency | `OutOfRoundRate` |
+| **XP Boost** | Doubles XP for a period | `OutOfRoundRate` |
+
+### Two deliberate removals
+
+**Revive.** Under the dream stack a downed player who is not revived does not die — they
+descend (3.2.3). So a purchased revive is not a second chance at life, it is a **purchased
+kick**, and 4.5 forbids selling mobility. This is the clearest example of the redesign
+invalidating an old monetization assumption; resolve it by removing the product, not by
+carving an exception.
+
+**Temporary Protection.** Reducing the monster's interest in you is exactly the thing the
+guardrail names. It was never defensible.
+
+Receipt handling is unchanged and non-negotiable: exactly one `ProcessReceipt` assignment,
+`PurchaseId` recorded in the same `UpdateAsync` that grants, `NotProcessedYet` on any failure.
+
+---
+
+## 4.4 The Nightmare Pass
+
+A season track that rotates with the weekly modifier (P2 item 32), with a free lane and a
+paid lane. **Cosmetics only, in both lanes.** Progress comes from playing: dreams cleared,
+teammates revived, fragments found, wakes survived.
+
+This is the commercially serious part of the catalogue, and it is fully compliant, because a
+cosmetic track rewards time rather than selling advantage. Note the honest trade: a game that
+refuses to sell power earns less per paying player and must earn it back on volume and
+retention. That is the deal this specification is making on purpose.
+
+Private servers are Roblox's own feature and a separate revenue line; P2 item 33 already
+requires that a private server run identical rules with saving intact.
+
+---
+
+## 4.5 Forbidden, with reasons
+
+Not a style preference. Each of these has been considered and rejected:
+
+| Forbidden | Why |
+|---|---|
+| Extra inventory slot | Six slots is a puzzle constraint (3.5), not a convenience limit |
+| Second totem, or a faster totem read | Information is what depth costs you (3.2.12) |
+| Stability top-up | Stability *is* the run's difficulty (3.2.5) |
+| Cheaper, free, or extra kicks | Mobility is the other thing depth costs you (3.2.4) |
+| A starting item, key, or fragment | Skips the objective chain |
+| Reduced monster detection, or damage changes | Named in the original guardrail |
+| Skipping a depth or a dream | A content gate by another name |
+| Choosing or rerolling the weekly modifier | Everyone plays the same week |
+| Seeing a teammate's position, or depth beyond what all players see | 3.2.11 shows names and depth, never position |
+| Paid loot boxes or randomised crates | Roblox policy, and the audience is 13+ |
+| Anything priced in Robux that changes a live round | The observer test, restated |
+
+If a proposed item is not on this list and not obviously in one of the three categories,
+it is forbidden by default. The burden is on the item.
 
 ---
 
@@ -771,10 +890,12 @@ heartbeat and breathing audio, a slow vignette, mild chromatic aberration, occas
 peripheral whisper, and above 90 a rare hallucination (a false monster that despawns silently
 and never damages). Never blur the screen to the point of unplayability. Never lock input.
 
-**Flashlight.** Three tiers — Basic, Advanced, VIP — differing in battery capacity, beam
-range, and recharge convenience only. Range difference between Basic and VIP ≤ 20%. Drains
-only while on, flickers below 15%, dies at 0 but recharges slowly when off. Batteries spawn
-per layer via the seeded loot table. A lit flashlight aimed at the monster increases its
+**Flashlight.** Three tiers — Basic, Advanced, Premium — differing in battery capacity, beam
+range, and recharge convenience. **All three are findable loot; none is purchasable** (4.2).
+What is sold is the skin: housing and beam colour, with range, battery, and detection
+identical across every skin. Drains only while on, flickers below 15%, dies at 0 but
+recharges slowly when off. Batteries and the better tiers spawn per layer via the seeded loot
+table, so a tier is something a run gives you, never something an account has. A lit flashlight aimed at the monster increases its
 detection of you — the light is a trade-off, not a free win.
 
 **Audio.** One `SoundGroup` per category (Ambient, SFX, Monster, UI, Music) so settings can
@@ -856,7 +977,7 @@ not count.
 
 Produce `game/TESTING.md` — a Studio checklist a human executes, with expected results:
 solo run, 2-player, 6-player (Studio local server), one death mid-round, all players dead,
-revive flow with a real product ID, a player leaving mid-round, a player joining mid-round,
+a purchase flow with a real product ID, a player leaving mid-round, a player joining mid-round,
 save/rejoin persistence, shop purchase paths, every objective type, every layer transition,
 monster in each state, mobile emulation, gamepad emulation, private server.
 
@@ -900,7 +1021,7 @@ run the automated checks and commit before continuing.
 | M8 | Sedative clock + waking | Timer, wake point, synchronised kick, Limbo, the call ritual, and the three run resolutions |
 | M9 | Dreams 2–5, depths 2–3, procedural corridor, events | Seeded generation tested; all five dreams and every depth reachable |
 | M10 | Data, rewards, XP, levels | Session locking, migration, `BindToClose` verified |
-| M11 | Shop, gamepasses, products, revive | Works fully with all IDs set to `0` |
+| M11 | Shop, gamepasses, products, season track | Every entry declares a category; ConfigValidator rejects a fourth; works fully with all IDs set to `0` |
 | M12 | Secrets, endings, modifiers, replayability | Three endings reachable; collectibles persist; modifier rotation deterministic |
 | M13 | Mobile/console, optimization, security pass | Budgets measured with three concurrent layers; checklist in §9 signed off |
 | M14 | Polish + documentation | README, TESTING.md, config documentation complete |

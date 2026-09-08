@@ -1,0 +1,64 @@
+---
+# A hand-written selene standard library.
+#
+# `std = "roblox"` makes selene fetch Roblox's API dump over the network, which this build
+# environment blocks. Rather than skip linting — a skipped linter reads as a clean run, which
+# is worse than no linter — this declares the Roblox globals the source actually uses.
+#
+# The wildcard entries are deliberate: selene cannot know the shape of a DataModel or of an
+# Instance tree, and pretending otherwise would produce noise, not signal. What this file
+# still buys is everything selene is actually good at here — unused variables, shadowing,
+# undefined globals, and misuse of the Luau standard library.
+#
+# Where the network is available, `selene generate-roblox-std` produces the full API library
+# and `selene.toml` can be switched back to `std = "roblox"` for stricter checking.
+base: luau
+name: dreamlayers
+
+globals:
+  game:
+    property: read-only
+  game.*:
+    property: read-only
+  script:
+    property: read-only
+  script.*:
+    property: read-only
+  # Sibling modules are reached as `script.Parent.Name`, one level deeper than `script.*`.
+  script.Parent.*:
+    property: read-only
+  workspace:
+    property: read-only
+  workspace.*:
+    property: read-only
+  # Methods the source actually calls. Declared explicitly so selene checks the call shape
+  # instead of treating them as plain properties.
+  game.GetService:
+    method: true
+    args:
+      - type: string
+  game.BindToClose:
+    method: true
+    args:
+      - type: function
+  script.FindFirstChild:
+    method: true
+    args:
+      - type: string
+      - required: false
+        type: bool
+  Instance.new:
+    args:
+      - type: string
+      - required: false
+        type: any
+  Enum:
+    property: read-only
+  Enum.*:
+    property: read-only
+  typeof:
+    args:
+      - type: any
+  warn:
+    args:
+      - type: "..."
