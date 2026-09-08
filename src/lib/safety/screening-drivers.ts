@@ -4,6 +4,8 @@ import {
   type ContentClassifier,
   type HashMatcher
 } from "./screening";
+import { PhotoDnaMatcher } from "./photodna";
+import { SightengineClassifier } from "./sightengine";
 
 /**
  * Which screening drivers this deployment uses.
@@ -13,27 +15,23 @@ import {
  * declines rather than one that pretends, and a partial configuration throws at
  * startup instead of half-working.
  *
- * **Both drivers are unwritten, and unwritten rather than stubbed.** What each
- * has to do, so the shape of the work is on the record:
+ * **Both drivers are written.** `photodna.ts` answers the hash question and
+ * `sightengine.ts` the classifier one; each carries the trap it exists around
+ * in its own comment — WebP is not a format PhotoDNA accepts, and Sightengine's
+ * intensity scores are cumulative rather than independent.
  *
- *   PhotoDNA Cloud Service (hash matcher)
- *       POST the image bytes to the Match endpoint with the subscription key
- *       in `Ocp-Apim-Subscription-Key`. The response says whether it matched
- *       and against which list. Access requires an application and third-party
- *       vetting; it is free for approved organisations. Note that the *cloud*
- *       service means the image is sent to Microsoft — that is a processor
- *       relationship and belongs in the KVKK/GDPR record before it is wired.
+ * Still unwritten, and deliberately: **AWS Rekognition**. It is the move at
+ * roughly 30,000 photos a month, where its per-image price wins and there is no
+ * monthly floor, and the real work in it is mapping its label taxonomy onto
+ * `ClassifierCategory` — which is where the swimsuit-versus-nudity threshold
+ * gets decided a second time. Setting `AWS_REKOGNITION_REGION` therefore still
+ * throws rather than falling back, for the same reason a configured PhotoDNA
+ * key used to: believing screening is on when it is off is the whole failure.
  *
- *   Sightengine or AWS Rekognition (classifier)
- *       Sightengine: POST to /1.0/check.json with `models=nudity-2.1,offensive`
- *       and read the class probabilities. Its nudity model separates explicit
- *       from suggestive natively, which is the distinction this product needs.
- *       Rekognition: DetectModerationLabels, then map its label taxonomy onto
- *       `ClassifierCategory` — the mapping is the work, and it is where the
- *       swimsuit-versus-nudity threshold gets decided.
- *
- * Both return the same types the pipeline already consumes, so nothing above
- * this line changes when either lands.
+ * A note that belongs beside the key and not only in a document: the *cloud*
+ * service means member photos are sent to Microsoft, and the classifier sends
+ * them to Sightengine. Both are processor relationships and belong in the
+ * KVKK/GDPR record before either is switched on in production.
  */
 
 let matcher: HashMatcher | null = null;
@@ -45,30 +43,40 @@ export function hashMatcher(): HashMatcher {
   const key = process.env.PHOTODNA_SUBSCRIPTION_KEY;
   if (!key) return new NoHashMatcher();
 
-  /**
-   * Configured but unimplemented throws, rather than falling back to `none`.
-   *
-   * Someone who has been approved for PhotoDNA and put the key in the
-   * environment believes screening is on. A silent fallback would give them a
-   * deployment that reports itself unscreened only if they read the health
-   * endpoint — and this is the one control where believing it is on when it is
-   * off is the whole failure.
-   */
-  throw new Error(
-    "PHOTODNA_SUBSCRIPTION_KEY is set but no PhotoDNA driver is implemented. See docs/PHOTO_SCREENING.md."
-  );
+  // Memoised, so one client is shared rather than rebuilt per upload.
+  matcher = new PhotoDnaMatcher({ key, endpoint: process.env.PHOTODNA_ENDPOINT });
+  return matcher;
 }
 
 export function contentClassifier(): ContentClassifier {
   if (classifier) return classifier;
 
-  const sightengine = process.env.SIGHTENGINE_API_SECRET;
+  const user = process.env.SIGHTENGINE_API_USER;
+  const secret = process.env.SIGHTENGINE_API_SECRET;
   const rekognition = process.env.AWS_REKOGNITION_REGION;
 
-  if (!sightengine && !rekognition) return new NoContentClassifier();
+  if (!user && !secret && !rekognition) return new NoContentClassifier();
+
+  /**
+   * Half a Sightengine configuration throws rather than declining.
+   *
+   * The two values are useless apart, and the failure they would otherwise
+   * produce is an authentication error on every upload — which reads as a
+   * service outage rather than as a variable somebody forgot to paste.
+   */
+  if (user || secret) {
+    if (!user || !secret) {
+      throw new Error(
+        "SIGHTENGINE_API_USER and SIGHTENGINE_API_SECRET must both be set, or neither."
+      );
+    }
+
+    classifier = new SightengineClassifier({ user, secret });
+    return classifier;
+  }
 
   throw new Error(
-    "A classifier is configured but no driver is implemented. See docs/PHOTO_SCREENING.md."
+    "AWS_REKOGNITION_REGION is set but no Rekognition driver is implemented. See docs/PHOTO_SCREENING.md."
   );
 }
 

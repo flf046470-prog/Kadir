@@ -107,6 +107,26 @@ Twelve unit tests and twelve integration tests cover it.
 
 ## What is not built, and why
 
+**Both drivers are now written.** `src/lib/safety/photodna.ts` and
+`src/lib/safety/sightengine.ts`, each against the interface that was already
+here, each with the trap it exists around recorded in its own comment:
+
+- **PhotoDNA does not accept WebP**, and WebP is what this product stores —
+  `processUpload` re-encodes every upload to strip EXIF. Sent unconverted,
+  every photo fails with a format error that reads like a corrupt upload. The
+  driver transcodes to JPEG.
+- **Sightengine's intensity scores are cumulative.** Its own documentation says
+  an image that triggers one level also scores high on every level beneath it,
+  so an explicit photo reports high `erotica` *and* high `very_suggestive` *and*
+  high `suggestive`. A mapping that takes the largest score, or sums them, calls
+  every explicit photo suggestive — and to catch it you would then have to drop
+  the suggestive threshold to where it rejects every swimsuit photo on the
+  product. The bands are read most-severe-first and the first over threshold
+  wins.
+
+What remains unbuilt is below.
+
+
 **The drivers themselves.** Both default to declining, and declining leaves a
 photo `pending` — visible only to its owner, exactly as today. Nothing is
 stubbed: a driver that returned "clean" without asking anything would turn the
