@@ -62,6 +62,34 @@ running app wants the *pooled* one; only these two commands want the direct one.
 function instance keeps its own pool and a hundred-connection ceiling is
 exhausted by the tenth instance. Raise it only behind a pooler.
 
+#### If the Postgres is a Supabase project
+
+One extra step, and it is a security step rather than a convenience one.
+
+Supabase serves every table in `public` over HTTPS through PostgREST, to the
+`anon` and `authenticated` roles. The anon key is **publishable by design** —
+it ships in client bundles — so with Row Level Security off, anyone holding it
+can read and write every row: `users` carries password hashes, `sessions`
+carries session token hashes, `messages` carries every conversation on the
+product.
+
+FioreMatch never uses Supabase's client libraries. It connects as the table
+owner over `DATABASE_URL` with postgres-js, and **an owner bypasses RLS**. So
+the correct configuration here is RLS enabled with *no policies at all*: that
+closes the PostgREST door completely and leaves the application's own path
+untouched.
+
+```sql
+ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
+-- ...and every other table in public, plus drizzle.__drizzle_migrations
+```
+
+Supabase's linter will then report `rls_enabled_no_policy` at INFO level. That
+is the expected end state for this architecture, not an unfinished job — the
+advice behind that lint assumes an app talking to PostgREST, and this one does
+not. Do it before the first row exists; it is reversible per table with
+`DISABLE ROW LEVEL SECURITY`.
+
 ### 2. Photos
 
 Photos need object storage. Without it the app writes to local disk, and on a
