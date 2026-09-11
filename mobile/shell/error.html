@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>FioreMatch</title>
+    <!--
+      Shown by the native shell when the deployed site cannot be reached at
+      launch — Capacitor's `server.errorPath`.
+
+      This is the one screen that must work with no network and no server, so
+      it is a single self-contained file: no fonts, no scripts from anywhere,
+      nothing to fetch. Both translated languages, for the same reason the
+      web offline page carries both — there is no server to negotiate one.
+    -->
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0; min-height: 100vh; display: grid; place-items: center;
+        padding: 2rem 1.5rem calc(2rem + env(safe-area-inset-bottom, 0px));
+        background: #fff5f7; color: #1c1523; text-align: center;
+        font: 16px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      .mark { width: 56px; height: 56px; margin: 0 auto 1.25rem; }
+      h1 { font-size: 1.375rem; margin: 0 0 0.5rem; font-weight: 600; }
+      p { margin: 0 0 1.5rem; color: #1c1523aa; max-width: 30rem; }
+      .tr { border-top: 1px solid #1c152318; padding-top: 1.25rem; margin-top: 0.5rem; }
+      button {
+        border: 0; border-radius: 999px; padding: 0.85rem 1.9rem;
+        font: inherit; font-weight: 600; color: #fff; background: #fb6f92;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <svg class="mark" viewBox="0 0 28 28" aria-hidden="true">
+        <defs>
+          <linearGradient id="g" x1="4.5" y1="4.5" x2="27.5" y2="24.5" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#fb6f92" /><stop offset="1" stop-color="#8360f5" />
+          </linearGradient>
+        </defs>
+        <path d="M14 24.5s-9.5-5.86-9.5-13.02C4.5 7.4 7.55 4.5 11.1 4.5c1.99 0 3.7 1 4.9 2.62A6.02 6.02 0 0 1 20.9 4.5c3.55 0 6.6 2.9 6.6 6.98C27.5 18.64 18 24.5 14 24.5Z" fill="url(#g)" />
+      </svg>
+
+      <h1>Can't reach FioreMatch</h1>
+      <p>Check your connection and try again.</p>
+
+      <div class="tr">
+        <h1>FioreMatch'e ulaşılamıyor</h1>
+        <p>Bağlantınızı kontrol edip tekrar deneyin.</p>
+      </div>
+
+      <button type="button" onclick="location.reload()">Try again · Tekrar dene</button>
+    </main>
+  </body>
+</html>

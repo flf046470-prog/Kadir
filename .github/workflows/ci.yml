@@ -1,0 +1,108 @@
+name: CI
+
+# Runs only where this file exists, which in this repository is the point:
+# several unrelated applications live on different branch trees here, and a
+# pull request runs the workflow from its own head. So this checks FioreMatch
+# and nothing else, without needing to name branches it should stay away from.
+#
+# Pushes are checked on the integration branch only. Everywhere else the pull
+# request event covers the same commits, and running both would double every
+# queue for no extra information.
+on:
+  push:
+    branches: [fiorematch-main]
+  pull_request:
+
+concurrency:
+  # A second push supersedes the first: nobody needs the result of a commit
+  # that has already been replaced.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Lint, types, tests, build
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fiorematch_test
+        ports:
+          - 5432:5432
+        # Without the health check the first migration races Postgres's own
+        # startup, which fails perhaps one run in five — the kind of flake that
+        # gets blamed on the tests.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      # Most of the suite is integration tests against a real database, because
+      # what they cover — cascades, partial unique indexes, transactions — is
+      # exactly what a mock cannot test.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/fiorematch_test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # The version this repository has been developed and verified against.
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Cheapest first, so an obvious mistake fails in a minute rather than in
+      # the ten it takes to reach the build.
+      - run: npm run lint
+      - run: npm run typecheck
+
+      # Advisories against what actually ships, at the severity worth stopping a
+      # merge for.
+      #
+      # `--omit=dev` on purpose: an advisory in the build tooling matters but is
+      # not reachable by a member, and a gate that fails for things nobody can
+      # act on is a gate people learn to skip. `high` rather than `moderate` for
+      # the same reason — docs/SECURITY.md records the one moderate currently
+      # accepted, and why clearing it needs its own change rather than a
+      # `--force` that installs a major version.
+      - run: npm audit --omit=dev --audit-level=high
+
+      # The schema has to exist before anything reads it. Running the real
+      # migrations rather than pushing the schema also means a broken migration
+      # fails here instead of on a deploy.
+      - run: npm run db:migrate
+      - run: npm test
+
+      # Slowest, and a type error would already have stopped the run.
+      - run: npm run build
+
+      # Everything above can pass while the site renders a blank page: none of
+      # it runs the client half. These five do, against the built server with
+      # the demo data behind it.
+      - run: npx playwright install --with-deps chromium
+      - run: npm run seed:demo
+      - name: Start the server
+        run: |
+          npm run start &
+          # Polled rather than slept, and rather than pulling a wait-on package
+          # in at run time: the readiness probe already answers this question,
+          # and a fixed sleep is either wasted time or a flake.
+          for _ in $(seq 1 60); do
+            curl -sf -o /dev/null http://127.0.0.1:3000/api/health && exit 0
+            sleep 1
+          done
+          echo "the server did not become ready" >&2
+          exit 1
+      - run: npm run test:browser
+        env:
+          FM_BASE_URL: http://127.0.0.1:3000
