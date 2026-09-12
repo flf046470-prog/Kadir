@@ -56,10 +56,10 @@
     <path d="M976 512 L998 606 L990 610 L970 522 Z"/>
   </g>
 
-  <text class="t" x="96" y="172" font-size="82" letter-spacing="12" fill="#eef4f7">IT HEARS YOU</text>
-  <text class="t" x="96" y="272" font-size="82" letter-spacing="12" fill="#eef4f7">BEFORE YOU SEE IT.</text>
+  <text class="t" x="96" y="172" font-size="82" letter-spacing="12" fill="#eef4f7">YOU SEE A DOOR.</text>
+  <text class="t" x="96" y="272" font-size="82" letter-spacing="12" fill="#eef4f7">SHE SEES A WALL.</text>
   <text class="t" x="98" y="340" font-size="30" letter-spacing="8" fill="#f2b45e">DREAM LAYERS — DON'T WAKE UP</text>
-  <text class="t" x="96" y="1012" font-size="30" fill="#8fa8b4">Your light is a trade. It shows you the room and it shows the room you.</text>
+  <text class="t" x="96" y="1012" font-size="30" fill="#8fa8b4">Nobody is lying. The dream does not show everyone the same thing.</text>
 
   <rect width="1920" height="1080" fill="url(#vig)"/>
 </svg>

@@ -18,9 +18,9 @@ export type Configs = {
     Depth: any,
     Distortion: any,
     Layer: any,
-    Monster: any,
+    Divergence: any,
     Item: any,
-    Fear: any,
+    Doubt: any,
     Flashlight: any,
     Asset: any,
     Event: any,
@@ -80,8 +80,8 @@ local function validateDepth(c: Configs, errors: { string })
     )
     check(
         errors,
-        depth.reviveWindowSeconds > depth.reviveHoldSeconds,
-        "DepthConfig.reviveWindowSeconds must exceed reviveHoldSeconds or no revive can finish"
+        depth.dissolveWarningSeconds > 0,
+        "DepthConfig.dissolveWarningSeconds must be positive; a room must warn before it drops anyone"
     )
 
     local ledger = depth.stability
@@ -107,6 +107,21 @@ local function validateDepth(c: Configs, errors: { string })
         ledger.objectiveStepCompleted > 0,
         "DepthConfig.stability.objectiveStepCompleted must be positive or a run cannot recover"
     )
+
+    -- 3.2.5. Without a cap one player can spend the whole team's run on purpose.
+    check(
+        errors,
+        depth.maxDrainSharePerPlayer > 0 and depth.maxDrainSharePerPlayer <= 1,
+        "DepthConfig.maxDrainSharePerPlayer must be within (0, 1]"
+    )
+    -- 3.2.12. A disconnected player keeps their depth for this long; zero would delete them.
+    check(errors, depth.rejoinGraceSeconds > 0, "DepthConfig.rejoinGraceSeconds must be positive")
+    -- 3.2.11. A paired prompt two players cannot physically hit together is not a mechanic.
+    check(
+        errors,
+        depth.pairedPromptWindowSeconds > 0,
+        "DepthConfig.pairedPromptWindowSeconds must be positive"
+    )
 end
 
 local function validateDistortion(c: Configs, errors: { string })
@@ -122,7 +137,7 @@ local function validateDistortion(c: Configs, errors: { string })
     check(errors, surface.saturation == 1, "Depth 0 must be undistorted: saturation must be 1")
     check(
         errors,
-        surface.lightRangeScale == 1 and surface.monsterSpeedScale == 1,
+        surface.lightRangeScale == 1 and surface.divergenceScale == 1,
         "Depth 0 must be undistorted: every scale at depth 0 must be 1"
     )
     check(
@@ -148,11 +163,46 @@ local function validateDistortion(c: Configs, errors: { string })
             current.propDuplicationChance >= 0 and current.propDuplicationChance <= 1,
             `DistortionConfig depth {current.depth}: propDuplicationChance must be within [0, 1]`
         )
+        check(
+            errors,
+            current.fragmentTruthfulness >= 0 and current.fragmentTruthfulness <= 1,
+            `DistortionConfig depth {current.depth}: fragmentTruthfulness must be within [0, 1]`
+        )
     end
 
-    -- Monotonicity across the playable depths only. Limbo is deliberately outside the curve:
-    -- it has no monster, so its combat scales are inert and would break a naive comparison.
     local maxPlayable = c.Depth.maxDepth
+
+    --[[
+        3.2.2. Depth 1 must always tell the truth. The first level down is where a player
+        learns that descending is worth doing; a forgery there teaches the opposite lesson
+        and the loop never lands.
+    ]]
+    for _, stop in stops do
+        if stop.depth == 1 then
+            check(
+                errors,
+                stop.fragmentTruthfulness == 1,
+                "DistortionConfig: depth 1 fragments must always be truthful"
+            )
+        end
+    end
+
+    -- Information quality may only degrade with depth, never improve.
+    for index = 2, #stops do
+        local previous, current = stops[index - 1], stops[index]
+        if current.depth > maxPlayable then
+            break
+        end
+        check(
+            errors,
+            current.fragmentTruthfulness <= previous.fragmentTruthfulness,
+            `DistortionConfig depth {current.depth}: fragments must not get more truthful with depth`
+        )
+    end
+
+    -- Monotonicity across the playable depths only. Limbo (3.2.6) is deliberately outside
+    -- the curve: it is the one coherent place in the game, so both of its divergence scales are
+    -- inert and a naive comparison across it would fail.
     for index = 2, #stops do
         local previous, current = stops[index - 1], stops[index]
         if current.depth > maxPlayable then
@@ -170,17 +220,40 @@ local function validateDistortion(c: Configs, errors: { string })
         )
         check(
             errors,
-            current.monsterSpeedScale > previous.monsterSpeedScale,
-            `DistortionConfig depth {current.depth}: the monster must not get slower with depth`
+            current.divergenceScale > previous.divergenceScale,
+            `DistortionConfig depth {current.depth}: the dream must not agree with itself more than the level above`
+        )
+        -- 3.2.3. If rooms deeper down came apart more slowly, descending out of a dissolving
+        -- room would be the cheapest move in the game.
+        check(
+            errors,
+            current.incoherenceScale > previous.incoherenceScale,
+            `DistortionConfig depth {current.depth}: rooms must not hold together better than the level above`
         )
     end
 end
+
+--[[
+    The waking tasks of section 5, one per layer, in the order that teaches them. Restated here
+    rather than required from LayerConfig so this module keeps validating the *vocabulary*
+    rather than whatever the config happens to contain — a typo in a task name must be an error,
+    not a new task.
+]]
+local KNOWN_TASKS = {
+    CollectSymbols = true,
+    OrderSequence = true,
+    DeduceRule = true,
+    SynchroniseAnchors = true,
+    IdentifyReal = true,
+    Decide = true,
+}
 
 local function validateLayers(c: Configs, errors: { string })
     local dreams = c.Layer.dreams
     check(errors, #dreams >= 1, "LayerConfig needs at least one dream")
 
     local seen: { [string]: boolean } = {}
+    local seenTask: { [string]: boolean } = {}
     local sliceCount = 0
     for index, dream in dreams do
         check(errors, not seen[dream.id], `LayerConfig: duplicate dream id "{dream.id}"`)
@@ -192,8 +265,24 @@ local function validateLayers(c: Configs, errors: { string })
         )
         check(
             errors,
-            c.Monster.profiles[dream.monsterProfileId] ~= nil,
-            `LayerConfig: dream "{dream.id}" names unknown monster profile "{dream.monsterProfileId}"`
+            KNOWN_TASKS[dream.task] == true,
+            `LayerConfig: dream "{dream.id}" declares unknown waking task "{dream.task}"`
+        )
+        check(
+            errors,
+            not seenTask[dream.task],
+            `LayerConfig: waking task "{dream.task}" appears twice; the ladder teaches each once`
+        )
+        seenTask[dream.task] = true
+        --[[
+            Section 5. A layer that is neither solo-safe nor overridden makes the stated 1-6
+            player range a lie, and it does it silently: the round simply cannot be finished and
+            nothing says why. SynchroniseAnchors is the live example.
+        ]]
+        check(
+            errors,
+            dream.soloSafe or dream.soloOverride ~= nil,
+            `LayerConfig: dream "{dream.id}" is not solo-safe and declares no solo override`
         )
         if dream.inP0Slice then
             sliceCount += 1
@@ -206,6 +295,22 @@ local function validateLayers(c: Configs, errors: { string })
         "LayerConfig.startingDreamId is not a known dream"
     )
     check(errors, sliceCount >= 1, "LayerConfig: at least one dream must be in the P0 slice")
+
+    -- Section 5. The Final Layer is where the run's decision is taken, so it must exist and it
+    -- must be last: a layer after it would be a dream the players already chose to leave.
+    check(
+        errors,
+        seen[c.Layer.finalLayerId] == true,
+        "LayerConfig.finalLayerId is not a known dream"
+    )
+    local last = dreams[#dreams]
+    if last then
+        check(
+            errors,
+            last.id == c.Layer.finalLayerId,
+            `LayerConfig: the Final Layer must be last, but "{last.id}" is`
+        )
+    end
 end
 
 local function validateBalanceGuardrail(c: Configs, errors: { string })
@@ -308,8 +413,23 @@ local function validateBalanceGuardrail(c: Configs, errors: { string })
         )
     end
 
+    --[[
+        4.6. A badge records what happened and grants nothing. Selling one, or hanging a
+        purchase off one, turns the record into a gate — so the two namespaces must not
+        overlap and no catalogue entry may reference a badge.
+    ]]
+    for key in c.Asset.badges do
+        check(
+            errors,
+            c.Asset.gamepasses[key] == nil,
+            `AssetConfig: "{key}" is both a badge and a gamepass; badges are not sold`
+        )
+        check(errors, not seenSku[key], `ShopConfig: "{key}" sells a badge, which 4.6 forbids`)
+    end
+
     -- Removed on purpose (4.3). Naming them keeps a well-meaning future edit from quietly
-    -- reintroducing a purchased kick or a purchased reduction in monster interest.
+    -- reintroducing a purchased kick, or a purchased advantage in the divergence system under
+    -- some friendlier name.
     local FORBIDDEN_PRODUCTS = { revive = true, temporaryProtection = true }
     for key in c.Asset.developerProducts do
         check(
@@ -318,6 +438,128 @@ local function validateBalanceGuardrail(c: Configs, errors: { string })
             `AssetConfig.developerProducts contains "{key}", which specification 4.3 removed`
         )
     end
+end
+
+local function validateDivergence(c: Configs, errors: { string })
+    local d = c.Divergence
+
+    check(
+        errors,
+        d.graceSecondsAfterLayerEnter >= 0,
+        "DivergenceConfig.graceSecondsAfterLayerEnter must not be negative"
+    )
+    --[[
+        3.2.3. Granting arrival grace to someone who descended out of a dissolving room turns a
+        dissolving room into an exit sign: step into the bathtub, drop a level, and leave the
+        disagreement upstairs with free seconds on top.
+    ]]
+    check(
+        errors,
+        not d.graceAppliesToDescentFromDissolvingRoom,
+        "DivergenceConfig.graceAppliesToDescentFromDissolvingRoom must be false; descending is not an escape"
+    )
+
+    -- 3.6.2. One threshold per lens beyond the first, ascending. Two lenses sharing a threshold
+    -- would make a whole reading of the world unreachable.
+    check(errors, d.maxLenses >= 2, "DivergenceConfig.maxLenses must be at least 2")
+    check(
+        errors,
+        #d.lensThresholds == d.maxLenses - 1,
+        `DivergenceConfig.lensThresholds must hold exactly maxLenses - 1 entries, found {#d.lensThresholds}`
+    )
+    for index = 2, #d.lensThresholds do
+        check(
+            errors,
+            d.lensThresholds[index] > d.lensThresholds[index - 1],
+            "DivergenceConfig.lensThresholds must be strictly increasing"
+        )
+    end
+    if #d.lensThresholds > 0 then
+        --[[
+            3.6.2. The first threshold must sit above the minimum, or there is no band in which
+            the dream agrees with itself and players never learn what coherence looks like
+            before the game takes it away.
+        ]]
+        check(
+            errors,
+            d.lensThresholds[1] > d.minimum,
+            "DivergenceConfig.lensThresholds[1] must be above the minimum; the dream must start out agreeing with itself"
+        )
+        check(
+            errors,
+            d.lensThresholds[#d.lensThresholds] <= d.maximum,
+            "DivergenceConfig.lensThresholds must stay within the divergence range"
+        )
+    end
+
+    local ledger = d.ledger
+    check(
+        errors,
+        ledger.roundStart >= d.minimum and ledger.roundStart <= d.maximum,
+        "DivergenceConfig.ledger.roundStart must be within the divergence range"
+    )
+    --[[
+        3.6.7. An objective step must undo more than a failed attempt costs, or a team that is
+        genuinely making progress still drowns and the ladder in section 5 is unplayable.
+    ]]
+    check(
+        errors,
+        -ledger.objectiveStepCompleted > ledger.failedTaskAttempt,
+        "DivergenceConfig.ledger: an objective step must lower divergence by more than a failed attempt raises it"
+    )
+    -- Agreement must be the thing that calms the dream down, so both of its rewards go down.
+    check(
+        errors,
+        ledger.setCollapsedByAgreement < 0 and ledger.firstCorroboration < 0,
+        "DivergenceConfig.ledger: agreeing must lower divergence"
+    )
+    check(
+        errors,
+        ledger.falseConcession > 0 and ledger.involuntaryDescent > 0,
+        "DivergenceConfig.ledger: failures must raise divergence"
+    )
+
+    --[[
+        3.6.6. Divergence must not reach the top band from time alone. A team that plays well
+        should never meet four lenses; a team that plays badly should earn it. The bound below
+        is the whole-round passive rise with every player at the deepest playable level the
+        entire time, which is the worst case the clock alone can produce.
+    ]]
+    local minutes = c.Game.sedativeSeconds / 60
+    local passive = ledger.roundStart
+        + minutes * (ledger.perMinuteElapsed + ledger.perMinutePerDepthLevel * c.Depth.maxDepth)
+    local topBand = d.lensThresholds[#d.lensThresholds]
+    check(
+        errors,
+        topBand == nil or passive < topBand,
+        `DivergenceConfig: the passive rise over a full round reaches {math.floor(passive)}, which is the top lens band; only failures may buy the last lens`
+    )
+
+    check(
+        errors,
+        d.dissolveThreshold > 0,
+        "DivergenceConfig.dissolveThreshold must be positive; a room must be allowed to be coherent"
+    )
+    -- 3.6.4 / 3.6.5. A room must telegraph for longer than it takes a teammate to answer it,
+    -- or the cooperative half of dissolution is decorative.
+    check(
+        errors,
+        d.dissolveSeconds > d.anchorHoldSeconds,
+        "DivergenceConfig.dissolveSeconds must exceed anchorHoldSeconds or no rescue can finish"
+    )
+    check(
+        errors,
+        d.dissolveSeconds > c.Depth.dissolveWarningSeconds,
+        "DivergenceConfig.dissolveSeconds must exceed DepthConfig.dissolveWarningSeconds"
+    )
+
+    -- 2.8. Authoring ceilings. Four variants is what the ten collision groups of 3.6.3 buy.
+    check(
+        errors,
+        d.maxVariantsPerSet >= 2 and d.maxVariantsPerSet <= d.maxLenses,
+        "DivergenceConfig.maxVariantsPerSet must be within [2, maxLenses]"
+    )
+    check(errors, d.maxSetsPerLayer >= 1, "DivergenceConfig.maxSetsPerLayer must be positive")
 end
 
 local function validateMisc(c: Configs, errors: { string })
@@ -329,24 +571,60 @@ local function validateMisc(c: Configs, errors: { string })
             item.stackable or item.maxStack == 1,
             `ItemConfig: "{id}" is not stackable but has maxStack {item.maxStack}`
         )
+        check(
+            errors,
+            item.minSpawnDepth >= 0 and item.minSpawnDepth <= c.Depth.maxDepth,
+            `ItemConfig: "{id}" has a minSpawnDepth outside the playable range`
+        )
+    end
+
+    -- 3.2.5. The resource that pays for climbing is found only by going down.
+    local sedative = c.Item.items["SedativeDose"]
+    check(errors, sedative ~= nil, "ItemConfig must define SedativeDose")
+    if sedative then
+        check(
+            errors,
+            sedative.minSpawnDepth >= 1,
+            "ItemConfig: SedativeDose must not spawn at the surface"
+        )
     end
 
     check(
         errors,
-        c.Fear.minimum < c.Fear.maximum,
-        "FearConfig.minimum must be below FearConfig.maximum"
+        c.Doubt.minimum < c.Doubt.maximum,
+        "DoubtConfig.minimum must be below DoubtConfig.maximum"
     )
-    for index = 2, #c.Fear.thresholds do
+    for index = 2, #c.Doubt.thresholds do
         check(
             errors,
-            c.Fear.thresholds[index] > c.Fear.thresholds[index - 1],
-            "FearConfig.thresholds must be strictly increasing"
+            c.Doubt.thresholds[index] > c.Doubt.thresholds[index - 1],
+            "DoubtConfig.thresholds must be strictly increasing"
         )
     end
     check(
         errors,
-        c.Fear.hallucinationThreshold <= c.Fear.maximum,
-        "FearConfig.hallucinationThreshold must be reachable"
+        c.Doubt.falseReportThreshold <= c.Doubt.maximum,
+        "DoubtConfig.falseReportThreshold must be reachable"
+    )
+    --[[
+        Section 6. Being the only person in the room who can see something is the frightening
+        thing in this game, so it must be the largest rise in the table. If isolation or darkness
+        ever outweighs it, the design has quietly turned back into a game about being alone in
+        the dark, which is the genre it is trying not to be.
+    ]]
+    check(
+        errors,
+        c.Doubt.risePerSecondOddOneOut > c.Doubt.risePerSecondAlone
+            and c.Doubt.risePerSecondOddOneOut > c.Doubt.risePerSecondInDarkness,
+        "DoubtConfig.risePerSecondOddOneOut must be the largest rise; disagreement is the pressure, not darkness"
+    )
+    -- The one false thing the game says about another player must be contradicted while the
+    -- player is still in the room to see it contradicted.
+    check(
+        errors,
+        c.Doubt.falseReportContradictedWithinSeconds > 0
+            and c.Doubt.falseReportContradictedWithinSeconds <= 60,
+        "DoubtConfig.falseReportContradictedWithinSeconds must be within (0, 60]"
     )
 
     local harmless = 0
@@ -368,6 +646,11 @@ local function validateMisc(c: Configs, errors: { string })
         type(c.Asset.gamepasses) == "table" and type(c.Asset.developerProducts) == "table",
         "AssetConfig must define gamepasses and developerProducts tables"
     )
+    check(
+        errors,
+        type(c.Asset.badges) == "table" and next(c.Asset.badges) ~= nil,
+        "AssetConfig must define at least one badge (4.6)"
+    )
 end
 
 --[[
@@ -382,6 +665,7 @@ function ConfigValidator.validate(configs: Configs): Report
     validateDistortion(configs, errors)
     validateLayers(configs, errors)
     validateBalanceGuardrail(configs, errors)
+    validateDivergence(configs, errors)
     validateMisc(configs, errors)
 
     return { ok = #errors == 0, errors = errors }

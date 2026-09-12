@@ -16,7 +16,7 @@ test(suite, "depth 0 is the dream exactly as authored", function()
     expect(surface.depth):toBe(0)
     expect(surface.saturation):toBe(1)
     expect(surface.lightRangeScale):toBe(1)
-    expect(surface.monsterSpeedScale):toBe(1)
+    expect(surface.divergenceScale):toBe(1)
     expect(surface.hudTruthfulness):toBe(1, "depth 0 must never lie about depth")
 end)
 
@@ -35,14 +35,30 @@ test(suite, "colour drains and light shortens with depth", function()
     end
 end)
 
-test(suite, "the monster never gets slower with depth", function()
+test(suite, "the dream disagrees with itself more the deeper you go", function()
+    --[[
+        3.2.3. Both scales must rise, and the second one is the load-bearing half: if rooms
+        deeper down came apart more slowly, descending out of a dissolving room would be the
+        cheapest move in the game and the descent design would invert.
+    ]]
     for depth = 1, DepthConfig.maxDepth do
         local above = Distortion.forDepth(stops, depth - 1)
         local here = Distortion.forDepth(stops, depth)
-        expect(here.monsterSpeedScale > above.monsterSpeedScale):toBeTruthy(
-            `depth {depth} slowed the monster down`
+        expect(here.divergenceScale > above.divergenceScale):toBeTruthy(
+            `depth {depth} agreed with itself more than the level above`
+        )
+        expect(here.incoherenceScale > above.incoherenceScale):toBeTruthy(
+            `depth {depth} held together better than the level above`
         )
     end
+end)
+
+test(suite, "Limbo is the one place where the dream agrees with itself", function()
+    -- 3.2.6. One lens, nothing contested, both scales inert. The only coherent place in the
+    -- game is the one you cannot leave without somebody else.
+    local limbo = Distortion.forDepth(stops, DepthConfig.limboDepth)
+    expect(limbo.divergenceScale):toBe(1)
+    expect(limbo.incoherenceScale):toBe(1)
 end)
 
 test(suite, "every profile keeps its probabilities in range", function()

@@ -15,7 +15,7 @@ sh docs/art/build.sh          # needs a Chromium binary; set CHROME=... to overr
 | `icon-512.png` | 512×512 | Experience icon |
 | `thumbnail-01-dream-stack.png` | 1920×1080 | Thumbnail — explains the core loop |
 | `thumbnail-02-waking-room.png` | 1920×1080 | Thumbnail — the premise |
-| `thumbnail-03-corridor.png` | 1920×1080 | Thumbnail — the threat |
+| `thumbnail-03-corridor.png` | 1920×1080 | Thumbnail — divergence, the core mechanic |
 | `wordmark.png` | 1600×560, transparent | Logo for anywhere else |
 
 Roblox accepts PNG or JPG. Icons are square and are cropped to a circle in some
@@ -30,10 +30,14 @@ honest about that: nothing here depicts a scene the game does not contain, and n
 frame claims to be a screenshot.
 
 Once the game exists, the strongest thumbnails on Roblox are in-engine captures.
-Treat `thumbnail-02` and `thumbnail-03` as placeholders to be replaced by real
-screenshots of the waking room and of a corridor encounter. `thumbnail-01` earns
-its place permanently: it teaches the depth mechanic in one glance, which a
-screenshot cannot do.
+Treat `thumbnail-02` as a placeholder to be replaced by a real screenshot of the
+waking room. `thumbnail-01` and `thumbnail-03` earn their places permanently, for
+the same reason: each teaches a mechanic in one glance that a screenshot cannot.
+`thumbnail-03` is the harder and more valuable of the two — *"you see a door, she
+sees a wall"* is the one thing this game has that nothing else on the platform
+does, and a screenshot literally cannot show it, because a screenshot is one
+player's view. The closest a capture can come is two screenshots side by side,
+which is worth trying once the game runs.
 
 ## Design rules these follow
 
@@ -42,6 +46,11 @@ screenshot cannot do.
   `DistortionProfile` curve in §3.2.2 of the build specification.
 - The falling figure is the identity. Every asset that has room for one shows a
   person tumbling head-down, because that is what the game is about.
+- **Nothing depicts a pursuer.** There is no monster in this game (§1, §3.6), so
+  there is none in the art, and no copy may imply one. This is a positioning
+  decision and an expensive one — "co-op horror" is a far wider funnel on Roblox
+  than "co-op dream puzzle" — so it is made deliberately rather than drifted into.
+  Do not put a silhouette in a corridor to win a click the game cannot pay off.
 - No gore, no dismemberment, no graphic body horror — §1 of the specification puts
   it out of scope, and it constrains the age rating.
 - No content that the game does not have. A thumbnail promising a layer that is not

@@ -3,7 +3,7 @@
     The Roblox half of the scheduler: one Heartbeat connection, feeding SchedulerCore.
 
     Specification 2.2 allows exactly one RunService connection per side. Every periodic
-    system registers a callback here — monster AI at 10 Hz, fear at 4 Hz, battery at 2 Hz,
+    system registers a callback here — room incoherence at 5 Hz, doubt at 4 Hz, battery at 2 Hz,
     autosave at 1/120 Hz — instead of connecting its own Heartbeat.
 ]]
 
@@ -53,7 +53,7 @@ end
     Starts the single Heartbeat connection.
 
     A task that errors is reported and the others still run: one broken system must not stop
-    the monster, the autosave, and the fear model along with it.
+    the incoherence sweep, the autosave, and the doubt model along with it.
 ]]
 function Scheduler.start(scheduler: Scheduler)
     if scheduler.running then

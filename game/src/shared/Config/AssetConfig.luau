@@ -27,8 +27,12 @@ local AssetConfig: AssetConfigType = {
         descentWhoosh = "",
         kickImpact = "",
         stabilityLow = "",
-        monsterFar = "",
-        monsterNear = "",
+        -- 3.6.4 / 3.6.5. What the world does instead of hunting anyone: a room coming apart,
+        -- a set committing to one reading, and a teammate saying what they can see.
+        roomDissolving = "",
+        setCollapsed = "",
+        reportCalledOut = "",
+        concessionMade = "",
     },
     images = {
         icon = "",
@@ -52,11 +56,16 @@ local AssetConfig: AssetConfigType = {
         coinPack = 0,
         xpBoost = 0,
     },
+    -- Specification 4.6. A badge is a record of what happened. It grants nothing: no
+    -- currency, no cosmetic, no stability, no shortcut. A badge that unlocks something has
+    -- stopped being a record and become a gate.
     badges = {
-        firstWake = 0,
+        firstWaking = 0,
         neverFell = 0,
-        reachedLimbo = 0,
-        secretEnding = 0,
+        downAndBack = 0,
+        calledBack = 0,
+        aloneDownThere = 0,
+        sleepless = 0,
     },
 }
 

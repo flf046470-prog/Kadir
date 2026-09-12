@@ -18,6 +18,9 @@ export type GameConfigType = {
 local GameConfig: GameConfigType = {
     displayName = "Dream Layers: Don't Wake Up",
     minPlayers = 1,
+    -- Specification 3.2.9: one server is one round, so Players.MaxPlayers matches this.
+    -- Parallel rounds would need either reserved servers (ruled out in section 1) or more
+    -- than the three concurrent layers 3.2.10 allows.
     maxPlayers = 6,
     countdownSeconds = 10,
     sedativeSeconds = 900,

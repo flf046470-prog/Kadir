@@ -80,6 +80,27 @@ local ShopConfig: ShopConfigType = {
             gamepassKey = nil,
             grantsGameplayAdvantage = false,
         }),
+        -- Dream effects. Specification 4.6 draws the line: you may buy how you appear,
+        -- never how you perceive. These change what teammates see of you; none of them
+        -- brightens, de-fogs, or steadies what *you* see of the dream.
+        table.freeze({
+            sku = "effect_trailing_wake",
+            displayName = "Trailing Wake",
+            kind = "Cosmetic" :: "Cosmetic",
+            category = "Appearance" :: Category,
+            coinPrice = 900,
+            gamepassKey = nil,
+            grantsGameplayAdvantage = false,
+        }),
+        table.freeze({
+            sku = "effect_deep_silhouette",
+            displayName = "Deep Silhouette",
+            kind = "Cosmetic" :: "Cosmetic",
+            category = "Appearance" :: Category,
+            coinPrice = 1200,
+            gamepassKey = nil,
+            grantsGameplayAdvantage = false,
+        }),
         table.freeze({
             sku = "flashlight_skin_hospital",
             displayName = "Hospital Lantern",

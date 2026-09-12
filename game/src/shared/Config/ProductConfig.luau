@@ -4,10 +4,12 @@
 
     **No developer product may affect a round in progress.** Only two survive that rule.
 
-    Revive was removed rather than excepted: under the dream stack a downed player who is not
-    revived does not die, they descend (3.2.3), so a purchased revive is a purchased kick, and
-    4.5 forbids selling mobility. Temporary Protection was removed because reducing the
-    monster's interest in you is the exact thing the guardrail names.
+    Revive was removed rather than excepted: nobody dies here, so a player whose room
+    dissolves under them descends (3.2.3) and a purchased revive is a purchased kick, which 4.5
+    forbids. Temporary Protection was removed because it protected against a monster and there
+    is no monster — and because any divergence-shaped rework of it (a room that dissolves more
+    slowly for you, a lens that agrees with more people) would sell an advantage in the one
+    system the whole game is made of.
 
     Receipt handling is unchanged and non-negotiable: exactly one `ProcessReceipt` assignment,
     `PurchaseId` recorded inside the same `UpdateAsync` that grants, and `NotProcessedYet` on

@@ -7,6 +7,9 @@ export type ItemDefinition = {
     stackable: boolean,
     maxStack: number,
     consumable: boolean,
+    -- Lowest depth this item may spawn at. Specification 3.2.5 puts sedative doses below
+    -- the surface only, so the resource that pays for climbing is found by going down.
+    minSpawnDepth: number,
 }
 
 export type ItemConfigType = {
@@ -25,6 +28,7 @@ local ItemConfig: ItemConfigType = {
             stackable = false,
             maxStack = 1,
             consumable = false,
+            minSpawnDepth = 0,
         }),
         Battery = table.freeze({
             id = "Battery",
@@ -32,6 +36,7 @@ local ItemConfig: ItemConfigType = {
             stackable = true,
             maxStack = 4,
             consumable = true,
+            minSpawnDepth = 0,
         }),
         -- Every player starts with one. It reports true depth; its function is never sold.
         Totem = table.freeze({
@@ -40,6 +45,7 @@ local ItemConfig: ItemConfigType = {
             stackable = false,
             maxStack = 1,
             consumable = false,
+            minSpawnDepth = 0,
         }),
         SedativeDose = table.freeze({
             id = "SedativeDose",
@@ -47,6 +53,7 @@ local ItemConfig: ItemConfigType = {
             stackable = true,
             maxStack = 2,
             consumable = true,
+            minSpawnDepth = 1,
         }),
         Key = table.freeze({
             id = "Key",
@@ -54,6 +61,7 @@ local ItemConfig: ItemConfigType = {
             stackable = false,
             maxStack = 1,
             consumable = false,
+            minSpawnDepth = 0,
         }),
     },
 }

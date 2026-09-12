@@ -23,7 +23,7 @@ export type FlashlightTier = {
 export type FlashlightConfigType = {
     tiers: { FlashlightTier },
     flickerBelowFraction: number,
-    detectionPenaltyWhileLit: number,
+    assertionIncoherenceMultiplier: number,
     tickHz: number,
 }
 
@@ -55,8 +55,13 @@ local FlashlightConfig: FlashlightConfigType = {
         }),
     },
     flickerBelowFraction = 0.15,
-    -- A lit flashlight makes the monster notice you sooner. The light is a trade, not a win.
-    detectionPenaltyWhileLit = 1.35,
+    --[[
+        Section 6. Light forces resolution: a contested set held in the beam snaps to your
+        reading of it, loudly, and makes the room less coherent for everybody standing in it.
+        The light is still a trade rather than a free win — it is just that what it costs is now
+        other people's agreement instead of a monster's attention.
+    ]]
+    assertionIncoherenceMultiplier = 1.35,
     tickHz = 2,
 }
 

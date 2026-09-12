@@ -13,11 +13,14 @@ export type DistortionStop = {
     fogEnd: number,
     lightRangeScale: number,
     gravityScale: number,
-    monsterSpeedScale: number,
-    monsterDetectionScale: number,
+    -- 3.6.2: multiplies the team's divergence here, so the same value buys more lenses
+    -- deeper down. 3.6.4: multiplies how fast a room here stops agreeing with itself.
+    divergenceScale: number,
+    incoherenceScale: number,
     propDuplicationChance: number,
     geometryJitterStuds: number,
     hudTruthfulness: number,
+    fragmentTruthfulness: number,
 }
 
 export type DistortionConfigType = {
@@ -34,11 +37,12 @@ local DistortionConfig: DistortionConfigType = {
             fogEnd = 400,
             lightRangeScale = 1.0,
             gravityScale = 1.0,
-            monsterSpeedScale = 1.0,
-            monsterDetectionScale = 1.0,
+            divergenceScale = 1.0,
+            incoherenceScale = 1.0,
             propDuplicationChance = 0.0,
             geometryJitterStuds = 0.0,
             hudTruthfulness = 1.0,
+            fragmentTruthfulness = 1.0,
         }),
         table.freeze({
             depth = 1,
@@ -46,11 +50,12 @@ local DistortionConfig: DistortionConfigType = {
             fogEnd = 300,
             lightRangeScale = 0.86,
             gravityScale = 0.94,
-            monsterSpeedScale = 1.08,
-            monsterDetectionScale = 1.10,
+            divergenceScale = 1.08,
+            incoherenceScale = 1.10,
             propDuplicationChance = 0.06,
             geometryJitterStuds = 0.4,
             hudTruthfulness = 1.0,
+            fragmentTruthfulness = 1.0,
         }),
         table.freeze({
             depth = 2,
@@ -58,12 +63,13 @@ local DistortionConfig: DistortionConfigType = {
             fogEnd = 210,
             lightRangeScale = 0.71,
             gravityScale = 0.86,
-            monsterSpeedScale = 1.18,
-            monsterDetectionScale = 1.24,
+            divergenceScale = 1.18,
+            incoherenceScale = 1.24,
             propDuplicationChance = 0.16,
             geometryJitterStuds = 1.1,
             -- Below 1.0 the depth indicator is allowed to lie; the totem is the answer.
             hudTruthfulness = 0.88,
+            fragmentTruthfulness = 0.85,
         }),
         table.freeze({
             depth = 3,
@@ -71,24 +77,29 @@ local DistortionConfig: DistortionConfigType = {
             fogEnd = 140,
             lightRangeScale = 0.58,
             gravityScale = 0.78,
-            monsterSpeedScale = 1.30,
-            monsterDetectionScale = 1.40,
+            divergenceScale = 1.30,
+            incoherenceScale = 1.40,
             propDuplicationChance = 0.28,
             geometryJitterStuds = 2.2,
             hudTruthfulness = 0.72,
+            fragmentTruthfulness = 0.70,
         }),
-        -- Limbo. No monster, so its combat scales are inert; it is quiet, not hostile.
+        -- Limbo (3.2.6). The one place in the game where everybody sees the same thing:
+        -- one lens, nothing contested, so both divergence scales are inert here. It is
+        -- quiet and restful, and that is the joke — it is also the place you cannot leave
+        -- without someone else.
         table.freeze({
             depth = 4,
             saturation = 0.0,
             fogEnd = 900,
             lightRangeScale = 1.0,
             gravityScale = 0.6,
-            monsterSpeedScale = 1.0,
-            monsterDetectionScale = 1.0,
+            divergenceScale = 1.0,
+            incoherenceScale = 1.0,
             propDuplicationChance = 0.0,
             geometryJitterStuds = 0.0,
             hudTruthfulness = 1.0,
+            fragmentTruthfulness = 1.0,
         }),
     },
 }

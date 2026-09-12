@@ -33,13 +33,35 @@ local Rng = {}
 
 local UINT32 = 4294967296
 
+--[[
+    The FNV prime, 16777619, as shifts and adds: 2^24 + 2^8 + 2^7 + 2^4 + 2^1 + 2^0.
+
+    `hash * 16777619` is the obvious spelling and it is wrong here. For a hash anywhere near
+    2^32 the product exceeds 2^53, so float64 drops low mantissa bits and both `bit32.band` and
+    `% 2^32` then return a value whose low bits are zero. Measured against exact arithmetic, the
+    multiply disagrees for about 69% of 32-bit inputs, always by flattening the low end — which
+    is invisible to anything that consumes the whole 32 bits, and fatal to anything that reads
+    `hash % n`. `bit32.lshift` truncates to 32 bits, so each term here is below 2^32 and the sum
+    of six stays far inside the exactly-representable range.
+
+    `Divergence.luau` carries its own copy because pure modules are leaves (specification 0.4).
+]]
+local FNV_SHIFTS = { 0, 1, 4, 7, 8, 24 }
+
+local function fnvMultiply(hash: number): number
+    local total = 0
+    for _, shift in FNV_SHIFTS do
+        total += bit32.lshift(hash, shift)
+    end
+    return total % UINT32
+end
+
 -- FNV-1a, so a child seed is a pure function of the parent seed and a human-readable label.
 local function hashLabel(seed: number, label: string): number
     local hash = bit32.bxor(2166136261, seed)
     for index = 1, #label do
         hash = bit32.bxor(hash, string.byte(label, index) :: number)
-        -- The FNV prime, 16777619, applied with 32-bit wraparound.
-        hash = bit32.band(hash * 16777619, 0xFFFFFFFF)
+        hash = fnvMultiply(hash)
     end
     return hash
 end

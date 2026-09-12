@@ -28,7 +28,7 @@ function SchedulerCore.new(): Core
 end
 
 --[[
-    Registers a task ticking at `hz` (10 Hz for monster AI, 4 Hz for fear, and so on).
+    Registers a task ticking at `hz` (5 Hz for room incoherence, 4 Hz for doubt, and so on).
     Re-registering a name is a programming error rather than a silent replacement: two
     systems sharing a tick name would each see half their ticks.
 ]]

@@ -3,8 +3,15 @@
 A Rojo-syncable source tree, not a `.rbxl`. Open it in Roblox Studio through Rojo.
 
 The design this implements is `docs/dream-layers-prompt.md` at the repository root. Section
-numbers referenced in comments point there. Read **3.2 (the dream stack)** first — it is the
-core loop and the reason the rest is shaped this way.
+numbers referenced in comments point there. Read **3.2 (the dream stack)** and **3.6
+(divergence)** first — together they are the core loop and the reason the rest is shaped this
+way.
+
+This is a multiplayer psychological dream puzzle, **not** a horror game with a monster in it.
+Nothing here chases, attacks, or damages the player; the antagonist is the dream showing
+different things to different people, and a room nobody can agree on eventually stopping
+holding them up. If you find yourself adding pursuit, damage, health, or `PathfindingService`,
+check §1 and §11 before going further — their absence is the design, not a gap.
 
 ## Milestone status
 
@@ -78,7 +85,7 @@ cheaper coupling than a shared require the tests cannot resolve.
 |---|---|
 | `Rng`, `SchedulerCore`, `RateLimiter` | `Scheduler` (one Heartbeat, wraps `SchedulerCore`) |
 | `Trove`, `ServiceRegistry` | `Remotes` (builds on server, waits on client) |
-| `Distortion`, `ConfigValidator` | `init.server.luau`, `init.client.luau` |
+| `Distortion`, `Divergence`, `ConfigValidator` | `init.server.luau`, `init.client.luau` |
 | every module in `Config/` | `Config/init.luau` (aggregate, uses `script.X`) |
 
 ## Before publishing
@@ -87,11 +94,23 @@ Every asset, gamepass, and developer product id in `src/shared/Config/AssetConfi
 `0` or `""`, and the game must stay fully playable with them unset (specification 2.7).
 Fill them in from the Creator Dashboard. Nothing else in the codebase may hardcode an id.
 
-## One behavioural note worth keeping
+## Two behavioural notes worth keeping
 
-`SchedulerCore` carries the remainder when a task fires instead of resetting its accumulator
-to zero. The obvious implementation — reset to zero — silently loses a fraction of a period
-on every tick, and a 10 Hz task then runs at about 8.5 Hz. The monster's think rate is 10 Hz,
-so that is a 15% error in the thing the game is built around. `tests/SchedulerCore.spec.luau`
-asserts the rate over ten simulated seconds rather than one, because a one-second window
-tests phase rather than drift.
+**`SchedulerCore` carries the remainder** when a task fires instead of resetting its
+accumulator to zero. The obvious implementation — reset to zero — silently loses a fraction of
+a period on every tick, and a 10 Hz task then runs at about 8.5 Hz. `tests/SchedulerCore.spec.luau`
+asserts the rate over ten simulated seconds rather than one, because a one-second window tests
+phase rather than drift.
+
+**The FNV-1a multiply is done as shifts and adds**, in both `Rng` and `Divergence`. The obvious
+`hash * 16777619` is wrong in Luau: for a hash anywhere near 2^32 the product passes 2^53, so
+float64 drops low mantissa bits and the result comes back flattened at the low end. Measured
+against exact arithmetic it disagrees for about 69% of 32-bit inputs.
+
+It is worth knowing how that failed, because the shape repeats. A consumer reading all 32 bits
+still looks random, so the existing `Rng` tests passed. `Divergence.lensFor` read
+`hash % lensCount`, which is precisely the flattened part — so every player was assigned lens 1,
+every round, and the game silently had no antagonist while the suite stayed green. Distribution
+tests cannot catch it either; only the golden vectors in `tests/Rng.spec.luau` can, which is why
+they are there. `lensFor` additionally reads the hash's high bits, so the two guards are
+independent.

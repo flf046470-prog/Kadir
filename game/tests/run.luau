@@ -11,6 +11,7 @@ local suites = {
     require("./Trove.spec"),
     require("./ServiceRegistry.spec"),
     require("./Distortion.spec"),
+    require("./Divergence.spec"),
     require("./ConfigValidator.spec"),
     require("./Monetization.spec"),
 }

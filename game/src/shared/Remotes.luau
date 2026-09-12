@@ -5,11 +5,18 @@
     One module builds every remote on the server and waits for it on the client, so no
     `WaitForChild` chain is scattered through gameplay code.
 
-    The dream stack deliberately adds no client-to-server remotes. Bedding down, descending,
-    kicking, reviving a downed teammate, the Limbo call ritual and the wake point are all
-    ProximityPrompt interactions, so they arrive through `RequestInteract` and are validated
-    by tag and distance like everything else. If you find yourself adding `RequestKickUp`,
-    you have moved a decision to the client that belongs on the server.
+    Neither the dream stack nor divergence adds a client-to-server remote. Bedding down,
+    descending, kicking, the Limbo call ritual, the wake point, calling out what you can see and
+    conceding to a teammate are all ProximityPrompt interactions, so they arrive through
+    `RequestInteract` and are validated by tag and distance like everything else.
+
+    For reports that is the security property, not a convenience. A client says *"I interacted
+    with this instance"*, never *"I saw variant 3"*: the server derives the variant from the lens
+    it computed itself and rejects the interaction outright if the instance belongs to a variant
+    the player was never shown (3.6.3). A client that could name its own variant could claim to
+    have seen whatever was most useful, and the whole of section 5 would come apart. If you find
+    yourself adding `RequestReport(setId, variantIndex)` or `RequestKickUp`, you have moved a
+    decision to the client that belongs on the server.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -39,10 +46,15 @@ local EVENTS_TO_CLIENT = {
     "PlayerStateSync",
     "InventorySync",
     "ObjectiveSync",
-    "FearSync",
+    "DoubtSync",
     "DepthSync",
     "StabilitySync",
-    "HorrorCue",
+    -- 3.7. DivergenceSync carries the team's divergence and the receiving player's *own* lens.
+    -- No other player's lens is ever replicated to anyone, at any time: it is the one piece of
+    -- state the whole of 3.6 rests on staying private.
+    "DivergenceSync",
+    "ReportSync",
+    "DreamCue",
     "EndingCinematic",
 }
 

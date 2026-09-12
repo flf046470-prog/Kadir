@@ -11,7 +11,13 @@ export type DebugConfigType = {
     forceSeed: number?,
     skipToLayer: number?,
     forceDepth: number?,
-    disableMonster: boolean,
+    --[[
+        The switch that makes 3.6 testable by one person. Forcing a lens lets a developer
+        walk the same room twice and see both readings of it; without this, every
+        divergence bug needs two machines to reproduce.
+    ]]
+    forceLens: number?,
+    freezeDivergence: boolean,
     infiniteBattery: boolean,
     infiniteStability: boolean,
     verboseLogging: boolean,
@@ -21,7 +27,8 @@ local DebugConfig: DebugConfigType = {
     forceSeed = nil,
     skipToLayer = nil,
     forceDepth = nil,
-    disableMonster = false,
+    forceLens = nil,
+    freezeDivergence = false,
     infiniteBattery = false,
     infiniteStability = false,
     verboseLogging = false,

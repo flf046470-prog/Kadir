@@ -92,12 +92,50 @@ end)
 
 test(suite, "derive is stable for a label and differs between labels", function()
     local parent = Rng.new(2024)
-    local first = Rng.new(2024).derive("monster").nextUint()
-    local second = Rng.new(2024).derive("monster").nextUint()
+    local first = Rng.new(2024).derive("variants").nextUint()
+    local second = Rng.new(2024).derive("variants").nextUint()
     expect(first):toBe(second, "the same label produced different child streams")
 
     local other = parent.derive("loot").nextUint()
     expect(first ~= other):toBeTruthy("two labels produced the same child stream")
+end)
+
+test(suite, "hashLabel matches exact 32-bit FNV-1a, bit for bit", function()
+    --[[
+        A regression test for a real bug that shipped in this module. `hashLabel` multiplied by
+        the FNV prime directly, and for a hash anywhere near 2^32 that product passes 2^53, so
+        float64 drops low mantissa bits and the result comes back flattened at the low end.
+
+        Nothing here noticed, because a consumer that reads all 32 bits still looks random.
+        Anything reading `seed % n` for small n does not, and that is how the divergence system
+        in `Divergence.luau` silently put every player on the same lens.
+
+        Distribution tests are too weak to catch it — the buggy version passes those. So assert
+        the arithmetic itself against vectors computed independently with exact integers. Any
+        deviation at all fails, which is the only property worth asserting about a hash whose
+        whole job is to be a specific function.
+
+        `derive` feeds hashLabel's 32-bit result through `normalizeSeed`, which is the identity
+        for any non-zero 32-bit value, so `originalSeed()` is hashLabel's output unchanged. The
+        seed-0 vector is kept because it is the one exception: `normalizeSeed` nudges zero to
+        0x9E3779B9 to keep xorshift off its fixed point, and `derive` hashes the nudged value, so
+        this vector pins that nudge down too.
+    ]]
+    local vectors = {
+        { seed = 0, label = "layer", expected = 83258425 },
+        { seed = 2024, label = "variants", expected = 3031666231 },
+        { seed = 555, label = "loot", expected = 3809130792 },
+        { seed = 4294967295, label = "lens", expected = 2198801702 },
+        { seed = 9001, label = "a", expected = 3443521527 },
+    }
+
+    for _, vector in vectors do
+        local actual = Rng.new(vector.seed).derive(vector.label).originalSeed()
+        expect(actual):toBe(
+            vector.expected,
+            `derive({vector.seed}, "{vector.label}") gave {actual}, not exact FNV-1a`
+        )
+    end
 end)
 
 test(suite, "derive does not depend on how far the parent has advanced", function()

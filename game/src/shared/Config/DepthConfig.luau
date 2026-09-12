@@ -14,7 +14,8 @@ export type StabilityLedgerType = {
     voluntaryDescent: number,
     synchronisedKick: number,
     soloKick: number,
-    monsterAttackLanded: number,
+    falseConcession: number,
+    firstCorroboration: number,
     objectiveStepCompleted: number,
     sedativeDoseFound: number,
     perMinuteElapsed: number,
@@ -27,8 +28,7 @@ export type DepthConfigType = {
     minimum: number,
     maximum: number,
     stability: StabilityLedgerType,
-    reviveWindowSeconds: number,
-    reviveHoldSeconds: number,
+    dissolveWarningSeconds: number,
     descentFallSeconds: number,
     kickRiseSeconds: number,
     maxConcurrentLayers: number,
@@ -37,6 +37,9 @@ export type DepthConfigType = {
     crossDepthAudioBoundaries: number,
     totemReadSeconds: number,
     totemCooldownSeconds: number,
+    maxDrainSharePerPlayer: number,
+    rejoinGraceSeconds: number,
+    pairedPromptWindowSeconds: number,
 }
 
 local DepthConfig: DepthConfigType = {
@@ -52,15 +55,20 @@ local DepthConfig: DepthConfigType = {
         voluntaryDescent = -5,
         synchronisedKick = -6,
         soloKick = -12,
-        monsterAttackLanded = -8,
+        -- 3.6.5. The team agreed on the wrong thing. This replaces a monster landing a
+        -- hit, and it is better, because they chose it.
+        falseConcession = -8,
+        -- Saying what you see pays, once per set, so it is worth doing before you need to.
+        firstCorroboration = 4,
         objectiveStepCompleted = 15,
         sedativeDoseFound = 20,
         perMinuteElapsed = -2,
         limboCallRitual = -30,
     }),
 
-    reviveWindowSeconds = 45,
-    reviveHoldSeconds = 6,
+    -- 3.6.4. How long a room telegraphs that it is coming apart before anybody falls. The
+    -- player must have time to realise that standing still was a decision.
+    dissolveWarningSeconds = 4,
     descentFallSeconds = 3,
     kickRiseSeconds = 2,
 
@@ -75,6 +83,19 @@ local DepthConfig: DepthConfigType = {
 
     totemReadSeconds = 2,
     totemCooldownSeconds = 45,
+
+    -- Specification 3.2.5. A shared pool with no limit is a griefing surface: one player
+    -- descending on purpose, repeatedly, ends everybody's round. Past this share of the
+    -- round's total loss, a player's further *voluntary* costs stop draining the team.
+    -- Involuntary costs are never capped, because those are the game working.
+    maxDrainSharePerPlayer = 0.5,
+
+    -- Specification 3.2.12. A disconnected player keeps their depth and inventory this long.
+    rejoinGraceSeconds = 120,
+
+    -- Specification 3.2.11. Both halves of a paired prompt must be held inside this window,
+    -- by two players one depth apart.
+    pairedPromptWindowSeconds = 2,
 }
 
 return table.freeze(DepthConfig)
