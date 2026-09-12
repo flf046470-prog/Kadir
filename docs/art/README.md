@@ -23,6 +23,12 @@ surfaces, so nothing important sits in the corners. Thumbnails are 16:9 and are
 displayed as small as ~250 px wide in the games list, which is why the type is
 large and the silhouettes are high-contrast.
 
+## Trailer
+
+`trailer/` holds a 37-second motion-graphics trailer and the pipeline that renders it, in
+the same visual language as the stills. See `trailer/README.md`. It is drawn, not captured,
+for the same reason the thumbnails are.
+
 ## What this art is, and what it is not
 
 This is **hand-authored vector graphic design**, not rendered gameplay. It is
