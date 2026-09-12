@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#223d4a"/><stop offset="1" stop-color="#0d181e"/>
+    </linearGradient>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16272f"/><stop offset="1" stop-color="#070c0f"/>
+    </linearGradient>
+    <linearGradient id="ceil" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#132029"/><stop offset="1" stop-color="#050809"/>
+    </linearGradient>
+    <radialGradient id="lampglow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd9a3" stop-opacity="0.95"/>
+      <stop offset="0.35" stop-color="#f2b45e" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#f2b45e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="doorlight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe2b4" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffe2b4" stop-opacity="0.15"/>
+    </linearGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.5" r="0.76">
+      <stop offset="0.38" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.86"/>
+    </radialGradient>
+    <style>.t{font-family:'Liberation Sans','DejaVu Sans',sans-serif;font-weight:700}</style>
+    <g id="bedp">
+      <rect x="0" y="30" width="300" height="46" rx="7" fill="#16242b"/>
+      <rect x="0" y="18" width="300" height="20" rx="8" fill="#22343d"/>
+      <rect x="0" y="0" width="26" height="76" rx="6" fill="#0e181d"/>
+      <rect x="274" y="26" width="26" height="50" rx="6" fill="#0e181d"/>
+      <rect x="18" y="12" width="70" height="24" rx="10" fill="#31454f"/>
+    </g>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#05080a"/>
+  <polygon points="0,0 700,352 1220,352 1920,0" fill="url(#ceil)"/>
+  <polygon points="0,1080 700,712 1220,712 1920,1080" fill="url(#floor)"/>
+  <polygon points="0,0 700,352 700,712 0,1080" fill="url(#wall)"/>
+  <polygon points="1920,0 1220,352 1220,712 1920,1080" fill="url(#wall)"/>
+  <rect x="700" y="352" width="520" height="360" fill="#12222a"/>
+
+  <!-- doorway on the far wall, light behind it -->
+  <rect x="886" y="428" width="148" height="284" fill="#060a0c"/>
+  <rect x="886" y="428" width="34" height="284" fill="url(#doorlight)"/>
+  <circle cx="920" cy="570" r="190" fill="url(#lampglow)" opacity="0.5"/>
+
+  <!-- hanging lamp -->
+  <path d="M960 352 L960 452" stroke="#33454e" stroke-width="4"/>
+  <circle cx="960" cy="466" r="18" fill="#ffd9a3"/>
+  <circle cx="960" cy="466" r="150" fill="url(#lampglow)"/>
+
+  <!-- beds receding, left and right -->
+  <g opacity="0.98">
+    <use href="#bedp" transform="translate(96 812) scale(1.55)"/>
+    <use href="#bedp" transform="translate(414 706) scale(1.06)"/>
+    <use href="#bedp" transform="translate(566 648) scale(0.74)"/>
+    <g transform="translate(1824 812) scale(-1.55 1.55)"><use href="#bedp"/></g>
+    <g transform="translate(1506 706) scale(-1.06 1.06)"><use href="#bedp"/></g>
+    <g transform="translate(1354 648) scale(-0.74 0.74)"><use href="#bedp"/></g>
+  </g>
+
+  <!-- one occupant, already under -->
+  <g fill="#0a1116" transform="translate(96 812) scale(1.55)">
+    <ellipse cx="60" cy="20" rx="26" ry="17"/>
+    <path d="M28 34 Q150 6 268 34 L268 46 Q150 22 28 46 Z"/>
+  </g>
+
+  <text class="t" x="96" y="180" font-size="86" letter-spacing="14" fill="#eef4f7">LIE DOWN.</text>
+  <text class="t" x="96" y="286" font-size="86" letter-spacing="14" fill="#eef4f7">GO UNDER.</text>
+  <text class="t" x="98" y="356" font-size="32" letter-spacing="8" fill="#f2b45e">DREAM LAYERS — DON'T WAKE UP</text>
+  <text class="t" x="96" y="1016" font-size="30" fill="#8fa8b4">The sedative lasts fifteen minutes. Only the surface wakes up.</text>
+
+  <rect width="1920" height="1080" fill="url(#vig)"/>
+</svg>

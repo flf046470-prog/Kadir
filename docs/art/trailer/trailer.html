@@ -1,0 +1,463 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Dream Layers — trailer</title>
+<style>
+  html,body{margin:0;padding:0;background:#000;overflow:hidden}
+  canvas{display:block}
+</style>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/*
+    Dream Layers — motion-graphics trailer, drawn deterministically from a clock.
+
+    Every frame is a pure function of `t` seconds: `window.__seek(t)` draws that instant
+    and nothing carries over between calls. That is what lets `render.mjs` step the clock
+    and screenshot, instead of recording wall-clock playback — the render is reproducible
+    and never drops or doubles a frame.
+
+    The visual language matches docs/art/src/*.svg on purpose: same palette, same
+    one-point corridor, same letter-spaced bold type. This is hand-authored vector
+    motion, NOT gameplay, and the README says so.
+*/
+const W = 1920, H = 1080;
+const ctx = document.getElementById('c').getContext('2d', { alpha: false });
+
+const P = {
+    surface: '#3a6379', d1: '#1d343e', d2: '#122026', d3: '#0a1013', limbo: '#1e1e22',
+    beam: '#f2b45e', beamHi: '#ffe0ad',
+    ink: '#eef4f7', muted: '#8fa8b4', dim: '#5f7480',
+    black: '#04070a',
+};
+const FONT = "'Liberation Sans','DejaVu Sans',sans-serif";
+
+/* ---------- maths ---------- */
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, u) => a + (b - a) * u;
+const inv = (a, b, v) => clamp((v - a) / (b - a), 0, 1);
+const easeOut = u => 1 - Math.pow(1 - u, 3);
+const easeInOut = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+const smooth = u => u * u * (3 - 2 * u);
+// Fades in over `a`, holds, fades out over the last `b` of a 0..1 span.
+const band = (u, a, b) => Math.min(smooth(inv(0, a, u)), smooth(inv(1, 1 - b, u)));
+
+/* ---------- primitives ---------- */
+function rect(x, y, w, h, fill) { ctx.fillStyle = fill; ctx.fillRect(x, y, w, h); }
+
+function poly(pts, fill) {
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function vgrad(x0, y0, x1, y1, stops) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    for (const [o, c] of stops) g.addColorStop(o, c);
+    return g;
+}
+
+function rgrad(x, y, r, stops) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    for (const [o, c] of stops) g.addColorStop(o, c);
+    return g;
+}
+
+function text(str, x, y, opt = {}) {
+    const { size = 82, weight = 700, colour = P.ink, spacing = 12, align = 'left', alpha = 1 } = opt;
+    if (alpha <= 0.001) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.font = `${weight} ${size}px ${FONT}`;
+    ctx.letterSpacing = `${spacing}px`;
+    ctx.textAlign = align;
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = colour;
+    ctx.fillText(str, x, y);
+    ctx.restore();
+}
+
+// The tumbling silhouette that is the game's identity (see docs/art/README.md).
+function figure(x, y, s, rot, alpha, colour = '#05080a') {
+    if (alpha <= 0.001) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.scale(s, s);
+    ctx.fillStyle = colour;
+    ctx.beginPath(); ctx.arc(0, -46, 17, 0, Math.PI * 2); ctx.fill();       // head
+    poly([[-15, -26], [15, -26], [11, 38], [-11, 38]], colour);              // torso
+    poly([[-15, -20], [-24, 26], [-17, 28], [-9, -16]], colour);             // arms
+    poly([[15, -20], [24, 26], [17, 28], [9, -16]], colour);
+    poly([[-11, 38], [-13, 74], [-5, 74], [-2, 38]], colour);                // legs
+    poly([[11, 38], [13, 74], [5, 74], [2, 38]], colour);
+    ctx.restore();
+}
+
+function vignette(strength = 0.94) {
+    ctx.fillStyle = rgrad(W * 0.5, H * 0.52, W * 0.66, [
+        [0.26, 'rgba(0,0,0,0)'], [1, `rgba(0,0,0,${strength})`],
+    ]);
+    ctx.fillRect(0, 0, W, H);
+}
+
+// Drains a region toward neutral grey. Dissolution reads as colour leaving the room.
+function desaturate(x, y, w, h, amount) {
+    if (amount <= 0.001) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'saturation';
+    ctx.globalAlpha = amount;
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+}
+
+/* ---------- the corridor ----------
+   Same one-point construction as thumb-03-corridor.svg: four screen corners running to
+   a small "far window" rectangle, with doors as quads on the wall planes. `push` moves
+   the camera forward by growing that window.
+*/
+const DOOR_DEPTHS = [[0.08, 0.30], [0.33, 0.52], [0.55, 0.66]];
+
+function corridor(vx, vy, vw, vh, o = {}) {
+    const {
+        push = 0, leftDoors = [0, 1, 2], rightDoors = [0, 1, 2],
+        ghostLeft = [], ghostRight = [], ghostAlpha = 0, lit = 1,
+    } = o;
+
+    const k = 0.127 + push * 0.055;          // far window half-width, as a fraction
+    const kh = 0.099 + push * 0.043;
+    const cx = vx + vw / 2, cy = vy + vh * 0.505;
+    const fx0 = cx - vw * k, fx1 = cx + vw * k;
+    const fy0 = cy - vh * kh, fy1 = cy + vh * kh;
+    const X0 = vx, X1 = vx + vw, Y0 = vy, Y1 = vy + vh;
+
+    ctx.save();
+    ctx.beginPath(); ctx.rect(vx, vy, vw, vh); ctx.clip();
+
+    rect(vx, vy, vw, vh, P.black);
+    poly([[X0, Y0], [fx0, fy0], [fx1, fy0], [X1, Y0]], '#070b0e');                 // ceiling
+    poly([[X0, Y1], [fx0, fy1], [fx1, fy1], [X1, Y1]],
+        vgrad(0, Y1, 0, fy1, [[0, '#0b1114'], [1, '#1d2f35']]));                   // floor
+    poly([[X0, Y0], [fx0, fy0], [fx0, fy1], [X0, Y1]],
+        vgrad(X0, 0, fx0, 0, [[0, '#080d10'], [1, '#1a2b31']]));                   // left wall
+    poly([[X1, Y0], [fx1, fy0], [fx1, fy1], [X1, Y1]],
+        vgrad(X1, 0, fx1, 0, [[0, '#080d10'], [1, '#1a2b31']]));                   // right wall
+    rect(fx0, fy0, fx1 - fx0, fy1 - fy0, '#0a1014');                               // far window
+
+    // A door is a quad spanning two depths on one wall plane.
+    const doorQuad = (side, i) => {
+        const [a, b] = DOOR_DEPTHS[i];
+        const ex = side === 'L' ? X0 : X1, fx = side === 'L' ? fx0 : fx1;
+        const xa = lerp(ex, fx, a), xb = lerp(ex, fx, b);
+        const ya0 = lerp(Y0, fy0, a), ya1 = lerp(Y1, fy1, a);
+        const yb0 = lerp(Y0, fy0, b), yb1 = lerp(Y1, fy1, b);
+        const t0 = 0.30, t1 = 0.94;                                                // door head/foot
+        return [[xa, lerp(ya0, ya1, t0)], [xb, lerp(yb0, yb1, t0)],
+                [xb, lerp(yb0, yb1, t1)], [xa, lerp(ya0, ya1, t1)]];
+    };
+
+    const paintDoor = (side, i, alpha, solid) => {
+        if (alpha <= 0.001) return;
+        const q = doorQuad(side, i);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        // A recess reads only if it separates from the wall it sits in, so the fill is a
+        // touch lighter than the plaster and the near edge catches the corridor light.
+        poly(q, solid ? '#0d181d' : 'rgba(90,130,145,0.10)');
+        ctx.strokeStyle = solid ? 'rgba(139,180,196,0.55)' : 'rgba(242,180,94,0.70)';
+        ctx.lineWidth = solid ? 2.5 : 3;
+        if (!solid) ctx.setLineDash([14, 12]);
+        ctx.beginPath();
+        ctx.moveTo(q[0][0], q[0][1]);
+        for (let j = 1; j < q.length; j++) ctx.lineTo(q[j][0], q[j][1]);
+        ctx.closePath(); ctx.stroke();
+        if (solid) {                                   // warm spill down the near jamb
+            ctx.setLineDash([]);
+            ctx.strokeStyle = 'rgba(242,180,94,0.42)';
+            ctx.lineWidth = 4;
+            ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); ctx.lineTo(q[3][0], q[3][1]); ctx.stroke();
+        }
+        ctx.restore();
+    };
+
+    for (const i of leftDoors) paintDoor('L', i, 1, true);
+    for (const i of rightDoors) paintDoor('R', i, 1, true);
+    for (const i of ghostLeft) paintDoor('L', i, ghostAlpha, false);
+    for (const i of ghostRight) paintDoor('R', i, ghostAlpha, false);
+
+    // The light down the middle of the floor.
+    if (lit > 0.001) {
+        ctx.save();
+        ctx.globalAlpha = lit;
+        poly([[lerp(cx, X0, 0.30), Y1], [fx0, fy1], [fx1, fy1], [lerp(cx, X1, 0.30), Y1]],
+            vgrad(0, Y1, 0, fy1, [
+                [0, 'rgba(255,217,163,0.26)'], [0.55, 'rgba(242,180,94,0.10)'],
+                [1, 'rgba(242,180,94,0)'],
+            ]));
+        ctx.restore();
+    }
+    ctx.restore();
+}
+
+/* ---------- scenes ---------- */
+
+// 1. Cold open. The whole game stated in two lines, on black.
+function sceneOpen(u) {
+    rect(0, 0, W, H, P.black);
+    const a1 = band(inv(0.06, 0.92, u), 0.14, 0.10);
+    const a2 = band(inv(0.44, 1.00, u), 0.16, 0.12);
+    text('SIX PEOPLE IN ONE ROOM.', W / 2, 500, { size: 78, align: 'center', alpha: a1 });
+    text('NOT THE SAME ROOM.', W / 2, 640, {
+        size: 78, align: 'center', alpha: a2, colour: P.beam,
+    });
+    vignette(0.55);
+}
+
+// 2. The premise: beds, a sedative, going under.
+function sceneWaking(u) {
+    const push = easeInOut(u);
+    rect(0, 0, W, H, '#060a0d');
+    poly([[0, 0], [W, 0], [W, 300], [0, 250]], '#080d11');                       // back wall
+    poly([[0, H], [W, H], [W, 640], [0, 690]],
+        vgrad(0, H, 0, 640, [[0, '#0a1216'], [1, '#17272e']]));                  // floor
+
+    // Three beds, big enough to read, lifted into the middle of the frame.
+    const beds = [[330, 700], [960, 728], [1590, 700]];
+    beds.forEach(([bx, by], i) => {
+        const s = 1 + push * 0.05 + (by - 700) / 900;
+        const w = 520 * s, h = 74 * s;
+        // The lamp pool goes down first so the bed sits inside it.
+        ctx.fillStyle = rgrad(bx, by - 40, 430 * s, [
+            [0, 'rgba(255,217,163,0.20)'], [0.45, 'rgba(242,180,94,0.07)'],
+            [1, 'rgba(255,217,163,0)'],
+        ]);
+        ctx.fillRect(bx - 480, by - 420, 960, 700);
+
+        ctx.save();
+        ctx.translate(bx, by);
+        rect(-w / 2 - 14, -h / 2 - 120 * s, 20 * s, 150 * s, '#16252b');         // headboard
+        rect(-w / 2, -h / 2, w, h, '#132229');                                   // mattress
+        rect(-w / 2, -h / 2, w, 8 * s, '#1d323b');                               // sheet highlight
+        rect(-w / 2, h / 2, w, 16 * s, '#080f12');                               // shadow under
+        rect(-w / 2 + 10, h / 2 + 16 * s, 14 * s, 42 * s, '#0a1417');            // legs
+        rect(w / 2 - 24 * s, h / 2 + 16 * s, 14 * s, 42 * s, '#0a1417');
+        rect(-w / 2 + 22, -h / 2 - 26 * s, 120 * s, 28 * s, '#1b2d35');          // pillow
+        // Sleeper: the tumble silhouette laid flat, head on the pillow.
+        figure(-w / 2 + 120 * s, -h / 2 - 34 * s, 0.92 * s, Math.PI / 2, 1, '#05080a');
+        ctx.restore();
+    });
+
+    text('LIE DOWN. GO UNDER.', 96, 200, { size: 84, alpha: band(inv(0.10, 1, u), 0.16, 0.12) });
+    text('A sedative, six beds, and fifteen minutes.', 98, 268, {
+        size: 32, spacing: 2, colour: P.muted, alpha: band(inv(0.24, 1, u), 0.18, 0.14),
+    });
+    vignette(0.88);
+}
+
+// 3. The dream stack: falling through the depth bands.
+function sceneStack(u) {
+    // Lightness and saturation both fall with depth, and Limbo is neutral with no hue at
+    // all — the same curve DistortionConfig describes. The shipped palette values are too
+    // near-black to separate on video, so these are lifted for legibility.
+    const bands = [
+        ['0   THE DREAM', '#42718b'], ['1   DEEPER', '#27424f'], ['2', '#172830'],
+        ['3', '#0d171b'], ['LIMBO', '#26262c'],
+    ];
+    const bh = 470;
+    const travel = easeInOut(clamp(u / 0.86, 0, 1)) * (bands.length - 1.18) * bh;
+    rect(0, 0, W, H, P.black);
+
+    ctx.save();
+    ctx.translate(0, -travel);
+    bands.forEach(([label, colour], i) => {
+        const y = i * bh;
+        rect(0, y, W, bh, colour);
+        rect(0, y, W, 3, 'rgba(0,0,0,0.45)');
+        text(label, W - 110, y + 92, {
+            size: 38, spacing: 10, align: 'right', colour: 'rgba(255,255,255,0.46)',
+        });
+    });
+    ctx.restore();
+
+    // The figure stays near frame centre and tumbles; the world moves past it.
+    figure(W / 2 - 40, H * 0.47, 2.5, u * 7.2, 1, '#04070a');
+
+    const a1 = band(inv(0.08, 0.62, u), 0.18, 0.16);
+    const a2 = band(inv(0.46, 1.00, u), 0.16, 0.14);
+    // A slab behind the copy so it never fights a band seam for legibility.
+    const copyA = Math.max(a1, a2);
+    if (copyA > 0.01) {
+        ctx.save(); ctx.globalAlpha = copyA * 0.72;
+        ctx.fillStyle = vgrad(0, 110, 0, 330, [[0, 'rgba(4,7,10,0.86)'], [1, 'rgba(4,7,10,0)']]);
+        ctx.fillRect(0, 100, W, 240); ctx.restore();
+    }
+    text('FAIL, AND YOU DO NOT DIE.', 96, 200, { size: 74, alpha: a1 });
+    text('YOU FALL INTO THE DREAM BELOW IT.', 96, 200, { size: 74, alpha: a2 });
+    text('The answers are always one level down.', 98, 266, {
+        size: 32, spacing: 2, colour: 'rgba(255,255,255,0.62)', alpha: a2,
+    });
+    vignette(0.86);
+}
+
+// 4. The centrepiece: two players, one room, two readings of it.
+function sceneDiverge(u) {
+    rect(0, 0, W, H, P.black);
+    const split = smooth(inv(0.00, 0.16, u));
+    const gap = 6;
+    const halfW = (W - gap) / 2;
+
+    if (split < 0.999) {
+        // Starts as one shared corridor, then parts down the middle.
+        corridor(0, 0, W, H, { leftDoors: [0, 1], rightDoors: [2], push: 0.1 + u * 0.12 });
+    }
+    if (split > 0.001) {
+        ctx.save();
+        ctx.globalAlpha = split;
+        // Ada's reading: a door on the left wall.
+        corridor(0, 0, halfW, H, { leftDoors: [0, 1], rightDoors: [], push: 0.02 + u * 0.10 });
+        // Mert's reading: that wall is plaster; the door is on the other side.
+        corridor(halfW + gap, 0, halfW, H, { leftDoors: [], rightDoors: [0, 2], push: 0.02 + u * 0.10 });
+        rect(halfW, 0, gap, H, P.black);
+        ctx.restore();
+    }
+
+    const nameA = band(inv(0.14, 1, u), 0.10, 0.04);
+    text('ADA', 96, 120, { size: 34, spacing: 14, colour: P.beam, alpha: nameA });
+    text('MERT', halfW + gap + 96, 120, { size: 34, spacing: 14, colour: P.beam, alpha: nameA });
+
+    const a1 = band(inv(0.22, 0.56, u), 0.16, 0.18);
+    const a2 = band(inv(0.44, 0.78, u), 0.16, 0.18);
+    const a3 = band(inv(0.70, 1.00, u), 0.14, 0.12);
+    text('YOU SEE A DOOR.', 84, H - 208, { size: 62, spacing: 8, alpha: a1 });
+    text('SHE SEES A WALL.', halfW + gap + 84, H - 208, { size: 62, spacing: 8, alpha: a2 });
+    text('NOBODY IS LYING.', W / 2, H - 96, {
+        size: 62, align: 'center', colour: P.beam, alpha: a3,
+    });
+    vignette();
+}
+
+// 5. Stakes: a room nobody can agree on stops holding you up.
+function sceneDissolve(u) {
+    const decay = smooth(inv(0.10, 0.86, u));
+    rect(0, 0, W, H, P.black);
+    corridor(0, 0, W, H, {
+        leftDoors: [0, 1], rightDoors: [],
+        ghostRight: [0, 2], ghostAlpha: decay * 0.9,       // the other lens bleeding through
+        push: 0.06 + u * 0.05, lit: 1 - decay * 0.85,
+    });
+    desaturate(0, 0, W, H, decay * 0.92);
+
+    // The floor stops agreeing: a widening dark wound down the centre.
+    if (decay > 0.02) {
+        ctx.save();
+        ctx.globalAlpha = decay;
+        const spread = 40 + decay * 300;
+        poly([[W / 2 - spread, H], [W / 2 - 30, H * 0.56], [W / 2 + 30, H * 0.56], [W / 2 + spread, H]],
+            vgrad(0, H, 0, H * 0.56, [[0, 'rgba(2,3,5,0.95)'], [1, 'rgba(2,3,5,0)']]));
+        ctx.restore();
+    }
+    figure(W / 2 + 220, H * 0.70, 1.5, 0, 0.9 - decay * 0.35);
+
+    const a1 = band(inv(0.06, 0.60, u), 0.16, 0.18);
+    const a2 = band(inv(0.42, 1.00, u), 0.16, 0.12);
+    text('A ROOM NOBODY AGREES ON', 96, 200, { size: 72, alpha: a1 });
+    text('STOPS HOLDING YOU UP.', 96, 286, { size: 72, alpha: a2, colour: P.beam });
+    text('Nothing chases you. Nothing has to.', 98, 352, {
+        size: 32, spacing: 2, colour: P.muted, alpha: band(inv(0.60, 1, u), 0.2, 0.1),
+    });
+    vignette();
+}
+
+// 6. The out: agreement makes the world solid again.
+function sceneAgree(u) {
+    const meet = smooth(inv(0.20, 0.74, u));
+    rect(0, 0, W, H, P.black);
+    corridor(0, 0, W, H, {
+        leftDoors: [0, 1], rightDoors: meet > 0.6 ? [] : [],
+        ghostRight: [0, 2], ghostAlpha: (1 - meet) * 0.85,
+        push: 0.05, lit: 0.25 + meet * 0.85,
+    });
+    desaturate(0, 0, W, H, (1 - meet) * 0.85);
+
+    figure(lerp(430, 830, meet), H * 0.74, 1.7, 0, 0.95);
+    figure(lerp(1490, 1090, meet), H * 0.74, 1.7, 0, 0.95);
+
+    text('SAY WHAT YOU SEE.', 96, 200, {
+        size: 84, alpha: band(inv(0.10, 1, u), 0.16, 0.12),
+    });
+    text('Agree, and the room becomes solid. It also becomes poorer.', 98, 268, {
+        size: 32, spacing: 2, colour: P.muted, alpha: band(inv(0.30, 1, u), 0.18, 0.12),
+    });
+    vignette();
+}
+
+// 7. The Final Layer, then the title.
+function sceneTitle(u) {
+    rect(0, 0, W, H, P.black);
+    const doorOpen = smooth(inv(0.00, 0.46, u));
+
+    // The waking room again, with the way out standing open.
+    poly([[0, H], [W, H], [W, 700], [0, 740]],
+        vgrad(0, H, 0, 700, [[0, '#090f12'], [1, '#132025']]));
+    const dw = 150 * doorOpen, dh = 420;
+    ctx.fillStyle = rgrad(W / 2, 560, 520 * doorOpen, [
+        [0, `rgba(255,217,163,${0.30 * doorOpen})`], [1, 'rgba(255,217,163,0)'],
+    ]);
+    ctx.fillRect(0, 200, W, 700);
+    rect(W / 2 - dw / 2, 560 - dh / 2 + 120, dw, dh,
+        vgrad(0, 680, 0, 320, [[0, '#ffe0ad'], [1, '#f2b45e']]));
+    figure(W / 2 - 250, 790, 1.9, 0, 0.95);
+
+    const q = band(inv(0.04, 0.40, u), 0.18, 0.24);
+    text('IS WAKING UP AN EXIT?', W / 2, 300, { size: 74, align: 'center', alpha: q });
+
+    // Title card cross-fades in over the top.
+    const tA = smooth(inv(0.40, 0.60, u));
+    if (tA > 0.001) {
+        ctx.save();
+        ctx.globalAlpha = tA;
+        rect(0, 0, W, H, 'rgba(4,7,10,0.94)');
+        text('DREAM', W / 2, 430, { size: 152, spacing: 26, align: 'center' });
+        text('LAYERS', W / 2, 578, { size: 152, spacing: 26, align: 'center' });
+        text("DON'T WAKE UP", W / 2, 680, {
+            size: 58, spacing: 20, align: 'center', colour: P.beam,
+        });
+        text('1–6 PLAYERS   ·   CO-OP DREAM PUZZLE', W / 2, 808, {
+            size: 28, spacing: 9, align: 'center', colour: P.dim,
+        });
+        ctx.restore();
+    }
+    vignette(0.72);
+}
+
+/* ---------- timeline ---------- */
+const SCENES = [
+    { dur: 4.2, draw: sceneOpen },
+    { dur: 4.4, draw: sceneWaking },
+    { dur: 5.8, draw: sceneStack },
+    { dur: 8.2, draw: sceneDiverge },
+    { dur: 4.8, draw: sceneDissolve },
+    { dur: 3.8, draw: sceneAgree },
+    { dur: 5.8, draw: sceneTitle },
+];
+const DURATION = SCENES.reduce((a, s) => a + s.dur, 0);
+window.__duration = DURATION;
+
+window.__seek = function (t) {
+    t = clamp(t, 0, DURATION - 0.0001);
+    let acc = 0;
+    for (const s of SCENES) {
+        if (t < acc + s.dur) { s.draw((t - acc) / s.dur); break; }
+        acc += s.dur;
+    }
+    // Open on black and close on black, so the cut in and out is clean.
+    const fade = Math.min(smooth(inv(0, 0.5, t)), smooth(inv(DURATION, DURATION - 0.7, t)));
+    if (fade < 0.999) { ctx.fillStyle = `rgba(0,0,0,${1 - fade})`; ctx.fillRect(0, 0, W, H); }
+    return true;
+};
+
+window.__seek(0);
+</script>

@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="560" viewBox="0 0 1600 560">
+  <defs>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#b9c9d2"/>
+    </linearGradient>
+    <style>
+      .t { font-family: 'Liberation Sans','DejaVu Sans',sans-serif; font-weight: 700; }
+    </style>
+  </defs>
+
+  <!-- DREAM: level, at the surface -->
+  <text class="t" x="60" y="190" font-size="176" letter-spacing="26" fill="url(#ink)">DREAM</text>
+
+  <!-- LAYERS: each letter steps further down, the way the game does -->
+  <g class="t" font-size="176" fill="url(#ink)">
+    <text x="66"   y="360">L</text>
+    <text x="192"  y="374">A</text>
+    <text x="332"  y="388">Y</text>
+    <text x="462"  y="402">E</text>
+    <text x="588"  y="416">R</text>
+    <text x="724"  y="430">S</text>
+  </g>
+
+  <!-- depth ticks -->
+  <g stroke="#f2b45e" stroke-opacity="0.55" stroke-width="3">
+    <path d="M60 452 L900 452"/>
+  </g>
+  <g class="t" font-size="26" fill="#f2b45e" fill-opacity="0.85" letter-spacing="6">
+    <text x="60"  y="492">0</text>
+    <text x="270" y="492">1</text>
+    <text x="480" y="492">2</text>
+    <text x="690" y="492">3</text>
+    <text x="856" y="492">LIMBO</text>
+  </g>
+  <g fill="#f2b45e" fill-opacity="0.55">
+    <rect x="60"  y="444" width="3" height="16"/>
+    <rect x="270" y="444" width="3" height="16"/>
+    <rect x="480" y="444" width="3" height="16"/>
+    <rect x="690" y="444" width="3" height="16"/>
+    <rect x="897" y="444" width="3" height="16"/>
+  </g>
+
+  <text class="t" x="1000" y="204" font-size="46" letter-spacing="12" fill="#f2b45e">DON'T</text>
+  <text class="t" x="1000" y="266" font-size="46" letter-spacing="12" fill="#f2b45e">WAKE</text>
+  <text class="t" x="1000" y="328" font-size="46" letter-spacing="12" fill="#f2b45e">UP</text>
+</svg>

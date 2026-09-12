@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="cw" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#080d10"/><stop offset="1" stop-color="#1a2b31"/>
+    </linearGradient>
+    <linearGradient id="cw2" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#080d10"/><stop offset="1" stop-color="#1a2b31"/>
+    </linearGradient>
+    <linearGradient id="cf" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#0b1114"/><stop offset="1" stop-color="#1d2f35"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffd9a3" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#f2b45e" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#f2b45e" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="pool" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd9a3" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ffd9a3" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="vig" cx="0.5" cy="0.52" r="0.66">
+      <stop offset="0.26" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0.94"/>
+    </radialGradient>
+    <style>.t{font-family:'Liberation Sans','DejaVu Sans',sans-serif;font-weight:700}</style>
+  </defs>
+
+  <rect width="1920" height="1080" fill="#04070a"/>
+  <polygon points="0,0 838,438 1082,438 1920,0" fill="#070b0e"/>
+  <polygon points="0,1080 838,652 1082,652 1920,1080" fill="url(#cf)"/>
+  <polygon points="0,0 838,438 838,652 0,1080" fill="url(#cw)"/>
+  <polygon points="1920,0 1082,438 1082,652 1920,1080" fill="url(#cw2)"/>
+  <rect x="838" y="438" width="244" height="214" fill="#0a1014"/>
+
+  <!-- doors receding down both walls -->
+  <g fill="#050809" stroke="#4d6f7c" stroke-opacity="0.22" stroke-width="2">
+    <polygon points="150,300 330,412 330,880 150,1052"/>
+    <polygon points="470,478 600,540 600,790 470,858"/>
+    <polygon points="690,570 772,600 772,724 690,752"/>
+    <polygon points="1770,300 1590,412 1590,880 1770,1052"/>
+    <polygon points="1450,478 1320,540 1320,790 1450,858"/>
+    <polygon points="1230,570 1148,600 1148,724 1230,752"/>
+  </g>
+
+  <!-- flashlight: the player's own beam, from just below frame -->
+  <polygon points="880,1080 1040,1080 1108,470 812,470" fill="url(#beam)"/>
+  <ellipse cx="960" cy="700" rx="300" ry="120" fill="url(#pool)"/>
+
+  <!-- it is standing at the end of the corridor -->
+  <g fill="#010203">
+    <ellipse cx="960" cy="486" rx="17" ry="21"/>
+    <path d="M944 506 L976 506 L988 640 L932 640 Z"/>
+    <path d="M947 640 L941 652 L953 652 Z"/>
+    <path d="M973 640 L979 652 L967 652 Z"/>
+    <path d="M944 512 L922 606 L930 610 L950 522 Z"/>
+    <path d="M976 512 L998 606 L990 610 L970 522 Z"/>
+  </g>
+
+  <text class="t" x="96" y="172" font-size="82" letter-spacing="12" fill="#eef4f7">YOU SEE A DOOR.</text>
+  <text class="t" x="96" y="272" font-size="82" letter-spacing="12" fill="#eef4f7">SHE SEES A WALL.</text>
+  <text class="t" x="98" y="340" font-size="30" letter-spacing="8" fill="#f2b45e">DREAM LAYERS — DON'T WAKE UP</text>
+  <text class="t" x="96" y="1012" font-size="30" fill="#8fa8b4">Nobody is lying. The dream does not show everyone the same thing.</text>
+
+  <rect width="1920" height="1080" fill="url(#vig)"/>
+</svg>
