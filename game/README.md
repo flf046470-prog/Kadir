@@ -45,7 +45,7 @@ reporting a pass**, because a skipped check that reads as a clean run is worse t
 | `stylua --check` | passes |
 | `selene` | passes, 0 warnings |
 | `luau-lsp analyze` | **could not run** — see below |
-| `lune run tests/run.luau` | passes: 88 tests, 1211 assertions, 8 suites |
+| `lune run tests/run.luau` | passes: 131 tests, 2794 assertions, 9 suites |
 
 **Why the typecheck could not run.** The build environment has no network route to the
 GitHub releases that `luau-lsp` installs from. Every module is written `--!strict` and is
