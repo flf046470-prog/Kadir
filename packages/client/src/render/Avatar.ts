@@ -555,12 +555,8 @@ export class Avatar {
   /** Nameplate above the head. Pass `show = false` for the local player — you know who you are,
    * and at third-person distance your own plate covers the middle of the screen. */
   setName(name: string, color = '#f2f7f0', show = true): void {
-    if (!show) {
-      this.nameSprite?.removeFromParent();
-      this.nameSprite = null;
-      return;
-    }
-    this.nameSprite?.removeFromParent();
+    this.clearNameSprite();
+    if (!show) return;
     const canvas = document.createElement('canvas');
     canvas.width = 256;
     canvas.height = 64;
@@ -585,6 +581,24 @@ export class Avatar {
     sprite.renderOrder = 10;
     this.group.add(sprite);
     this.nameSprite = sprite;
+  }
+
+  /**
+   * Drop the current nameplate, texture included.
+   *
+   * The plate is a canvas baked into a texture, and a texture is not freed by disposing the
+   * material that points at it — that is the one every three.js leak is made of. Renaming an
+   * avatar, or replacing the plate on a new round, used to strand one 256x64 texture per call
+   * with nothing left holding a reference to dispose it.
+   */
+  private clearNameSprite(): void {
+    if (!this.nameSprite) return;
+    const material = this.nameSprite.material;
+    this.nameSprite.removeFromParent();
+    this.nameSprite = null;
+    const index = this.materials.indexOf(material);
+    if (index >= 0) this.materials.splice(index, 1);
+    disposeMaterial(material);
   }
 
   /** Role colour ring on the ground — how you spot the chaser across a canyon. */
@@ -748,11 +762,26 @@ export class Avatar {
   }
 
   dispose(): void {
-    for (const material of this.materials) material.dispose();
+    for (const material of this.materials) disposeMaterial(material);
     for (const geometry of this.geometries) geometry.dispose();
     this.group.removeFromParent();
     this.group.clear();
   }
+}
+
+/**
+ * Free a material and anything it holds on the GPU.
+ *
+ * `Material.dispose()` releases the material and leaves its textures alone, because a texture is
+ * usually shared between materials and three.js will not guess. Here nothing is shared — every
+ * map is baked for one avatar — so the material owning it is the right place to free it, and not
+ * doing so leaked a texture per nameplate for the life of the tab.
+ */
+function disposeMaterial(material: THREE.Material): void {
+  for (const key of ['map', 'alphaMap', 'emissiveMap', 'normalMap'] as const) {
+    (material as unknown as Record<string, THREE.Texture | null | undefined>)[key]?.dispose();
+  }
+  material.dispose();
 }
 
 function socketForSlot(slot: string): string {

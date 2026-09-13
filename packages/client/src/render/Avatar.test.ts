@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { LAUNCH_ANIMALS, SnapFlags, listAnimals, registerAnimals } from '@kc/core';
 import type { PlayerSnapshot } from '@kc/core';
@@ -167,5 +167,136 @@ describe('body plans are a look, never an advantage', () => {
     const tallest = Math.max(...heights.map((h) => h.height));
     const shortest = Math.min(...heights.map((h) => h.height));
     expect(tallest - shortest, JSON.stringify(heights)).toBeLessThan(0.75);
+  });
+});
+
+/**
+ * GPU objects an avatar holds.
+ *
+ * Measured across four practice rounds, live WebGL textures climbed by three every round and
+ * never came back: buffers, VAOs and programs were flat, so geometry disposal was sound and
+ * textures alone were stranded. The nameplate is a canvas baked into a `CanvasTexture`, and
+ * `Material.dispose()` does not touch `material.map` — three.js leaves textures alone because
+ * they are usually shared, and here they never are.
+ *
+ * These count `dispose` calls rather than inspect a renderer, so they run with no GL context.
+ */
+describe('an avatar frees what it allocated', () => {
+  /**
+   * A canvas, only as far as `setName` actually uses one.
+   *
+   * Not jsdom: there `getContext('2d')` returns null without a native canvas build, `setName`
+   * bails out before it makes a texture, and the test would pass while measuring nothing.
+   */
+  let restoreDocument: (() => void) | null = null;
+  beforeAll(() => {
+    if (typeof globalThis.document !== 'undefined') return;
+    const ctx2d = new Proxy({}, { get: () => () => undefined, set: () => true });
+    const fake = { createElement: () => ({ width: 0, height: 0, getContext: () => ctx2d }) };
+    (globalThis as { document?: unknown }).document = fake;
+    restoreDocument = () => delete (globalThis as { document?: unknown }).document;
+  });
+  afterAll(() => restoreDocument?.());
+
+  /** Watch every texture three.js hands out, and record which ones were disposed. */
+  function watchTextures() {
+    const seen: { disposed: boolean }[] = [];
+    const original = THREE.Texture.prototype.dispose;
+    const originalCanvas = THREE.CanvasTexture.prototype.constructor;
+    void originalCanvas;
+    const created = new Map<THREE.Texture, { disposed: boolean }>();
+    const patchedDispose = function (this: THREE.Texture) {
+      const entry = created.get(this);
+      if (entry) entry.disposed = true;
+      return original.call(this);
+    };
+    THREE.Texture.prototype.dispose = patchedDispose;
+    return {
+      track(texture: THREE.Texture) {
+        const entry = { disposed: false };
+        created.set(texture, entry);
+        seen.push(entry);
+        return entry;
+      },
+      get live() {
+        return seen.filter((s) => !s.disposed).length;
+      },
+      restore() {
+        THREE.Texture.prototype.dispose = original;
+      },
+    };
+  }
+
+  /** Every texture currently reachable from the avatar's own materials. */
+  function texturesOf(avatar: Avatar): THREE.Texture[] {
+    const found: THREE.Texture[] = [];
+    avatar.group.traverse((node) => {
+      const material = (node as THREE.Mesh | THREE.Sprite).material as THREE.Material | undefined;
+      const map = (material as unknown as { map?: THREE.Texture })?.map;
+      if (map) found.push(map);
+    });
+    return found;
+  }
+
+  it('disposes the nameplate texture when the avatar goes away', () => {
+    const watch = watchTextures();
+    try {
+      const avatar = new Avatar('kangaroo', false);
+      avatar.setName('Hopper');
+      const textures = texturesOf(avatar);
+      expect(textures.length, 'a nameplate should have produced a texture').toBeGreaterThan(0);
+      for (const t of textures) watch.track(t);
+      expect(watch.live).toBe(textures.length);
+
+      avatar.dispose();
+      expect(watch.live, 'every texture the avatar made should be freed').toBe(0);
+    } finally {
+      watch.restore();
+    }
+  });
+
+  it('disposes the old nameplate when the name is replaced', () => {
+    const watch = watchTextures();
+    try {
+      const avatar = new Avatar('kangaroo', false);
+      avatar.setName('Hopper');
+      const first = texturesOf(avatar)[0];
+      expect(first).toBeDefined();
+      watch.track(first);
+
+      avatar.setName('Skippy');
+      expect(watch.live, 'the replaced plate should not be stranded').toBe(0);
+      avatar.dispose();
+    } finally {
+      watch.restore();
+    }
+  });
+
+  it('disposes the plate when the name is hidden', () => {
+    const watch = watchTextures();
+    try {
+      const avatar = new Avatar('kangaroo', false);
+      avatar.setName('Hopper');
+      watch.track(texturesOf(avatar)[0]);
+      avatar.setName('Hopper', '#fff', false);
+      expect(watch.live).toBe(0);
+      avatar.dispose();
+    } finally {
+      watch.restore();
+    }
+  });
+
+  it('does not keep the replaced material in its disposal list', () => {
+    const avatar = new Avatar('kangaroo', false);
+    avatar.setName('One');
+    avatar.setName('Two');
+    avatar.setName('Three');
+    // Three plates made, one alive: the list must not have grown by three.
+    const sprites: THREE.Sprite[] = [];
+    avatar.group.traverse((n) => {
+      if ((n as THREE.Sprite).isSprite) sprites.push(n as THREE.Sprite);
+    });
+    expect(sprites.length).toBe(1);
+    avatar.dispose();
   });
 });
