@@ -156,29 +156,33 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   const closedAfterSend = await page.locator('.kc-chat[data-open="true"]').count() === 0;
 
   /**
-   * Touch builds: every control must be reachable by an actual thumb.
+   * Every control the HUD puts on screen must be reachable by an actual click or thumb.
    *
-   * Rendering a button is not the same as being able to press one. The whole touch cluster once
-   * computed `pointer-events: none` — inherited from the pointer-transparent HUD root — so the
-   * canvas sat on top of it and every button was dead on a phone while looking perfect in a
-   * screenshot. An earlier version of this check dispatched a synthetic `pointerdown` straight at
-   * the node, which skips hit-testing entirely and so passed throughout. Hit-test first, then tap
-   * for real.
+   * Rendering a button is not the same as being able to press one. The HUD root is deliberately
+   * transparent to pointer events so the canvas underneath can be swiped, `pointer-events`
+   * inherits, and anything in there that does not take them back is drawn perfectly and does
+   * nothing at all — a failure invisible to every screenshot ever taken of it.
+   *
+   * This has now bitten twice, which is why the check is written against every interactive node
+   * in the HUD rather than one class at a time, and on every viewport rather than only the phone.
+   * The first time it was the touch cluster, dead on a phone. The second time it was the Menu
+   * button, dead everywhere — and on a phone, where there is no Escape key, that left no way out
+   * of a match at all. A check scoped to `.kc-touchbtn` on touch builds could not see it.
    */
-  let touchHit = 'n/a';
+  const unreachable = await page.evaluate(() =>
+    [...document.querySelectorAll('.kc-hud button, .kc-hud input, .kc-hud [data-ui]')]
+      .filter((n) => {
+        const r = n.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false; // not on screen right now
+        const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        return !n.contains(top);
+      })
+      .map((n) => (n.textContent || n.className || n.tagName).trim().slice(0, 16)),
+  );
+  const hudHit = unreachable.length === 0 ? 'all reachable' : `UNREACHABLE ${unreachable.join(',')}`;
+
   let touchChat = 'n/a';
   if (label !== 'desktop') {
-    const unreachable = await page.evaluate(() =>
-      [...document.querySelectorAll('.kc-touchbtn')]
-        .filter((n) => {
-          const r = n.getBoundingClientRect();
-          const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-          return !n.contains(top);
-        })
-        .map((n) => n.textContent),
-    );
-    touchHit = unreachable.length === 0 ? 'all reachable' : `UNREACHABLE ${unreachable.join(',')}`;
-
     const button = page.locator('.kc-touchbtn', { hasText: '💬' }).first();
     touchChat = (await button.count()) > 0 ? 'present' : 'MISSING';
     if (touchChat === 'present') {
@@ -192,12 +196,12 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
 
   console.log(`${label.padEnd(16)} tutorial=${sawTutorial} menu=${sawMenu} credits=${sawCredits} canvas=${played} inMatch=${inMatch}`);
   console.log(`${''.padEnd(16)} chat: open=${chatOpen} keysCaptured=${keysWentToChat} esc=${chatClosed} stillInMatch=${stillInMatch} closedAfterSend=${closedAfterSend} touch=${touchChat}`);
-  console.log(`${''.padEnd(16)} touch controls: ${touchHit}`);
+  console.log(`${''.padEnd(16)} HUD controls: ${hudHit}`);
   if (!chatOpen || !keysWentToChat || !chatClosed || !stillInMatch || !closedAfterSend) {
     errors.push(`[${label}] chat composer misbehaved (typed=${JSON.stringify(typed)})`);
   }
   if (touchChat !== 'n/a' && touchChat !== 'opens') errors.push(`[${label}] touch chat button ${touchChat}`);
-  if (touchHit !== 'n/a' && touchHit !== 'all reachable') errors.push(`[${label}] ${touchHit}`);
+  if (hudHit !== 'all reachable') errors.push(`[${label}] ${hudHit}`);
   await page.close();
 }
 await browser.close();

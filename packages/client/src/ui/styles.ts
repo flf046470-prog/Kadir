@@ -49,6 +49,13 @@ export const UI_CSS = `
 
 .kc-hud { position: absolute; inset: 0; pointer-events: none; }
 .kc-hud > * { pointer-events: none; }
+/* Anything inside the HUD that exists to be pressed takes pointer events back.
+   The HUD is deliberately transparent to them so the canvas underneath can be swiped, and the
+   property inherits — so every control in here starts out dead and has to opt in. This is
+   written once, against what an element *is* rather than what it is called, because doing it
+   per-class has already gone wrong twice: the touch buttons did nothing on a phone, and the
+   Menu button did nothing anywhere, which on a phone meant no way out of a match at all. */
+.kc-hud button, .kc-hud input, .kc-hud [data-ui] { pointer-events: auto; }
 .kc-hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; }
 .kc-headline { font-size: clamp(18px, 4vw, 28px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
 .kc-timer { font-size: 15px; opacity: .85; font-variant-numeric: tabular-nums; }
@@ -104,12 +111,9 @@ export const UI_CSS = `
 /* Gear cluster: top-right, away from the movement pad so a thumb reaching for HOP mid-chase
    cannot fire a freeze gun by accident. Smaller, because it is used deliberately, not in a panic. */
 .kc-touchbtns--gear { top: max(64px, env(safe-area-inset-top)); bottom: auto; grid-template-columns: repeat(2, 62px); gap: 10px; }
-/* The pointer-events line below is not decoration, it is the whole button.
-   The HUD root is pointer-transparent so the canvas underneath can be swiped, and the property
-   inherits: without it every touch control computes to none, sits under the canvas, and silently
-   does nothing. The gaps between buttons stay transparent on purpose — swipe-to-look has to keep
-   working in the space around them. */
-.kc-touchbtn { width: 76px; height: 76px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(20,40,24,.72); color: #fff; font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; user-select: none; pointer-events: auto; }
+/* These take pointer events from the rule beside the HUD root, not from here. The gaps between
+   them stay transparent on purpose — swipe-to-look has to keep working in the space around. */
+.kc-touchbtn { width: 76px; height: 76px; border-radius: 50%; border: 1px solid rgba(255,255,255,.2); background: rgba(20,40,24,.72); color: #fff; font: 700 13px system-ui; display: flex; align-items: center; justify-content: center; user-select: none; }
 .kc-touchbtn--big { width: 92px; height: 92px; grid-column: 2; background: rgba(46,110,52,.8); }
 .kc-touchbtn:active, .kc-touchbtn[data-active="true"] { background: rgba(90,180,96,.9); transform: scale(.96); }
 
