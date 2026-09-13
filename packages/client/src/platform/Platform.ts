@@ -1,5 +1,6 @@
 import type { InputIntent, Settings, QualityTier } from '@kc/core';
 import type { HapticEvent } from './vr/comfort.js';
+import { TARGET_FPS } from '../render/governor.js';
 
 export type PlatformKind = 'pc' | 'mobile' | 'vr';
 
@@ -77,7 +78,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 70,
       maxDetailedPlayers: 6,
       foliageBudget: 60,
-      targetFps: 30,
+      targetFps: TARGET_FPS.low,
       antialias: false,
     },
     medium: {
@@ -88,7 +89,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 120,
       maxDetailedPlayers: 10,
       foliageBudget: 160,
-      targetFps: 60,
+      targetFps: TARGET_FPS.medium,
       antialias: true,
     },
     high: {
@@ -99,7 +100,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 200,
       maxDetailedPlayers: 16,
       foliageBudget: 320,
-      targetFps: 60,
+      targetFps: TARGET_FPS.high,
       antialias: true,
     },
   };

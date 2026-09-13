@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { LevelDef, QualityTier, Settings } from '@kc/core';
 import type { PerformanceProfile, PlatformKind } from '../platform/Platform.js';
+import { isDemotion, nextTier } from './governor.js';
 
 export interface RendererOptions {
   container: HTMLElement;
@@ -29,6 +30,8 @@ export class Renderer {
   private container: HTMLElement;
   private frameTimes: number[] = [];
   private lastTierChange = 0;
+  /** When the governor last dropped a tier, so it does not climb straight back into it. */
+  private lastDemotion: number | null = null;
   private currentTier: QualityTier = 'medium';
   private governorEnabled = true;
 
@@ -115,29 +118,32 @@ export class Renderer {
   }
 
   /**
-   * Adaptive quality. Sustained frame times above budget drop a tier; a long comfortable
-   * stretch promotes one. Hysteresis (10 s between changes) stops it oscillating.
+   * Adaptive quality. Sustained long frames drop a tier; sustained headroom climbs one.
+   *
+   * The arithmetic lives in `governor.ts` so it can be tested without a GL context — the part
+   * that goes wrong here is thresholds, not rendering, and a tier that oscillates looks fine in
+   * every screenshot ever taken of it.
    */
   governFrame(dtMs: number, now: number): void {
     if (!this.governorEnabled) return;
     this.frameTimes.push(dtMs);
     if (this.frameTimes.length > 180) this.frameTimes.shift();
-    if (this.frameTimes.length < 120 || now - this.lastTierChange < 10_000) return;
 
     const sorted = [...this.frameTimes].sort((a, b) => a - b);
-    const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? 16;
-    const budget = 1000 / this.profile.targetFps;
+    const next = nextTier({
+      tier: this.currentTier,
+      p90Ms: sorted[Math.floor(sorted.length * 0.9)] ?? 16,
+      samples: this.frameTimes.length,
+      sinceChangeMs: now - this.lastTierChange,
+      sinceDemotionMs: this.lastDemotion === null ? Infinity : now - this.lastDemotion,
+    });
+    if (!next || next === this.currentTier) return;
 
-    let next: QualityTier | null = null;
-    if (p90 > budget * 1.35) next = this.currentTier === 'high' ? 'medium' : this.currentTier === 'medium' ? 'low' : null;
-    else if (p90 < budget * 0.7) next = this.currentTier === 'low' ? 'medium' : this.currentTier === 'medium' ? 'high' : null;
-
-    if (next && next !== this.currentTier) {
-      this.currentTier = next;
-      this.lastTierChange = now;
-      this.frameTimes.length = 0;
-      this.onTierChange?.(next);
-    }
+    if (isDemotion(this.currentTier, next)) this.lastDemotion = now;
+    this.currentTier = next;
+    this.lastTierChange = now;
+    this.frameTimes.length = 0;
+    this.onTierChange?.(next);
   }
 
   render(): void {
