@@ -82,8 +82,10 @@ async function main(): Promise<void> {
         },
         onNameChanged: (name) => void createSession(name),
         onPlayAgain: () => playAgain(),
+        onResume: () => closeMenu(),
         onLeaveMatch: () => {
-          game?.disconnect();
+          game?.leaveMatch();
+          setInMatch(false);
           openMenu();
         },
         onVoiceToggle: (enabled) => {
@@ -160,6 +162,9 @@ async function main(): Promise<void> {
         onModeState: (state) => hud?.update(state, game?.localPlayer),
         onResults: (result, rewards) => {
           hud?.setVisible(false);
+          // The round is over, so the menu is a title screen again rather than a pause menu —
+          // the results screen owns what happens next, and "Resume" would resume nothing.
+          setInMatch(false);
           shell.showResults(result, rewards, session?.playerId ?? '');
         },
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
@@ -304,10 +309,24 @@ async function main(): Promise<void> {
     };
   }
 
+  /**
+   * Whether a round is running, so the menu can be a pause menu rather than a title screen.
+   *
+   * Owned here rather than read off `GameClient`, because "in a match" is about what the player
+   * is doing, not about the socket: solo practice has no socket, and an online match that is
+   * mid-reconnect is still one they want to go back to.
+   */
+  let inMatch = false;
+  function setInMatch(value: boolean): void {
+    inMatch = value;
+    shell.setInMatch(value);
+  }
+
   async function startMatch(options: { modeId?: string; roomCode?: string; modeConfig?: unknown }): Promise<void> {
     if (!game) return;
     shell.hide();
     hud?.setVisible(true);
+    setInMatch(true);
     resumeInput();
     await game.audio.resume();
     if (settings.voiceEnabled) void game.voice.enable();
@@ -326,13 +345,17 @@ async function main(): Promise<void> {
    */
   function playAgain(): void {
     if (game?.isSoloPractice) startPractice(game.currentModeId);
-    else closeMenu();
+    else {
+      setInMatch(true);
+      closeMenu();
+    }
   }
 
   function startPractice(modeId: string): void {
     if (!game) return;
     shell.hide();
     hud?.setVisible(true);
+    setInMatch(true);
     resumeInput();
     void game.audio.resume();
     game.startSoloPractice(modeId);
@@ -391,7 +414,10 @@ async function main(): Promise<void> {
       return;
     }
     if (shell.currentScreen === 'none') openMenu();
-    else closeMenu();
+    // Escape only *closes* the menu when there is a round behind it. Off a match it used to hide
+    // every screen and show the in-match HUD over a world nobody was playing in — a dead end with
+    // no menu, no round and no way back except reloading.
+    else if (inMatch) closeMenu();
   });
 
   const savedName = store.loadName();

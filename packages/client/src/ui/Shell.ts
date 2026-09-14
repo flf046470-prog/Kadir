@@ -44,6 +44,8 @@ export interface ShellCallbacks {
   onNameChanged(name: string): void;
   /** The results screen's "Play again": start another round, not merely close a menu. */
   onPlayAgain(): void;
+  /** Go back into the round this menu is sitting on top of. */
+  onResume(): void;
   onLeaveMatch(): void;
   onVoiceToggle(enabled: boolean): void;
 }
@@ -72,6 +74,73 @@ function assertNever(value: never): never {
   throw new Error(`unhandled screen: ${String(value)}`);
 }
 
+export type MenuAction =
+  | 'resume'
+  | 'play'
+  | 'modes'
+  | 'room'
+  | 'customize'
+  | 'store'
+  | 'settings'
+  | 'tutorial'
+  | 'practice'
+  | 'leave';
+
+export interface MenuEntry {
+  action: MenuAction;
+  label: string;
+  variant: 'primary' | 'ghost' | 'danger';
+}
+
+/** Actions that abandon whatever round is running, silently, the moment they are pressed. */
+const STARTS_A_ROUND: ReadonlySet<MenuAction> = new Set<MenuAction>(['play', 'practice', 'modes', 'room']);
+
+/**
+ * What the main menu offers, decided before any of it is drawn.
+ *
+ * Split out from the rendering because the rule that matters here is not visual, and the bug it
+ * fixes was invisible on desktop. Opening the menu mid-round showed the *same nine buttons as the
+ * title screen* — Play, Game modes, Private room, Customise, Store, Settings, How to play,
+ * Practice with bots — and not one of them went back to the round. On a PC that was survivable
+ * because Escape closes the menu. On a phone there is no Escape key, so a thumb that found the
+ * Menu button had no way back into a match that was still running: the player stood still in a
+ * live game of tag, visible and catchable, reading a menu. Measured on a 390x844 viewport before
+ * the fix: nine buttons on screen, zero ways to resume.
+ *
+ * So an in-match menu is a pause menu. It resumes, it adjusts, it leaves — and it deliberately
+ * does *not* offer the four entries that would throw the round away without asking, which is the
+ * other half of the same bug: pressing Play mid-match reconnected over a live match with no
+ * warning. Leaving first, then choosing, costs one tap and can never be an accident.
+ */
+export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuEntry[] {
+  if (state.inMatch) {
+    return [
+      { action: 'resume', label: 'Resume', variant: 'primary' },
+      { action: 'customize', label: 'Customise', variant: 'ghost' },
+      { action: 'settings', label: 'Settings', variant: 'ghost' },
+      { action: 'tutorial', label: 'How to play', variant: 'ghost' },
+      { action: 'leave', label: 'Leave match', variant: 'danger' },
+    ];
+  }
+  return [
+    ...(state.online ? [{ action: 'play' as const, label: 'Play', variant: 'primary' as const }] : []),
+    { action: 'modes', label: 'Game modes', variant: 'ghost' },
+    { action: 'room', label: 'Private room', variant: 'ghost' },
+    { action: 'customize', label: 'Customise', variant: 'ghost' },
+    { action: 'store', label: 'Season pass', variant: 'ghost' },
+    { action: 'settings', label: 'Settings', variant: 'ghost' },
+    { action: 'tutorial', label: 'How to play', variant: 'ghost' },
+    { action: 'practice', label: 'Practice with bots', variant: state.online ? 'ghost' : 'primary' },
+  ];
+}
+
+export const MENU_STARTS_A_ROUND = STARTS_A_ROUND;
+
+/** The same compile-time exhaustiveness proof, for menu actions. */
+function assertNeverAction(value: never): never {
+  throw new Error(`unhandled menu action: ${String(value)}`);
+}
+
 /**
  * Menus for PC and Mobile (VR gets world-space panels instead — see `VRPanels`).
  *
@@ -95,6 +164,14 @@ export class Shell {
    * it will never succeed.
    */
   private online = true;
+  /**
+   * Whether a round is running behind this menu.
+   *
+   * Told by the bootstrap rather than inferred from the socket: a solo practice round has no
+   * socket at all and is just as abandonable, and an online match that is mid-reconnect is still
+   * a match the player wants to go back to.
+   */
+  private inMatch = false;
   /**
    * The last round's results, kept so the screen can be rebuilt like any other.
    *
@@ -140,6 +217,13 @@ export class Shell {
   setOnline(online: boolean): void {
     if (this.online === online) return;
     this.online = online;
+    if (this.screen !== 'none') this.render();
+  }
+
+  /** Told by the bootstrap when a round starts or ends, so the menu knows to become a pause menu. */
+  setInMatch(inMatch: boolean): void {
+    if (this.inMatch === inMatch) return;
+    this.inMatch = inMatch;
     if (this.screen !== 'none') this.render();
   }
 
@@ -249,35 +333,54 @@ export class Shell {
     const level = this.profile?.profile.level ?? 1;
     const claimable = this.profile?.daily.some((d) => d.claimable) ?? false;
 
+    const run = (action: MenuAction): void => {
+      switch (action) {
+        case 'resume':
+          this.options.callbacks.onResume();
+          return;
+        case 'play':
+          this.options.callbacks.onQuickPlay(this.currentModeId);
+          return;
+        case 'practice':
+          this.options.callbacks.onPractice(this.currentModeId);
+          return;
+        case 'leave':
+          this.options.callbacks.onLeaveMatch();
+          return;
+        case 'modes':
+        case 'room':
+        case 'customize':
+        case 'store':
+        case 'settings':
+        case 'tutorial':
+          this.show(action);
+          return;
+        default:
+          assertNeverAction(action);
+      }
+    };
+
+    const menu = el('div', { class: 'kc-menu' });
+    for (const entry of menuEntries({ inMatch: this.inMatch, online: this.online })) {
+      menu.append(button(entry.label, () => run(entry.action), entry.variant));
+    }
+
     return el(
       'div',
       { class: 'kc-screen' },
-      this.header('Kangaroo Chase'),
-      el(
-        'div',
-        { class: 'kc-row' },
-        el('span', { class: 'kc-pill kc-currency' }, `🪙 ${coins}`),
-        el('span', { class: 'kc-pill' }, `Lv ${level}`),
-        claimable ? button('Claim daily reward', () => void this.claimDaily(), 'primary') : null,
-      ),
-      el(
-        'div',
-        { class: 'kc-menu' },
-        this.online
-          ? button('Play', () => this.options.callbacks.onQuickPlay(this.currentModeId), 'primary')
-          : null,
-        button('Game modes', () => this.show('modes')),
-        button('Private room', () => this.show('room')),
-        button('Customise', () => this.show('customize')),
-        button('Store', () => this.show('store')),
-        button('Settings', () => this.show('settings')),
-        button('How to play', () => this.show('tutorial')),
-        button(
-          'Practice with bots',
-          () => this.options.callbacks.onPractice(this.currentModeId),
-          this.online ? 'ghost' : 'primary',
-        ),
-      ),
+      this.inMatch
+        ? this.header('Menu', 'The round is still running — you can still be tagged.')
+        : this.header('Kangaroo Chase'),
+      this.inMatch
+        ? null
+        : el(
+            'div',
+            { class: 'kc-row' },
+            el('span', { class: 'kc-pill kc-currency' }, `🪙 ${coins}`),
+            el('span', { class: 'kc-pill' }, `Lv ${level}`),
+            claimable ? button('Claim daily reward', () => void this.claimDaily(), 'primary') : null,
+          ),
+      menu,
       this.noticeNode(),
       el('p', { class: 'kc-note' }, 'No loot boxes. No pay-to-win. Every animal moves exactly the same.'),
     );

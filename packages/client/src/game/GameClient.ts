@@ -236,6 +236,29 @@ export class GameClient {
     this.voice.disable();
   }
 
+  /**
+   * Leave the round deliberately, as opposed to losing the connection.
+   *
+   * `disconnect` alone is not enough for a solo round, which has no socket to close: without
+   * clearing `soloPractice` the player is still, as far as every other part of the client is
+   * concerned, inside a practice match — so "Play again" on the next results screen would restart
+   * a round they had already walked out of, and the tuning panel would stay editable in a menu
+   * that no longer belongs to a match.
+   *
+   * `NetClient.disconnect` sets status `idle` rather than `offline`, which matters here: `offline`
+   * is the signal that starts solo practice automatically as a fallback, and a deliberate exit
+   * that immediately dropped the player into a *new* round would be its own bug.
+   *
+   * The simulation keeps ticking, and that is deliberate — it is what the camera looks at behind
+   * the menu. Stopping it would freeze the whole screen, since the render loop and the fixed step
+   * share a frame.
+   */
+  leaveMatch(): void {
+    this.disconnect();
+    this.soloPractice = false;
+    this.soloResultsSent = false;
+  }
+
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.audio.applySettings(settings);

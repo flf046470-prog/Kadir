@@ -57,7 +57,10 @@ const launch = { args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] }
 if (process.env.PLAYWRIGHT_CHROMIUM_PATH) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 const browser = await chromium.launch(launch);
 const errors=[];
-for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscape',{width:844,height:390}]]) {
+// Portrait is not a third skin on the same test — it is the shape the mid-match menu bug lived in.
+// A phone held upright has no Escape key and no keyboard at all, so every way out of a screen has
+// to be a button a thumb can reach. Landscape alone never proved that.
+for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscape',{width:844,height:390}], ['phone-portrait',{width:390,height:844}]]) {
   const page = await (await browser.newContext({viewport:vp, hasTouch: label!=='desktop'})).newPage();
   page.on('console', m=>{ if(m.type()==='error') errors.push(`[${label}] ${m.text()}`); });
   page.on('pageerror', e=>errors.push(`[${label}] pageerror: ${e.message}`));
@@ -153,11 +156,26 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
           `(code=${code ?? 'none'}, hud=${JSON.stringify(hud.slice(0, 200))})`,
       );
     } else {
-      // Leave the match again so the rest of the run starts from the menu, as it did before.
+      /**
+       * Leave the match, through the button rather than the keyboard.
+       *
+       * This used to be `if (await leave.count()) await leave.click()` — guarded, against a button
+       * that had never existed in any version of the shell. So it silently did nothing on every
+       * run since it was written, and the check read as coverage of an escape hatch that was not
+       * there. The guard is gone: if there is no way out of a match, this fails.
+       *
+       * Escape opens the menu here (it does not leave), and on a phone it does nothing at all —
+       * which is the whole point of asserting the button.
+       */
       await page.keyboard.press('Escape');
       await page.waitForTimeout(400);
       const leave = page.locator('button', { hasText: 'Leave match' }).first();
-      if (await leave.count()) await leave.click();
+      if (await leave.count() === 0) {
+        const shown = await page.locator('.kc-root button').allTextContents();
+        errors.push(`[${label}] no way out of a match: menu offers ${JSON.stringify(shown)}`);
+      } else {
+        await leave.click();
+      }
       await page.waitForTimeout(800);
     }
   } else {
@@ -245,7 +263,63 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
     }
   }
 
-  console.log(`${label.padEnd(16)} tutorial=${sawTutorial} menu=${sawMenu} credits=${sawCredits} canvas=${played} inMatch=${inMatch}`);
+  /**
+   * The pause menu, driven with the pointer only.
+   *
+   * Tapping Menu mid-round used to render the title screen — Play, Game modes, Private room,
+   * Customise, Store, Settings, How to play, Practice with bots — with no Resume and no Leave.
+   * Nine buttons, none of which went back to the round the player was still standing in. On
+   * desktop Escape covered it; on a phone there was no way back at all, and the round carried on
+   * without them: still catchable, still on the clock.
+   *
+   * So this asserts three things, all through taps: a way back exists, it actually returns to the
+   * round, and nothing on that menu silently throws the round away.
+   */
+  let pause = 'n/a';
+  /**
+   * Opened the way that platform's players actually open it.
+   *
+   * Desktop holds pointer lock during a match, and under pointer lock there is no cursor: every
+   * mouse event goes to the lock target, so the Menu button cannot be clicked however correctly it
+   * is drawn. Measured rather than assumed — mid-match on desktop, `document.pointerLockElement`
+   * is the CANVAS while `elementFromPoint` over the button still returns the button. That gap is
+   * why the HUD reachability check below passes on desktop and a real click times out: one models
+   * stacking, the other models input. Escape is the desktop route, and the button is the touch
+   * route, so each is driven where it is the real one.
+   */
+  if (label === 'desktop') {
+    await page.keyboard.press('Escape');
+  } else {
+    const menuBtn = page.locator('.kc-topbar button', { hasText: 'Menu' }).first();
+    const box = await menuBtn.boundingBox();
+    await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  }
+  await page.waitForTimeout(600);
+  const pauseButtons = await page.locator('.kc-root button').allTextContents();
+  const canResume = pauseButtons.some((b) => /^Resume$/i.test(b.trim()));
+  const canLeave = pauseButtons.some((b) => /Leave match/i.test(b));
+  // Entries that start or join another round, which from here would abandon this one with no warning.
+  const abandons = pauseButtons.filter((b) => /^(Play|Practice with bots|Game modes|Private room)$/i.test(b.trim()));
+  if (!canResume || !canLeave || abandons.length > 0) {
+    errors.push(
+      `[${label}] pause menu: resume=${canResume} leave=${canLeave} ` +
+        `abandons=${JSON.stringify(abandons)} buttons=${JSON.stringify(pauseButtons)}`,
+    );
+    pause = 'BROKEN';
+  } else {
+    // The menu released pointer lock to open, so Resume is clickable on every platform.
+    await page.locator('.kc-root button', { hasText: 'Resume' }).first().click();
+    await page.waitForTimeout(600);
+    // Back in the round means the HUD is up and the menu is gone — not merely that a click landed.
+    const backInRound =
+      (await page.locator('.kc-root button').count()) === 0 &&
+      (await page.locator('.kc-hud').count()) > 0 &&
+      (await page.locator('.kc-hud.kc-hidden').count()) === 0;
+    pause = backInRound ? 'resumes' : 'NO-RESUME';
+    if (!backInRound) errors.push(`[${label}] Resume did not return to the round`);
+  }
+
+  console.log(`${label.padEnd(16)} tutorial=${sawTutorial} menu=${sawMenu} credits=${sawCredits} canvas=${played} inMatch=${inMatch} pause=${pause}`);
   console.log(`${''.padEnd(16)} chat: open=${chatOpen} keysCaptured=${keysWentToChat} esc=${chatClosed} stillInMatch=${stillInMatch} closedAfterSend=${closedAfterSend} touch=${touchChat}`);
   console.log(`${''.padEnd(16)} HUD controls: ${hudHit}`);
   if (!chatOpen || !keysWentToChat || !chatClosed || !stillInMatch || !closedAfterSend) {
