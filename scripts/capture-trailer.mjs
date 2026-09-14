@@ -130,9 +130,9 @@ await sleep(6500);
 await record(1.6, 45); // the world at the start, drifting right
 
 await page.keyboard.down('w');
-await record(1.3, -60);
+await record(0.7, -60);
 await page.keyboard.up('w');
-await record(0.8, 110);
+await record(1.4, 110);
 
 // A hop, the thing the game is named after.
 await page.keyboard.down('Space');
@@ -141,17 +141,17 @@ await page.keyboard.up('Space');
 await record(1.2, 20);
 
 await page.keyboard.down('w');
-await record(1.4, 130);
+await record(0.7, 130);
 await page.keyboard.up('w');
-await record(0.9, 40);
+await record(1.5, 40);
 
 // A sprint, short enough to stay among the trees.
 await page.keyboard.down('w');
 await page.keyboard.down('Shift');
-await record(1.5, -150);
+await record(0.8, -150);
 await page.keyboard.up('Shift');
 await page.keyboard.up('w');
-await record(1.0, -40);
+await record(1.7, -40);
 
 await page.keyboard.down('Space');
 await sleep(120);
@@ -159,9 +159,9 @@ await page.keyboard.up('Space');
 await record(1.1, 60);
 
 await page.keyboard.down('w');
-await record(1.2, 140);
+await record(0.6, 140);
 await page.keyboard.up('w');
-await record(1.4, 90);
+await record(2.0, 90);
 
 console.log(`${frame} frames at ${WIDTH}x${HEIGHT} → ${path.relative(process.cwd(), OUT)}`);
 console.log(`assemble with: python3 tools/make-gif.py ${path.relative(process.cwd(), OUT)} dist/trailer/kangaroo-chase-trailer.gif --fps ${FPS}`);
