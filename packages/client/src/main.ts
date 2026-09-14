@@ -1,5 +1,6 @@
 import { sanitizeName } from '@kc/core';
 import type { Settings } from '@kc/core';
+import { NEW_PRIVATE_ROOM } from '@kc/net';
 import { Api, localContent } from './net/Api.js';
 import { GameClient } from './game/GameClient.js';
 import { MobileInput } from './platform/mobile/MobileInput.js';
@@ -72,7 +73,7 @@ async function main(): Promise<void> {
         onPractice: (modeId) => startPractice(modeId),
         onJoinRoom: (code) => void startMatch({ roomCode: code }),
         onCreatePrivate: (modeConfig) =>
-          void startMatch({ roomCode: 'new-private', ...(modeConfig === undefined ? {} : { modeConfig }) }),
+          void startMatch({ roomCode: NEW_PRIVATE_ROOM, ...(modeConfig === undefined ? {} : { modeConfig }) }),
         onAnimalChanged: (animalId) => game?.setAnimal(animalId),
         onCosmeticsChanged: (cosmetics) => game?.setCosmetics(cosmetics),
         onSettingsChanged: (next) => {

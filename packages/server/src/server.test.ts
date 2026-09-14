@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, registerStoreItems } from '@kc/core';
 import type { PlayerSnapshot, PlayerState } from '@kc/core';
-import { SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
+import { NEW_PRIVATE_ROOM, SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
 import { AccountService } from './accounts.js';
 import { Leaderboard } from './leaderboard.js';
@@ -123,6 +123,51 @@ describe('matchmaking', () => {
     // Private rooms are never handed out by matchmaking.
     const publicMatch = rooms.matchmake({ modeId: 'infection' }).room as Room;
     expect(publicMatch.code).not.toBe(priv.code);
+  });
+
+  /**
+   * The sentinel a client sends to *create* a private room, tested as a client sends it.
+   *
+   * Every other test here calls `matchmake({ createPrivate: true })`, which is the shape the
+   * function takes internally and not the shape anything on the wire produces. Under that gap
+   * the feature shipped broken: the client asked for a private room by putting the sentinel in
+   * `roomCode`, and the sentinel was checked in one place and then passed to the room-code
+   * validator in another, which refused it as malformed. Creating a room with your own rules —
+   * the whole point of player-authored modes — failed every time, and every test passed.
+   *
+   * So this asserts the sentinel alone is enough. A caller that has already said which room it
+   * wants must not also have to set a flag saying the same thing; that redundancy is what let
+   * the two sides drift apart.
+   */
+  it('creates a private room from the sentinel a client actually sends', async () => {
+    const { rooms } = await makeHarness();
+    const result = rooms.matchmake({ roomCode: NEW_PRIVATE_ROOM, modeId: 'infection' });
+    expect(result.error).toBeUndefined();
+    expect(result.room?.isPrivate).toBe(true);
+    expect(result.room?.code).toMatch(/^KANG-[2-9A-HJ-NP-Z]{4}$/);
+    // The sentinel must never become the room's own code, or it would be joinable by name.
+    expect(result.room?.code).not.toBe(NEW_PRIVATE_ROOM);
+
+    // A second request makes a second room rather than matching into the first: private means
+    // private, however it was asked for.
+    const again = rooms.matchmake({ roomCode: NEW_PRIVATE_ROOM, modeId: 'infection' });
+    expect(again.room?.code).not.toBe(result.room?.code);
+  });
+
+  it('honours house rules sent with the create-private sentinel', async () => {
+    const { rooms } = await makeHarness();
+    // House rules are only sanitised on the private-create path, so if the sentinel is not
+    // recognised they are silently dropped even when a room does come back.
+    const room = rooms.matchmake({
+      roomCode: NEW_PRIVATE_ROOM,
+      modeId: 'kangaroo-chase',
+      modeConfig: { name: 'Sixty Seconds', roundSeconds: 60 },
+    }).room as Room;
+    expect(room.isPrivate).toBe(true);
+    // `houseRules` is null for a room running a shipped mode, so a non-null summary that names
+    // the author's round length proves the config survived the trip rather than being dropped.
+    expect(room.houseRules).toBeTruthy();
+    expect(room.houseRules).toContain('1 min');
   });
 
   it('reports useful errors for bad codes', async () => {

@@ -30,6 +30,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Attacks a real server over a real socket and asserts a bystander keeps receiving
+      # snapshots throughout. It lives here rather than in the browser job because it needs no
+      # browser — only the built server — and because a remote kill is the one class of bug that
+      # must never reach a release: every room in the process shares one Node process, so one
+      # malformed message ending it ends every match on the box.
+      - run: npm run check:hostile
       # Packaging the Steam app also proves the built output is self-consistent — a missing
       # build step otherwise shows up as a blank window rather than an error.
       - run: npm run pack:steam

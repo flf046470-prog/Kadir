@@ -1,6 +1,20 @@
 /** Wire protocol version. Server rejects clients that do not match. */
 export const PROTOCOL_VERSION = 2;
 
+/**
+ * `roomCode` value that asks the server to *create* a private room rather than join one.
+ *
+ * It lives here because it is the one string the client and the server must agree on exactly,
+ * and for a while they did not: the client sent it, the server recognised it in one place and
+ * then passed it on to the room-code validator in another, which rejected it as malformed. The
+ * whole player-authored-modes feature could not create a room, and nothing caught it because
+ * both halves compiled and each was individually reasonable.
+ *
+ * Chosen to be un-typeable as a real code: room codes are uppercase and hyphen-separated in a
+ * fixed shape, so a lowercase sentinel can never collide with one a player might enter.
+ */
+export const NEW_PRIVATE_ROOM = 'new-private';
+
 /** Binary message ids (first byte of every binary frame). */
 export const MsgType = {
   Intent: 1,

@@ -44,15 +44,32 @@ export function attachGateway(server: Server, config: ServerConfig, accounts: Ac
         return;
       }
 
-      if (isBinary) {
-        if (!connection.playerId || !connection.room) return;
-        connection.room.handleIntent(connection.playerId, new Uint8Array(data));
-        return;
-      }
+      // Nothing a single socket does may end the process. Every room on this box shares one
+      // Node process and one tick loop, so an exception escaping here is not one player's bug —
+      // it is every player in every match losing their game at once.
+      //
+      // This is not hypothetical caution. `{"t":"chat","text":{"toString":"not a function"}}`
+      // used to be a complete remote kill: `String(...)` throws `TypeError: Cannot convert
+      // object to primitive value` for such an object, the throw crossed an `async` boundary as
+      // an unhandled rejection, and Node exits on those. The individual coercions below are
+      // total now, but the point of a boundary is that it holds for the mistakes not yet found.
+      try {
+        if (isBinary) {
+          if (!connection.playerId || !connection.room) return;
+          connection.room.handleIntent(connection.playerId, new Uint8Array(data));
+          return;
+        }
 
-      const message = decodeJson<ClientMessage>(data.toString('utf8'));
-      if (!message) return;
-      void handleControl(connection, client, message, config, accounts, rooms);
+        const message = decodeJson<ClientMessage>(data.toString('utf8'));
+        if (!message || typeof message !== 'object') return;
+        // `handleControl` is async, so a synchronous throw inside it arrives as a rejected
+        // promise; `void` would discard it and Node would terminate on the unhandled rejection.
+        handleControl(connection, client, message, config, accounts, rooms).catch((err) => {
+          dropMisbehaving(connection, client, err);
+        });
+      } catch (err) {
+        dropMisbehaving(connection, client, err);
+      }
     });
 
     socket.on('close', () => {
@@ -76,6 +93,74 @@ export function attachGateway(server: Server, config: ServerConfig, accounts: Ac
   return wss;
 }
 
+/**
+ * Close one socket after its message threw, and leave everyone else playing.
+ *
+ * Logged rather than silent: a client that provokes an exception is either broken or hostile,
+ * and an operator who cannot see that has no way to tell the two apart.
+ */
+function dropMisbehaving(connection: Connection, client: ClientSocket, err: unknown): void {
+  console.error(`gateway: dropping a connection after an error handling its message: ${String((err as Error)?.message ?? err)}`);
+  try {
+    send(client, { t: 'error', code: 'bad-request', message: 'Malformed message' });
+    connection.socket.close(4009, 'bad-message');
+  } catch {
+    // The socket was already gone. Nothing left to do, and certainly nothing worth throwing over.
+  }
+}
+
+/**
+ * A string, from anything at all, without ever throwing.
+ *
+ * `String(x)` looks like a total function and is not: for an object whose `toString` is not
+ * callable, `valueOf` returns the object itself, no primitive is available, and the spec requires
+ * a `TypeError`. `{"toString": "not a function"}` is eleven bytes of JSON that any client can
+ * send, and it used to take the whole server down.
+ *
+ * Objects and arrays are not stringified into something that looks like content — they were never
+ * a string, and turning `{}` into `"[object Object]"` puts a value in the chat log that no player
+ * typed. Anything that is not already a primitive becomes empty and is then rejected downstream.
+ */
+export function text(value: unknown, max = 512): string {
+  if (typeof value === 'string') return value.slice(0, max);
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value).slice(0, max) : '';
+  if (typeof value === 'boolean' || typeof value === 'bigint') return String(value).slice(0, max);
+  return '';
+}
+
+/** One of a fixed set, or the fallback. Keeps an untyped wire value out of a typed parameter. */
+export function oneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
+}
+
+const VOICE_KINDS = ['offer', 'answer', 'ice', 'leave'] as const;
+const MODERATION_ACTIONS = ['mute', 'unmute', 'block', 'unblock'] as const;
+
+/**
+ * A cosmetics map that is actually a map of strings.
+ *
+ * This one is spread into player state and echoed to every other client, so it is the field a
+ * hostile client would most like to control. Two things matter: the values must be strings (an
+ * object here would reach other players' renderers), and the keys must not be `__proto__` or
+ * `constructor`, which are how a plain-looking JSON object turns into a change every object in
+ * the process can see. `Object.create(null)` would not help — it is the *destination* of a later
+ * spread or assignment that matters — so the keys are filtered explicitly.
+ */
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+export function cosmetics(value: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  let count = 0;
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (FORBIDDEN_KEYS.has(key) || key.length > 64) continue;
+    if (typeof raw !== 'string') continue;
+    out[key] = raw.slice(0, 64);
+    if (++count >= 32) break; // a slot list, not a data store
+  }
+  return out;
+}
+
 async function handleControl(
   connection: Connection,
   client: ClientSocket,
@@ -92,15 +177,24 @@ async function handleControl(
       return;
     }
 
-    const playerId = message.token ? accounts.verifyToken(message.token) : null;
-    const profile = playerId
-      ? await accounts.loadOrCreate(playerId, message.name)
-      : (await accounts.createGuest(sanitizeName(message.name))).profile;
+    // Hello carries the most untyped fields of any message, and each one reaches code that
+    // assumes a string: `sanitizeName` trims, `matchmake` upper-cases a room code, and both
+    // throw on an object. They are coerced here so no later caller has to wonder.
+    const token = text(message.token, 4096);
+    const name = text(message.name, 64);
+    const roomCode = text(message.roomCode, 32);
 
+    const playerId = token ? accounts.verifyToken(token) : null;
+    const profile = playerId
+      ? await accounts.loadOrCreate(playerId, name)
+      : (await accounts.createGuest(sanitizeName(name))).profile;
+
+    const modeId = text(message.modeId, 64);
     const match = rooms.matchmake({
-      modeId: message.modeId,
-      roomCode: message.roomCode,
-      createPrivate: message.roomCode === 'new-private',
+      // Absent must stay absent: `matchmake` defaults a missing mode to kangaroo-chase, but an
+      // empty string is a mode id it will look up and fail to find.
+      ...(modeId ? { modeId } : {}),
+      roomCode,
       // Passed through raw; `matchmake` sanitises, and only for a private room.
       ...(message.modeConfig === undefined ? {} : { modeConfig: message.modeConfig }),
     });
@@ -112,7 +206,13 @@ async function handleControl(
 
     connection.playerId = profile.playerId;
     connection.room = match.room;
-    match.room.join(client, profile, message.platform, message.cosmetics ?? {}, message.crossPlay !== false);
+    match.room.join(
+      client,
+      profile,
+      oneOf(message.platform, ['pc', 'mobile', 'vr'] as const, 'pc'),
+      cosmetics(message.cosmetics),
+      message.crossPlay !== false,
+    );
     void config;
     return;
   }
@@ -127,26 +227,37 @@ async function handleControl(
       connection.room = null;
       connection.socket.close(1000, 'left');
       break;
+    // Every field below arrives from a client that may be lying about its type as well as its
+    // contents. The handlers all declare `string` parameters and TypeScript believes them,
+    // because `ClientMessage` says so — but nothing on the wire enforces a declared type, so
+    // this is the line where a claimed string has to become an actual one.
     case 'chat':
-      room.handleChat(playerId, String(message.text ?? ''), message.channel === 'team' ? 'team' : 'room');
+      room.handleChat(playerId, text(message.text, 2000), oneOf(message.channel, ['room', 'team'] as const, 'room'));
       break;
     case 'voice':
-      room.handleVoiceSignal(playerId, message.targetId, message.payload, message.kind);
+      // The payload is opaque SDP/ICE and is only relayed, but it is relayed *to another player*,
+      // so it still has to be a string before it leaves. 16 KB is far above any real candidate.
+      room.handleVoiceSignal(
+        playerId,
+        text(message.targetId, 64),
+        text(message.payload, 16_000),
+        oneOf(message.kind, VOICE_KINDS, 'leave'),
+      );
       break;
     case 'moderate':
-      room.handleModeration(playerId, message.action, message.targetId);
+      room.handleModeration(playerId, oneOf(message.action, MODERATION_ACTIONS, 'mute'), text(message.targetId, 64));
       break;
     case 'report':
-      room.handleReport(playerId, message.targetId, message.reason);
+      room.handleReport(playerId, text(message.targetId, 64), text(message.reason, 500));
       break;
     case 'vote':
-      room.handleVote(playerId, message.modeId);
+      room.handleVote(playerId, text(message.modeId, 64));
       break;
     case 'ready':
       room.handleReady(playerId, message.ready === true);
       break;
     case 'shop':
-      room.handleShop(playerId, String(message.gadgetId ?? ''));
+      room.handleShop(playerId, text(message.gadgetId, 64));
       break;
     case 'equip':
       // Equipping mid-match only affects the visual roster; inventory changes go through HTTP,

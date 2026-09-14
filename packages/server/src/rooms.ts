@@ -1,6 +1,7 @@
 import { Rand, isValidRoomCode, listModes, sanitiseModeConfig } from '@kc/core';
 import type { LevelDef, ModeConfig } from '@kc/core';
 import { buildJungleWorld } from '@kc/core';
+import { NEW_PRIVATE_ROOM } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { Leaderboard } from './leaderboard.js';
 import { Room } from './room.js';
@@ -68,7 +69,13 @@ export class RoomManager {
   }
 
   matchmake(request: MatchmakeRequest): MatchmakeResult {
-    if (request.roomCode) {
+    // "Create me a private room" arrives in the same field as "join this room code", because on
+    // the wire there is only one field. Resolve that here rather than at each caller: the one
+    // caller that tried to resolve it itself set `createPrivate` correctly and *also* forwarded
+    // the sentinel as a code, so every attempt to create a private room was validated as a room
+    // code and refused with `bad-code`.
+    const wantsNewPrivate = request.roomCode === NEW_PRIVATE_ROOM;
+    if (request.roomCode && !wantsNewPrivate) {
       const code = request.roomCode.toUpperCase();
       if (!isValidRoomCode(code)) return { error: 'bad-code' };
       const room = this.rooms.get(code);
@@ -77,14 +84,19 @@ export class RoomManager {
       return { room };
     }
 
+    // The sentinel is sufficient by itself. Requiring a caller to *also* set `createPrivate` is
+    // what let the two drift apart in the first place, and a caller that says which room it wants
+    // should not have to say it twice.
+    const createPrivate = request.createPrivate === true || wantsNewPrivate;
+
     const modeId = request.modeId ?? 'kangaroo-chase';
     if (!listModes().some((m) => m.id === modeId)) return { error: 'unknown-mode' };
 
     // Sanitised here rather than at the HTTP edge, so every path into a room goes through it.
     const modeConfig =
-      request.createPrivate && request.modeConfig !== undefined ? sanitiseModeConfig(request.modeConfig) : undefined;
+      createPrivate && request.modeConfig !== undefined ? sanitiseModeConfig(request.modeConfig) : undefined;
 
-    if (!request.createPrivate) {
+    if (!createPrivate) {
       // Prefer the fullest room that still has space: players want a busy lobby, not an empty one.
       let best: Room | null = null;
       for (const room of this.rooms.values()) {
@@ -95,7 +107,7 @@ export class RoomManager {
     }
 
     if (this.rooms.size >= this.config.maxRooms) return { error: 'no-capacity' };
-    return { room: this.createRoom(modeId, request.createPrivate === true, modeConfig) };
+    return { room: this.createRoom(modeId, createPrivate, modeConfig) };
   }
 
   createRoom(modeId: string, isPrivate: boolean, modeConfig?: ModeConfig): Room {

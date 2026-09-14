@@ -29,6 +29,7 @@
     "pack:quest:check": "node scripts/pack-quest.mjs --check",
     "check:pwa": "node scripts/check-pwa.mjs",
     "check:smoke": "node scripts/check-smoke.mjs",
+    "check:hostile": "node scripts/check-hostile.mjs",
     "pack:steam": "node scripts/pack-steam.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

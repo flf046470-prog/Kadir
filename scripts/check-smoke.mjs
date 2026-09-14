@@ -115,14 +115,65 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
     if (sliderCount < 3 || before === after || !after.includes('1 min') || !withoutGadgets.includes('no gadgets')) {
       errors.push(`[${label}] house rules panel: ${houseRules} (before=${JSON.stringify(before)} after=${JSON.stringify(after)})`);
     }
-    await page.locator('button', { hasText: 'Back' }).first().click();
-    await page.waitForTimeout(300);
+
+    /**
+     * Press Create, and prove a room actually comes back.
+     *
+     * This used to stop at the Back button, and under that gap the whole feature shipped dead:
+     * the client asked for a private room by putting a sentinel in the `roomCode` field, the
+     * server recognised the sentinel in one place and then handed it to the room-code validator
+     * in another, which refused it as malformed. Every single attempt to create a room with your
+     * own rules failed, and this check passed on every run — because it had proved the *panel*
+     * worked and never once proved the *button* did.
+     *
+     * A panel whose slider moves is worth nothing if the thing it configures cannot be created.
+     */
+    await page.locator('button', { hasText: 'Create room' }).first().click();
+    await page.waitForTimeout(4500);
+
+    /**
+     * The signal is the room code in the HUD, and nothing weaker.
+     *
+     * The first version of this check asked whether a canvas existed. It always does — the
+     * renderer creates one at boot — so the assertion passed just as happily with the bug
+     * present, which made it worse than no check at all: it looked like coverage. `startMatch`
+     * hides the menu and shows the HUD *before* it connects, so "the menu went away" proves
+     * nothing either; a refused connection leaves the player on an empty world with a full HUD.
+     *
+     * On success the HUD reads `KANG-QB9T (private) · 1 players`. That string can only come from
+     * a `welcome` the server sent, which is exactly the thing being tested.
+     */
+    const hud = await page.evaluate(() => document.body.innerText);
+    const code = (hud.match(/KANG-[A-Z0-9]{4}/) ?? [])[0] ?? null;
+    const created = code !== null && /\(private\)/.test(hud);
+    houseRules += ` created=${created} code=${code ?? 'none'}`;
+    if (!created) {
+      errors.push(
+        `[${label}] creating a private room with house rules failed — no private room code in the HUD ` +
+          `(code=${code ?? 'none'}, hud=${JSON.stringify(hud.slice(0, 200))})`,
+      );
+    } else {
+      // Leave the match again so the rest of the run starts from the menu, as it did before.
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+      const leave = page.locator('button', { hasText: 'Leave match' }).first();
+      if (await leave.count()) await leave.click();
+      await page.waitForTimeout(800);
+    }
   } else {
     errors.push(`[${label}] house rules entry point missing`);
   }
-  await page.locator('button', { hasText: 'Back' }).first().click();
-  await page.waitForTimeout(400);
-  console.log(`${''.padEnd(16)} house rules: ${houseRules}`);
+  // Creating a room and leaving it lands on the main menu, which has no Back button; failing to
+  // create leaves us on a screen that does. Either way the next step needs the menu, so this
+  // clicks Back only if there is one, and then asserts where we ended up rather than assuming.
+  const back = page.locator('button', { hasText: 'Back' }).first();
+  if (await back.count()) {
+    await back.click();
+    await page.waitForTimeout(400);
+  }
+  const atMenu = ((await page.textContent('body')) ?? '').includes('Practice with bots');
+  if (!atMenu) errors.push(`[${label}] did not return to the menu after the house rules flow`);
+  console.log(`${''.padEnd(16)} house rules: ${houseRules} backAtMenu=${atMenu}`);
 
   // Practice with bots exercises the sim, renderer, avatars and the touched GameClient paths.
   await page.locator('button', { hasText: 'Practice with bots' }).first().click();
