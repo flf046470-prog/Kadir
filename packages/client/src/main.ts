@@ -170,8 +170,10 @@ async function main(): Promise<void> {
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
         onChat: (from, text, channel, own) => hud?.pushChat(from, text, channel, own),
         onNotice: (text) => shell.setNotice(text),
-        onRoomState: (code, isPrivate, playerCount) =>
-          hud?.setStatus(`${code}${isPrivate ? ' (private)' : ''} · ${playerCount} players`),
+        onRoomState: (code, isPrivate, lobby) => {
+          hud?.setStatus(`${code}${isPrivate ? ' (private)' : ''} · ${lobby.length} players`);
+          hud?.setLobby(code, isPrivate, lobby);
+        },
         onLocalEvent: (event) => hud?.handleEvent(event, session?.playerId ?? ''),
         onShopToggle: () => {
           hud?.setShop(game?.shopStock ?? []);
@@ -186,6 +188,15 @@ async function main(): Promise<void> {
       localId: session.playerId,
       onMenu: () => openMenu(),
       onEmote: () => undefined,
+      onReady: (ready) => game?.setReady(ready),
+      // Give the cursor back for as long as a panel needs it. Without this the shop and the lobby
+      // are drawn perfectly and cannot be clicked at all on desktop, because pointer lock sends
+      // every mouse event to the canvas.
+      onCursorNeeded: (needed) => {
+        if (!(input instanceof PCInput)) return;
+        if (needed) input.releasePointerLock();
+        else if (shell.currentScreen === 'none') input.requestPointerLock();
+      },
       onChat: (text, channel) => game?.sendChat(text, channel),
       onBuy: (gadgetId) => {
         game?.buy(gadgetId);
@@ -404,6 +415,24 @@ async function main(): Promise<void> {
     if ((event.code === 'Enter' || event.code === 'KeyT') && shell.currentScreen === 'none' && hud) {
       event.preventDefault();
       hud.toggleChat();
+      return;
+    }
+    /**
+     * Tab opens the player list, the way it does in every other multiplayer game.
+     *
+     * Desktop needs a key rather than the button: pointer lock swallows mouse events for the whole
+     * match, so the Players button in the HUD cannot be clicked *to release the lock* — the panel
+     * that frees the cursor is behind a control that needs the cursor. The panel itself is
+     * clickable once open, because opening it gives the cursor back.
+     *
+     * `preventDefault` because Tab is focus navigation, and moving focus to a hidden control
+     * behind the canvas is its own small trap.
+     */
+    // Not while the composer has the keyboard: there, Tab is a text field's own key and hijacking
+    // it is the same class of bug as typing "wasd" hopping the player three times.
+    if (event.code === 'Tab' && shell.currentScreen === 'none' && hud && !hud.chatFocused) {
+      event.preventDefault();
+      hud.toggleLobby();
       return;
     }
     if (event.code !== 'Escape') return;

@@ -193,6 +193,20 @@ export interface ServerError {
   message: string;
 }
 
+/**
+ * One row of the lobby list.
+ *
+ * Deliberately smaller than `RosterEntry`: the lobby needs to say who is here and whether they
+ * are ready, and nothing about cosmetics or slots belongs on a message that is rebroadcast every
+ * time somebody presses a button.
+ */
+export interface LobbyPlayer {
+  id: string;
+  name: string;
+  animalId: string;
+  ready: boolean;
+}
+
 export interface ServerRoomState {
   t: 'room';
   roomCode: string;
@@ -201,6 +215,16 @@ export interface ServerRoomState {
   playerCount: number;
   maxPlayers: number;
   votes: Record<string, number>;
+  /**
+   * Everyone in the room, with their ready state.
+   *
+   * Added because `playerCount` alone cannot answer the question a lobby exists to answer: a
+   * player who shares a room code wants to see their friend arrive by name, not watch a number
+   * change from 1 to 2 and hope. The server already tracked `ready` per client — `handleReady`
+   * wrote it on every request — but nothing ever read the field or sent it anywhere, so the
+   * ready button was wired end to end into a value no one could see.
+   */
+  players: LobbyPlayer[];
 }
 
 export type ServerMessage =

@@ -10,6 +10,19 @@ export interface HudOptions {
   localId: string;
   onMenu(): void;
   onEmote(): void;
+  /** Say whether this player is ready. Absent where there is no server to tell. */
+  onReady?(ready: boolean): void;
+  /**
+   * A panel that needs the mouse cursor opened or closed.
+   *
+   * Desktop holds pointer lock for the whole match, and under pointer lock there is no cursor:
+   * every mouse event goes to the lock target, so a panel drawn over the canvas cannot be clicked
+   * at all. Measured with a real browser-level click at the button's own coordinates — zero of
+   * them reached the handler while locked, and the identical click landed the moment the lock was
+   * released. That silently made the in-round shop unusable on desktop for its whole life: the
+   * button opened it, the rows rendered, the prices were right, and nothing could be bought.
+   */
+  onCursorNeeded?(needed: boolean): void;
   /** Buy a gadget from the in-round shop. */
   onBuy?(gadgetId: string): void;
   /** Send a chat line. Absent in contexts with no server to send it to. */
@@ -55,6 +68,22 @@ export class Hud {
    */
   private shopPanel: HTMLElement;
   private shopOpen = false;
+  /**
+   * The lobby: who is in this room, and who has pressed Ready.
+   *
+   * A room code on its own is only half of sharing a game. The host reads out four characters and
+   * then both people stare at a status line that says "2 players", with no way to tell whether the
+   * second one is the friend they invited or a stranger matchmaking dropped in — and no way at all
+   * to say "I'm here, go". The server already stored a `ready` flag per client and had done since
+   * the protocol was written; nothing read it, nothing sent it, and no screen could show it.
+   */
+  private lobbyPanel: HTMLElement;
+  private lobbyOpen = false;
+  private lobbyPlayers: { id: string; name: string; animalId: string; ready: boolean }[] = [];
+  private lobbyCode = '';
+  private lobbyPrivate = false;
+  private lobbyReady = false;
+  private lobbyButton: HTMLButtonElement;
   private shopStock: { id: string; name: string; cost: number }[] = [];
   private cash = 0;
   private touchLayer: HTMLElement | null = null;
@@ -79,6 +108,16 @@ export class Hud {
     // `data-ui` on the panel, not just on its rows: a thumb landing on the padding or the header
     // would otherwise fall through to the movement layer and start steering the player mid-purchase.
     this.shopPanel = el('div', { class: 'kc-shop kc-hidden', dataset: { ui: 'true' } });
+    this.lobbyPanel = el('div', { class: 'kc-lobby kc-hidden', dataset: { ui: 'true' } });
+    this.lobbyButton = el(
+      'button',
+      {
+        class: 'kc-btn kc-btn--ghost kc-hidden',
+        onClick: () => this.toggleLobby(),
+        dataset: { ui: 'true' },
+      },
+      'Players',
+    );
 
     this.element = el(
       'div',
@@ -91,10 +130,14 @@ export class Hud {
       el('div', { class: 'kc-charge' }, this.chargeFill),
       this.gadgetBar,
       this.shopPanel,
+      this.lobbyPanel,
       el(
         'div',
         { class: 'kc-topbar' },
         el('button', { class: 'kc-btn kc-btn--ghost', onClick: () => options.onMenu(), dataset: { ui: 'true' } }, 'Menu'),
+        // Hidden until a room broadcast arrives, so solo practice — which has no lobby — does not
+        // show a button that opens an empty panel.
+        this.lobbyButton,
       ),
     );
     options.root.append(this.element);
@@ -268,10 +311,103 @@ export class Hud {
     this.shopOpen = !this.shopOpen;
     this.shopPanel.classList.toggle('kc-hidden', !this.shopOpen);
     if (this.shopOpen) this.renderShop();
+    this.syncCursor();
   }
 
   get shopIsOpen(): boolean {
     return this.shopOpen;
+  }
+
+  /**
+   * The room changed. Keeps the panel live while it is open.
+   *
+   * The Players button appears only once a room broadcast has arrived, so solo practice — which
+   * has no room and no lobby — never shows a control that opens an empty box.
+   */
+  setLobby(code: string, isPrivate: boolean, players: { id: string; name: string; animalId: string; ready: boolean }[]): void {
+    this.lobbyCode = code;
+    this.lobbyPrivate = isPrivate;
+    this.lobbyPlayers = players;
+    // The server is the authority on who is ready, including about this player: a local flag that
+    // disagreed with the broadcast would let the button lie after a dropped message.
+    this.lobbyReady = players.find((p) => p.id === this.options.localId)?.ready ?? this.lobbyReady;
+    this.lobbyButton.classList.remove('kc-hidden');
+    this.lobbyButton.textContent = `Players ${players.length}`;
+    if (this.lobbyOpen) this.renderLobby();
+  }
+
+  toggleLobby(): void {
+    this.lobbyOpen = !this.lobbyOpen;
+    this.lobbyPanel.classList.toggle('kc-hidden', !this.lobbyOpen);
+    if (this.lobbyOpen) this.renderLobby();
+    this.syncCursor();
+  }
+
+  /**
+   * Ask for the cursor while any pointer-driven panel is open, and give it back when none is.
+   *
+   * Asked as one combined state rather than per panel, because two panels can be open at once and
+   * closing one must not take the cursor away from the other.
+   */
+  private syncCursor(): void {
+    this.options.onCursorNeeded?.(this.shopOpen || this.lobbyOpen);
+  }
+
+  get lobbyIsOpen(): boolean {
+    return this.lobbyOpen;
+  }
+
+  private renderLobby(): void {
+    clear(this.lobbyPanel);
+    const readyCount = this.lobbyPlayers.filter((p) => p.ready).length;
+    this.lobbyPanel.append(
+      el(
+        'div',
+        { class: 'kc-lobby-head' },
+        el('strong', {}, this.lobbyCode || 'Room'),
+        el('span', { class: 'kc-pill' }, this.lobbyPrivate ? 'private' : 'public'),
+        el('span', { class: 'kc-lobby-count' }, `${readyCount}/${this.lobbyPlayers.length} ready`),
+        el(
+          'button',
+          { class: 'kc-shop-close', dataset: { ui: 'true' }, ariaLabel: 'Close players', onClick: () => this.toggleLobby() },
+          '✕',
+        ),
+      ),
+    );
+
+    for (const player of this.lobbyPlayers) {
+      const you = player.id === this.options.localId;
+      this.lobbyPanel.append(
+        el(
+          'div',
+          { class: `kc-lobby-row${player.ready ? ' kc-lobby-row--ready' : ''}` },
+          el('span', { class: 'kc-lobby-tick' }, player.ready ? '✓' : '·'),
+          el('span', { class: 'kc-lobby-name' }, you ? `${player.name} (you)` : player.name),
+          el('span', { class: 'kc-lobby-animal' }, player.animalId),
+        ),
+      );
+    }
+
+    if (this.options.onReady) {
+      this.lobbyPanel.append(
+        el(
+          'button',
+          {
+            class: `kc-btn ${this.lobbyReady ? 'kc-btn--ghost' : 'kc-btn--primary'}`,
+            dataset: { ui: 'true' },
+            onClick: () => {
+              // Sent, then re-rendered from the echo. The button reflects what the server agreed
+              // to rather than what was clicked, so a lost message shows as an unchanged button
+              // instead of a tick nobody else can see.
+              this.lobbyReady = !this.lobbyReady;
+              this.options.onReady?.(this.lobbyReady);
+              this.renderLobby();
+            },
+          },
+          this.lobbyReady ? "Not ready" : "I'm ready",
+        ),
+      );
+    }
   }
 
   private renderShop(): void {

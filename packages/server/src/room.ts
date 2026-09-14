@@ -40,7 +40,7 @@ import {
   decodeIntent,
   encodeSnapshot,
 } from '@kc/net';
-import type { Platform, RosterEntry, ServerMessage } from '@kc/net';
+import type { LobbyPlayer, Platform, RosterEntry, ServerMessage } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { Leaderboard } from './leaderboard.js';
 
@@ -328,7 +328,11 @@ export class Room {
 
   handleReady(playerId: string, ready: boolean): void {
     const client = this.clients.get(playerId);
-    if (client) client.ready = ready;
+    if (!client || client.ready === ready) return;
+    client.ready = ready;
+    // Told to everyone, which is the entire point of a ready flag. Without this the value was
+    // stored and never left the server, so pressing Ready changed nothing anybody could observe.
+    this.broadcastRoomState();
   }
 
   /**
@@ -530,8 +534,17 @@ export class Room {
 
   broadcastRoomState(): void {
     const votes: Record<string, number> = {};
+    const players: LobbyPlayer[] = [];
     for (const client of this.clients.values()) {
       if (client.votedMode) votes[client.votedMode] = (votes[client.votedMode] ?? 0) + 1;
+      players.push({
+        id: client.playerId,
+        // The server's own copy of the name, which went through `sanitizeName` on the way in. The
+        // client is never asked what anyone else is called.
+        name: client.profile.name,
+        animalId: client.profile.equipped.animalId,
+        ready: client.ready,
+      });
     }
     this.broadcast({
       t: 'room',
@@ -541,6 +554,7 @@ export class Room {
       playerCount: this.clients.size,
       maxPlayers: this.maxPlayers,
       votes,
+      players,
     });
   }
 

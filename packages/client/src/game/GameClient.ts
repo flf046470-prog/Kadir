@@ -22,7 +22,7 @@ import type {
   SimEvent,
 } from '@kc/core';
 import { InterpolationBuffer, PredictionBuffer } from '@kc/net';
-import type { Platform, RosterEntry } from '@kc/net';
+import type { LobbyPlayer, Platform, RosterEntry } from '@kc/net';
 import { TuningStore } from './TuningStore.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { VoiceChat } from '../audio/VoiceChat.js';
@@ -41,7 +41,13 @@ export interface GameCallbacks {
   onNetStatus(status: NetStatus): void;
   onChat(name: string, text: string, channel: 'room' | 'team' | 'system', own: boolean): void;
   onNotice(text: string): void;
-  onRoomState(code: string, isPrivate: boolean, playerCount: number): void;
+  /**
+   * The room changed: someone joined, left, voted or pressed Ready.
+   *
+   * `lobby` is the whole list rather than a count, because a count cannot answer what a player
+   * sharing a room code actually wants to know — whether their friend arrived.
+   */
+  onRoomState(code: string, isPrivate: boolean, lobby: LobbyPlayer[]): void;
   onLocalEvent(event: SimEvent): void;
   /** The shop button was pressed. Opening a panel is a local decision, not a simulated one. */
   onShopToggle(): void;
@@ -133,6 +139,9 @@ export class GameClient {
   private shopHeld = false;
   private modeId = 'kangaroo-chase';
   private roomCode = '';
+  /** Everyone in the room and whether they have pressed Ready. Empty in solo practice. */
+  private lobby: LobbyPlayer[] = [];
+  private ready = false;
 
   /** Debug/perf counters surfaced by the HUD. */
   readonly stats = { fps: 0, ping: 0, players: 0, tick: 0 };
@@ -178,7 +187,12 @@ export class GameClient {
       onVoiceSignal: (fromId, payload, kind) => void this.voice.handleSignal(fromId, payload, kind),
       onRoomState: (state) => {
         this.roomCode = state.roomCode;
-        this.callbacks.onRoomState(state.roomCode, state.isPrivate, state.playerCount);
+        // `?? []` because the wire is not a type system. A server older than the lobby list sends
+        // this message without `players`, and the client reading `.length` off it threw a page
+        // error that killed the frame loop — the whole game, for a field that is only decoration.
+        // Caught for real: a stale server left running on the smoke test's port did exactly this.
+        this.lobby = state.players ?? [];
+        this.callbacks.onRoomState(state.roomCode, state.isPrivate, this.lobby);
       },
       onError: (code, message) => this.callbacks.onNotice(`${code}: ${message}`),
       onStatusChange: (status) => {
@@ -191,6 +205,27 @@ export class GameClient {
 
   get currentRoomCode(): string {
     return this.roomCode;
+  }
+
+  /** Everyone in the room, with their ready state. */
+  get lobbyPlayers(): readonly LobbyPlayer[] {
+    return this.lobby;
+  }
+
+  get isReady(): boolean {
+    return this.ready;
+  }
+
+  /**
+   * Say whether this player is ready.
+   *
+   * Sent rather than assumed: the server owns `ready` and echoes it back to everyone in the next
+   * room broadcast, so the local list is never the source of truth for the local player either.
+   */
+  setReady(ready: boolean): void {
+    if (!this.online) return;
+    this.ready = ready;
+    this.net.sendJson({ t: 'ready', ready });
   }
 
   get localPlayer(): PlayerState | undefined {
@@ -413,7 +448,10 @@ export class GameClient {
       this.addRemote(entry);
     }
     this.voice.setLocalId(this.localId);
-    this.callbacks.onRoomState(message.roomCode, message.isPrivate, message.players.length);
+    // The welcome roster carries no ready flags — it is the match roster, not the lobby list —
+    // so everyone starts shown as not ready and the next `room` broadcast corrects it.
+    this.lobby = message.players.map((p) => ({ id: p.id, name: p.name, animalId: p.animalId, ready: false }));
+    this.callbacks.onRoomState(message.roomCode, message.isPrivate, this.lobby);
   }
 
   private handleSnapshot(tick: number, players: PlayerSnapshot[]): void {

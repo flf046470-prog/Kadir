@@ -103,6 +103,15 @@ export const UI_CSS = `
 .kc-shop-row:hover:not(:disabled) { background: rgba(255,209,102,.22); }
 .kc-shop-row:focus-visible { outline: 2px solid #ffd166; outline-offset: 2px; }
 .kc-shop-row--poor { opacity: .45; cursor: not-allowed; }
+/* The lobby sits opposite the shop so the two can never cover each other. */
+.kc-lobby { position: absolute; left: max(12px, env(safe-area-inset-left)); top: 50%; transform: translateY(-50%); width: min(260px, 62vw); max-height: calc(100% - 24px); overflow-y: auto; background: rgba(12,20,15,.92); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 6px; pointer-events: auto; }
+.kc-lobby-head { display: flex; align-items: center; gap: 8px; font-weight: 700; padding: 2px 6px 6px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.kc-lobby-count { font-weight: 400; opacity: .75; font-size: 12px; }
+.kc-lobby-row { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,.06); }
+.kc-lobby-row--ready { background: rgba(76,175,80,.22); }
+.kc-lobby-tick { width: 14px; flex: none; text-align: center; opacity: .8; }
+.kc-lobby-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-lobby-animal { font-size: 11px; opacity: .6; text-transform: capitalize; }
 
 .kc-touch { position: absolute; inset: 0; }
 .kc-stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255,255,255,.28); background: rgba(0,0,0,.22); opacity: 0; transition: opacity .12s; }
