@@ -81,14 +81,20 @@ def _tail_parts(spec, mats, base_z, base_y):
         return [sphere("tail", (0, base_y - 0.16, base_z), (0.13, 0.16, 0.13), mats["body"])]
     if shape == "bushy":
         return [
-            sphere("tail.1", (0, base_y - 0.20, base_z + 0.04), (0.16, 0.26, 0.16), mats["body"]),
-            sphere("tail.2", (0, base_y - 0.42, base_z + 0.12), (0.20, 0.28, 0.20), mats["belly"]),
+            sphere("tail.1", (0, base_y - 0.17, base_z + 0.04), (0.17, 0.30, 0.17), mats["body"]),
+            sphere("tail.2", (0, base_y - 0.38, base_z + 0.11), (0.21, 0.32, 0.21), mats["belly"]),
         ]
     # thick — a kangaroo's counterweight, thinning as it goes and resting toward the ground
+    #
+    # The segments overlap generously on purpose. They used to meet with about two centimetres to
+    # spare, which held while the tail was static and came apart the moment it was animated: the
+    # hop swings the tail through nineteen degrees and the render showed three brown blobs
+    # trailing behind a kangaroo they were no longer attached to. Overlap is what lets a chain of
+    # spheres bend without opening a seam.
     return [
-        sphere("tail.1", (0, base_y - 0.18, base_z - 0.04), (0.20, 0.26, 0.19), mats["body"]),
-        sphere("tail.2", (0, base_y - 0.42, base_z - 0.14), (0.16, 0.26, 0.15), mats["body"]),
-        sphere("tail.3", (0, base_y - 0.62, base_z - 0.22), (0.11, 0.22, 0.10), mats["accent"]),
+        sphere("tail.1", (0, base_y - 0.16, base_z - 0.03), (0.21, 0.32, 0.20), mats["body"]),
+        sphere("tail.2", (0, base_y - 0.38, base_z - 0.12), (0.17, 0.30, 0.16), mats["body"]),
+        sphere("tail.3", (0, base_y - 0.56, base_z - 0.20), (0.13, 0.26, 0.12), mats["accent"]),
     ]
 
 
@@ -357,9 +363,15 @@ def animate(arm, plan, tail_bones):
         # than wagging sideways: down on the launch, up as the legs come forward for the landing.
         for i, tb in enumerate(tail_bones):
             if hopping:
+                # Amplitude falls off along the chain. Bones are parented in sequence, so giving
+                # every segment the same nineteen degrees compounds to nearly sixty at the tip —
+                # which swung the end of the tail far enough to pull the spheres apart and left a
+                # kangaroo hopping ahead of three loose brown lumps. Tapering keeps the whole tail
+                # inside the arc the geometry can bend through.
+                amplitude = swing * 0.42 / (1 + i)
                 clip.cycle(
                     tb,
-                    [(f, (-swing * 0.5 * math.sin(((f - 1) / n) * math.tau + i * 0.25), 0, 0)) for f in steps],
+                    [(f, (-amplitude * math.sin(((f - 1) / n) * math.tau + i * 0.2), 0, 0)) for f in steps],
                 )
             else:
                 clip.cycle(tb, [(f, (0, 0, swing * 0.35 * math.sin(((f - 1) / n) * math.tau + i * 0.4))) for f in steps])
@@ -403,9 +415,9 @@ def animate(arm, plan, tail_bones):
         jump.key(bone, 4, (26, 0, 0))
         jump.key(bone, 9, (-52, 0, 0))
         jump.key(bone, LENGTHS["jump"], (0, 0, 0))
-    for tb in tail_bones:
+    for i, tb in enumerate(tail_bones):
         jump.key(tb, 1, (0, 0, 0))
-        jump.key(tb, 9, (-22, 0, 0))
+        jump.key(tb, 9, (-20.0 / (1 + i), 0, 0))
         jump.key(tb, LENGTHS["jump"], (0, 0, 0))
 
     # Hit: a recoil that is legible from across the map, which is where tags happen.
