@@ -108,28 +108,50 @@ await record(1.2);
 await page.locator('button', { hasText: 'Practice with bots' }).first().click();
 await sleep(6500);
 
-await record(1.6, 40); // the world at the start, drifting right
-await record(1.4, 90);
+/**
+ * A lap of the clearing, not a straight line out of it.
+ *
+ * The first route held W for two sprints and the player left the jungle entirely, arriving in the
+ * cave — which is deliberately dark, at 0.75 zone darkness — around frame 55 and staying there for
+ * the remaining two thirds of the take. Measured across the frames, mean brightness dropped from
+ * ~145 to ~52 and never recovered. Nothing was broken; the camera had simply walked out of the
+ * part of the map worth filming. Short bursts with a turn between each keep it in the clearing.
+ */
+await record(1.6, 45); // the world at the start, drifting right
 
-// Running, which is where the animation actually shows.
 await page.keyboard.down('w');
-await record(2.2, -70);
-await record(1.6, -110, 12);
+await record(1.3, -60);
 await page.keyboard.up('w');
+await record(0.8, 110);
 
 // A hop, the thing the game is named after.
 await page.keyboard.down('Space');
 await sleep(120);
 await page.keyboard.up('Space');
-await record(1.3, 25);
+await record(1.2, 20);
 
 await page.keyboard.down('w');
+await record(1.4, 130);
+await page.keyboard.up('w');
+await record(0.9, 40, -14);
+
+// A sprint, short enough to stay among the trees.
+await page.keyboard.down('w');
 await page.keyboard.down('Shift');
-await record(2.4, 120);
-await record(1.6, 60, -10);
+await record(1.5, -150);
 await page.keyboard.up('Shift');
 await page.keyboard.up('w');
-await record(1.1, 30);
+await record(1.0, -40, 16);
+
+await page.keyboard.down('Space');
+await sleep(120);
+await page.keyboard.up('Space');
+await record(1.1, 60);
+
+await page.keyboard.down('w');
+await record(1.2, 140);
+await page.keyboard.up('w');
+await record(1.4, 90);
 
 console.log(`${frame} frames at ${WIDTH}x${HEIGHT} → ${path.relative(process.cwd(), OUT)}`);
 console.log(`assemble with: python3 tools/make-gif.py ${path.relative(process.cwd(), OUT)} dist/trailer/kangaroo-chase-trailer.gif --fps ${FPS}`);
