@@ -137,7 +137,7 @@ def build_hopper(spec, mats):
 
     for side, x in (("L", 0.16), ("R", -0.16)):
         parts.append(box(f"thigh.{side}", (x, -0.04, 0.66), (0.20, 0.26, 0.36), mats["body"]))
-        parts.append(box(f"shin.{side}", (x, 0.00, 0.32), (0.15, 0.16, 0.38), mats["body"]))
+        parts.append(box(f"shin.{side}", (x, 0.00, 0.30), (0.15, 0.16, 0.42), mats["body"]))
         parts.append(box(f"foot.{side}", (x, 0.14, 0.05), (0.16, 0.44, 0.10), mats["accent"]))
         parts.append(box(f"arm.{side}", (x + 0.08 * (1 if side == "L" else -1), 0.10, 1.06), (0.10, 0.10, 0.28), mats["body"]))
 
@@ -173,7 +173,10 @@ def build_upright(spec, mats):
 
     for side, x in (("L", 0.14), ("R", -0.14)):
         parts.append(box(f"thigh.{side}", (x, 0, 0.66), (0.15, 0.16, 0.34), mats["body"]))
-        parts.append(box(f"shin.{side}", (x, 0, 0.34), (0.13, 0.14, 0.34), mats["body"]))
+        # The shin reaches down to the top of the foot. It used to stop at z=0.17 while the foot
+        # ended at 0.08, leaving nine centimetres of nothing between them — which from the side
+        # read as a bird walking along above its own detached feet.
+        parts.append(box(f"shin.{side}", (x, 0, 0.30), (0.13, 0.14, 0.44), mats["body"]))
         parts.append(box(f"foot.{side}", (x, 0.10, 0.04), (0.14, 0.30, 0.08), mats["accent"]))
         if wide:
             # A flipper, angled out from the body so it reads as a wing rather than an arm.
@@ -199,7 +202,7 @@ def build_upright(spec, mats):
             (f"foot.{side}", (x, 0, 0.08), (x, 0.24, 0.04), f"shin.{side}"),
             (f"arm.{side}", (x * 1.2, 0, 1.22), (x * 2.0, 0, 0.90), "spine"),
         ]
-    return parts, bones, "upright"
+    return parts, bones, "waddler" if wide else "upright"
 
 
 def build_quadruped(spec, mats):
@@ -291,11 +294,17 @@ def animate(arm, plan, tail_bones):
         phases = [0.0, 0.5]
 
     hopping = plan == "hopper"
+    waddling = plan == "waddler"
 
     def gait(name, swing, lift, bob, lean):
         clip = Clip(arm, name, LENGTHS[name])
         n = LENGTHS[name]
         steps = [1, n // 4, n // 2, (3 * n) // 4]
+        # A waddler takes small steps and gets its speed from the roll, so the legs swing about
+        # half as far; a full human stride under a rolling body reads as a stagger.
+        if waddling:
+            swing *= 0.5
+            lift *= 0.45
         # A hop is one launch per cycle, not two footfalls, so the body rises once and higher —
         # and it is the arc that sells the weight, not the legs.
         rise = bob * (2.6 if hopping else 1.0)
@@ -310,6 +319,18 @@ def animate(arm, plan, tail_bones):
             clip.cycle(upper, ukeys)
             clip.cycle(lower, lkeys)
         clip.cycle("spine", [(f, (lean, 0, 0)) for f in steps])
+        if waddling:
+            # A waddle is a roll, not a stride.
+            #
+            # `visual.build` has said "waddler" since the roster was written and the animation
+            # ignored it, so the penguin marched past like a small man in a dinner jacket. What
+            # makes a waddle is the body tipping side to side over each planted foot while the
+            # legs barely swing — so the roll goes on the hips, a quarter-cycle behind the legs,
+            # which is the moment the weight has finished transferring.
+            clip.cycle(
+                "hips",
+                [(f, (0, 14.0 * math.sin(((f - 1) / n - 0.25) * math.tau), 0)) for f in steps],
+            )
         # Arms, counter-swinging against the legs.
         #
         # They were never keyed at all, which is why every screenshot showed a kangaroo sprinting
