@@ -92,6 +92,56 @@ export class AssetLibrary {
     }
   }
 
+  /**
+   * The geometry of a model, for instancing — not a copy of it.
+   *
+   * Props are drawn with `InstancedMesh`, which needs one geometry shared by every copy; cloning
+   * would defeat the entire point of instancing, which is that two hundred bushes are one upload
+   * and one draw call. So this deliberately hands back the cached original, and the caller must
+   * not dispose it — `AssetLibrary.dispose` owns it, exactly as it owns a character's meshes.
+   *
+   * Returns null for a model with no mesh, and for a model with several: a prop that arrives as
+   * multiple meshes cannot be instanced as one, and quietly picking the first would drop the rest
+   * on the floor where nobody would notice until the tree had no leaves.
+   */
+  async loadGeometry(url: string): Promise<THREE.BufferGeometry | null> {
+    if (!this.enabled) return null;
+    let entry = this.cache.get(url);
+    if (!entry) {
+      entry = this.loadOnce({ url });
+      this.cache.set(url, entry);
+    }
+    const source = await entry;
+    if (!source) return null;
+
+    const meshes: THREE.Mesh[] = [];
+    source.scene.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) meshes.push(node as THREE.Mesh);
+    });
+    if (meshes.length !== 1) {
+      if (!this.warned.has(url)) {
+        this.warned.add(url);
+        console.warn(`[assets] ${url} has ${meshes.length} meshes; expected exactly one to instance`);
+      }
+      return null;
+    }
+    const mesh = meshes[0] as THREE.Mesh;
+    // Bake the node's own transform in once. The exporter may leave a rotation or offset on the
+    // node rather than the mesh, and an InstancedMesh only ever sees the geometry — so without
+    // this a prop can arrive lying on its side with no clue why.
+    const geometry = mesh.geometry;
+    mesh.updateWorldMatrix(true, false);
+    if (!mesh.matrixWorld.equals(new THREE.Matrix4())) {
+      geometry.applyMatrix4(mesh.matrixWorld);
+      mesh.matrixWorld.identity();
+      mesh.matrix.identity();
+      mesh.position.set(0, 0, 0);
+      mesh.rotation.set(0, 0, 0);
+      mesh.scale.set(1, 1, 1);
+    }
+    return geometry;
+  }
+
   /** Look up a socket node by name, for attaching cosmetics to an authored model. */
   static findSocket(root: THREE.Object3D, name: string | undefined): THREE.Object3D | null {
     if (!name) return null;

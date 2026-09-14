@@ -1,6 +1,30 @@
 import * as THREE from 'three';
 import type { Collider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import type { PerformanceProfile } from '../platform/Platform.js';
+import type { AssetLibrary } from './AssetLibrary.js';
+
+/**
+ * Which authored model stands in for which prop kind, and how many variants it has.
+ *
+ * `palm` and `tree` share a model deliberately — the jungle needs two silhouettes far less than
+ * it needs four different trees, and the variant picker already gives it those. `torch` has no
+ * model and keeps its procedural shape, which is the point of the table: a kind missing from here
+ * is not broken, it is simply still procedural.
+ */
+const MODEL_PROPS: Record<string, { base: string; variants: number }> = {
+  rock: { base: 'rock', variants: 4 },
+  boulder: { base: 'boulder-tall', variants: 2 },
+  log: { base: 'log', variants: 3 },
+  bush: { base: 'bush', variants: 4 },
+  flower: { base: 'flower', variants: 3 },
+  mushroom: { base: 'mushroom', variants: 3 },
+  tree: { base: 'tree', variants: 4 },
+  palm: { base: 'tree', variants: 4 },
+  vine: { base: 'vine', variants: 3 },
+  stalagmite: { base: 'stalagmite', variants: 3 },
+  crystal: { base: 'crystal', variants: 3 },
+  banner: { base: 'banner', variants: 2 },
+};
 
 const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
   dirt: 0x6d5535,
@@ -28,13 +52,117 @@ export class LevelRenderer {
   private instanced: THREE.InstancedMesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
 
+  /** Instanced meshes built from procedural geometry, replaced if authored models arrive. */
+  private proceduralProps: THREE.InstancedMesh[] = [];
+  private disposed = false;
+
   constructor(
     private readonly level: LevelDef,
     private readonly profile: PerformanceProfile,
+    private readonly assets?: AssetLibrary,
   ) {
     this.buildColliders();
     this.buildProps();
     this.buildCheckpoints();
+    if (this.assets) void this.upgradeProps(this.assets);
+  }
+
+  /**
+   * Swap the procedural prop shapes for the authored models, once they have downloaded.
+   *
+   * Late and optional, for the same reason the avatars upgrade late: the world must be standing
+   * the instant a match starts, and a cone is a better tree than an empty clearing while a few
+   * hundred kilobytes are in flight. If a file is missing the cone simply stays.
+   *
+   * Each kind becomes one instanced mesh *per variant*, with the instances dealt out between
+   * them. Four rocks drawn two hundred times each is four draw calls; the same two hundred rocks
+   * all identical is one draw call and a world that looks stamped out — and the repetition is far
+   * more noticeable than any single model's quality.
+   */
+  private async upgradeProps(assets: AssetLibrary): Promise<void> {
+    const byKind = this.propsByKind();
+    const built: THREE.InstancedMesh[] = [];
+
+    for (const [kind, props] of byKind) {
+      const model = MODEL_PROPS[kind];
+      if (!model) continue;
+
+      const variants = await Promise.all(
+        Array.from({ length: model.variants }, (_, i) => assets.loadGeometry(`/models/props/${model.base}-${i + 1}.glb`)),
+      );
+      const usable = variants.filter((g): g is THREE.BufferGeometry => g !== null);
+      if (usable.length === 0) continue;
+      // The renderer can be torn down while a download is in flight — a player leaving a match is
+      // the common case — and adding meshes to a disposed group leaks every one of them.
+      if (this.disposed) return;
+
+      const budget = Math.min(props.length, this.profile.foliageBudget);
+      // Vertex colours carry the two-tone baked in by the Blender pass, so the material is white
+      // and does the multiplying. No `instanceColor` here: it would multiply again and tint the
+      // moss along with the stone.
+      //
+      // `flatShading` is load-bearing, not a style choice. The prop files deliberately ship
+      // without a normal attribute — glTF requires a renderer to compute flat normals when it is
+      // absent, which is what makes them a third of the size. `GLTFLoader` sets this flag itself
+      // for exactly that case, but this material is built here rather than by the loader, so
+      // nothing had set it: the shader got no normals, Lambert returned no diffuse light, and
+      // every bush and fern in the world rendered solid black.
+      const material = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xffffff, flatShading: true });
+      this.disposables.push(material);
+
+      const perVariant: PropInstance[][] = usable.map(() => []);
+      for (let i = 0; i < budget; i++) {
+        const prop = props[i] as PropInstance;
+        (perVariant[i % usable.length] as PropInstance[]).push(prop);
+      }
+
+      const matrix = new THREE.Matrix4();
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      for (let v = 0; v < usable.length; v++) {
+        const list = perVariant[v] as PropInstance[];
+        if (list.length === 0) continue;
+        const mesh = new THREE.InstancedMesh(usable[v] as THREE.BufferGeometry, material, list.length);
+        mesh.castShadow = this.profile.shadows && kind !== 'flower' && kind !== 'bush';
+        mesh.receiveShadow = true;
+        for (let i = 0; i < list.length; i++) {
+          const prop = list[i] as PropInstance;
+          position.set(prop.position.x, prop.position.y, prop.position.z);
+          quaternion.setFromAxisAngle(up, prop.yaw);
+          scale.setScalar(prop.scale);
+          matrix.compose(position, quaternion, scale);
+          mesh.setMatrixAt(i, matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        this.group.add(mesh);
+        built.push(mesh);
+      }
+
+      // Only now is the procedural version redundant. Removing it earlier would blink the world
+      // empty for however long the download took.
+      for (const mesh of this.proceduralProps) {
+        if (mesh.userData.kind !== kind) continue;
+        mesh.removeFromParent();
+        mesh.dispose();
+        this.instanced = this.instanced.filter((m) => m !== mesh);
+      }
+      this.proceduralProps = this.proceduralProps.filter((m) => m.userData.kind !== kind);
+    }
+
+    this.instanced.push(...built);
+  }
+
+  private propsByKind(): Map<string, PropInstance[]> {
+    const byKind = new Map<string, PropInstance[]>();
+    for (const prop of this.level.props) {
+      const list = byKind.get(prop.kind) ?? [];
+      list.push(prop);
+      byKind.set(prop.kind, list);
+    }
+    return byKind;
   }
 
   private material(material: SurfaceMaterial): THREE.Material {
@@ -96,12 +224,7 @@ export class LevelRenderer {
 
   /** Decorative props: instanced, budgeted by quality tier, sorted so nearby ones survive culling. */
   private buildProps(): void {
-    const byKind = new Map<string, PropInstance[]>();
-    for (const prop of this.level.props) {
-      const list = byKind.get(prop.kind) ?? [];
-      list.push(prop);
-      byKind.set(prop.kind, list);
-    }
+    const byKind = this.propsByKind();
 
     const matrix = new THREE.Matrix4();
     const position = new THREE.Vector3();
@@ -134,8 +257,11 @@ export class LevelRenderer {
       }
       mesh.instanceMatrix.needsUpdate = true;
       if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      // Tagged so `upgradeProps` can retire exactly the kind it replaced, and no other.
+      mesh.userData.kind = kind;
       this.group.add(mesh);
       this.instanced.push(mesh);
+      this.proceduralProps.push(mesh);
     }
   }
 
@@ -176,6 +302,8 @@ export class LevelRenderer {
   }
 
   dispose(): void {
+    // Read by `upgradeProps`, which can still be awaiting a download when a player leaves.
+    this.disposed = true;
     for (const mesh of this.instanced) mesh.dispose();
     for (const item of this.disposables) item.dispose();
     this.group.clear();

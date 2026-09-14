@@ -1,7 +1,7 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
 import { LevelBuilder } from './builder.js';
-import type { LevelDef } from './level.js';
+import type { LevelDef, PropKind } from './level.js';
 
 export const JUNGLE_SEED = hashString('kangaroo-chase/jungle-world/v1');
 
@@ -108,15 +108,48 @@ function buildJungleDistrict(b: LevelBuilder, rand: Rand): void {
     b.prop('banner', vec3(x, 12 + (i % 3) * 2.2, z), angle, 1, i % 3);
   }
 
-  // Undergrowth props (no colliders — pure decoration, instanced by the renderer).
-  for (let i = 0; i < 160; i++) {
+  /**
+   * Undergrowth. No colliders — pure decoration, instanced by the renderer.
+   *
+   * Six kinds rather than two, and spread to the edge of the district rather than stopping at 58
+   * metres. The old pass scattered bushes and flowers across the middle and left everything past
+   * the tree ring as bare ground, which is exactly where a chase ends up: a runner sprinting away
+   * from the centre broke out of the jungle into an empty plain, and the map stopped looking like
+   * a place. Ground cover is also what makes speed legible — running across nothing reads as
+   * standing still.
+   *
+   * Weights, not a uniform pick: a forest floor is mostly leaves with the occasional rock, and an
+   * even mix of six kinds reads as a display case.
+   */
+  const UNDERGROWTH: [PropKind, number][] = [
+    ['bush', 34],
+    ['flower', 22],
+    ['mushroom', 14],
+    ['rock', 14],
+    ['log', 9],
+    ['boulder', 7],
+  ];
+  const totalWeight = UNDERGROWTH.reduce((sum, [, w]) => sum + w, 0);
+  for (let i = 0; i < 260; i++) {
     const angle = rand.range(0, Math.PI * 2);
-    const dist = rand.range(4, 58);
+    // Square-rooted so the scatter is even by area. A uniform radius crowds everything into the
+    // middle, because a ring twice as far out has twice the ground to cover.
+    const dist = 4 + Math.sqrt(rand.range(0, 1)) * 74;
+    let roll = rand.range(0, totalWeight);
+    let kind: PropKind = 'bush';
+    for (const [candidate, weight] of UNDERGROWTH) {
+      roll -= weight;
+      if (roll <= 0) {
+        kind = candidate;
+        break;
+      }
+    }
     b.prop(
-      rand.bool(0.6) ? 'bush' : 'flower',
+      kind,
       vec3(Math.sin(angle) * dist, 0, Math.cos(angle) * dist),
       rand.range(0, Math.PI * 2),
-      rand.range(0.7, 1.5),
+      // Rocks and logs want less variance than foliage: a boulder at 1.6× reads as a mistake.
+      kind === 'bush' || kind === 'flower' ? rand.range(0.7, 1.5) : rand.range(0.75, 1.15),
       i % 4,
     );
   }

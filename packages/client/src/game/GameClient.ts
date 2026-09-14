@@ -147,7 +147,7 @@ export class GameClient {
     this.tuning = options.tuning;
 
     this.level = buildJungleWorld();
-    this.levelRenderer = new LevelRenderer(this.level, options.profileForQuality);
+    this.levelRenderer = new LevelRenderer(this.level, options.profileForQuality, this.assets);
     this.renderer.scene.add(this.levelRenderer.group);
     this.renderer.applyLevel(this.level);
 
