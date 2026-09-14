@@ -39,6 +39,7 @@
     "test:watch": "vitest",
     "verify": "npm run lint && npm run assets:check && npm run pack:quest:check && npm run pack:phone:check && npm run pack:msstore:check && npm run pack:msstore:listing:check && npm run typecheck && npm run test && npm run build",
     "pack:release": "node scripts/pack-release.mjs",
+    "pack:vr": "node scripts/pack-vr.mjs",
     "pack:phone": "node scripts/pack-phone.mjs",
     "pack:phone:check": "node scripts/pack-phone.mjs --check",
     "pack:msstore": "node scripts/pack-msstore.mjs",
