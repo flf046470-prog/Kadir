@@ -15,6 +15,19 @@ export const CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'hit'] as const;
 export type ClipName = (typeof CLIP_NAMES)[number];
 
 /**
+ * The jaw hinge, in the jaw bone's own space.
+ *
+ * `tools/blender/characters.py` builds the jaw as a bone running from under the head out along the
+ * snout, so the bone's local Y is the length of the jaw and local X is the hinge it swings on —
+ * the same axis for every body plan, because `_jaw_bone` is shared by all of them.
+ */
+const JAW_AXIS = new THREE.Vector3(1, 0, 0);
+/** How far a fully open mouth swings, in radians. About 29 degrees. */
+const JAW_OPEN_RADIANS = 0.5;
+/** Scratch, so lip sync allocates nothing per frame per avatar. */
+const JAW_SWING = new THREE.Quaternion();
+
+/**
  * Pick the clip that matches what the player is doing.
  *
  * Split out and exported because it is the part worth testing: it is pure, and every bug in it
@@ -197,6 +210,19 @@ export class Avatar {
   private currentClip: ClipName | null = null;
   /** Jaw bone inside an authored model, so lip sync survives the switch away from the built jaw. */
   private modelJaw: THREE.Object3D | null = null;
+  /**
+   * The jaw bone's own rest orientation, captured when the model is attached.
+   *
+   * Lip sync has to open the mouth *from* wherever the rig put the jaw, not move it to an absolute
+   * angle. Writing `jaw.rotation.x` directly did the latter, and the rest pose is nowhere near
+   * zero: measured across all seven generated animals the jaw's rest quaternion is
+   * (-0.74, 0, 0, 0.6726) for the upright and hopper plans and (-0.3126, 0, 0, 0.9499) for the
+   * quadrupeds — that is -95.5 and -36.4 degrees, the jaw hinged down along the snout. Forcing
+   * `rotation.x = mouthOpen * 0.5` threw all of that away on every frame, so the jaw sat 95.5
+   * degrees off its rig position *in silence* and 124 degrees off while speaking. Not a lip sync
+   * bug that appears when someone talks: a permanently dislocated jaw on every animal in the game.
+   */
+  private modelJawRest: THREE.Quaternion | null = null;
   /** Seconds left on the one-shot hit reaction. */
   private hitTimer = 0;
   private wasTagged = false;
@@ -262,6 +288,9 @@ export class Avatar {
     }
 
     this.modelJaw = loaded.scene.getObjectByName('jaw') ?? null;
+    // Captured before a single frame runs, so it is the rig's pose rather than one the mixer has
+    // already blended part-way into a clip.
+    this.modelJawRest = this.modelJaw ? this.modelJaw.quaternion.clone() : null;
   }
 
   /**
@@ -851,7 +880,16 @@ export class Avatar {
     this.mouthOpen += (voice - this.mouthOpen) * Math.min(1, dt * 18);
     // A model with no jaw bone simply does not lip sync; it must not throw, because whether a
     // third-party pack has one is not something this code gets to decide.
-    if (this.modelJaw) this.modelJaw.rotation.x = this.mouthOpen * 0.5;
+    //
+    // Applied after the rest pose and in the bone's own space, so the mouth opens along the hinge
+    // the rig built rather than snapping to an absolute angle in the parent's frame. `multiply`
+    // rather than `premultiply` for exactly that reason: the jaw's local X *is* the hinge axis,
+    // and in the head's frame it is not.
+    if (this.modelJaw && this.modelJawRest) {
+      this.modelJaw.quaternion
+        .copy(this.modelJawRest)
+        .multiply(JAW_SWING.setFromAxisAngle(JAW_AXIS, this.mouthOpen * JAW_OPEN_RADIANS));
+    }
 
     // Hands still track in VR: they are separate groups outside the model, and a hand that stops
     // following the controller is far more noticeable than one that does not match the mesh.
@@ -966,6 +1004,7 @@ export class Avatar {
      */
     this.modelRoot = null;
     this.modelJaw = null;
+    this.modelJawRest = null;
 
     for (const material of this.materials) disposeMaterial(material);
     for (const geometry of this.geometries) geometry.dispose();

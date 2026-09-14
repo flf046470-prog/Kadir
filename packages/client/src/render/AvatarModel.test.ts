@@ -43,6 +43,16 @@ function snapshot(over: Partial<PlayerSnapshot> = {}): PlayerSnapshot {
  * Built by hand rather than loaded from a .glb so the test states its own inputs and does not
  * depend on the generator having been run — CI has no Blender.
  */
+/**
+ * The jaw's rest orientation in every generated animal, read out of the shipped files.
+ *
+ * Measured, not chosen: all seven .glb files carry a non-identity jaw rest rotation — the upright,
+ * hopper and waddler plans at (-0.74, 0, 0, 0.6726) and the quadrupeds at (-0.3126, 0, 0, 0.9499),
+ * which is -95.5 and -36.4 degrees. A fake jaw parked at identity cannot show a lip sync that
+ * *replaces* the rest pose rather than opening from it, and that is precisely the bug that shipped.
+ */
+const JAW_REST_X = new THREE.Euler().setFromQuaternion(new THREE.Quaternion(-0.74, 0, 0, 0.6726)).x;
+
 function fakeModel(): LoadedModel {
   const root = new THREE.Object3D();
   root.name = 'root';
@@ -51,6 +61,7 @@ function fakeModel(): LoadedModel {
   root.add(bone);
   const jaw = new THREE.Object3D();
   jaw.name = 'jaw';
+  jaw.rotation.x = JAW_REST_X;
   root.add(jaw);
 
   const clips = ['idle', 'walk', 'run', 'jump', 'hit'].map((name, i) =>
@@ -65,6 +76,24 @@ function fakeModel(): LoadedModel {
           ...new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3 + i * 0.2, 0, 0)).toArray(),
           0, 0, 0, 1,
         ],
+      ),
+      /**
+       * The jaw, keyed by the clip — because that is what the real files do.
+       *
+       * Measured across all seven generated animals: every one of the five clips keys the jaw's
+       * translation, rotation *and* scale, even though the generator never poses it. Blender's
+       * exporter writes a channel for every bone in the armature, so the rest pose ships as
+       * constant keys on a track that runs every frame.
+       *
+       * That matters because it puts the AnimationMixer and the lip sync on the same property.
+       * Without this track the fake model was quieter than any real one and the jaw test passed
+       * against a bone nothing else was writing to — it could not have caught a mixer that
+       * overwrites the mouth, which is the only way lip sync actually breaks here.
+       */
+      new THREE.QuaternionKeyframeTrack(
+        'jaw.quaternion',
+        [0, 1],
+        [-0.74, 0, 0, 0.6726, -0.74, 0, 0, 0.6726],
       ),
     ]),
   );
@@ -149,15 +178,57 @@ describe('Avatar with an authored model', () => {
     avatar.dispose();
   });
 
+  /** How far the jaw has swung from where the rig left it, in degrees. */
+  const swungFromRest = (jaw: THREE.Object3D): number =>
+    (new THREE.Quaternion().setFromEuler(new THREE.Euler(JAW_REST_X, 0, 0)).angleTo(jaw.quaternion) * 180) / Math.PI;
+
+  it('leaves the jaw on its rig pose while nobody is speaking', () => {
+    /**
+     * The bug this exists for: lip sync wrote `jaw.rotation.x = mouthOpen * 0.5`, an absolute
+     * angle in the parent's frame. With `mouthOpen` at zero that is not "do nothing", it is
+     * "force the jaw to zero" — and the rig's rest pose is -95.5 degrees. So every animal in the
+     * game stood with its jaw dislocated by 95.5 degrees, in silence, on every frame, whether or
+     * not voice chat was even enabled. Measured before the fix: drift 95.5 degrees at voice 0 and
+     * 124.1 degrees at voice 1.
+     */
+    const avatar = new Avatar('kangaroo', false);
+    const model = fakeModel();
+    avatar.attachModel(model);
+    const jaw = model.scene.getObjectByName('jaw') as THREE.Object3D;
+
+    for (let i = 0; i < 30; i++) avatar.update(snapshot({ voice: 0 }), 1 / 60, new THREE.Vector3(0, 0, 5));
+    expect(swungFromRest(jaw)).toBeLessThan(1);
+    avatar.dispose();
+  });
+
   it('drives the jaw from the replicated mic level', () => {
     const avatar = new Avatar('kangaroo', false);
     const model = fakeModel();
     avatar.attachModel(model);
     const jaw = model.scene.getObjectByName('jaw') as THREE.Object3D;
-    expect(jaw.rotation.x).toBe(0);
+    expect(swungFromRest(jaw)).toBeLessThan(1);
 
     for (let i = 0; i < 30; i++) avatar.update(snapshot({ voice: 1 }), 1 / 60, new THREE.Vector3(0, 0, 5));
-    expect(jaw.rotation.x).toBeGreaterThan(0.1);
+    // Open, and open by a mouth's worth rather than by a whole rig's worth: 29 degrees is the
+    // full swing, and anything near 95 means the rest pose has been thrown away again.
+    const open = swungFromRest(jaw);
+    expect(open).toBeGreaterThan(10);
+    expect(open).toBeLessThan(40);
+    avatar.dispose();
+  });
+
+  it('closes the mouth again when the speaker stops', () => {
+    // The smoothing runs both ways, and a jaw that opens but never shuts is the same defect
+    // wearing a different face.
+    const avatar = new Avatar('kangaroo', false);
+    const model = fakeModel();
+    avatar.attachModel(model);
+    const jaw = model.scene.getObjectByName('jaw') as THREE.Object3D;
+
+    for (let i = 0; i < 30; i++) avatar.update(snapshot({ voice: 1 }), 1 / 60, new THREE.Vector3(0, 0, 5));
+    expect(swungFromRest(jaw)).toBeGreaterThan(10);
+    for (let i = 0; i < 60; i++) avatar.update(snapshot({ voice: 0 }), 1 / 60, new THREE.Vector3(0, 0, 5));
+    expect(swungFromRest(jaw)).toBeLessThan(1);
     avatar.dispose();
   });
 
