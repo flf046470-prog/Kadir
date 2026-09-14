@@ -49,7 +49,7 @@ def reset() -> None:
             block.remove(item)
 
 
-def _hex_to_linear(value: int) -> tuple:
+def hex_to_linear(value: int) -> tuple:
     """
     A game-data colour (0xRRGGBB) as Blender's linear RGBA.
 
@@ -76,7 +76,7 @@ def material(name: str, hex_colour: int, roughness: float = 0.75) -> bpy.types.M
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Base Color"].default_value = _hex_to_linear(hex_colour)
+    bsdf.inputs["Base Color"].default_value = hex_to_linear(hex_colour)
     bsdf.inputs["Roughness"].default_value = roughness
     # Metallic stays at zero: a stylised animal that catches specular highlights like a car reads
     # as plastic, and every glTF viewer defaults metallic to 1.0 if the input is left unset.
@@ -272,12 +272,35 @@ class Clip:
 # --------------------------------------------------------------------------------------------
 
 
-def export_glb(path: str, animated: bool = True) -> int:
-    """Write the whole scene to a .glb and return its size in bytes."""
+def export_glb(path: str, animated: bool = True, normals: bool = True, uvs: bool = True) -> int:
+    """
+    Write the whole scene to a .glb and return its size in bytes.
+
+    `normals=False` is not a downgrade, it is the cheaper way to get the same picture. Flat shading
+    forces the exporter to split every shared vertex so each face can carry its own normal, which
+    on a rock costs more than the geometry does — 125 KB against 48 KB for the same 1247 triangles.
+    The glTF spec says a renderer must compute flat normals when the attribute is absent, and
+    three.js does exactly that: `GLTFLoader` sets `flatShading` when `geometry.attributes.normal`
+    is undefined. So dropping them gives the identical faceted look for a third of the bytes, and
+    needs nothing on the client side to arrange it.
+
+    Skinned characters keep theirs: their normals have to follow the bones, and the saving there is
+    a much smaller share of a file that is mostly animation.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
+        export_normals=normals,
+        # Exactly one colour layer. The defaults are `export_all_vertex_colors=True` *and*
+        # `export_active_vertex_color_when_no_material=True`, and together they write the same
+        # attribute out twice — as COLOR_0 and again as COLOR_1. three.js reads COLOR_0 and
+        # ignores the rest, so the duplicate was pure weight in every prop.
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=False,
+        # No prop or animal carries a texture — colour is per-material — so texture coordinates
+        # are bytes describing where to sample an image that does not exist.
+        export_texcoords=uvs,
         export_animations=animated,
         export_animation_mode="ACTIONS",
         # Sampling every frame makes a procedurally keyed cycle survive the trip intact; glTF has

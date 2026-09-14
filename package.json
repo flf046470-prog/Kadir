@@ -27,6 +27,8 @@
     "assets:check": "node scripts/fetch-assets.mjs --check",
     "assets:spec": "tsx scripts/dump-animal-specs.ts",
     "assets:build": "npm run assets:spec && python3 tools/blender/build.py",
+    "assets:meshy": "node scripts/meshy-generate.mjs",
+    "assets:props": "python3 tools/blender/props.py",
     "pack:quest": "node scripts/pack-quest.mjs",
     "pack:quest:check": "node scripts/pack-quest.mjs --check",
     "check:pwa": "node scripts/check-pwa.mjs",

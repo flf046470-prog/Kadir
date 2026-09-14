@@ -388,5 +388,7 @@ def build_animal(spec, out_path, capsule):
         raise AssertionError(f"{spec['id']}: feet at z={lowest:.2f}, expected the origin")
 
     tris = lib.triangle_count(mesh)
-    size = lib.export_glb(out_path, animated=True)
+    # Normals stay: they have to follow the bones on a skinned mesh. UVs go — nothing here
+    # samples a texture, so they are coordinates into an image that does not exist.
+    size = lib.export_glb(out_path, animated=True, uvs=False)
     return {"id": spec["id"], "plan": plan, "triangles": tris, "bytes": size, "height": round(height, 3)}
