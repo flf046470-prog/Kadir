@@ -7,6 +7,7 @@ import {
   botName,
   buildJungleWorld,
   createIntent,
+  getAnimal,
   makeRaycastResult,
   snapshotPlayer,
 } from '@kc/core';
@@ -28,6 +29,7 @@ import { VoiceChat } from '../audio/VoiceChat.js';
 import { NetClient } from '../net/NetClient.js';
 import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
+import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { Renderer } from '../render/Renderer.js';
@@ -89,6 +91,13 @@ export class GameClient {
 
   private localId: string;
   private localAvatar: Avatar | null = null;
+  /**
+   * Authored models, shared across every avatar in the session.
+   *
+   * One library per client, not per avatar: it caches by URL, so a room of sixteen kangaroos
+   * downloads and uploads one mesh rather than sixteen.
+   */
+  private assets = new AssetLibrary();
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
@@ -436,6 +445,7 @@ export class GameClient {
     avatar.setName(this.options.profile.name, '#ffd166', false);
     this.renderer.scene.add(avatar.group);
     this.localAvatar = avatar;
+    this.upgradeToModel(avatar);
   }
 
   private addRemote(entry: RosterEntry): void {
@@ -445,7 +455,38 @@ export class GameClient {
     avatar.setName(entry.name);
     this.renderer.scene.add(avatar.group);
     this.remotes.set(entry.id, { avatar, entry });
+    this.upgradeToModel(avatar);
     if (this.online && this.voice.isEnabled) void this.voice.connectTo(entry.id);
+  }
+
+  /**
+   * Load this animal's authored model, if there is one, and hand it to the avatar.
+   *
+   * Fire-and-forget on purpose. The avatar is already built, already in the scene and already
+   * being drawn by the time this resolves — a player must appear the instant they join, not once
+   * a few hundred kilobytes have arrived over someone's phone connection. If the file is missing,
+   * slow or broken, the procedural body is what stays on screen and nothing about the match
+   * changes; models are visual only.
+   *
+   * The avatar can be disposed while the download is in flight (a player leaves, or the local
+   * player swaps animal mid-lobby), so the result is dropped unless the avatar is still the one
+   * in play — otherwise a dead avatar gets a model and an animation mixer that nothing ever
+   * updates or frees.
+   */
+  private upgradeToModel(avatar: Avatar): void {
+    const ref = getAnimal(avatar.animalId)?.model;
+    if (!ref) return;
+    void this.assets
+      .load(ref)
+      .then((loaded) => {
+        if (!loaded) return;
+        const live = avatar === this.localAvatar || [...this.remotes.values()].some((r) => r.avatar === avatar);
+        if (!live) return;
+        avatar.attachModel(loaded);
+      })
+      .catch(() => {
+        /* AssetLibrary already logs once per URL; a second message per player would be noise. */
+      });
   }
 
   private removeRemote(playerId: string): void {

@@ -1,6 +1,33 @@
 import * as THREE from 'three';
 import type { AnimalDef, CosmeticDef, PlayerSnapshot } from '@kc/core';
 import { SnapFlags, getAnimal, getCosmetic } from '@kc/core';
+import { AssetLibrary } from './AssetLibrary.js';
+import type { LoadedModel } from './AssetLibrary.js';
+
+/**
+ * Clip names the renderer asks a model for.
+ *
+ * A contract, not a convention: `tools/blender/characters.py` writes exactly these, and a pack
+ * that uses other names simply animates less rather than failing — `AssetLibrary.findClip`
+ * tolerates exporter prefixes, and a missing clip leaves the avatar on the nearest one it has.
+ */
+export const CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'hit'] as const;
+export type ClipName = (typeof CLIP_NAMES)[number];
+
+/**
+ * Pick the clip that matches what the player is doing.
+ *
+ * Split out and exported because it is the part worth testing: it is pure, and every bug in it
+ * ("runs on the spot while standing still", "never leaves the jump") is a behaviour a test can
+ * state in one line. The thresholds are in metres per second against a 7.2 m/s top speed.
+ */
+export function clipFor(state: { grounded: boolean; speed: number; hitTimer: number }): ClipName {
+  if (state.hitTimer > 0) return 'hit';
+  if (!state.grounded) return 'jump';
+  if (state.speed > 4.2) return 'run';
+  if (state.speed > 0.5) return 'walk';
+  return 'idle';
+}
 
 /**
  * How a body plan is put together.
@@ -155,6 +182,25 @@ export class Avatar {
   /** Rest angle of the tail root, kept so posing returns to the built silhouette. */
   private tailRootRest = 0;
 
+  /**
+   * The authored model, when one loaded.
+   *
+   * Null is the normal case, not an error case: the game is fully playable with no art pack, the
+   * procedural body is what every player saw before models existed, and a failed download must
+   * leave a playable avatar rather than an invisible one. So the two paths coexist — the model
+   * hides the procedural meshes rather than replacing the object that owns them, which keeps the
+   * nameplate, role ring, cosmetic sockets and disposal working untouched.
+   */
+  private modelRoot: THREE.Object3D | null = null;
+  private mixer: THREE.AnimationMixer | null = null;
+  private actions = new Map<ClipName, THREE.AnimationAction>();
+  private currentClip: ClipName | null = null;
+  /** Jaw bone inside an authored model, so lip sync survives the switch away from the built jaw. */
+  private modelJaw: THREE.Object3D | null = null;
+  /** Seconds left on the one-shot hit reaction. */
+  private hitTimer = 0;
+  private wasTagged = false;
+
   constructor(animalId: string, castShadow: boolean) {
     this.animal = getAnimal(animalId) ?? (getAnimal('kangaroo') as AnimalDef);
     this.hands = [new THREE.Group(), new THREE.Group()];
@@ -163,6 +209,80 @@ export class Avatar {
 
   get animalId(): string {
     return this.animal.id;
+  }
+
+  /** True once an authored model is driving this avatar instead of the procedural body. */
+  get hasModel(): boolean {
+    return this.modelRoot !== null;
+  }
+
+  /** Which clip is playing, or null on the procedural path. Read-only; for tests and debugging. */
+  get playingClip(): ClipName | null {
+    return this.currentClip;
+  }
+
+  /**
+   * Swap in an authored model and start its clips.
+   *
+   * Arrives late by design — loading is asynchronous and a player must be visible the instant
+   * they join, so the avatar is built procedurally first and upgraded when the file lands. That
+   * also means this can be called on an avatar that is already in a scene and already being
+   * updated every frame, so it must leave a consistent object behind at every step.
+   */
+  attachModel(loaded: LoadedModel): void {
+    if (this.modelRoot) return; // already upgraded; a second call would stack two bodies
+    // Hide rather than delete: `dispose()` walks `materials` and `geometries`, and the cosmetic
+    // sockets are empty groups whose *positions* are still the right place to hang a hat.
+    this.body.traverse((node) => {
+      if ((node as THREE.Mesh).isMesh) node.visible = false;
+    });
+
+    this.modelRoot = loaded.scene;
+    this.body.add(loaded.scene);
+
+    if (loaded.clips.length > 0) {
+      this.mixer = new THREE.AnimationMixer(loaded.scene);
+      for (const name of CLIP_NAMES) {
+        const clip = AssetLibrary.findClip(loaded.clips, name);
+        if (!clip) continue;
+        const action = this.mixer.clipAction(clip);
+        if (name === 'jump' || name === 'hit') {
+          // One-shots. Without this they loop, and a player who is tagged once spends the rest
+          // of the round flinching.
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = true;
+        }
+        this.actions.set(name, action);
+      }
+      const idle = this.actions.get('idle');
+      if (idle) {
+        idle.play();
+        this.currentClip = 'idle';
+      }
+    }
+
+    this.modelJaw = loaded.scene.getObjectByName('jaw') ?? null;
+  }
+
+  /**
+   * Cross-fade to a clip, or do nothing if it is already playing.
+   *
+   * The fade is short — a quarter of a second — because these transitions happen constantly at a
+   * 20 Hz snapshot rate, and a long blend turns every direction change into a slide.
+   */
+  private playClip(name: ClipName): void {
+    if (!this.mixer || this.currentClip === name) return;
+    const next = this.actions.get(name);
+    if (!next) return;
+    const previous = this.currentClip ? this.actions.get(this.currentClip) : null;
+    next.reset();
+    next.enabled = true;
+    next.setEffectiveWeight(1);
+    if (previous && previous !== next) {
+      next.crossFadeFrom(previous, 0.25, true);
+    }
+    next.play();
+    this.currentClip = name;
   }
 
   private mat(color: number, options: THREE.MeshLambertMaterialParameters = {}): THREE.MeshLambertMaterial {
@@ -636,6 +756,20 @@ export class Avatar {
     const crouching = (snapshot.flags & SnapFlags.Crouching) !== 0;
     const speed = Math.hypot(snapshot.vx, snapshot.vz);
 
+    // The stagger flag is a level, not an edge, and it can still be set on the snapshot after the
+    // one-shot has played out. Timing the reaction from the rising edge is what stops a stunned
+    // player from restarting the flinch on every packet.
+    const tagged = (snapshot.flags & SnapFlags.Staggered) !== 0;
+    if (tagged && !this.wasTagged) this.hitTimer = 0.45;
+    this.wasTagged = tagged;
+    if (this.hitTimer > 0) this.hitTimer = Math.max(0, this.hitTimer - dt);
+
+    if (this.mixer) {
+      this.updateModel(snapshot, dt, grounded, crouching, speed);
+      this.updateNameplate(cameraPosition);
+      return;
+    }
+
     // Squash on landing, stretch in the air: the classic readability trick.
     const stretch = grounded ? 1 - Math.min(0.25, speed * 0.012) : 1 + Math.min(0.3, Math.abs(snapshot.vy) * 0.02);
     const squash = crouching ? 0.65 : 1 / stretch;
@@ -684,12 +818,62 @@ export class Avatar {
       }
     }
 
-    if (this.nameSprite) {
-      const distance = this.group.position.distanceTo(cameraPosition);
-      this.nameSprite.visible = distance < 42;
-      const scale = Math.max(1, distance * 0.045);
-      this.nameSprite.scale.set(1.1 * scale, 0.28 * scale, 1);
+    this.updateNameplate(cameraPosition);
+  }
+
+  /**
+   * Drive an authored model: choose a clip, advance the mixer, keep lip sync alive.
+   *
+   * Everything the procedural path does by posing groups, the clips do instead — so none of the
+   * squash, hop phase or leg folding runs here. Doing both would fight: the mixer writes bone
+   * transforms every frame and the procedural code would write over them, which reads as a model
+   * vibrating between two poses.
+   */
+  private updateModel(
+    snapshot: PlayerSnapshot,
+    dt: number,
+    grounded: boolean,
+    crouching: boolean,
+    speed: number,
+  ): void {
+    this.playClip(clipFor({ grounded, speed, hitTimer: this.hitTimer }));
+    (this.mixer as THREE.AnimationMixer).update(dt);
+
+    // Crouch is a state the clips do not cover, and it changes the player's actual capsule
+    // height, so it stays a scale — the one piece of procedural posing the model path keeps.
+    const target = crouching ? 0.68 : 1;
+    this.body.scale.y += (target - this.body.scale.y) * Math.min(1, dt * 12);
+    this.body.scale.x = this.body.scale.z = 1;
+
+    this.head.rotation.x = -snapshot.pitch * 0.5;
+
+    const voice = Math.min(1, Math.max(0, snapshot.voice));
+    this.mouthOpen += (voice - this.mouthOpen) * Math.min(1, dt * 18);
+    // A model with no jaw bone simply does not lip sync; it must not throw, because whether a
+    // third-party pack has one is not something this code gets to decide.
+    if (this.modelJaw) this.modelJaw.rotation.x = this.mouthOpen * 0.5;
+
+    // Hands still track in VR: they are separate groups outside the model, and a hand that stops
+    // following the controller is far more noticeable than one that does not match the mesh.
+    const hands = snapshot.hands;
+    for (let i = 0; i < 2; i++) {
+      const hand = this.hands[i] as THREE.Group;
+      if (hands) {
+        const pose = hands[i];
+        if (pose) hand.position.set(pose.x, pose.y, pose.z);
+        hand.visible = true;
+      } else {
+        hand.visible = false; // the model has its own arms
+      }
     }
+  }
+
+  private updateNameplate(cameraPosition: THREE.Vector3): void {
+    if (!this.nameSprite) return;
+    const distance = this.group.position.distanceTo(cameraPosition);
+    this.nameSprite.visible = distance < 42;
+    const scale = Math.max(1, distance * 0.045);
+    this.nameSprite.scale.set(1.1 * scale, 0.28 * scale, 1);
   }
 
   /**
@@ -762,6 +946,27 @@ export class Avatar {
   }
 
   dispose(): void {
+    // The mixer holds a binding per animated node; without this the avatar's bones stay
+    // reachable from it and the whole cloned skeleton outlives the player who left.
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      if (this.modelRoot) this.mixer.uncacheRoot(this.modelRoot);
+      this.mixer = null;
+    }
+    this.actions.clear();
+    this.currentClip = null;
+    /**
+     * The model's own geometry and materials are deliberately NOT disposed.
+     *
+     * `SkeletonUtils.clone` shares both with the cached source in `AssetLibrary` — that sharing is
+     * the point, since sixteen kangaroos in a room should not be sixteen uploads of the same mesh.
+     * Freeing them here would empty the buffers out from under every other player wearing the same
+     * animal, and the bug would look like other people's avatars vanishing when someone else quits.
+     * The library owns them and frees them in its own `dispose`.
+     */
+    this.modelRoot = null;
+    this.modelJaw = null;
+
     for (const material of this.materials) disposeMaterial(material);
     for (const geometry of this.geometries) geometry.dispose();
     this.group.removeFromParent();

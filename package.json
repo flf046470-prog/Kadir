@@ -25,6 +25,8 @@
     "lint": "oxlint packages",
     "assets:fetch": "node scripts/fetch-assets.mjs",
     "assets:check": "node scripts/fetch-assets.mjs --check",
+    "assets:spec": "tsx scripts/dump-animal-specs.ts",
+    "assets:build": "npm run assets:spec && python3 tools/blender/build.py",
     "pack:quest": "node scripts/pack-quest.mjs",
     "pack:quest:check": "node scripts/pack-quest.mjs --check",
     "check:pwa": "node scripts/check-pwa.mjs",

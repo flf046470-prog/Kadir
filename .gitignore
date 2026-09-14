@@ -59,3 +59,8 @@ packaging/**/*.msixbundle
 packaging/**/*.appx
 packaging/**/*.appxbundle
 packaging/**/*.pfx
+
+# Blender generator: bytecode, and the spec it reads. The spec is dumped from the game data by
+# `npm run assets:spec`, so a committed copy could only ever be a stale second source of truth.
+__pycache__/
+tools/blender/animals.json
