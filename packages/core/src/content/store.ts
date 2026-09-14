@@ -78,8 +78,16 @@ export function validateCatalog(items: StoreItem[] = listStoreItems()): CatalogP
  * The storefront, deliberately empty.
  *
  * Kangaroo Chase ships with everything unlocked: every animal, every cosmetic and every gadget is
- * owned by every account from the moment it is created. There is nothing to sell, so there is
+ * owned by every account from the moment it is created, and so is the season pass's premium
+ * track — `createProfile` sets `premiumOwned: true`. There is nothing to sell, so there is
  * nothing on the shelf.
+ *
+ * A pass item was written for this shelf and then removed, which is worth recording because the
+ * reasoning looked sound: a premium track unlocked with earned coins keeps "nothing is sold for
+ * money" intact while still being a premium track. It was wrong for a simpler reason — every
+ * player already owns it. Adding a price, even in coins, would have taken away something they
+ * have had since their account existed. The pass is not missing a purchase; it was missing a
+ * screen.
  *
  * The purchase machinery below it — receipt verification, idempotent grants, the audit trail —
  * is kept and still tested. It is the part that takes real effort to get right, and an empty

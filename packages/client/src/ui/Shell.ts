@@ -9,6 +9,7 @@ import type {
   LicenceId,
   MatchResult,
   PlayerProfile,
+  Reward,
   Settings,
 } from '@kc/core';
 import { button, clear, el } from './dom.js';
@@ -67,6 +68,20 @@ export interface ShellOptions {
   canTune(): boolean;
   /** Push the current values into the running simulation. */
   onTuningChanged(): void;
+}
+
+/**
+ * A reward, in a few words.
+ *
+ * Content ids are what the track stores and they are not written for people — `trail_rainbow`,
+ * `glasses_star` — so they are tidied into something readable rather than shown raw.
+ */
+function rewardLabel(reward: Reward): string {
+  if (reward.kind === 'coins') return `🪙 ${reward.amount ?? 0}`;
+  if (reward.kind === 'xp') return `${reward.amount ?? 0} XP`;
+  const id = reward.contentId ?? '';
+  const pretty = id.replace(/^[a-z]+_/, '').replace(/[_-]/g, ' ');
+  return reward.kind === 'animal' ? `${pretty} (animal)` : pretty;
 }
 
 /** Compile-time proof that a switch covered every case. Never reached at runtime. */
@@ -649,23 +664,115 @@ export class Shell {
    * dead end is worse than a page that explains itself. It now says what is true: there is
    * nothing to buy, and everything is already yours.
    */
+  /**
+   * The season pass.
+   *
+   * All of this existed and none of it was reachable: the track, the levels, the free and premium
+   * rewards, `getSeasonProgress`, a server-validated `/api/season/claim`, and an `Api.claimSeason`
+   * on the client. The only screen that could have led here said "there is no store" and offered a
+   * button to the wardrobe. A player could earn season XP for a whole season and never be shown a
+   * level, a reward, or a way to collect one.
+   *
+   * The premium track is unlocked with coins, never with money. That is not a softening of the
+   * no-pay-to-win rule but the same rule: `validateCatalog` refuses outright to register an item
+   * with a price in cents and the server will not boot if one exists, so the pass *cannot* be
+   * sold. And what a reward can contain is bounded below the UI — an animal's feel is clamped to
+   * a ±3% band and its health, damage and hitbox cannot change at all — so no track, paid or not,
+   * can hand anyone an advantage.
+   */
   private storeScreen(): HTMLElement {
-    return el(
+    const coins = this.profile?.profile.coins ?? 0;
+    const season = this.profile?.season;
+    const track = season?.season?.track ?? [];
+    const owned = season?.premiumOwned ?? false;
+    const level = season?.level ?? 1;
+    const claimable = season?.claimable.length ?? 0;
+
+    const screen = el(
       'div',
       { class: 'kc-screen' },
-      this.header('Everything is free', `🪙 ${this.profile?.profile.coins ?? 0} earned`),
+      this.header(season?.season?.name ?? 'Season pass', `Level ${level} · 🪙 ${coins}`),
+    );
+
+    if (season) {
+      const pct = Math.max(0, Math.min(100, (season.xpIntoLevel / Math.max(1, season.xpPerLevel)) * 100));
+      screen.append(
+        el(
+          'div',
+          { class: 'kc-xpbar' },
+          el('i', { style: { width: `${pct}%` } }),
+          el('span', {}, `${season.xpIntoLevel} / ${season.xpPerLevel} XP`),
+        ),
+      );
+    }
+
+    if (track.length > 0) {
+      const rows = el('div', { class: 'kc-track' });
+      for (const entry of track) {
+        const reached = entry.level <= level;
+        rows.append(
+          el(
+            'div',
+            { class: `kc-track-row${reached ? ' kc-track-row--reached' : ''}` },
+            el('span', { class: 'kc-track-level' }, `Lv ${entry.level}`),
+            el('span', { class: 'kc-track-free' }, entry.free ? rewardLabel(entry.free) : '—'),
+            el(
+              'span',
+              { class: `kc-track-premium${owned ? '' : ' kc-track-premium--locked'}` },
+              entry.premium ? rewardLabel(entry.premium) : '—',
+            ),
+          ),
+        );
+      }
+      screen.append(
+        el(
+          'div',
+          { class: 'kc-track-head' },
+          el('span', { class: 'kc-track-level' }, ''),
+          el('span', { class: 'kc-track-free' }, 'Free'),
+          el('span', { class: 'kc-track-premium' }, owned ? 'Premium ✓' : 'Premium 🔒'),
+        ),
+        rows,
+      );
+    }
+
+    if (claimable > 0) {
+      screen.append(
+        button(`Claim ${claimable} reward${claimable === 1 ? '' : 's'}`, () => void this.claimSeason(), 'primary'),
+      );
+    }
+
+    screen.append(
       el(
         'p',
         { class: 'kc-note' },
-        'Every animal, outfit and gadget in Kangaroo Chase is unlocked from the moment you start. ' +
-          'There is no store, no currency to top up, no loot boxes and nothing to pay for. ' +
-          'Coins are a record of what you have played, not something to spend.',
+        owned
+          ? 'Both tracks are already yours. The premium track is unlocked on every account from ' +
+            'the moment it is created — there is nothing to buy here, and nothing in this game ' +
+            'can be bought. Every reward on either track is a costume: no animal is faster, ' +
+            'jumps higher, or is tougher than any other.'
+          : 'The premium track is not unlocked on this account. It is normally granted at sign-up ' +
+            'and costs nothing; if it is missing, the profile predates that and the server will ' +
+            'restore it.',
       ),
-      button('Pick an animal or an outfit', () => this.show('customize'), 'primary'),
+      button('Pick an animal or an outfit', () => this.show('customize')),
       this.noticeNode(),
       button('Back', () => this.show('menu')),
     );
+    return screen;
   }
+
+  private async claimSeason(): Promise<void> {
+    try {
+      await this.options.api.claimSeason();
+      // Re-read the profile rather than patching the local copy: the server decides what was
+      // actually claimed, and a screen that credited itself would drift from it on any refusal.
+      this.setProfile(await this.options.api.getProfile());
+    } catch (error) {
+      this.setNotice(`Could not claim: ${(error as Error).message}`);
+    }
+  }
+
 
   /**
    * Live movement tuning.

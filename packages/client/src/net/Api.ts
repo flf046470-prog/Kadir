@@ -1,10 +1,29 @@
 import { listAnimals, listCosmetics, listModes, listStoreItems } from '@kc/core';
-import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, StoreItem } from '@kc/core';
+import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, Reward, SeasonDef, StoreItem } from '@kc/core';
 
 export interface ProfileBundle {
   profile: PlayerProfile;
   daily: { index: number; reward: { kind: string; amount?: number; contentId?: string }; claimable: boolean }[];
-  season: { level: number; xp: number; xpIntoLevel: number; xpPerLevel: number; premiumOwned: boolean; claimable: unknown[] };
+  /**
+   * Season progress, exactly as `getSeasonProgress` returns it.
+   *
+   * `season` carries the whole definition including the reward track, so the pass screen reads the
+   * track from here rather than from the content bundle: which rewards exist is part of the same
+   * answer as which of them this player has already claimed, and splitting the two across two
+   * fetches is how a screen ends up showing a track with the wrong ticks on it.
+   *
+   * `claimable` was `unknown[]`, which typechecked and told the UI nothing — a list whose length
+   * was the only thing anyone could read off it.
+   */
+  season: {
+    season?: SeasonDef;
+    level: number;
+    xp: number;
+    xpIntoLevel: number;
+    xpPerLevel: number;
+    premiumOwned: boolean;
+    claimable: { level: number; track: 'free' | 'premium'; reward: Reward }[];
+  };
   achievements: { def: { id: string; name: string; description: string; threshold: number }; value: number; done: boolean }[];
 }
 

@@ -112,6 +112,18 @@ export const UI_CSS = `
 .kc-lobby-tick { width: 14px; flex: none; text-align: center; opacity: .8; }
 .kc-lobby-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kc-lobby-animal { font-size: 11px; opacity: .6; text-transform: capitalize; }
+.kc-xpbar { position: relative; height: 22px; border-radius: 11px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+.kc-xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg,#4caf50,#8bc34a); }
+.kc-xpbar span { position: relative; font-size: 12px; font-weight: 700; }
+.kc-track { display: flex; flex-direction: column; gap: 4px; }
+.kc-track-head, .kc-track-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; }
+.kc-track-head { font-weight: 700; font-size: 12px; opacity: .8; }
+.kc-track-row { background: rgba(255,255,255,.05); opacity: .5; }
+.kc-track-row--reached { background: rgba(255,255,255,.1); opacity: 1; }
+.kc-track-level { width: 46px; flex: none; font-weight: 700; font-size: 12px; }
+.kc-track-free, .kc-track-premium { flex: 1; font-size: 12px; text-transform: capitalize; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kc-track-premium { color: #ffd166; }
+.kc-track-premium--locked { opacity: .45; }
 
 .kc-touch { position: absolute; inset: 0; }
 .kc-stick { position: absolute; width: 110px; height: 110px; margin: -55px 0 0 -55px; border-radius: 50%; border: 2px solid rgba(255,255,255,.28); background: rgba(0,0,0,.22); opacity: 0; transition: opacity .12s; }

@@ -93,6 +93,33 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   await page.locator('button', { hasText: 'Back' }).first().click();
   await page.waitForTimeout(400);
 
+  /**
+   * The season pass, which existed entirely except for a way to look at it.
+   *
+   * The track, the levels, the free and premium rewards, `getSeasonProgress`, a server-validated
+   * `/api/season/claim` and an `Api.claimSeason` were all there and all wired. The only screen
+   * that could have led to them said "there is no store" and offered a button to the wardrobe, so
+   * a player could earn season XP for a whole season without ever being shown a level or a reward.
+   *
+   * Asserted on the track's own contents rather than on the heading: a screen that renders its
+   * title and then an empty list is the exact failure worth catching.
+   */
+  await page.locator('button', { hasText: 'Season pass' }).first().click();
+  await page.waitForTimeout(600);
+  const seasonText = (await page.textContent('body')) ?? '';
+  const trackRows = await page.locator('.kc-track-row').count();
+  const hasXpBar = (await page.locator('.kc-xpbar').count()) > 0;
+  const seasonOk = trackRows >= 5 && hasXpBar && /Level \d/.test(seasonText) && seasonText.includes('Premium');
+  if (!seasonOk) {
+    errors.push(
+      `[${label}] season pass screen: rows=${trackRows} xpBar=${hasXpBar} ` +
+        `text=${JSON.stringify(seasonText.slice(0, 160))}`,
+    );
+  }
+  console.log(`${''.padEnd(16)} season pass: rows=${trackRows} xpBar=${hasXpBar}`);
+  await page.locator('button', { hasText: 'Back' }).first().click();
+  await page.waitForTimeout(400);
+
   // House rules: a player-authored mode has to be reachable, not just implemented. This walks
   // the real path a host takes — Private room → your own rules → move a slider → create — and
   // asserts the summary line updates, because a panel whose readout lies is worse than none.
