@@ -32,7 +32,14 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const dist = path.join(root, 'dist');
 const stage = path.join(dist, 'vr-package');
-const outDir = path.join(dist, 'release');
+/**
+ * Its own directory, not `dist/release`.
+ *
+ * `pack:release` deletes and recreates `dist/release` before it collects anything, so a VR
+ * package written there vanished the moment anyone ran the release step afterwards — silently,
+ * because nothing about either script says it owns that folder. Separate outputs cannot race.
+ */
+const outDir = path.join(dist, 'vr');
 
 const pkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 const version = pkg.version;
