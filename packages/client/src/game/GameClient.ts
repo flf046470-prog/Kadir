@@ -253,6 +253,25 @@ export class GameClient {
    * the menu. Stopping it would freeze the whole screen, since the render loop and the fixed step
    * share a frame.
    */
+  /**
+   * Switch voice on, and then call everyone who is already here.
+   *
+   * The second half is the part that was missing everywhere `voice.enable()` was called directly.
+   * Asking for the microphone is slow — a permission check and a device open — while joining a
+   * match is fast, so the roster reliably arrives first and every `connectTo` it fires is refused
+   * for having no microphone yet. Nothing retried, so a player who joined an occupied room stayed
+   * silent to everyone in it for the whole match, and toggling voice on from Settings mid-match
+   * did nothing at all.
+   *
+   * Awaiting the microphone before connecting to the match would also fix it and would be worse:
+   * a permission prompt is open-ended, and nobody should be held out of a round waiting for one.
+   */
+  async enableVoice(): Promise<void> {
+    const ready = await this.voice.enable();
+    if (!ready || !this.online) return;
+    this.voice.connectToAll(this.remotes.keys());
+  }
+
   leaveMatch(): void {
     this.disconnect();
     this.soloPractice = false;

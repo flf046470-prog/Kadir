@@ -1,8 +1,13 @@
 import type { AudioSystem } from './AudioSystem.js';
 
+export type SignalKind = 'offer' | 'answer' | 'ice' | 'leave';
+
 export interface VoiceSignalSender {
-  (targetId: string, payload: string, kind: 'offer' | 'answer' | 'ice' | 'leave'): void;
+  (targetId: string, payload: string, kind: SignalKind): void;
 }
+
+/** How many not-yet-answerable signals to hold while the microphone is still opening. */
+const MAX_PENDING_SIGNALS = 32;
 
 interface Peer {
   connection: RTCPeerConnection;
@@ -24,6 +29,24 @@ const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
  */
 export class VoiceChat {
   private peers = new Map<string, Peer>();
+  /** One promise chain per peer, so signals are handled in the order the wire delivered them. */
+  private signalChain = new Map<string, Promise<void>>();
+  /**
+   * Signals that arrived before the microphone was ready, kept so they can be answered.
+   *
+   * Dropping them was the last and worst of the three ways voice failed to connect. Asking for
+   * the microphone is slow and joining a match is fast, so the other player's offer routinely
+   * landed in the gap — and an offer refused here is never sent again, because the offerer has no
+   * idea it was thrown away. Its ICE candidates then arrived a moment later, once the microphone
+   * *was* ready, and built a peer connection with no remote description at all: the state we
+   * measured, with one peer stuck in "stable", no answer ever sent, and
+   * `addIceCandidate: The remote description was null` in the log.
+   *
+   * Capped, because this is a buffer fed by another client. 32 is far more than a negotiation
+   * needs and small enough that a peer spraying signals at a player who never grants a microphone
+   * costs nothing.
+   */
+  private pendingSignals: { fromId: string; payload: string; kind: SignalKind }[] = [];
   private localStream: MediaStream | null = null;
   private enabled = false;
   private muted = false;
@@ -72,16 +95,27 @@ export class VoiceChat {
       });
       this.enabled = true;
       this.startLevelMeter();
+      this.flushPendingSignals();
       return true;
     } catch (error) {
       console.warn('[voice] microphone unavailable:', (error as Error).message);
       this.enabled = false;
+      // Nothing can ever be answered without a microphone, so holding these would only leak.
+      this.pendingSignals = [];
       return false;
     }
   }
 
+  /** Replay whatever arrived while the microphone was opening, in the order it arrived. */
+  private flushPendingSignals(): void {
+    const queued = this.pendingSignals;
+    this.pendingSignals = [];
+    for (const signal of queued) void this.handleSignal(signal.fromId, signal.payload, signal.kind);
+  }
+
   disable(): void {
     for (const [id] of this.peers) this.closePeer(id);
+    this.pendingSignals = [];
     this.stopLevelMeter();
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
@@ -169,6 +203,25 @@ export class VoiceChat {
     }
   }
 
+  /**
+   * Call everyone already here.
+   *
+   * The microphone is asked for while the match is being joined, and `getUserMedia` takes long
+   * enough that the roster almost always lands first. Every `connectTo` fired from that roster
+   * then returned immediately at `!this.enabled`, and nothing ever tried again — so a player who
+   * joined a room that already had people in it was permanently silent to all of them, while
+   * anyone arriving *after* their microphone was ready connected fine. Measured: two clients in
+   * one private room, zero peer connections on the joining side.
+   *
+   * Reconnecting the whole roster once the microphone is live fixes that, and the same call
+   * covers switching voice on from the settings panel mid-match, which was broken in exactly the
+   * same way and for the same reason.
+   */
+  connectToAll(peerIds: Iterable<string>): void {
+    if (!this.enabled) return;
+    for (const id of peerIds) void this.connectTo(id);
+  }
+
   private createPeer(peerId: string): Peer {
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     const peer: Peer = { connection, panner: null, element: null, polite: this.localId > peerId, makingOffer: false };
@@ -213,7 +266,42 @@ export class VoiceChat {
    * Handle an incoming signal. Uses the "perfect negotiation" pattern so a glare (both sides
    * offering at once) resolves deterministically instead of deadlocking the call.
    */
-  async handleSignal(fromId: string, payload: string, kind: 'offer' | 'answer' | 'ice' | 'leave'): Promise<void> {
+  /**
+   * Handle a signal, strictly after the previous one from the same peer has finished.
+   *
+   * Signals arrive on one websocket and so arrive in order, but handling them did not stay in
+   * order: the caller fires `void handleSignal(...)` per message, and each one awaits. An `ice`
+   * landing while `setRemoteDescription(offer)` was still in flight therefore ran *first*, threw
+   * `Failed to execute 'addIceCandidate': The remote description was null`, and the candidate was
+   * dropped — there is no retry, so on a connection with few candidates that alone can mean the
+   * call never completes. Observed in a two-client run: two candidates lost that way, no answer
+   * ever sent, both peers stuck.
+   *
+   * A promise chain per peer restores the ordering the wire already had. It is per peer rather
+   * than global so one slow negotiation cannot hold up an unrelated one.
+   */
+  handleSignal(fromId: string, payload: string, kind: SignalKind): Promise<void> {
+    // Held rather than dropped while the microphone is still opening — see `pendingSignals`.
+    // "leave" is the exception: it needs no microphone and tearing a peer down is always safe.
+    if (!this.enabled && kind !== 'leave') {
+      if (this.pendingSignals.length < MAX_PENDING_SIGNALS) this.pendingSignals.push({ fromId, payload, kind });
+      return Promise.resolve();
+    }
+    const previous = this.signalChain.get(fromId) ?? Promise.resolve();
+    const next = previous.then(() => this.processSignal(fromId, payload, kind));
+    // The chain must survive a rejection, or one bad signal wedges every later one from that peer.
+    this.signalChain.set(
+      fromId,
+      next.catch(() => undefined),
+    );
+    return next;
+  }
+
+  private async processSignal(
+    fromId: string,
+    payload: string,
+    kind: SignalKind,
+  ): Promise<void> {
     if (this.blocked.has(fromId)) return;
     if (kind === 'leave') {
       this.closePeer(fromId);
@@ -295,6 +383,9 @@ export class VoiceChat {
       peer.element.remove();
     }
     this.peers.delete(peerId);
+    // Dropped with the peer: a chain kept past the connection it ordered would make the next call
+    // to that player wait on signals for a connection that no longer exists.
+    this.signalChain.delete(peerId);
   }
 
   dispose(): void {

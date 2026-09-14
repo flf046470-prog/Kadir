@@ -49,7 +49,8 @@
     "pack:msstore:listing:check": "node scripts/pack-msstore-listing.mjs --check",
     "pack:msstore:check": "node scripts/pack-msstore.mjs --check",
     "build:quest": "node scripts/build-android.mjs --target quest",
-    "build:phone": "node scripts/build-android.mjs --target phone"
+    "build:phone": "node scripts/build-android.mjs --target phone",
+    "check:voice": "node scripts/check-voice.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

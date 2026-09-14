@@ -90,7 +90,7 @@ async function main(): Promise<void> {
         },
         onVoiceToggle: (enabled) => {
           if (!game) return;
-          if (enabled) void game.voice.enable();
+          if (enabled) void game.enableVoice();
           else game.voice.disable();
         },
       },
@@ -329,7 +329,7 @@ async function main(): Promise<void> {
     setInMatch(true);
     resumeInput();
     await game.audio.resume();
-    if (settings.voiceEnabled) void game.voice.enable();
+    if (settings.voiceEnabled) void game.enableVoice();
     game.connect(serverUrl, options);
   }
 
