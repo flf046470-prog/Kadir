@@ -269,16 +269,36 @@ def animate(arm, plan, tail_bones):
     together reads as a pantomime horse.
     """
     legs = _legs(plan)
-    # Phase per leg, in quarter-cycles.
+    # Arms exist on the two-legged plans only; a quadruped's front limbs are already in `legs`.
+    arms = [b for b in ("arm.L", "arm.R") if b in arm.pose.bones]
+    """
+    Phase per leg, in fractions of a cycle.
+
+    Quadrupeds move diagonally — front-left with back-right — because a four-legged walk with both
+    left legs together reads as a pantomime horse.
+
+    A hopper's legs stay in phase, which is the whole point of it. Both hind feet leave and land
+    together; that is what a kangaroo *is*, and the game is named after it. The first version gave
+    hoppers the same alternating stride as a person, so the signature animal of Kangaroo Chase ran
+    like a man in a costume — and the procedural avatar it replaced had hopped correctly, so the
+    model was a regression in exactly the thing players look at most.
+    """
     if plan == "quadruped":
         phases = [0.0, 0.5, 0.5, 0.0]
+    elif plan == "hopper":
+        phases = [0.0, 0.0]
     else:
         phases = [0.0, 0.5]
+
+    hopping = plan == "hopper"
 
     def gait(name, swing, lift, bob, lean):
         clip = Clip(arm, name, LENGTHS[name])
         n = LENGTHS[name]
         steps = [1, n // 4, n // 2, (3 * n) // 4]
+        # A hop is one launch per cycle, not two footfalls, so the body rises once and higher —
+        # and it is the arc that sells the weight, not the legs.
+        rise = bob * (2.6 if hopping else 1.0)
         for (upper, lower), phase in zip(legs, phases):
             ukeys, lkeys = [], []
             for f in steps:
@@ -290,16 +310,38 @@ def animate(arm, plan, tail_bones):
             clip.cycle(upper, ukeys)
             clip.cycle(lower, lkeys)
         clip.cycle("spine", [(f, (lean, 0, 0)) for f in steps])
+        # Arms, counter-swinging against the legs.
+        #
+        # They were never keyed at all, which is why every screenshot showed a kangaroo sprinting
+        # past with two rigid blocks held out at its sides like a mannequin. Counter-swing is what
+        # makes a two-legged run read as a run rather than a slide: the arm opposite the forward
+        # leg comes forward, which is also how a real kangaroo balances a hop.
+        for index, bone in enumerate(arms):
+            phase = 0.5 if index else 0.0
+            clip.cycle(
+                bone,
+                [(f, (-swing * 0.75 * math.sin(((f - 1) / n + phase + 0.5) * math.tau), 0, 0)) for f in steps],
+            )
         clip.cycle(
             "root",
             [(f, (0, 0, 0)) for f in steps],
         )
-        # Vertical bob on the root, twice per stride — once for each footfall.
+        # Vertical travel on the root. Twice per stride for a walker, once for a hopper: a hop is
+        # a single launch and a single landing, and bobbing twice makes it read as a jog.
         for f in steps + [n]:
             t = (f - 1) / n
-            clip.key("root", f, (0, 0, 0), loc=(0, 0, bob * abs(math.sin(t * math.tau))))
+            lift_curve = math.sin(t * math.pi) ** 0.7 if hopping else abs(math.sin(t * math.tau))
+            clip.key("root", f, (0, 0, 0), loc=(0, 0, rise * lift_curve))
+        # The tail is the counterweight, so on a hopper it swings in pitch against the body rather
+        # than wagging sideways: down on the launch, up as the legs come forward for the landing.
         for i, tb in enumerate(tail_bones):
-            clip.cycle(tb, [(f, (0, 0, swing * 0.35 * math.sin(((f - 1) / n) * math.tau + i * 0.4))) for f in steps])
+            if hopping:
+                clip.cycle(
+                    tb,
+                    [(f, (-swing * 0.5 * math.sin(((f - 1) / n) * math.tau + i * 0.25), 0, 0)) for f in steps],
+                )
+            else:
+                clip.cycle(tb, [(f, (0, 0, swing * 0.35 * math.sin(((f - 1) / n) * math.tau + i * 0.4))) for f in steps])
         return clip
 
     gait("walk", swing=22.0, lift=26.0, bob=0.035, lean=2.0)
@@ -315,6 +357,8 @@ def animate(arm, plan, tail_bones):
         idle.key("root", f, (0, 0, 0), loc=(0, 0, 0.012 * math.sin(((f - 1) / n) * math.tau)))
     for i, tb in enumerate(tail_bones):
         idle.cycle(tb, [(1, (0, 0, 0)), (n // 2, (0, 0, 5.0 + 2.0 * i))])
+    for bone in arms:
+        idle.cycle(bone, [(1, (0, 0, 0)), (n // 2, (4.5, 0, 0))])
 
     # Jump: crouch, extend, tuck. Not a loop — the renderer plays it once.
     jump = Clip(arm, "jump", LENGTHS["jump"])
@@ -333,6 +377,11 @@ def animate(arm, plan, tail_bones):
     jump.key("root", 4, (0, 0, 0), loc=(0, 0, -0.12))
     jump.key("root", 9, (0, 0, 0), loc=(0, 0, 0.10))
     jump.key("root", LENGTHS["jump"], (0, 0, 0), loc=(0, 0, 0))
+    for bone in arms:
+        jump.key(bone, 1, (0, 0, 0))
+        jump.key(bone, 4, (26, 0, 0))
+        jump.key(bone, 9, (-52, 0, 0))
+        jump.key(bone, LENGTHS["jump"], (0, 0, 0))
     for tb in tail_bones:
         jump.key(tb, 1, (0, 0, 0))
         jump.key(tb, 9, (-22, 0, 0))
@@ -344,6 +393,10 @@ def animate(arm, plan, tail_bones):
     hit.key("spine", 3, (-24, 0, 8))
     hit.key("spine", 9, (8, 0, -3))
     hit.key("spine", LENGTHS["hit"], (0, 0, 0))
+    for bone in arms:
+        hit.key(bone, 1, (0, 0, 0))
+        hit.key(bone, 3, (-34, 0, 0))
+        hit.key(bone, LENGTHS["hit"], (0, 0, 0))
     hit.key("head", 1, (0, 0, 0))
     hit.key("head", 3, (-28, 0, 12))
     hit.key("head", LENGTHS["hit"], (0, 0, 0))
