@@ -1,6 +1,7 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
 import { LevelBuilder } from './builder.js';
+import type { BoxCollider } from '../physics/types.js';
 import type { LevelDef, PropKind } from './level.js';
 
 export const JUNGLE_SEED = hashString('kangaroo-chase/jungle-world/v1');
@@ -24,6 +25,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   buildJungleDistrict(b, rand);
   buildCaveDistrict(b, rand);
   buildCanyonDistrict(b, rand);
+  dressWorld(b, rand);
   buildParkourRoute(b);
 
   b.zone('jungle', vec3(0, 0, 0), 60, 'jungle', 0.05);
@@ -57,6 +59,93 @@ function buildTerrain(b: LevelBuilder): void {
   // Ramps connecting the three districts.
   b.ramp(-46, 0, 12, 22, 0, -8, Math.PI / 2, 'cave');
   b.ramp(62, 6, 14, 26, 0, -8, Math.PI / 2, 'canyon');
+}
+
+/**
+ * Scatter decorative props across a rectangle of ground.
+ *
+ * Shared by all three districts, because the alternative is three copies of the same loop that
+ * drift apart — and the first version of this, written inline for the jungle, put fifteen props
+ * off the edge of the map. A circular scatter of radius 78 around a floor that is a 62-metre
+ * *square* leaves everything past the edge floating over nothing, which is invisible from the
+ * middle of the map and obvious from anywhere near the rim.
+ *
+ * So the area is a rectangle, matching the floors, and every position is checked against the
+ * ground it is supposed to be standing on. Two rules do the work:
+ *
+ *   - **Stand on something.** A position with no floor under it is rejected outright.
+ *   - **Do not stand inside something.** A position under a wall, a pillar, a tree trunk or a
+ *     boulder is rejected too, or bushes sprout through the rock.
+ *
+ * Weighted rather than uniform: a forest floor is mostly leaves with the occasional rock, and an
+ * even mix of six kinds reads as a display case.
+ */
+function scatter(
+  b: LevelBuilder,
+  rand: Rand,
+  options: {
+    kinds: [PropKind, number][];
+    count: number;
+    /** Ground rectangle: [minX, maxX, minZ, maxZ]. */
+    area: [number, number, number, number];
+    /** Height the props sit at — the top of the floor they stand on. */
+    y: number;
+    scale: [number, number];
+    tint?: number;
+  },
+): number {
+  const { kinds, count, area, y, scale } = options;
+  const [minX, maxX, minZ, maxZ] = area;
+  const total = kinds.reduce((sum, [, w]) => sum + w, 0);
+
+  // `Collider` is a union and only the box arm has half-extents, so the narrowing is explicit.
+  // Spheres and cylinders are skipped on purpose: every floor in this world is a box, and a
+  // rounded obstacle is small enough that a bush beside it costs nothing.
+  const boxes = b.colliders.filter((c): c is BoxCollider => c.kind === 'box');
+  const floors = boxes.filter((c) => c.center.y + c.half.y <= y + 0.75);
+  /**
+   * Something solid standing in the space a prop would occupy — not merely something above it.
+   *
+   * The distinction is the whole rule. "Anything whose top is higher than the floor" also
+   * describes a ceiling, and the cave has one covering every square metre of it: under that
+   * reading the cave rejected all 150 attempts and came out as bare as before, which is exactly
+   * the emptiness this was meant to fix. What matters is whether the box's *vertical span*
+   * overlaps the couple of metres the prop stands in.
+   */
+  const standHeight = 2;
+  const obstacles = boxes.filter(
+    (c) => c.center.y - c.half.y < y + standHeight && c.center.y + c.half.y > y + 0.2,
+  );
+  const covers = (list: BoxCollider[], x: number, z: number, pad: number): boolean =>
+    list.some((c) => Math.abs(x - c.center.x) <= c.half.x + pad && Math.abs(z - c.center.z) <= c.half.z + pad);
+
+  let placed = 0;
+  for (let i = 0; i < count; i++) {
+    let x = 0;
+    let z = 0;
+    let ok = false;
+    // A bounded search, not a while(true): a badly chosen area must cost a few wasted rolls, not
+    // hang the level build — and the caller finds out by getting fewer props than it asked for.
+    for (let attempt = 0; attempt < 12 && !ok; attempt++) {
+      x = rand.range(minX, maxX);
+      z = rand.range(minZ, maxZ);
+      ok = covers(floors, x, z, -0.5) && !covers(obstacles, x, z, 0.4);
+    }
+    if (!ok) continue;
+
+    let roll = rand.range(0, total);
+    let kind: PropKind = (kinds[0] as [PropKind, number])[0];
+    for (const [candidate, weight] of kinds) {
+      roll -= weight;
+      if (roll <= 0) {
+        kind = candidate;
+        break;
+      }
+    }
+    b.prop(kind, vec3(x, y, z), rand.range(0, Math.PI * 2), rand.range(scale[0], scale[1]), options.tint ?? i % 4);
+    placed++;
+  }
+  return placed;
 }
 
 function buildJungleDistrict(b: LevelBuilder, rand: Rand): void {
@@ -108,52 +197,6 @@ function buildJungleDistrict(b: LevelBuilder, rand: Rand): void {
     b.prop('banner', vec3(x, 12 + (i % 3) * 2.2, z), angle, 1, i % 3);
   }
 
-  /**
-   * Undergrowth. No colliders — pure decoration, instanced by the renderer.
-   *
-   * Six kinds rather than two, and spread to the edge of the district rather than stopping at 58
-   * metres. The old pass scattered bushes and flowers across the middle and left everything past
-   * the tree ring as bare ground, which is exactly where a chase ends up: a runner sprinting away
-   * from the centre broke out of the jungle into an empty plain, and the map stopped looking like
-   * a place. Ground cover is also what makes speed legible — running across nothing reads as
-   * standing still.
-   *
-   * Weights, not a uniform pick: a forest floor is mostly leaves with the occasional rock, and an
-   * even mix of six kinds reads as a display case.
-   */
-  const UNDERGROWTH: [PropKind, number][] = [
-    ['bush', 34],
-    ['flower', 22],
-    ['mushroom', 14],
-    ['rock', 14],
-    ['log', 9],
-    ['boulder', 7],
-  ];
-  const totalWeight = UNDERGROWTH.reduce((sum, [, w]) => sum + w, 0);
-  for (let i = 0; i < 260; i++) {
-    const angle = rand.range(0, Math.PI * 2);
-    // Square-rooted so the scatter is even by area. A uniform radius crowds everything into the
-    // middle, because a ring twice as far out has twice the ground to cover.
-    const dist = 4 + Math.sqrt(rand.range(0, 1)) * 74;
-    let roll = rand.range(0, totalWeight);
-    let kind: PropKind = 'bush';
-    for (const [candidate, weight] of UNDERGROWTH) {
-      roll -= weight;
-      if (roll <= 0) {
-        kind = candidate;
-        break;
-      }
-    }
-    b.prop(
-      kind,
-      vec3(Math.sin(angle) * dist, 0, Math.cos(angle) * dist),
-      rand.range(0, Math.PI * 2),
-      // Rocks and logs want less variance than foliage: a boulder at 1.6× reads as a mistake.
-      kind === 'bush' || kind === 'flower' ? rand.range(0.7, 1.5) : rand.range(0.75, 1.15),
-      i % 4,
-    );
-  }
-
   b.spawn(vec3(0, 0.5, -14), 0, 'jungle', 'runner');
   b.spawn(vec3(14, 0.5, 12), -2.2, 'jungle', 'runner');
   b.spawn(vec3(-16, 0.5, 6), 1.6, 'jungle', 'runner');
@@ -175,8 +218,14 @@ function buildCaveDistrict(b: LevelBuilder, rand: Rand): void {
   b.box(vec3(cx + 27, 10, 12), vec3(2, 10, 12), 'rock', 0, 'cave');
 
   // Stalagmites and stalactites: cover, and wall-bounce surfaces in a tight space.
+  //
+  // The range stops well short of the mouth on purpose. The jungle floor slab reaches x = -62 and
+  // fills the four metres directly above the cave floor from there inwards, so a stalagmite in the
+  // last stretch of the mouth grew straight into it — buried to the tip in rock nobody could see
+  // it through. Ending at -66 leaves a couple of metres of margin and still gives forty metres of
+  // cave to stand in.
   for (let i = 0; i < 22; i++) {
-    const x = cx + rand.range(-24, 24);
+    const x = cx + rand.range(-24, 12);
     const z = rand.range(-26, 26);
     const h = rand.range(1.6, 5.2);
     b.cylinder(vec3(x, -4 + h / 2, z), rand.range(0.5, 1.1), h / 2, 'wetRock', 'cave');
@@ -249,3 +298,100 @@ function buildParkourRoute(b: LevelBuilder): void {
   b.checkpoint(vec3(-51, -3, 0), 5); // cave entrance
   b.checkpoint(vec3(-96, 8, 0), 5, true); // cave summit — finish
 }
+
+/**
+ * Decorative ground cover, applied after every district is standing.
+ *
+ * Ordering is the whole reason this is its own pass. `scatter` avoids the colliders it can see,
+ * and when the jungle dressed itself inside `buildJungleDistrict` the cave and canyon did not
+ * exist yet — so ten props were placed straight through the cave entrance pillars, which are
+ * built two functions later. Nothing about the scattering was wrong; it was simply asked the
+ * question too early.
+ */
+function dressWorld(b: LevelBuilder, rand: Rand): void {
+  const caveX = -78;
+  const canyonX = 84;
+
+  // Undergrowth. Square, not circular: the jungle floor is a 62-metre square, so a circle wide
+  // enough to reach the corners spills off the edges — and one that fits inside leaves the corners
+  // bare. The floors decide the shape.
+  scatter(b, rand, {
+    kinds: [
+      ['bush', 34],
+      ['flower', 22],
+      ['mushroom', 14],
+      ['rock', 14],
+      ['log', 9],
+      ['boulder', 7],
+    ],
+    count: 300,
+    area: [-58, 58, -58, 58],
+    y: 0,
+    scale: [0.75, 1.4],
+  });
+
+  // The southern shoreline is its own strip of ground and was left completely bare. Sparser and
+  // scrubbier than the forest floor, because sand is.
+  scatter(b, rand, {
+    kinds: [
+      ['bush', 30],
+      ['rock', 34],
+      ['flower', 18],
+      ['log', 18],
+    ],
+    count: 60,
+    area: [-58, 58, 60, 80],
+    y: 0.2,
+    scale: [0.7, 1.2],
+  });
+  /**
+   * Cave floor dressing.
+   *
+   * The cave was 22 stalagmites and eight crystal ledges on bare wet rock — readable, and
+   * completely empty between the landmarks. Short sightlines are the point of this district, so
+   * the floor is what a player actually sees: it gets rubble and small crystal clusters, with the
+   * crystals frequent enough to give the dark a little glint without turning it into a cavern of
+   * treasure.
+   *
+   * The area stops short of the shell walls on every side; `scatter` would reject anything inside
+   * them anyway, but wasting eleven of twelve attempts per prop just to be told so is a poor way
+   * to spend a level build.
+   */
+  scatter(b, rand, {
+    kinds: [
+      ['rock', 40],
+      ['stalagmite', 22],
+      ['crystal', 16],
+      ['boulder', 14],
+      ['mushroom', 8],
+    ],
+    count: 150,
+    area: [caveX - 24, caveX + 24, -26, 26],
+    y: -4,
+    scale: [0.5, 1.05],
+    tint: 2,
+  });
+  /**
+   * Canyon floor dressing.
+   *
+   * Rubble and scrub, with almost no foliage: this is the dry district, and the point of contrast
+   * with the jungle is that things do not grow here. Scattered across the whole canyon floor
+   * rather than only the corridor between the walls, because the aprons outside them are ground a
+   * player runs over on the way in and were bare.
+   *
+   * `scatter` keeps props out of the wall footprints itself, so the area can simply be the floor.
+   */
+  scatter(b, rand, {
+    kinds: [
+      ['rock', 44],
+      ['boulder', 26],
+      ['bush', 16],
+      ['log', 8],
+      ['flower', 6],
+    ],
+    count: 170,
+    area: [canyonX - 28, canyonX + 28, -32, 44],
+    y: -4,
+    scale: [0.6, 1.25],
+    tint: 1,
+  });}
