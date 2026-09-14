@@ -336,7 +336,17 @@ export class Hud {
     if (this.lobbyOpen) this.renderLobby();
   }
 
+  /**
+   * Open or close the player list.
+   *
+   * Refuses to open when there is no room, the way the shop refuses to open with nothing to sell.
+   * Solo practice has no lobby at all, and the empty panel it used to show read as a real one: a
+   * box headed "Room · public · 0/0 ready", no players under it, and an "I'm ready" button that
+   * did nothing because `setReady` returns early with no connection. Caught by looking at a
+   * screenshot of it — the Players button was correctly hidden, and Tab opened it anyway.
+   */
   toggleLobby(): void {
+    if (!this.lobbyOpen && this.lobbyPlayers.length === 0) return;
     this.lobbyOpen = !this.lobbyOpen;
     this.lobbyPanel.classList.toggle('kc-hidden', !this.lobbyOpen);
     if (this.lobbyOpen) this.renderLobby();

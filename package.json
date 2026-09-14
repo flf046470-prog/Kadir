@@ -51,7 +51,8 @@
     "build:quest": "node scripts/build-android.mjs --target quest",
     "build:phone": "node scripts/build-android.mjs --target phone",
     "check:voice": "node scripts/check-voice.mjs",
-    "check:lobby": "node scripts/check-lobby.mjs"
+    "check:lobby": "node scripts/check-lobby.mjs",
+    "capture:shots": "node scripts/capture-shots.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

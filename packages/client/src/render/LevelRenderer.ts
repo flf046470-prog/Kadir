@@ -61,10 +61,51 @@ export class LevelRenderer {
     private readonly profile: PerformanceProfile,
     private readonly assets?: AssetLibrary,
   ) {
+    this.buildBackdrop();
     this.buildColliders();
     this.buildProps();
     this.buildCheckpoints();
     if (this.assets) void this.upgradeProps(this.assets);
+  }
+
+  /**
+   * Distant ground, far outside the play area, so the world does not end in mid-air.
+   *
+   * The level is a set of floor slabs with nothing underneath them, and at 0.0075 fog density the
+   * edge is only about 40% hazed at the distance a player reaches it — so walking to the boundary
+   * and looking out showed sky *below* the ground as well as above it, and the whole map read as
+   * a slab floating in blue. Caught in a screenshot, not in code: it is invisible from anywhere
+   * near the middle of the map and unmissable from the rim.
+   *
+   * Purely decorative. No collider, no entry in the `LevelDef`, nothing the simulation can see —
+   * so it cannot change where anyone can stand, and client and server still build the same world.
+   *
+   * Placed below the lowest floor rather than level with the ground: the slabs then read as a
+   * plateau standing above a plain, which is a landscape, instead of a sheet lying on another
+   * sheet, which is a seam.
+   */
+  private buildBackdrop(): void {
+    let lowest = 0;
+    for (const collider of this.level.colliders) {
+      const bottom = collider.kind === 'box' ? collider.center.y - collider.half.y : collider.center.y;
+      lowest = Math.min(lowest, bottom);
+    }
+
+    // Wide enough that its own edge is beyond the fog: at this density anything past ~250 m is
+    // fully hazed into the sky colour, so the plain has no visible end of its own.
+    const geometry = new THREE.PlaneGeometry(1400, 1400);
+    const material = new THREE.MeshLambertMaterial({ color: 0x5a6b45 });
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = lowest - 14;
+    // Never casts or receives: it is scenery at a distance, and shadowing a 1400 m plane would
+    // cost the whole shadow map's resolution for something nobody stands on.
+    plane.castShadow = false;
+    plane.receiveShadow = false;
+    // Drawn first, so it can never z-fight its way in front of real geometry.
+    plane.renderOrder = -1;
+    this.disposables.push(geometry, material);
+    this.group.add(plane);
   }
 
   /**

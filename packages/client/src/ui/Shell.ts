@@ -80,8 +80,12 @@ function rewardLabel(reward: Reward): string {
   if (reward.kind === 'coins') return `🪙 ${reward.amount ?? 0}`;
   if (reward.kind === 'xp') return `${reward.amount ?? 0} XP`;
   const id = reward.contentId ?? '';
-  const pretty = id.replace(/^[a-z]+_/, '').replace(/[_-]/g, ' ');
-  return reward.kind === 'animal' ? `${pretty} (animal)` : pretty;
+  if (reward.kind === 'animal') return `${id.replace(/[_-]/g, ' ')} (animal)`;
+  // `glasses_star` reads as "Star glasses", not "Star". Stripping the category left a column of
+  // single adjectives — Star, Dust, Tribal, Victory — that named nothing a player could picture.
+  const split = id.indexOf('_');
+  if (split <= 0) return id.replace(/[_-]/g, ' ');
+  return `${id.slice(split + 1).replace(/[_-]/g, ' ')} ${id.slice(0, split)}`;
 }
 
 /** Compile-time proof that a switch covered every case. Never reached at runtime. */
