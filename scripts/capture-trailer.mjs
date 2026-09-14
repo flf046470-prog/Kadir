@@ -130,7 +130,7 @@ await sleep(6500);
 await record(1.6, 45); // the world at the start, drifting right
 
 await page.keyboard.down('w');
-await record(0.7, -60);
+await record(0.4, -60);
 await page.keyboard.up('w');
 await record(1.4, 110);
 
@@ -141,15 +141,19 @@ await page.keyboard.up('Space');
 await record(1.2, 20);
 
 await page.keyboard.down('w');
-await record(0.7, 130);
+await record(0.4, 130);
 await page.keyboard.up('w');
 await record(1.5, 40);
 
-// A sprint, short enough to stay among the trees.
+// No sprint at all.
+//
+// Five captures in, the pattern is clear: every time the route covers ground the player ends up
+// somewhere with nothing in it — the cave twice, then the empty sand shoreline. The scenery is
+// dense around the spawn and thins out in every direction, so the trailer should turn and hop in
+// place rather than travel. Brightness alone never caught this: the beach is the brightest thing
+// on the map and the emptiest.
 await page.keyboard.down('w');
-await page.keyboard.down('Shift');
-await record(0.8, -150);
-await page.keyboard.up('Shift');
+await record(0.4, -150);
 await page.keyboard.up('w');
 await record(1.7, -40);
 
@@ -159,7 +163,7 @@ await page.keyboard.up('Space');
 await record(1.1, 60);
 
 await page.keyboard.down('w');
-await record(0.6, 140);
+await record(0.4, 140);
 await page.keyboard.up('w');
 await record(2.0, 90);
 
