@@ -74,18 +74,28 @@ const shoot = async () => {
  * a slideshow with a long exposure. `turn` is the total degrees-ish to sweep across the whole
  * take, dealt out one step per frame.
  */
+/**
+ * A virtual cursor, moved relatively and never re-centred.
+ *
+ * The game holds pointer lock during a match, so the camera follows mouse *deltas* and the
+ * absolute position is meaningless. The first version re-centred before each frame's drag —
+ * `move(centre)`, `down()`, `move(centre + step)`, `up()` — and under pointer lock that first
+ * call is itself a delta, back to the centre from wherever the cursor was. Across 170 frames the
+ * asymmetry accumulated: the camera drifted upwards until the horizon sat 63% down the frame and
+ * two thirds of the trailer was empty sky. Neutral framing puts it at 18%.
+ */
+let cursorX = WIDTH / 2;
+let cursorY = HEIGHT / 2;
+
 const record = async (seconds, turn = 0, rise = 0) => {
   const frames = Math.max(1, Math.round(seconds * FPS));
   const stepX = turn / frames;
   const stepY = rise / frames;
   for (let i = 0; i < frames; i++) {
-    if (turn !== 0 || rise !== 0) {
-      // A held drag, moved one notch per frame: the camera is still turning while the shutter is
-      // open, which is the whole difference between footage and a contact sheet.
-      await page.mouse.move(WIDTH / 2, HEIGHT / 2);
-      await page.mouse.down();
-      await page.mouse.move(WIDTH / 2 + stepX, HEIGHT / 2 + stepY, { steps: 2 });
-      await page.mouse.up();
+    if (stepX !== 0 || stepY !== 0) {
+      cursorX += stepX;
+      cursorY += stepY;
+      await page.mouse.move(cursorX, cursorY);
     }
     await shoot();
     await sleep(1000 / FPS);
@@ -133,7 +143,7 @@ await record(1.2, 20);
 await page.keyboard.down('w');
 await record(1.4, 130);
 await page.keyboard.up('w');
-await record(0.9, 40, -14);
+await record(0.9, 40);
 
 // A sprint, short enough to stay among the trees.
 await page.keyboard.down('w');
@@ -141,7 +151,7 @@ await page.keyboard.down('Shift');
 await record(1.5, -150);
 await page.keyboard.up('Shift');
 await page.keyboard.up('w');
-await record(1.0, -40, 16);
+await record(1.0, -40);
 
 await page.keyboard.down('Space');
 await sleep(120);
