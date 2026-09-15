@@ -46,3 +46,43 @@ describe('UI_CSS', () => {
     expect(UI_CSS.trimEnd().endsWith('}')).toBe(true);
   });
 });
+
+/**
+ * The centre column, checked for staying a column.
+ *
+ * The headline, clock, role badge and tally, the bout panel and the toast each used to position
+ * themselves: the first group in normal flow at the top, the bout panel at `top: 24%`, the toast
+ * at `top: 22%`. A screenshot of a real Conversion Duel bout at 560x360 showed all three inside
+ * ten pixels of each other — "KANGAROO 1" behind "FIGHT · Bounce" behind a "Hit!" toast, none of
+ * them readable. Every test passed; the data was correct; it was the pixels that were wrong.
+ *
+ * The lesson is in the units. The top group's height is content-driven and measured in pixels — it
+ * grows the moment a mode publishes a tally — so a percentage that clears it on one screen sits on
+ * top of it on another. They are siblings in one flex column now, which the layout engine cannot
+ * overlap, and these guard the arrangement rather than any particular number.
+ */
+describe('the HUD centre column', () => {
+  it('lays its children out in flow rather than stacking them', () => {
+    expect(UI_CSS).toMatch(/\.kc-hud-centre\s*\{[^}]*flex-direction:\s*column/);
+    expect(UI_CSS).toMatch(/\.kc-hud-centre\s*\{[^}]*position:\s*absolute/);
+  });
+
+  it('takes the absolute positioning off everything inside it', () => {
+    /**
+     * The actual regression. Any one of these going back to `position: absolute` re-creates the
+     * pile-up, and it would look fine at whatever window size it was checked at.
+     */
+    for (const selector of ['.kc-hud-top', '.kc-bout', '.kc-toast']) {
+      const rule = UI_CSS.match(new RegExp(`\\${selector}\\s*\\{[^}]*\\}`));
+      expect(rule, `no rule for ${selector}`).not.toBeNull();
+      expect(rule?.[0], `${selector} is positioned independently again`).not.toMatch(/position:\s*absolute/);
+      expect(rule?.[0], `${selector} sets its own vertical anchor again`).not.toMatch(/(^|[^-])top:\s*\d/);
+    }
+  });
+
+  it('keeps the column clear of the corner panels', () => {
+    // Scores sit top-right and the menu top-left, both of them content-width; the column has to
+    // stay narrow enough not to slide under either.
+    expect(UI_CSS).toMatch(/\.kc-hud-centre\s*\{[^}]*max-width:/);
+  });
+});

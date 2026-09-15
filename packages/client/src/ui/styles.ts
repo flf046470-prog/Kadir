@@ -69,7 +69,12 @@ export const UI_CSS = `
    per-class has already gone wrong twice: the touch buttons did nothing on a phone, and the
    Menu button did nothing anywhere, which on a phone meant no way out of a match at all. */
 .kc-hud button, .kc-hud input, .kc-hud [data-ui] { pointer-events: auto; }
-.kc-hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; }
+.kc-hud-centre {
+  position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  max-width: min(92vw, 520px);
+}
+.kc-hud-top { text-align: center; }
 .kc-headline { font-size: clamp(18px, 4vw, 28px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
 /* Population by side. Sits under the round clock because it is the other half of the score. */
 .kc-tally { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
@@ -79,7 +84,7 @@ export const UI_CSS = `
 .kc-tally--fighter { color: #ffd166; }
 /* The fight panel. Centred and high-contrast: for twenty seconds it is the only thing that
    matters, and a player in a bout has stopped reading anything at the edges of the screen. */
-.kc-bout { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; border-radius: 14px; background: rgba(24,8,8,.72); border: 1px solid rgba(255,209,102,.55); }
+.kc-bout { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; border-radius: 14px; background: rgba(24,8,8,.72); border: 1px solid rgba(255,209,102,.55); }
 .kc-bout-label { font-size: 13px; font-weight: 800; letter-spacing: .1em; color: #ffd166; }
 .kc-bout-clock { font-size: clamp(26px, 6vw, 40px); font-weight: 800; font-variant-numeric: tabular-nums; }
 .kc-timer { font-size: 15px; opacity: .85; font-variant-numeric: tabular-nums; }
@@ -104,7 +109,7 @@ export const UI_CSS = `
 .kc-chat-input { flex: 1; min-width: 0; background: rgba(0,0,0,.72); color: #f8fafc; border: 1px solid rgba(255,255,255,.25); border-radius: 8px; padding: 7px 10px; font: inherit; }
 .kc-chat-input:focus { outline: 2px solid #818cf8; outline-offset: 1px; }
 .kc-chat-channel { background: rgba(99,102,241,.85); color: #fff; border: 0; border-radius: 8px; padding: 0 10px; font: inherit; font-weight: 700; cursor: pointer; }
-.kc-toast { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.6); padding: 10px 18px; border-radius: 12px; font-weight: 600; }
+.kc-toast { background: rgba(0,0,0,.6); padding: 10px 18px; border-radius: 12px; font-weight: 600; text-align: center; }
 .kc-charge { position: absolute; bottom: max(16px, env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: min(240px, 46vw); height: 8px; background: rgba(0,0,0,.45); border-radius: 999px; overflow: hidden; }
 .kc-charge i { display: block; height: 100%; width: 0; background: linear-gradient(90deg,#ffd166,#ef476f); }
 

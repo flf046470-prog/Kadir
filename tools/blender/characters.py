@@ -17,7 +17,7 @@ differ in model, texture, animation and sound, and in nothing that touches a mat
 stood shorter than a kangaroo would be a smaller target, and that is a gameplay advantage bought
 with a cosmetic.
 
-Clip names are the contract with the renderer: idle, walk, run, jump, hit.
+Clip names are the contract with the renderer: idle, walk, run, jump, hit, and the seven emotes.
 """
 
 import math
@@ -25,10 +25,24 @@ import math
 import lib
 from lib import Clip, armature, box, cone, join, material, skin, sphere
 
-CLIPS = ("idle", "walk", "run", "jump", "hit")
+"""
+The emotes, in the order the game numbers them.
+
+Ids 1-4 are the four every animal carries (`animals.ts` names them per species, so a kangaroo
+taunts where a person points — the pose is the same, the name is flavour). Ids 5-7 belong to the
+three unlockable emote cosmetics. All seven are built for every animal so that equipping a cosmetic
+never depends on which body you are wearing.
+"""
+EMOTES = ("wave", "dance", "taunt", "sit", "backflip", "sleep", "victory")
+
+CLIPS = ("idle", "walk", "run", "jump", "hit") + tuple(f"emote_{name}" for name in EMOTES)
 
 # Frame counts. 24 fps, so walk is one second and a stride is half of it.
 LENGTHS = {"idle": 48, "walk": 24, "run": 16, "jump": 24, "hit": 16}
+# Emotes run about a second and a half; the simulation holds `emoteTimer` for the same span.
+LENGTHS.update({f"emote_{name}": 36 for name in EMOTES})
+LENGTHS["emote_sleep"] = 72
+LENGTHS["emote_backflip"] = 30
 
 
 # --------------------------------------------------------------------------------------------
@@ -433,6 +447,166 @@ def animate(arm, plan, tail_bones):
     hit.key("head", 1, (0, 0, 0))
     hit.key("head", 3, (-28, 0, 12))
     hit.key("head", LENGTHS["hit"], (0, 0, 0))
+
+    _emotes(arm, legs, arms, tail_bones)
+
+
+def _emotes(arm, legs, arms, tail_bones):
+    """
+    The seven emotes.
+
+    Posed on whatever bones the body actually has rather than on a fixed skeleton: a quadruped has
+    no `arm.L`, and a frog has no tail, so each loop runs over what the builder produced. That is
+    why a wave reads on a kangaroo and on a wolf without two versions of it.
+
+    They are one-shot clips, not cycles — the renderer plays each once and falls back to the
+    movement clips — so the last frame returns to the rest pose and nothing is keyed to loop.
+    """
+    hips = [upper for upper, _ in legs]
+    knees = [lower for _, lower in legs]
+
+    def settle(clip, length):
+        """Return every posed bone to rest on the final frame, so the blend out is clean."""
+        for bone in (["spine", "head", "root"] + arms + hips + knees + tail_bones):
+            if bone in arm.pose.bones:
+                clip.key(bone, length, (0, 0, 0), loc=(0, 0, 0) if bone == "root" else None)
+
+    # Wave: one arm up, two beats of the wrist. A quadruped has no arm to raise, so it rocks its
+    # whole front end instead — the gesture still reads as "over here".
+    n = LENGTHS["emote_wave"]
+    wave = Clip(arm, "emote_wave", n)
+    raised = arms[:1] or hips[:1]
+    for bone in raised:
+        wave.key(bone, 1, (0, 0, 0))
+        wave.key(bone, 6, (-96, 0, 18))
+        wave.key(bone, 13, (-96, 0, -16))
+        wave.key(bone, 20, (-96, 0, 18))
+        wave.key(bone, 27, (-96, 0, -10))
+    wave.key("spine", 1, (0, 0, 0))
+    wave.key("spine", 13, (-6, 0, 4))
+    wave.key("head", 1, (0, 0, 0))
+    wave.key("head", 13, (-8, 0, 6))
+    settle(wave, n)
+
+    # Dance: a hip sway with a counter-rotating head, the two things that make anything read as
+    # dancing. Four beats over a second and a half.
+    n = LENGTHS["emote_dance"]
+    dance = Clip(arm, "emote_dance", n)
+    for beat in range(5):
+        f = 1 + beat * (n - 1) // 4
+        side = 1 if beat % 2 == 0 else -1
+        dance.key("spine", f, (0, 0, 14 * side))
+        dance.key("head", f, (-4, 0, -10 * side))
+        dance.key("root", f, (0, 0, 6 * side), loc=(0, 0, 0.05 if beat % 2 else 0.0))
+        for i, bone in enumerate(arms):
+            dance.key(bone, f, (-52 - 20 * side * (1 if i == 0 else -1), 0, 22 * side))
+        for i, tb in enumerate(tail_bones):
+            dance.key(tb, f, (0, 0, -18 * side / (1 + i)))
+    settle(dance, n)
+
+    # Taunt (a point, on the two-legged plans): lean in, one arm straight out, hold, withdraw.
+    n = LENGTHS["emote_taunt"]
+    taunt = Clip(arm, "emote_taunt", n)
+    taunt.key("spine", 1, (0, 0, 0))
+    taunt.key("spine", 8, (14, 0, 0))
+    taunt.key("spine", 26, (14, 0, 0))
+    taunt.key("head", 1, (0, 0, 0))
+    taunt.key("head", 8, (6, 0, 0))
+    taunt.key("head", 26, (6, 0, 0))
+    for bone in arms[:1] or hips[:1]:
+        taunt.key(bone, 1, (0, 0, 0))
+        taunt.key(bone, 8, (-78, 0, 0))
+        taunt.key(bone, 26, (-72, 0, 0))
+    settle(taunt, n)
+
+    # Sit: fold the legs, drop the root, let the tail flop. The one emote that changes silhouette.
+    n = LENGTHS["emote_sit"]
+    sit = Clip(arm, "emote_sit", n)
+    for bone in hips:
+        sit.key(bone, 1, (0, 0, 0))
+        sit.key(bone, 10, (64, 0, 0))
+        sit.key(bone, 28, (64, 0, 0))
+    for bone in knees:
+        sit.key(bone, 1, (0, 0, 0))
+        sit.key(bone, 10, (-88, 0, 0))
+        sit.key(bone, 28, (-88, 0, 0))
+    sit.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    sit.key("root", 10, (0, 0, 0), loc=(0, 0, -0.30))
+    sit.key("root", 28, (0, 0, 0), loc=(0, 0, -0.30))
+    sit.key("spine", 10, (-10, 0, 0))
+    sit.key("spine", 28, (-10, 0, 0))
+    for i, tb in enumerate(tail_bones):
+        sit.key(tb, 10, (18.0 / (1 + i), 0, 0))
+        sit.key(tb, 28, (14.0 / (1 + i), 0, 0))
+    settle(sit, n)
+
+    # Backflip: crouch, launch, a full rotation on the root, land. The root carries the spin so it
+    # works on any body plan; the legs only have to tuck.
+    n = LENGTHS["emote_backflip"]
+    flip = Clip(arm, "emote_backflip", n)
+    flip.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    flip.key("root", 5, (0, 0, 0), loc=(0, 0, -0.18))
+    flip.key("root", 11, (-170, 0, 0), loc=(0, 0, 0.55))
+    flip.key("root", 17, (-340, 0, 0), loc=(0, 0, 0.30))
+    flip.key("root", 22, (-360, 0, 0), loc=(0, 0, -0.08))
+    flip.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in hips:
+        flip.key(bone, 1, (0, 0, 0))
+        flip.key(bone, 5, (40, 0, 0))
+        flip.key(bone, 13, (72, 0, 0))
+        flip.key(bone, 22, (26, 0, 0))
+    for bone in knees:
+        flip.key(bone, 5, (-56, 0, 0))
+        flip.key(bone, 13, (-96, 0, 0))
+        flip.key(bone, 22, (-30, 0, 0))
+    for bone in arms:
+        flip.key(bone, 1, (0, 0, 0))
+        flip.key(bone, 11, (-120, 0, 0))
+        flip.key(bone, 22, (-20, 0, 0))
+    settle(flip, n)
+
+    # Power nap: sink, tip over, breathe. Twice the length of the others because the joke is that
+    # it takes a while.
+    n = LENGTHS["emote_sleep"]
+    sleep = Clip(arm, "emote_sleep", n)
+    sleep.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    sleep.key("root", 16, (0, 0, 0), loc=(0, 0, -0.34))
+    sleep.key("root", 30, (-72, 0, 0), loc=(0, 0, -0.44))
+    sleep.key("root", 56, (-72, 0, 0), loc=(0, 0, -0.44))
+    sleep.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in hips:
+        sleep.key(bone, 16, (58, 0, 0))
+        sleep.key(bone, 56, (58, 0, 0))
+    for bone in knees:
+        sleep.key(bone, 16, (-84, 0, 0))
+        sleep.key(bone, 56, (-84, 0, 0))
+    # The breath: a slow rise and fall on the spine while it is down.
+    sleep.key("spine", 30, (-6, 0, 0))
+    sleep.key("spine", 40, (2, 0, 0))
+    sleep.key("spine", 50, (-6, 0, 0))
+    sleep.key("head", 30, (-18, 0, 10))
+    sleep.key("head", 56, (-18, 0, 10))
+    settle(sleep, n)
+
+    # Victory hop: three bounces, arms up, chest out. The one you press after winning a bout.
+    n = LENGTHS["emote_victory"]
+    victory = Clip(arm, "emote_victory", n)
+    for i, f in enumerate((1, 12, 23)):
+        victory.key("root", f, (0, 0, 0), loc=(0, 0, 0))
+        victory.key("root", f + 5, (0, 0, 0), loc=(0, 0, 0.26 - i * 0.05))
+    victory.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in arms:
+        victory.key(bone, 1, (0, 0, 0))
+        victory.key(bone, 6, (-142, 0, 0))
+        victory.key(bone, 17, (-128, 0, 0))
+        victory.key(bone, 28, (-142, 0, 0))
+    for bone in hips:
+        victory.key(bone, 6, (-16, 0, 0))
+        victory.key(bone, 17, (-16, 0, 0))
+    victory.key("spine", 6, (-12, 0, 0))
+    victory.key("spine", 17, (-8, 0, 0))
+    victory.key("head", 6, (-14, 0, 0))
+    settle(victory, n)
 
 
 # --------------------------------------------------------------------------------------------

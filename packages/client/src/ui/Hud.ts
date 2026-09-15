@@ -132,12 +132,30 @@ export class Hud {
     this.element = el(
       'div',
       { class: 'kc-hud' },
-      el('div', { class: 'kc-hud-top' }, this.headline, this.timer, this.role, this.tally),
-      this.bout,
+      /**
+       * One centre column, not three things racing for the same pixels.
+       *
+       * The headline, clock, role badge and tally, the bout panel and the toast were each
+       * positioned independently — the first group in normal flow near the top, the bout panel at
+       * `top: 24%`, the toast at `top: 22%`. On a 560x360 window that puts all three inside ten
+       * pixels of each other, and a screenshot of a real bout showed exactly that: "KANGAROO 1"
+       * behind "FIGHT · Bounce" behind a "Hit!" toast, none of them readable.
+       *
+       * Percentages were never going to fix it. The top group's height is content-driven and
+       * measured in pixels — it grows when a mode publishes a tally — so any percentage that
+       * clears it on one screen overlaps it on another. Stacking them in a single flex column
+       * hands the problem to the layout engine, which cannot overlap siblings in flow.
+       */
+      el(
+        'div',
+        { class: 'kc-hud-centre' },
+        el('div', { class: 'kc-hud-top' }, this.headline, this.timer, this.role, this.tally),
+        this.bout,
+        this.toast,
+      ),
       this.scores,
       this.status,
       this.chat.element,
-      this.toast,
       el('div', { class: 'kc-charge' }, this.chargeFill),
       this.gadgetBar,
       this.shopPanel,

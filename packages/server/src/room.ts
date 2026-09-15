@@ -19,6 +19,8 @@ import {
   explainRejection,
   MemorySanctionStore,
   ReportLimiter,
+  getCosmetic,
+  resolveEquippedEmote,
   resolveLoadout,
 } from '@kc/core';
 import type {
@@ -182,6 +184,9 @@ export class Room {
       // earlier moment, and a refund or a catalog change since then must not put a gadget the
       // player no longer owns into a live round.
       loadout: resolveLoadout(profile.equipped.gadgets, profile.ownedGadgets).applied,
+      // Same treatment, same reason: a cosmetic decides which animation the emote button plays,
+      // and a client that could name its own would be a client that grants itself items.
+      equippedEmote: resolveEquippedEmote(profile.equipped.cosmetics, profile.ownedCosmetics, getCosmetic),
     });
 
     socket.sendJson({
@@ -492,6 +497,11 @@ export class Room {
         name: sanitizeName(client.profile.name),
         animalId: client.profile.equipped.animalId,
         loadout: resolveLoadout(client.profile.equipped.gadgets, client.profile.ownedGadgets).applied,
+        equippedEmote: resolveEquippedEmote(
+          client.profile.equipped.cosmetics,
+          client.profile.ownedCosmetics,
+          getCosmetic,
+        ),
       });
     }
     this.broadcastRoomState();

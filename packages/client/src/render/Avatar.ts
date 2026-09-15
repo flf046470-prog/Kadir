@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { AnimalDef, CosmeticDef, PlayerSnapshot } from '@kc/core';
-import { SnapFlags, getAnimal, getCosmetic } from '@kc/core';
+import { EMOTE_CLIPS, SnapFlags, emoteClip, getAnimal, getCosmetic } from '@kc/core';
 import { AssetLibrary } from './AssetLibrary.js';
 import type { LoadedModel } from './AssetLibrary.js';
 
@@ -11,7 +11,7 @@ import type { LoadedModel } from './AssetLibrary.js';
  * that uses other names simply animates less rather than failing — `AssetLibrary.findClip`
  * tolerates exporter prefixes, and a missing clip leaves the avatar on the nearest one it has.
  */
-export const CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'hit'] as const;
+export const CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'hit', ...EMOTE_CLIPS] as const;
 export type ClipName = (typeof CLIP_NAMES)[number];
 
 /**
@@ -52,11 +52,27 @@ const LEGLESS_BONE_SCALE = 0.001;
  * ("runs on the spot while standing still", "never leaves the jump") is a behaviour a test can
  * state in one line. The thresholds are in metres per second against a 7.2 m/s top speed.
  */
-export function clipFor(state: { grounded: boolean; speed: number; hitTimer: number }): ClipName {
+export function clipFor(state: {
+  grounded: boolean;
+  speed: number;
+  hitTimer: number;
+  emoteId?: number;
+}): ClipName {
+  /**
+   * An emote loses to everything that is not standing still.
+   *
+   * Being hit, leaving the ground or running are all things the player can see happening to their
+   * body, and a gesture that kept playing through them would read as the avatar ignoring the game.
+   * Walking out of an emote cancelling it is also the only way to stop one early — there is no
+   * cancel button, and being stuck in a three-second nap while a kangaroo closes in is exactly the
+   * kind of thing a player would never forgive.
+   */
   if (state.hitTimer > 0) return 'hit';
   if (!state.grounded) return 'jump';
   if (state.speed > 4.2) return 'run';
   if (state.speed > 0.5) return 'walk';
+  const emote = emoteClip(state.emoteId ?? 0);
+  if (emote) return emote as ClipName;
   return 'idle';
 }
 
@@ -256,6 +272,7 @@ export class Avatar {
   /** Seconds left on the one-shot hit reaction. */
   private hitTimer = 0;
   private wasTagged = false;
+  private emotePhase = 0;
 
   constructor(animalId: string, castShadow: boolean) {
     this.animal = getAnimal(animalId) ?? (getAnimal('kangaroo') as AnimalDef);
@@ -372,6 +389,64 @@ export class Avatar {
    * The fade is short — a quarter of a second — because these transitions happen constantly at a
    * 20 Hz snapshot rate, and a long blend turns every direction change into a slide.
    */
+  /**
+   * Emote without clips.
+   *
+   * The procedural body plan is what a player sees when a model has not loaded yet, or for an
+   * animal that ships without one. Leaving emotes to the model path alone would mean a button that
+   * works sometimes, which is worse than one that never does — a player cannot tell a missing
+   * feature from a dropped input.
+   *
+   * These are gestures rather than reproductions of the baked clips: a bow and a bob read at the
+   * distance this game is played at, and matching seven hand-keyed animations with procedural
+   * curves would be a lot of code to arrive somewhere less good.
+   */
+  private poseEmote(snapshot: PlayerSnapshot, grounded: boolean, speed: number, dt: number): boolean {
+    // The same precedence the model path uses, so the two never disagree about whether an emote
+    // is playing.
+    const active = snapshot.emoteId > 0 && grounded && speed <= 0.5 && this.hitTimer <= 0;
+    if (!active) {
+      this.emotePhase = 0;
+      return false;
+    }
+    this.emotePhase += dt;
+    const t = this.emotePhase;
+
+    switch (snapshot.emoteId) {
+      case 2: // dance — sway from the hips with a counter-rotating head
+        this.body.rotation.z = Math.sin(t * 6) * 0.22;
+        this.body.position.y = Math.abs(Math.sin(t * 6)) * 0.08;
+        this.head.rotation.z = -Math.sin(t * 6) * 0.18;
+        break;
+      case 3: // taunt — lean in and hold
+        this.body.rotation.x = 0.26;
+        this.body.position.y = 0;
+        break;
+      case 4: // sit — drop and settle
+        this.body.position.y = -0.3 * Math.min(1, t * 3);
+        this.body.rotation.x = -0.16 * Math.min(1, t * 3);
+        break;
+      case 5: // backflip — one rotation, then upright
+        this.body.rotation.x = -Math.PI * 2 * Math.min(1, t / 1.25);
+        this.body.position.y = Math.sin(Math.min(1, t / 1.25) * Math.PI) * 0.7;
+        break;
+      case 6: // power nap — tip over and breathe
+        this.body.rotation.x = -1.25 * Math.min(1, t * 1.5);
+        this.body.position.y = -0.34 * Math.min(1, t * 1.5);
+        this.body.scale.y = 1 + Math.sin(t * 2.2) * 0.03;
+        break;
+      case 7: // victory hop — three bounces
+        this.body.position.y = Math.abs(Math.sin(t * 7)) * 0.3;
+        this.body.rotation.x = -0.12;
+        break;
+      default: // wave — rock towards the camera; the arm is raised below
+        this.body.rotation.z = Math.sin(t * 7) * 0.09;
+        this.body.rotation.x = -0.08;
+        break;
+    }
+    return true;
+  }
+
   private playClip(name: ClipName): void {
     if (!this.mixer || this.currentClip === name) return;
     const next = this.actions.get(name);
@@ -899,6 +974,11 @@ export class Avatar {
     this.poseLegs(grounded, crouching, speed, dt);
     this.poseTail(grounded, speed, dt);
 
+    // An emote, for a body with no clips to play. Written on top of the pose the lines above just
+    // set, in the same order the model path resolves them: only a player standing still emotes, so
+    // the hop phase is zero here and there is nothing to fight over.
+    const emoting = this.poseEmote(snapshot, grounded, speed, dt);
+
     this.head.rotation.x = -snapshot.pitch * 0.5;
 
     // Lip sync. Smoothed towards the replicated mic level rather than snapped to it: at a 20 Hz
@@ -920,6 +1000,17 @@ export class Avatar {
         const side = i === 0 ? -1 : 1;
         const swing = grounded ? Math.sin(this.hopPhase + (i === 0 ? 0 : Math.PI)) * 0.12 : 0.25;
         const forward = 0.22 + swing;
+        if (emoting) {
+          // A raised, waving arm on the left; the right stays where the emote pose put it.
+          const lift = i === 0 ? Math.sin(this.emotePhase * 7) * 0.18 : 0;
+          hand.position.set(
+            Math.cos(snapshot.yaw) * side * 0.3 + Math.sin(snapshot.yaw) * 0.1,
+            0.72 + (i === 0 ? 0.42 + lift : 0.05),
+            -Math.sin(snapshot.yaw) * side * 0.3 + Math.cos(snapshot.yaw) * 0.1,
+          );
+          hand.visible = true;
+          continue;
+        }
         hand.position.set(
           Math.cos(snapshot.yaw) * side * 0.28 + Math.sin(snapshot.yaw) * forward,
           0.72 + swing * 0.4,
@@ -947,7 +1038,7 @@ export class Avatar {
     crouching: boolean,
     speed: number,
   ): void {
-    this.playClip(clipFor({ grounded, speed, hitTimer: this.hitTimer }));
+    this.playClip(clipFor({ grounded, speed, hitTimer: this.hitTimer, emoteId: snapshot.emoteId }));
     (this.mixer as THREE.AnimationMixer).update(dt);
 
     // Crouch is a state the clips do not cover, and it changes the player's actual capsule

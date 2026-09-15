@@ -4,6 +4,7 @@ import { capsuleFits } from '../physics/character.js';
 import { PhysicsWorld } from '../physics/world.js';
 import type { InputIntent } from '../input/intent.js';
 import { Buttons, createIntent, copyIntent, hasButton, sanitizeIntent } from '../input/intent.js';
+import { emoteSeconds, isEmoteId, nextEmote } from '../content/emotes.js';
 import { GadgetRuntime } from '../gadgets/runtime.js';
 import type { GadgetContext } from '../gadgets/runtime.js';
 import { applyLoadout } from '../gadgets/loadout.js';
@@ -57,6 +58,13 @@ export interface AddPlayerOptions {
    * accepting an unvalidated one would be the hole the whole gadget economy leaks through.
    */
   loadout?: Partial<Record<GadgetSlot, string | null>>;
+  /**
+   * The animation id of this player's equipped emote cosmetic, already checked against what they
+   * own. Threaded in the same way and for the same reason as `loadout`: the simulation does not
+   * know about cosmetics and must not start, but it does need to know which animation a press
+   * plays, and a client that could name its own would be a client that grants itself items.
+   */
+  equippedEmote?: number;
 }
 
 /**
@@ -136,6 +144,7 @@ export class Simulation {
       role: options.role ?? 'idle',
     });
     if (options.loadout) applyLoadout(player.gadgets, options.loadout);
+    if (isEmoteId(options.equippedEmote ?? 0)) player.equippedEmote = options.equippedEmote as number;
     resetForRound(player.gadgets, this.mode.def.startingCash ?? 0);
     this.players.set(player.id, player);
     this.intents.set(player.id, createIntent());
@@ -214,10 +223,36 @@ export class Simulation {
     this.prevButtons.set(player.id, intent.buttons);
     if (hasButton(pressed, Buttons.CycleGadget)) cycleSelection(player.gadgets);
     if (hasButton(pressed, Buttons.UseGadget)) this.gadgets.use(player, this.gadgetCtx);
+    if (hasButton(pressed, Buttons.Emote)) this.startEmote(player);
     // Lip sync. The number is the speaker's own measured mic amplitude, gated by their
     // push-to-talk button on the client — routing it through the intent means every viewer sees
     // the same mouth on the same tick, which a per-listener WebRTC analyser could never promise.
     player.voiceLevel = hasButton(intent.buttons, Buttons.Talk) ? intent.voice : 0;
+  }
+
+  /**
+   * Play an emote.
+   *
+   * The one line that was missing. Everything downstream of `emoteId` was already built — the
+   * snapshot delta field, the timer countdown in `locomotion`, the clip baked into every model,
+   * and three cosmetics whose entire content is an id in this range — and nothing anywhere ever
+   * assigned it, so the button did nothing on all three platforms.
+   *
+   * Refused while one is already playing. Not for held buttons — `handleGadgetButtons` resolves
+   * this on the rising edge, so holding the key is a single press — but for tapping: without the
+   * guard a second press part-way through advances the cycle and cuts the first gesture off a few
+   * frames in, so a player drumming the key emits a stutter of half-played poses to everyone
+   * watching. Refused while frozen or staggered for the reason a frozen player cannot do anything
+   * else: an emote that plays through a freeze is a way to look untouched while being untouchable.
+   */
+  private startEmote(player: PlayerState): void {
+    if (player.emoteTimer > 0 || !player.alive) return;
+    if (player.gadgets.frozen > 0 || player.staggerTimer > 0) return;
+    const id = nextEmote(player.lastEmote, player.equippedEmote);
+    player.emoteId = id;
+    player.lastEmote = id;
+    player.emoteTimer = emoteSeconds(id);
+    this.events.emit('emote', player.id, player.position, this.tick, id);
   }
 
   /** Run N ticks — used by the server loop's catch-up and by tests. */

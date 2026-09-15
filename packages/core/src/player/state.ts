@@ -132,6 +132,18 @@ export interface PlayerState {
   lastTaggedBy: string | null;
 
   emoteId: number;
+  /**
+   * Animation id of the equipped emote cosmetic, or 0 for none. Set by the server from the
+   * player's validated inventory; with nothing equipped the emote button walks the animal's own
+   * four gestures instead.
+   */
+  equippedEmote: number;
+  /**
+   * The last emote played, kept after `emoteId` is cleared so the button can walk through the
+   * animal's four gestures. Local to the simulation and never serialised: a viewer only needs to
+   * know what is playing now, which is `emoteId`.
+   */
+  lastEmote: number;
   emoteTimer: number;
 
   // Parkour
@@ -215,6 +227,8 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     lastTaggedBy: null,
 
     emoteId: 0,
+    equippedEmote: 0,
+    lastEmote: 0,
     emoteTimer: 0,
 
     checkpointIndex: -1,
