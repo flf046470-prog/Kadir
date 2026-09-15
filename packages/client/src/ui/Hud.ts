@@ -43,6 +43,10 @@ export interface HudOptions {
 export class Hud {
   readonly element: HTMLElement;
   private headline: HTMLElement;
+  /** Population by role, for modes where the balance is the score. */
+  private tally: HTMLElement;
+  /** The local player's fight: opponent and clock. */
+  private bout: HTMLElement;
   private timer: HTMLElement;
   private role: HTMLElement;
   private scores: HTMLElement;
@@ -94,6 +98,12 @@ export class Hud {
   constructor(options: HudOptions) {
     this.options = options;
     this.headline = el('div', { class: 'kc-headline' }, '');
+    // Hidden until a mode publishes one. `el` sets no display, so `hidden` is what keeps these out
+    // of the layout in every mode that is not a duel.
+    this.tally = el('div', { class: 'kc-tally' });
+    this.tally.hidden = true;
+    this.bout = el('div', { class: 'kc-bout' });
+    this.bout.hidden = true;
     this.timer = el('div', { class: 'kc-timer' }, '');
     this.role = el('div', { class: 'kc-role kc-role--other' }, '');
     this.scores = el('div', { class: 'kc-scores' });
@@ -122,7 +132,8 @@ export class Hud {
     this.element = el(
       'div',
       { class: 'kc-hud' },
-      el('div', { class: 'kc-hud-top' }, this.headline, this.timer, this.role),
+      el('div', { class: 'kc-hud-top' }, this.headline, this.timer, this.role, this.tally),
+      this.bout,
       this.scores,
       this.status,
       this.chat.element,
@@ -224,6 +235,9 @@ export class Hud {
   update(state: ModeStateView, local: PlayerState | undefined): void {
     this.headline.textContent = state.headline;
     this.timer.textContent = state.phase === 'playing' ? formatTime(state.timeRemaining) : state.phase.toUpperCase();
+
+    this.updateTally(state);
+    this.updateBout(state);
 
     const role = local?.role ?? 'idle';
     this.role.textContent = roleLabel(role);
@@ -481,15 +495,82 @@ export class Hud {
     this.toastTimer = setTimeout(() => this.toast.classList.add('kc-hidden'), ms);
   }
 
+  /**
+   * How many players are on each side.
+   *
+   * Conversion Duel swings its population back and forth all round as bouts resolve, and the
+   * headline cannot carry it: the instant a catch happens the headline becomes "X caught Y!" and
+   * what everyone is playing for leaves the screen. Fighters are counted separately rather than
+   * folded into a side, because for the twenty seconds of a bout they are on neither.
+   */
+  private updateTally(state: ModeStateView): void {
+    const tally = state.tally;
+    if (!tally) {
+      this.tally.hidden = true;
+      return;
+    }
+    this.tally.hidden = false;
+    clear(this.tally);
+    for (const [role, label] of [['chaser', 'KANGAROO'], ['runner', 'HUMAN'], ['fighter', 'IN THE RING']] as const) {
+      const count = tally[role] ?? 0;
+      if (count === 0 && role === 'fighter') continue;
+      this.tally.append(
+        el('span', { class: `kc-tally-item kc-tally--${role}` }, `${label} ${count}`),
+      );
+    }
+  }
+
+  /**
+   * The local player's fight.
+   *
+   * A catch in Conversion Duel starts a twenty-second boxing match, and until this existed the
+   * client was told nothing about it: the mode emitted a `roundState` event announcing the bout
+   * and no handler anywhere matched it. Two players were pulled a metre and a half apart with no
+   * opponent name, no clock, and no indication that the teleport was a fight rather than a bug.
+   *
+   * Only the local player's bout is shown. The view broadcasts every running bout because it is
+   * sent to the whole room, but a player fighting for their species does not need a list of other
+   * people's fights on top of their own.
+   */
+  private updateBout(state: ModeStateView): void {
+    const mine = state.bouts?.find((b) => b.a === this.options.localId || b.b === this.options.localId);
+    if (!mine) {
+      this.bout.hidden = true;
+      return;
+    }
+    const opponent = mine.a === this.options.localId ? mine.bName : mine.aName;
+    this.bout.hidden = false;
+    clear(this.bout);
+    this.bout.append(
+      el('span', { class: 'kc-bout-label' }, `FIGHT · ${opponent}`),
+      el('span', { class: 'kc-bout-clock' }, mine.remaining.toFixed(1)),
+    );
+  }
+
   /** Translate a gameplay event the local player is involved in into feedback. */
   handleEvent(event: SimEvent, localId: string): void {
     switch (event.type) {
       case 'tag':
         this.showToast(event.otherId === localId ? "You're IT!" : 'Tagged them!');
         break;
-      case 'roleChange':
-        if (event.playerId === localId) this.showToast(`You are now ${roleLabel(String(event.data))}`);
+      case 'roleChange': {
+        // Conversion Duel sends `converted:<species>` here rather than a bare role, so the label
+        // lookup fell through to "WARM-UP" and told a player who had just lost a fight for their
+        // species that they were now warming up.
+        const data = String(event.data);
+        if (data.startsWith('converted:')) {
+          const species = data.slice('converted:'.length);
+          this.showToast(
+            event.playerId === localId
+              ? `You have been converted — you are a ${species} now`
+              : `Converted to ${species}`,
+            2600,
+          );
+        } else if (event.playerId === localId) {
+          this.showToast(`You are now ${roleLabel(data)}`);
+        }
         break;
+      }
       case 'checkpoint':
         this.showToast(`Checkpoint ${Number(event.data) + 1}`, 1200);
         break;

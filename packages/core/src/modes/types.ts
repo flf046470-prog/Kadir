@@ -85,6 +85,34 @@ export interface ModeStateView {
   roles: Record<string, string>;
   /** Short line the HUD shows front and centre ("You are IT!", "3 runners left"). */
   headline: string;
+  /**
+   * How many players hold each role, for modes where the balance *is* the game state.
+   *
+   * Conversion Duel swings its population back and forth all round, and the headline cannot carry
+   * it: the moment a catch happens the headline becomes "X caught Y!" and the score everybody is
+   * actually playing for disappears from the screen. A tally is the thing a spectator reads.
+   *
+   * Keyed by role rather than by a mode-specific name so infection and freeze tag can fill it too.
+   */
+  tally?: Record<string, number>;
+  /**
+   * Fights currently running, for modes that put two players in a ring.
+   *
+   * A list rather than a per-player field because `ModeStateView` is broadcast to the whole room,
+   * not addressed to one player: the client picks out the bout containing its own id, and anyone
+   * not in one can still see what is going on.
+   */
+  bouts?: ModeBoutView[];
+}
+
+/** One running fight: who is in it, and how long they have. */
+export interface ModeBoutView {
+  a: string;
+  b: string;
+  aName: string;
+  bName: string;
+  /** Seconds left on the bout clock. */
+  remaining: number;
 }
 
 export interface GameMode {

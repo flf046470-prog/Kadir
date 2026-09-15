@@ -4,7 +4,7 @@ import { DEFAULT_TAG_RULES, findTags } from '../player/tag.js';
 import type { PlayerState } from '../player/state.js';
 import { RoundMode, activePlayers, chaserCount } from './base.js';
 import { registerMode } from './registry.js';
-import type { GameModeDef, ModeContext } from './types.js';
+import type { GameModeDef, ModeContext, ModeStateView } from './types.js';
 
 export const DUEL_DEF: GameModeDef = {
   id: 'duel',
@@ -268,6 +268,40 @@ export class DuelMode extends RoundMode {
         (bout.kangarooId === attacker.id && bout.humanId === victim.id) ||
         (bout.humanId === attacker.id && bout.kangarooId === victim.id),
     );
+  }
+
+  /**
+   * Publish the two things a player in this mode cannot otherwise see.
+   *
+   * The bout clock first: a catch starts a twenty-second fight and, until this existed, the client
+   * was told nothing about it at all. The `roundState` event announcing a bout had no handler
+   * anywhere, so two players were dropped into a ring with no opponent name, no timer and no way
+   * to know the fight was even a thing rather than a strange teleport.
+   *
+   * The tally second, because in this mode the population *is* the score. It swings all round as
+   * bouts resolve, and the headline cannot carry it: the moment a catch happens the headline
+   * becomes "X caught Y!" and what everybody is playing for leaves the screen.
+   *
+   * Names are resolved here rather than on the client because the client only knows the players it
+   * has avatars for, and a bout can involve someone across the map who has been culled.
+   */
+  protected override extraState(): Partial<ModeStateView> {
+    const tally: Record<string, number> = { chaser: 0, runner: 0, fighter: 0 };
+    for (const player of this.roster.values()) {
+      if (!player.active) continue;
+      tally[player.role] = (tally[player.role] ?? 0) + 1;
+    }
+
+    return {
+      tally,
+      bouts: this.bouts.map((bout) => ({
+        a: bout.kangarooId,
+        b: bout.humanId,
+        aName: this.roster.get(bout.kangarooId)?.name ?? 'Kangaroo',
+        bName: this.roster.get(bout.humanId)?.name ?? 'Human',
+        remaining: Math.max(0, bout.remaining),
+      })),
+    };
   }
 
   private countRole(ctx: ModeContext, role: PlayerState['role']): number {

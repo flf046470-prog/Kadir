@@ -136,7 +136,18 @@ export abstract class RoundMode implements GameMode {
       scores,
       roles: this.roleMap(),
       headline: this.headline,
+      ...this.extraState(),
     };
+  }
+
+  /**
+   * Mode-specific additions to the broadcast view.
+   *
+   * Overridden rather than having every mode rebuild `state()`, so a mode that wants to publish a
+   * tally or a bout clock cannot accidentally drop the fields every mode shares.
+   */
+  protected extraState(): Partial<ModeStateView> {
+    return {};
   }
 
   protected get remainingSeconds(): number {

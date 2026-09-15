@@ -5,6 +5,7 @@ import { Simulation, TICK_DT } from '../sim/simulation.js';
 import type { PlayerState } from '../player/state.js';
 import { DUEL_DEF, DuelMode } from './duel.js';
 import './duel.js';
+import './chase.js';
 
 function startedDuel(playerCount = 6, seed = 11) {
   const sim = new Simulation({ level: buildJungleWorld(), modeId: 'duel', seed });
@@ -283,5 +284,96 @@ describe('ending a duel round', () => {
     for (const player of sim.players.values()) {
       expect(['chaser', 'runner', 'fighter'], player.id).toContain(player.role);
     }
+  });
+});
+
+/**
+ * What the mode tells the client about itself.
+ *
+ * Added because the client was told nothing. A catch starts a twenty-second boxing match and the
+ * only announcement was a `roundState` event that no handler anywhere matched, so two players were
+ * pulled a metre and a half apart with no opponent name, no clock and no sign that the teleport was
+ * a fight rather than a bug. The population — which in this mode *is* the score — was equally
+ * invisible: it lives in the headline, and the headline is replaced by "X caught Y!" the instant
+ * anything interesting happens.
+ */
+describe('what a duel publishes to the HUD', () => {
+  it('counts both species while nobody is fighting', () => {
+    const sim = startedDuel(6);
+    const tally = sim.mode.state().tally;
+    expect(tally).toBeDefined();
+    expect(tally?.chaser).toBe(2);
+    expect(tally?.runner).toBe(4);
+    expect(tally?.fighter).toBe(0);
+    // Everyone is accounted for; a player who fell out of the tally is a player the scoreboard
+    // silently stops representing.
+    expect((tally?.chaser ?? 0) + (tally?.runner ?? 0) + (tally?.fighter ?? 0)).toBe(6);
+  });
+
+  it('moves the two fighters out of their species and into the ring', () => {
+    const sim = startedDuel(6);
+    bringTogether(byRole(sim, 'chaser')[0] as PlayerState, byRole(sim, 'runner')[0] as PlayerState);
+    sim.step();
+
+    const tally = sim.mode.state().tally;
+    expect(tally?.fighter).toBe(2);
+    expect(tally?.chaser).toBe(1);
+    expect(tally?.runner).toBe(3);
+  });
+
+  it('publishes the bout with both names and a clock', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.step();
+
+    const bouts = sim.mode.state().bouts;
+    expect(bouts).toHaveLength(1);
+    const bout = bouts?.[0];
+    // Both ids, so a client can find its own bout in a list broadcast to the whole room.
+    expect([bout?.a, bout?.b].sort()).toEqual([kangaroo.id, human.id].sort());
+    // Names resolved server-side: a bout can involve someone across the map whom the client has
+    // culled and has no avatar for.
+    expect([bout?.aName, bout?.bName].sort()).toEqual([kangaroo.name, human.name].sort());
+    expect(bout?.remaining).toBeGreaterThan(0);
+  });
+
+  it('counts the bout clock down', () => {
+    const sim = startedDuel(6);
+    bringTogether(byRole(sim, 'chaser')[0] as PlayerState, byRole(sim, 'runner')[0] as PlayerState);
+    sim.step();
+    const first = sim.mode.state().bouts?.[0]?.remaining ?? 0;
+
+    sim.stepMany(60);
+    const later = sim.mode.state().bouts?.[0]?.remaining ?? 0;
+    expect(later).toBeLessThan(first);
+    // A second of ticks should cost about a second, not a frame and not the whole bout.
+    expect(first - later).toBeCloseTo(1, 1);
+  });
+
+  it('clears the bout when it resolves', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.step();
+    expect(sim.mode.state().bouts).toHaveLength(1);
+
+    human.health = 0;
+    sim.step();
+    // A panel that outlives its fight would sit on screen for the rest of the round.
+    expect(sim.mode.state().bouts).toHaveLength(0);
+    expect(sim.mode.state().tally?.fighter).toBe(0);
+  });
+
+  it('publishes nothing of the sort for a mode that has no bouts', () => {
+    // `tally` and `bouts` are optional on the shared view, and a mode that does not fill them must
+    // leave them absent rather than sending empty ones the HUD would render as blank panels.
+    const sim = new Simulation({ level: buildJungleWorld(), modeId: 'kangaroo-chase', seed: 3 });
+    for (let i = 0; i < 4; i++) sim.addPlayer({ id: `p${i}`, name: `P${i}` });
+    sim.stepMany(60);
+    expect(sim.mode.state().bouts).toBeUndefined();
+    expect(sim.mode.state().tally).toBeUndefined();
   });
 });

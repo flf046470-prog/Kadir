@@ -7,6 +7,16 @@ export const UI_CSS = `
 .kc-root { position: fixed; inset: 0; pointer-events: none; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 .kc-root * { pointer-events: auto; }
 .kc-hidden { display: none !important; }
+/*
+ * The hidden attribute has to win.
+ *
+ * A browser hides [hidden] from its own stylesheet, which any author rule beats — so an element
+ * given display:flex here stays on screen however many times the code sets el.hidden = true. The
+ * duel's fight panel was written that way and rendered as an empty gold-bordered box in the middle
+ * of every mode in the game. Found by driving a real match and reading the panel's text, which was
+ * blank while the element reported itself visible.
+ */
+[hidden] { display: none !important; }
 
 .kc-btn {
   font: 600 15px/1.2 system-ui, sans-serif; color: #f2f7f0; background: rgba(28,48,32,0.82);
@@ -61,6 +71,17 @@ export const UI_CSS = `
 .kc-hud button, .kc-hud input, .kc-hud [data-ui] { pointer-events: auto; }
 .kc-hud-top { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); text-align: center; }
 .kc-headline { font-size: clamp(18px, 4vw, 28px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
+/* Population by side. Sits under the round clock because it is the other half of the score. */
+.kc-tally { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
+.kc-tally-item { font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.45); text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.kc-tally--chaser { color: #ffb4a2; }
+.kc-tally--runner { color: #a8e6a3; }
+.kc-tally--fighter { color: #ffd166; }
+/* The fight panel. Centred and high-contrast: for twenty seconds it is the only thing that
+   matters, and a player in a bout has stopped reading anything at the edges of the screen. */
+.kc-bout { position: absolute; top: 24%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; border-radius: 14px; background: rgba(24,8,8,.72); border: 1px solid rgba(255,209,102,.55); }
+.kc-bout-label { font-size: 13px; font-weight: 800; letter-spacing: .1em; color: #ffd166; }
+.kc-bout-clock { font-size: clamp(26px, 6vw, 40px); font-weight: 800; font-variant-numeric: tabular-nums; }
 .kc-timer { font-size: 15px; opacity: .85; font-variant-numeric: tabular-nums; }
 .kc-role { display: inline-block; margin-top: 6px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
 .kc-role--chaser { background: #d33; } .kc-role--runner { background: #2b7fd4; } .kc-role--other { background: #555; }
