@@ -10,6 +10,7 @@ import {
   getAnimal,
   makeRaycastResult,
   snapshotPlayer,
+  zoneAt,
 } from '@kc/core';
 import type {
   InputIntent,
@@ -137,6 +138,8 @@ export class GameClient {
   private shop: { id: string; name: string; cost: number }[] = [];
   /** Previous frame's shop button, so the panel toggles on the press rather than every tick. */
   private shopHeld = false;
+  /** Eased zone darkness, so fog and light never jump in a single frame. */
+  private darkness = 0;
   private modeId = 'kangaroo-chase';
   private roomCode = '';
   /** Everyone in the room and whether they have pressed Ready. Empty in solo practice. */
@@ -520,6 +523,9 @@ export class GameClient {
   private ensureLocalAvatar(): void {
     this.localAvatar?.dispose();
     const avatar = new Avatar(this.options.profile.animalId, this.options.profileForQuality.shadows);
+    // A headset tracks a head and two hands. Legs would be a guess, and the local player's own are
+    // the ones they see by looking down.
+    avatar.setLegless(this.options.platform === 'vr');
     avatar.setCosmetics(this.options.profile.cosmetics);
     // The local player's own nameplate is hidden; remote players keep theirs.
     avatar.setName(this.options.profile.name, '#ffd166', false);
@@ -531,6 +537,10 @@ export class GameClient {
   private addRemote(entry: RosterEntry): void {
     if (entry.id === this.localId || this.remotes.has(entry.id)) return;
     const avatar = new Avatar(entry.animalId, this.options.profileForQuality.shadows);
+    // Decided by the platform *that player* is on, not the one watching: a VR player has no
+    // tracked legs whoever is looking at them, and the roster carries the platform for exactly
+    // this kind of question.
+    avatar.setLegless(entry.platform === 'vr');
     avatar.setCosmetics(entry.cosmetics);
     avatar.setName(entry.name);
     this.renderer.scene.add(avatar.group);
@@ -612,6 +622,7 @@ export class GameClient {
 
     this.updateAvatars(dt);
     this.updateCamera(dt);
+    this.updateZone(dt);
     this.levelRenderer.animate(time / 1000);
 
     const local = this.localPlayer;
@@ -708,6 +719,31 @@ export class GameClient {
    * Camera. VR puts the rig at the player's feet and lets the headset own the view; flat
    * platforms use a spring arm that pulls in when geometry would clip it.
    */
+  /**
+   * Tell the renderer and the audio system where the player is standing.
+   *
+   * This is the call that was missing entirely. Every level declares zones — the jungle has three,
+   * each with an `ambience` kind and a `darkness` documented as a "0..1 fog/darkness hint for the
+   * client" — and no client code ever asked which one a player was in. The cave was lit exactly
+   * like the clearing, and the `music` bus the ambience belonged on had nothing connected to it.
+   *
+   * Darkness is eased rather than set: `zoneAt` already fades the weight across the outer fifth of
+   * a zone, but a player can also be teleported to a spawn, and a fog density that jumps in one
+   * frame reads as a glitch. The ambience bed is switched rather than eased because it crossfades
+   * itself over a second and a bed that eased *as well* would double the transition.
+   */
+  private updateZone(dt: number): void {
+    const local = this.localPlayer;
+    if (!local) return;
+
+    const sample = zoneAt(this.level, local.position);
+    this.audio.setAmbience(sample?.zone.ambience ?? null);
+
+    const target = sample ? sample.zone.darkness * sample.weight : 0;
+    this.darkness += (target - this.darkness) * Math.min(1, dt * 2.2);
+    this.renderer.setDarkness(this.darkness);
+  }
+
   private updateCamera(dt: number): void {
     const local = this.localPlayer;
     if (!local) return;

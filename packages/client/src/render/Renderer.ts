@@ -10,6 +10,45 @@ export interface RendererOptions {
   pixelRatio: number;
 }
 
+/** Base light intensities, so darkness scales *these* rather than whatever was set last frame. */
+const HEMI_BASE = 1.15;
+const SUN_BASE = 1.9;
+
+export interface DarknessValues {
+  amount: number;
+  skyScale: number;
+  fogDensity: number;
+  hemiIntensity: number;
+  sunIntensity: number;
+}
+
+/**
+ * What a zone's darkness does to the sky, the fog and the lights.
+ *
+ * Pure, and separated from the renderer it drives, because this is the part with a right answer
+ * and the part that needs a GPU to run is not. `ZoneDef.darkness` had never been read by anything
+ * — the jungle declares 0.05, the cave 0.75, the canyon 0.15, all documented as a "0..1
+ * fog/darkness hint for the client" — so the cave was lit exactly like the clearing.
+ *
+ * Three things move together because moving one reads as a colour filter rather than a place: the
+ * sky darkens so the fog has something to fade *into*, the fog thickens so the far wall vanishes,
+ * and the lights drop so the geometry itself dims.
+ *
+ * The sun keeps 40% of its strength at full darkness on purpose. A cave with no directional light
+ * has no edges at all, and a player needs to see the ledge they are about to jump to — "dark" has
+ * to stay playable.
+ */
+export function darknessValues(darkness: number, baseFogDensity: number): DarknessValues {
+  const amount = Number.isFinite(darkness) ? Math.max(0, Math.min(1, darkness)) : 0;
+  return {
+    amount,
+    skyScale: 1 - amount * 0.82,
+    fogDensity: baseFogDensity * (1 + amount * 5.5),
+    hemiIntensity: HEMI_BASE * (1 - amount * 0.72),
+    sunIntensity: SUN_BASE * (1 - amount * 0.6),
+  };
+}
+
 /**
  * Rendering shell: canvas, camera rig, lights, fog, and the adaptive frame governor.
  *
@@ -24,6 +63,11 @@ export class Renderer {
   /** Player origin. Position this at the simulated feet position every frame. */
   readonly rig = new THREE.Group();
   readonly sun: THREE.DirectionalLight;
+  private hemi: THREE.HemisphereLight | null = null;
+  /** The level's own fog and sky, kept so darkness is applied *to* them rather than compounding. */
+  private baseFogDensity = 0;
+  private baseSkyColor = new THREE.Color(0xffffff);
+  private darkness = 0;
 
   private profile: PerformanceProfile;
   private pixelRatio: number;
@@ -62,10 +106,11 @@ export class Renderer {
     this.rig.add(this.camera);
     this.scene.add(this.rig);
 
-    const hemi = new THREE.HemisphereLight(0xbfe6ff, 0x3d5232, 1.15);
+    const hemi = new THREE.HemisphereLight(0xbfe6ff, 0x3d5232, HEMI_BASE);
     this.scene.add(hemi);
+    this.hemi = hemi;
 
-    this.sun = new THREE.DirectionalLight(0xfff2d0, 1.9);
+    this.sun = new THREE.DirectionalLight(0xfff2d0, SUN_BASE);
     this.sun.position.set(48, 80, 26);
     this.sun.castShadow = options.profile.shadows;
     this.sun.shadow.mapSize.set(options.profile.shadowMapSize, options.profile.shadowMapSize);
@@ -89,6 +134,47 @@ export class Renderer {
     this.scene.fog = new THREE.FogExp2(level.skyColor, level.fogDensity);
     this.camera.far = Math.max(200, this.profile.drawDistance * 2.2);
     this.camera.updateProjectionMatrix();
+
+    // Remembered so `setDarkness` has something to return to. Without a stored baseline every
+    // frame would darken the *previous* frame's values and the world would fade to black.
+    this.baseFogDensity = level.fogDensity;
+    this.baseSkyColor.set(level.skyColor);
+    this.darkness = 0;
+    this.setDarkness(0);
+  }
+
+  /**
+   * How enclosed the player is, 0..1 — the zone hint the level has always carried and nothing
+   * ever read.
+   *
+   * `ZoneDef.darkness` is documented as "0..1 fog/darkness hint for the client" and set to 0.75
+   * for the cave, 0.15 for the canyon and 0.05 for the jungle. No client code ever looked a zone
+   * up, so the cave was lit exactly like the clearing outside it.
+   *
+   * Three things move together, because changing only one reads as a filter rather than a place:
+   * the sky darkens so the fog has something to fade *into*, the fog thickens so the far wall of
+   * the cave disappears, and the lights drop so the geometry itself is dimmer. The sun keeps a
+   * little of its strength at full darkness — a cave with no directional light at all loses every
+   * edge, and a player needs to see the ledge they are about to jump to.
+   */
+  setDarkness(darkness: number): void {
+    const values = darknessValues(darkness, this.baseFogDensity);
+    this.darkness = values.amount;
+
+    const sky = this.baseSkyColor.clone().multiplyScalar(values.skyScale);
+    this.scene.background = sky;
+    const fog = this.scene.fog;
+    if (fog instanceof THREE.FogExp2) {
+      fog.color.copy(sky);
+      fog.density = values.fogDensity;
+    }
+
+    if (this.hemi) this.hemi.intensity = values.hemiIntensity;
+    this.sun.intensity = values.sunIntensity;
+  }
+
+  get currentDarkness(): number {
+    return this.darkness;
   }
 
   setProfile(profile: PerformanceProfile, tier: QualityTier): void {

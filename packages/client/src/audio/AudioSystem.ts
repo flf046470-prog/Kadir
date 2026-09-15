@@ -1,4 +1,23 @@
-import type { SimEvent, SurfaceMaterial, Settings } from '@kc/core';
+import type { SimEvent, SurfaceMaterial, Settings, ZoneDef } from '@kc/core';
+
+export type AmbienceKind = ZoneDef['ambience'];
+
+/**
+ * One filtered-noise bed per zone kind.
+ *
+ * `centre` and `q` are what a space sounds like: a cave is a narrow low band that rings, open
+ * jungle is wide and airy, a canyon sits between them with more air movement. `drift` is how fast
+ * the filter wanders, which is the only thing stopping a one-second noise buffer from ticking
+ * audibly once a second.
+ */
+const AMBIENCE: Record<AmbienceKind, { centre: number; q: number; drift: number; gain: number }> = {
+  jungle: { centre: 1500, q: 0.6, drift: 0.07, gain: 0.05 },
+  cave: { centre: 190, q: 3.2, drift: 0.03, gain: 0.08 },
+  canyon: { centre: 700, q: 1.1, drift: 0.11, gain: 0.055 },
+  waterfall: { centre: 2600, q: 0.45, drift: 0.19, gain: 0.09 },
+  village: { centre: 1100, q: 0.8, drift: 0.05, gain: 0.04 },
+  lobby: { centre: 800, q: 0.9, drift: 0.04, gain: 0.03 },
+};
 
 /**
  * Procedural audio.
@@ -17,11 +36,28 @@ export class AudioSystem {
   private settings: Settings | null = null;
   private muted = false;
   private lastPlayAt = new Map<string, number>();
+  /** The running ambience bed, if any, kept so it can be faded out when the zone changes. */
+  private ambience: { source: AudioBufferSourceNode; lfo: OscillatorNode; gain: GainNode } | null = null;
+  private ambienceKind: AmbienceKind | null = null;
 
   /** Must be called from a user gesture — browsers refuse to start audio otherwise. */
   async resume(): Promise<void> {
     if (!this.ctx) this.init();
     if (this.ctx?.state === 'suspended') await this.ctx.resume();
+
+    /**
+     * Start the bed the player is already standing in.
+     *
+     * Audio may only begin on a user gesture, but the zone is decided the moment the world is
+     * built — so the first `setAmbience` lands before there is any context to play it on and only
+     * records the kind. Without this the bed for the spawn zone never starts, and the first thing
+     * a player ever hears is whatever zone they walk into *next*.
+     */
+    if (this.ambienceKind && !this.ambience) {
+      const pending = this.ambienceKind;
+      this.ambienceKind = null;
+      this.setAmbience(pending);
+    }
   }
 
   private init(): void {
@@ -153,6 +189,84 @@ export class AudioSystem {
     panner.positionY.value = at.y;
     panner.positionZ.value = at.z;
     return panner;
+  }
+
+  /**
+   * Move to a zone's ambience bed, crossfading from whatever was playing.
+   *
+   * The game had no ambience and no music at all. The `music` bus existed, sat at gain 0.5, and
+   * had nothing connected to it — so the Settings screen's music slider controlled silence — while
+   * every level declared zones carrying an `ambience` kind that no client code ever read.
+   *
+   * Each bed is filtered noise with a slow wandering filter, which is what a room *sounds* like:
+   * the cave is a narrow low band with a long tail, the jungle a wide airy one, the canyon a
+   * mid-band with more movement in it. Synthesised rather than streamed for the same reason
+   * everything else here is — no downloads, nothing to decode on a phone, and no licence to
+   * record in `assets/packs.json`.
+   *
+   * Passing the same kind twice does nothing, so this is safe to call every frame.
+   */
+  setAmbience(kind: AmbienceKind | null): void {
+    if (kind === this.ambienceKind) return;
+    const ctx = this.ctx;
+    const bus = this.buses?.music;
+    if (!ctx || !bus) {
+      // Remembered anyway: audio starts on a user gesture, and the zone the player spawned in is
+      // decided before that. Without this the first bed is the one they walk into, not the one
+      // they start in.
+      this.ambienceKind = kind;
+      return;
+    }
+
+    this.ambienceKind = kind;
+    this.stopAmbience(ctx);
+    if (!kind) return;
+
+    const bed = AMBIENCE[kind];
+    const source = ctx.createBufferSource();
+    source.buffer = this.noiseBuffer;
+    source.loop = true;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = bed.centre;
+    filter.Q.value = bed.q;
+
+    // A slow wander across the band, so the bed never settles into an audible loop point. The
+    // noise buffer is one second long and would otherwise tick once a second.
+    const lfo = ctx.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = bed.drift;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = bed.centre * 0.45;
+    lfo.connect(lfoGain).connect(filter.frequency);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(bed.gain, ctx.currentTime + 1.4);
+
+    source.connect(filter).connect(gain).connect(bus);
+    source.start();
+    lfo.start();
+    this.ambience = { source, lfo, gain };
+  }
+
+  get currentAmbience(): AmbienceKind | null {
+    return this.ambienceKind;
+  }
+
+  /** Fade the running bed out and let it stop itself, so a zone change never clicks. */
+  private stopAmbience(ctx: AudioContext): void {
+    const running = this.ambience;
+    this.ambience = null;
+    if (!running) return;
+
+    const end = ctx.currentTime + 1.2;
+    running.gain.gain.cancelScheduledValues(ctx.currentTime);
+    running.gain.gain.setValueAtTime(Math.max(0.0001, running.gain.gain.value), ctx.currentTime);
+    running.gain.gain.exponentialRampToValueAtTime(0.0001, end);
+    running.source.stop(end + 0.05);
+    running.lfo.stop(end + 0.05);
   }
 
   /** Rate-limit identical sounds so a crowded room cannot produce a wall of noise. */

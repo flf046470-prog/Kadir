@@ -267,3 +267,89 @@ describe('Avatar with an authored model', () => {
     expect(() => avatar.update(snapshot(), 1 / 60, new THREE.Vector3())).not.toThrow();
   });
 });
+
+/**
+ * Legs off, for anyone wearing a headset.
+ *
+ * A headset tracks a head and two hands and nothing below. Simulated legs on a VR player are a
+ * guess made from where their body slid, and they are the one part of yourself you see by looking
+ * down — which is why Gorilla Tag, Rec Room and VRChat without full-body tracking all end the body
+ * at the waist.
+ */
+describe('Avatar legs', () => {
+  it('keeps its legs by default', () => {
+    const avatar = new Avatar('kangaroo', false);
+    expect(avatar.isLegless).toBe(false);
+    avatar.dispose();
+  });
+
+  it('hides the procedural legs when asked', () => {
+    const avatar = new Avatar('kangaroo', false);
+    const hips = avatar.body.getObjectByName('hip.l');
+    expect(hips).toBeDefined();
+    expect(hips?.visible).toBe(true);
+
+    avatar.setLegless(true);
+    expect(avatar.isLegless).toBe(true);
+    expect(avatar.body.getObjectByName('hip.l')?.visible).toBe(false);
+    expect(avatar.body.getObjectByName('hip.r')?.visible).toBe(false);
+    avatar.dispose();
+  });
+
+  it('puts them back', () => {
+    // Not a one-way switch: a player can change platform between rounds on the same account.
+    const avatar = new Avatar('kangaroo', false);
+    avatar.setLegless(true);
+    avatar.setLegless(false);
+    expect(avatar.body.getObjectByName('hip.l')?.visible).toBe(true);
+    avatar.dispose();
+  });
+
+  it('collapses the model leg bones, and never to exactly zero', () => {
+    /**
+     * The authored animals export as a single skinned mesh — one mesh, four primitives — so there
+     * is no leg object to hide and the bones have to do it. Zero is the trap: a zero-scale bone
+     * has no invertible matrix, and the NaN three.js writes back lands on every vertex weighted to
+     * it, which deletes the whole animal rather than its legs.
+     */
+    const avatar = new Avatar('kangaroo', false);
+    const model = fakeModel();
+    const thigh = new THREE.Object3D();
+    thigh.name = 'thigh.L';
+    const other = new THREE.Object3D();
+    other.name = 'thigh.R';
+    model.scene.add(thigh, other);
+
+    avatar.setLegless(true);
+    avatar.attachModel(model);
+
+    for (const bone of [thigh, other]) {
+      expect(bone.scale.x).toBeLessThan(0.01);
+      expect(bone.scale.x).toBeGreaterThan(0);
+      expect(Number.isFinite(bone.scale.x)).toBe(true);
+    }
+    avatar.dispose();
+  });
+
+  it('applies to a model that arrives after the decision', () => {
+    // The authored body downloads seconds after the procedural one it replaces, so the flag has to
+    // survive the swap rather than being lost with the mesh it was set on.
+    const avatar = new Avatar('kangaroo', false);
+    avatar.setLegless(true);
+    const model = fakeModel();
+    const thigh = new THREE.Object3D();
+    thigh.name = 'thigh.L';
+    model.scene.add(thigh);
+    avatar.attachModel(model);
+    expect(thigh.scale.x).toBeLessThan(0.01);
+    avatar.dispose();
+  });
+
+  it('leaves a model with no leg bones alone rather than throwing', () => {
+    // A third-party pack is not obliged to name its rig the way the generator does.
+    const avatar = new Avatar('kangaroo', false);
+    avatar.setLegless(true);
+    expect(() => avatar.attachModel(fakeModel())).not.toThrow();
+    avatar.dispose();
+  });
+});

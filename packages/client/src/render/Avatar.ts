@@ -28,6 +28,24 @@ const JAW_OPEN_RADIANS = 0.5;
 const JAW_SWING = new THREE.Quaternion();
 
 /**
+ * The leg bones every generated animal carries, from `tools/blender/characters.py`.
+ *
+ * Only the thighs are listed: shins and feet are their children, so collapsing a thigh takes the
+ * rest of the chain with it. Naming both halves of a pair that the generator always writes
+ * together keeps this readable against the rig rather than clever.
+ */
+const LEG_BONES = ['thigh.L', 'thigh.R'] as const;
+
+/**
+ * Small, not zero.
+ *
+ * A bone scaled to exactly zero has a singular matrix, three.js inverts it for skinning, and the
+ * NaN that comes back is written into every vertex weighted to that bone — which does not hide a
+ * leg, it makes the entire animal disappear.
+ */
+const LEGLESS_BONE_SCALE = 0.001;
+
+/**
  * Pick the clip that matches what the player is doing.
  *
  * Split out and exported because it is the part worth testing: it is pure, and every bug in it
@@ -190,6 +208,18 @@ export class Avatar {
   private hips = new THREE.Group();
   private torsoPivot = new THREE.Group();
   private legs: { hip: THREE.Group; knee: THREE.Group; ankle: THREE.Group }[] = [];
+  /**
+   * Whether this player's legs are hidden — true for anyone wearing a headset.
+   *
+   * A headset tracks a head and two hands. It does not track legs, so a VR player's legs can only
+   * ever be a guess made from where their body is sliding, and the guess is wrong in the way that
+   * matters most: they are the one part of yourself you see by looking down. It is why Gorilla
+   * Tag, Rec Room and VRChat without full-body tracking all end the body at the waist.
+   *
+   * Applied per *player* rather than per viewer, so a VR player looks the same to everyone. A PC
+   * player watching them would otherwise see legs walking a path nobody's legs took.
+   */
+  private legless = false;
   private tailJoints: THREE.Group[] = [];
   private plan: BodyPlan = PLANS.upright;
   /** Rest angle of the tail root, kept so posing returns to the built silhouette. */
@@ -288,9 +318,52 @@ export class Avatar {
     }
 
     this.modelJaw = loaded.scene.getObjectByName('jaw') ?? null;
+    this.applyLegless();
     // Captured before a single frame runs, so it is the rig's pose rather than one the mixer has
     // already blended part-way into a clip.
     this.modelJawRest = this.modelJaw ? this.modelJaw.quaternion.clone() : null;
+  }
+
+  /**
+   * Hide or show this avatar's legs.
+   *
+   * Safe to call before a model has loaded and safe to call twice: the model path re-applies it
+   * on attach, because the authored body arrives seconds after the procedural one it replaces.
+   */
+  setLegless(legless: boolean): void {
+    if (this.legless === legless) return;
+    this.legless = legless;
+    this.applyLegless();
+  }
+
+  get isLegless(): boolean {
+    return this.legless;
+  }
+
+  /**
+   * Two bodies, two ways to take the legs off.
+   *
+   * The procedural avatar builds each leg as its own group, so hiding the hip hides the whole
+   * chain. The authored models cannot be treated that way: every animal exports as a *single*
+   * skinned mesh — one mesh, four primitives — so there is no leg object to hide. What they do
+   * have is named bones (`thigh.L`, `shin.L`, `foot.L` and the mirror), and collapsing the thigh
+   * collapses everything skinned to it and to its children down to the hip joint, which is where
+   * the torso already is. The body simply ends there.
+   *
+   * Scaled to a small number rather than to zero: a zero-scale bone gives the skinning matrix no
+   * inverse, and three.js propagates the resulting NaN into every vertex the bone touches — which
+   * does not hide a leg, it deletes the whole animal.
+   */
+  private applyLegless(): void {
+    for (const leg of this.legs) leg.hip.visible = !this.legless;
+
+    const root = this.modelRoot;
+    if (!root) return;
+    const scale = this.legless ? LEGLESS_BONE_SCALE : 1;
+    for (const name of LEG_BONES) {
+      const bone = root.getObjectByName(name);
+      if (bone) bone.scale.setScalar(scale);
+    }
   }
 
   /**
