@@ -10,6 +10,25 @@ export interface ModelRef {
   sockets?: Partial<Record<'head' | 'face' | 'back' | 'tail' | 'handL' | 'handR', string>>;
 }
 
+/**
+ * Resolve a model path against wherever this build was actually served from.
+ *
+ * Model urls are written absolute — `/models/kangaroo.glb` — which is correct when the game sits
+ * at the root of a host and wrong everywhere else. Served from a sub-path, or opened from a
+ * folder, the browser asks the *host* root for `/models/...`, gets a 404, and the loader falls
+ * back to procedural geometry. Nothing throws and nothing is logged where a player would see it:
+ * the game simply looks like a much older build, with cones for trees and blocks for animals.
+ *
+ * `import.meta.env.BASE_URL` is whatever the bundle was built with, so the same source works from
+ * a root (`/`, the default, where this is a no-op), from a sub-path, or from a relative
+ * deployment. Only absolute paths are rewritten — a pack that ships a full URL keeps it.
+ */
+export function resolveAssetUrl(url: string): string {
+  if (!url.startsWith('/')) return url;
+  const base = (import.meta.env?.BASE_URL as string | undefined) ?? '/';
+  return `${base.replace(/\/+$/, '')}/${url.slice(1)}`;
+}
+
 /** A loaded model: a fresh scene graph plus the clips that came with it. */
 export interface LoadedModel {
   scene: THREE.Object3D;
@@ -72,7 +91,7 @@ export class AssetLibrary {
       const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
       this.loader ??= new GLTFLoader();
       const loader = this.loader as InstanceType<typeof GLTFLoader>;
-      const gltf = await loader.loadAsync(ref.url);
+      const gltf = await loader.loadAsync(resolveAssetUrl(ref.url));
       const scene = gltf.scene;
       scene.traverse((node) => {
         if ((node as THREE.Mesh).isMesh) {

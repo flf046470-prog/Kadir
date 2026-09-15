@@ -12,6 +12,7 @@ import type { PlatformInput } from './platform/Platform.js';
 import { Renderer } from './render/Renderer.js';
 import { LocalStore } from './storage/LocalStore.js';
 import { Hud } from './ui/Hud.js';
+import { resolveAssetUrl } from './render/AssetLibrary.js';
 import { Shell } from './ui/Shell.js';
 import { TuningStore } from './game/TuningStore.js';
 import { VRMenu } from './ui/VRPanels.js';
@@ -465,7 +466,11 @@ function registerServiceWorker(): void {
   if (!('serviceWorker' in navigator)) return;
   // file:// (the Steam shell's fallback) cannot host a worker, and dev servers do not need one.
   if (!location.protocol.startsWith('http')) return;
-  navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+  // Resolved against the build's own base for the same reason model paths are: `/sw.js` asks the
+  // *host* root, so a build served from a sub-path registers a worker that is not there. The
+  // failure is caught below and costs only offline start, but it still logs a console error on
+  // every load, which is a permanent red herring in any deployment that is not at a root.
+  navigator.serviceWorker.register(resolveAssetUrl('/sw.js')).catch((error: unknown) => {
     console.warn('[pwa] service worker registration failed:', error);
   });
 }
