@@ -24,6 +24,19 @@ export const SURFACES = {
   water: { friction: 0.3, bounciness: 0, flags: SurfaceFlags.Water, material: 'water' },
   sand: { friction: 1.15, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'sand' },
   platform: { friction: 1, bounciness: 0, flags: SurfaceFlags.Climbable | SurfaceFlags.OneWay, material: 'wood' },
+  /**
+   * Glacier ice: `wetRock`'s physics with ice's appearance.
+   *
+   * Reusing `wetRock` for the glacier was the first attempt and it was wrong in the only way that
+   * matters — driven in a browser, the rink read as grey concrete, because the renderer colours a
+   * surface by its *material* and `wetRock` declares itself rock. A map whose whole identity is
+   * "this is ice" cannot be the same colour as the cave floor.
+   */
+  ice: { friction: 0.35, bounciness: 0, flags: SurfaceFlags.Climbable | SurfaceFlags.Slippery, material: 'ice' },
+  /** Packed snow: grip, and the one place on the glacier you can actually stop. */
+  snow: { friction: 1.05, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'snow' },
+  /** A hard ice wall — no grip at all, which is what makes the seracs a committed jump. */
+  glazedIce: { friction: 0.28, bounciness: 0.05, flags: SurfaceFlags.NoGrip | SurfaceFlags.Slippery, material: 'ice' },
 } as const satisfies Record<string, SurfacePreset>;
 
 export type SurfaceName = keyof typeof SURFACES;

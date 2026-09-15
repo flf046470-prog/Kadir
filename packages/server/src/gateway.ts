@@ -190,11 +190,14 @@ async function handleControl(
       : (await accounts.createGuest(sanitizeName(name))).profile;
 
     const modeId = text(message.modeId, 64);
+    const levelId = text(message.levelId, 64);
     const match = rooms.matchmake({
       // Absent must stay absent: `matchmake` defaults a missing mode to kangaroo-chase, but an
       // empty string is a mode id it will look up and fail to find.
       ...(modeId ? { modeId } : {}),
       roomCode,
+      // Same rule, and `pickLevelId` ignores an id it does not know rather than trusting it.
+      ...(levelId ? { levelId } : {}),
       // Passed through raw; `matchmake` sanitises, and only for a private room.
       ...(message.modeConfig === undefined ? {} : { modeConfig: message.modeConfig }),
     });

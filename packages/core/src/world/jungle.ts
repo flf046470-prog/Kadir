@@ -1,6 +1,7 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
 import { LevelBuilder } from './builder.js';
+import { registerLevel } from './registry.js';
 import type { BoxCollider } from '../physics/types.js';
 import type { LevelDef, PropKind } from './level.js';
 
@@ -395,3 +396,10 @@ function dressWorld(b: LevelBuilder, rand: Rand): void {
     scale: [0.6, 1.25],
     tint: 1,
   });}
+
+registerLevel({
+  id: 'jungle-world',
+  name: 'Jungle World',
+  description: 'Climb the trees, hop the branches, bounce the mushrooms. The map the game teaches you on.',
+  build: buildJungleWorld,
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest';
-import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, registerStoreItems } from '@kc/core';
+import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, listLevels, registerStoreItems } from '@kc/core';
 import type { PlayerSnapshot, PlayerState } from '@kc/core';
 import { NEW_PRIVATE_ROOM, SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
@@ -168,6 +168,62 @@ describe('matchmaking', () => {
     // the author's round length proves the config survived the trip rather than being dropped.
     expect(room.houseRules).toBeTruthy();
     expect(room.houseRules).toContain('1 min');
+  });
+
+  it('gives a private room the map its host asked for', async () => {
+    const { rooms } = await makeHarness();
+    const room = rooms.matchmake({
+      roomCode: NEW_PRIVATE_ROOM,
+      modeId: 'kangaroo-chase',
+      levelId: 'glacier-world',
+    }).room as Room;
+    expect(room.level.id).toBe('glacier-world');
+  });
+
+  it('ignores a map id it does not recognise instead of failing the join', async () => {
+    /**
+     * The id arrives from a client, so it can be anything — an older build's map name, a typo, or
+     * someone poking at the socket. None of those are worth refusing a player over: falling back
+     * puts them in a real room on a real map, which is recoverable, where an error closes the
+     * connection over a preference.
+     */
+    const { rooms } = await makeHarness();
+    const room = rooms.matchmake({
+      roomCode: NEW_PRIVATE_ROOM,
+      modeId: 'kangaroo-chase',
+      levelId: 'atlantis',
+    }).room as Room;
+    expect(listLevels().some((l) => l.id === room.level.id)).toBe(true);
+  });
+
+  it('will not move a room someone is already playing in', async () => {
+    /**
+     * A map choice belongs to room *creation*. If joining could apply it, the second player
+     * through the door would teleport everyone already inside to a different world — and since
+     * the level is what the simulation reads, they would be predicting against geometry the
+     * server no longer has.
+     */
+    const { rooms } = await makeHarness();
+    const created = rooms.matchmake({ roomCode: NEW_PRIVATE_ROOM, modeId: 'kangaroo-chase', levelId: 'jungle-world' })
+      .room as Room;
+    const joined = rooms.matchmake({ roomCode: created.code, levelId: 'glacier-world' }).room as Room;
+    expect(joined).toBe(created);
+    expect(joined.level.id).toBe('jungle-world');
+  });
+
+  it('sends public rooms round the whole rotation, so no map is unreachable', async () => {
+    /**
+     * Quick Play is how nearly everyone starts a session. With a fixed default the glacier would
+     * have shipped as content only a player who knew to open the private-room screen could ever
+     * see.
+     */
+    const { rooms } = await makeHarness(testConfig({ maxRooms: 8, maxPlayersPerRoom: 1 }));
+    const seen = new Set<string>();
+    for (let i = 0; i < listLevels().length * 2; i++) {
+      const room = rooms.matchmake({ modeId: 'kangaroo-chase', createPrivate: true }).room as Room;
+      seen.add(room.level.id);
+    }
+    expect(seen.size).toBe(listLevels().length);
   });
 
   it('reports useful errors for bad codes', async () => {

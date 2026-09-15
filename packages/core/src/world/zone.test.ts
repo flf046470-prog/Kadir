@@ -44,6 +44,30 @@ describe('zoneAt', () => {
     expect(darknessAt(level, at(0, 0, 900))).toBe(0);
   });
 
+  it('gets darker the whole way in, along the route a player actually walks', () => {
+    /**
+     * The check two browser probes failed to make.
+     *
+     * Both drove a real player west from the spawn and measured the screen, both saw brightness
+     * go *up*, and both were measuring the route rather than the feature — a guessed heading that
+     * never reached the cave. The route is data, so it can be asserted here instead: from the
+     * clearing at the origin to the cave's centre at x = -72, darkness must never step backwards
+     * and must end up somewhere genuinely dark.
+     *
+     * Monotonic rather than "the end is darker than the start", because a dip in the middle is
+     * exactly what a player would read as a bug — walking deeper into a cave and having it
+     * brighten — and the endpoints alone cannot see it.
+     */
+    let previous = -1;
+    for (let x = 0; x >= -72; x -= 4) {
+      const here = darknessAt(level, at(x, 0, 0));
+      expect(here).toBeGreaterThanOrEqual(previous);
+      previous = here;
+    }
+    expect(previous).toBeGreaterThan(0.7);
+    expect(darknessAt(level, at(0, 0, 0))).toBeLessThan(0.1);
+  });
+
   it('makes the cave the darkest place in the level', () => {
     const cave = level.zones.find((z) => z.name === 'cave');
     const centre = darknessAt(level, cave?.center ?? at(0, 0, 0));

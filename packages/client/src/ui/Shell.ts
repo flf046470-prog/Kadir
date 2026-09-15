@@ -38,7 +38,7 @@ export interface ShellCallbacks {
    * Create a private room. `modeConfig` carries house rules when the host set any; the server
    * sanitises it, so the shape sent here is a suggestion rather than a contract.
    */
-  onCreatePrivate(modeConfig?: unknown): void;
+  onCreatePrivate(modeConfig?: unknown, levelId?: string): void;
   onAnimalChanged(animalId: string): void;
   onCosmeticsChanged(cosmetics: Record<string, string>): void;
   onSettingsChanged(settings: Settings): void;
@@ -210,6 +210,15 @@ export class Shell {
    * buttons trigger — does not reset sliders someone just moved.
    */
   private houseRules: ModeConfig = { ...DEFAULT_MODE_CONFIG };
+  /**
+   * The map a new private room will play, for the same reason: the picker re-renders itself to
+   * move the highlight, and a choice stored in the button would be lost each time.
+   *
+   * Empty means "whatever the server would have picked", which is the rotation. That is the right
+   * default rather than naming a map here — the client would then be asserting which map is the
+   * main one, and it is the server that decides.
+   */
+  private levelId = '';
 
   constructor(options: ShellOptions, settings: Settings) {
     this.options = options;
@@ -459,7 +468,8 @@ export class Shell {
           ? button('Join room', () => this.options.callbacks.onJoinRoom(input.value.trim()), 'primary')
           : null,
         el('hr', { style: { opacity: '0.15', width: '100%' } }),
-        this.online ? button('Create a private room', () => this.options.callbacks.onCreatePrivate()) : null,
+        this.online ? this.mapPicker() : null,
+        this.online ? button('Create a private room', () => this.options.callbacks.onCreatePrivate(undefined, this.levelId)) : null,
         this.online
           ? button('Create with your own rules', () => this.show('houseRules'))
           : el(
@@ -471,6 +481,45 @@ export class Shell {
       ),
       this.noticeNode(),
       button('Back', () => this.show('menu')),
+    );
+  }
+
+  /**
+   * Which map a new private room plays.
+   *
+   * The maps come from the content bundle rather than a list in this file, so a level that
+   * registers itself is offered here without the menu knowing it exists — which is the whole
+   * point of the level registry. With one map registered the picker hides itself: a row with a
+   * single button and no alternative is a control that asks a question with one answer.
+   *
+   * "Surprise me" is first and is the default, because it maps onto what the server already does
+   * for public rooms — the rotation — rather than adding a second idea of what "no choice" means.
+   */
+  private mapPicker(): HTMLElement | null {
+    const levels = this.content?.levels ?? [];
+    if (levels.length < 2) return null;
+
+    const row = el('div', { class: 'kc-row' });
+    const pick = (id: string, label: string): HTMLElement =>
+      button(
+        label,
+        () => {
+          this.levelId = id;
+          this.render();
+        },
+        this.levelId === id ? 'primary' : 'ghost',
+      );
+
+    row.append(pick('', 'Surprise me'));
+    for (const level of levels) row.append(pick(level.id, level.name));
+
+    const chosen = levels.find((l) => l.id === this.levelId);
+    return el(
+      'div',
+      { class: 'kc-field kc-field-stack' },
+      el('span', {}, 'Map'),
+      row,
+      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'A different map each time a room opens.'),
     );
   }
 

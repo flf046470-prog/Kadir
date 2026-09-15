@@ -1,4 +1,4 @@
-import { listAnimals, listCosmetics, listModes, listStoreItems } from '@kc/core';
+import { listAnimals, listCosmetics, listLevels, listModes, listStoreItems } from '@kc/core';
 import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, Reward, SeasonDef, StoreItem } from '@kc/core';
 
 export interface ProfileBundle {
@@ -32,6 +32,13 @@ export interface ContentBundle {
   cosmetics: CosmeticDef[];
   store: StoreItem[];
   modes: GameModeDef[];
+  /**
+   * The maps, without their geometry.
+   *
+   * Only id, name and description travel: a level is generated from a seed on both sides, so the
+   * catalogue's job here is to let a menu name the places, not to describe them.
+   */
+  levels: { id: string; name: string; description: string }[];
 }
 
 /**
@@ -52,6 +59,7 @@ export function localContent(): ContentBundle {
     cosmetics: listCosmetics(),
     store: listStoreItems(),
     modes: listModes(),
+    levels: listLevels().map((l) => ({ id: l.id, name: l.name, description: l.description })),
   };
 }
 

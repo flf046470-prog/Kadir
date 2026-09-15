@@ -14,6 +14,7 @@ import {
   getSeasonProgress,
   listAnimals,
   listCosmetics,
+  listLevels,
   listModes,
   listStoreItems,
   sanitizeName,
@@ -101,6 +102,7 @@ async function handleApi(
       gadgets: listGadgets(),
       store: listStoreItems(),
       modes: listModes(),
+      levels: listLevels().map((l) => ({ id: l.id, name: l.name, description: l.description })),
       level: { id: deps.rooms.sharedLevel.id, seed: deps.rooms.sharedLevel.seed },
     });
     return;

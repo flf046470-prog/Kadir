@@ -6,6 +6,7 @@ import {
   TICK_DT,
   botName,
   buildJungleWorld,
+  buildLevel,
   createIntent,
   getAnimal,
   makeRaycastResult,
@@ -253,7 +254,10 @@ export class GameClient {
     this.input.stop();
   }
 
-  connect(serverUrl: string, options: { roomCode?: string; modeId?: string; modeConfig?: unknown } = {}): void {
+  connect(
+    serverUrl: string,
+    options: { roomCode?: string; modeId?: string; levelId?: string; modeConfig?: unknown } = {},
+  ): void {
     this.modeId = options.modeId ?? this.modeId;
     this.net.connect({
       url: serverUrl,
@@ -265,6 +269,7 @@ export class GameClient {
       ...(this.options.profile.token ? { token: this.options.profile.token } : {}),
       ...(options.roomCode ? { roomCode: options.roomCode } : {}),
       ...(options.modeId ? { modeId: options.modeId } : {}),
+      ...(options.levelId ? { levelId: options.levelId } : {}),
       ...(options.modeConfig === undefined ? {} : { modeConfig: options.modeConfig }),
     });
   }
@@ -423,7 +428,7 @@ export class GameClient {
     this.tuning.applyTo(this.sim);
   }
 
-  private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelSeed: number }): void {
+  private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelId: string; levelSeed: number }): void {
     // A real match starts: the server owns the configs from here on.
     this.soloPractice = false;
     this.soloResultsSent = false;
@@ -431,6 +436,14 @@ export class GameClient {
     this.modeId = message.modeId;
     this.roomCode = message.roomCode;
     this.bots = [];
+
+    // Build the world the server is actually running.
+    //
+    // The server has always sent `levelId` and this handler did not even declare the field, so
+    // whatever it said the client built the jungle. That was invisible while one map existed and
+    // would have put half a room in the wrong world the moment a second one did — every collision
+    // disagreeing with the server, on a map the player was not looking at.
+    this.useLevel(message.levelId);
 
     // Rebuild the local simulation to match the server's world and clock exactly.
     this.sim = new Simulation({ level: this.level, modeId: message.modeId, seed: message.levelSeed });
@@ -518,6 +531,32 @@ export class GameClient {
       default:
         break;
     }
+  }
+
+  /**
+   * Swap the world for another map, rebuilding everything that was made from the old one.
+   *
+   * Cheap and safe to call with the id already loaded, which is the common case — most joins are
+   * to a room playing the map the client already has up — so the early return is the hot path
+   * rather than an optimisation.
+   *
+   * The renderer is disposed before the new one is built: `LevelRenderer` holds instanced meshes
+   * and geometries that nothing else will free, and it also guards its own late-arriving model
+   * downloads against being added to a group that is on its way out.
+   */
+  private useLevel(levelId: string): void {
+    if (!levelId || levelId === this.level.id) return;
+
+    this.levelRenderer.dispose();
+    this.renderer.scene.remove(this.levelRenderer.group);
+
+    this.level = buildLevel(levelId);
+    this.levelRenderer = new LevelRenderer(this.level, this.options.profileForQuality, this.assets);
+    this.renderer.scene.add(this.levelRenderer.group);
+    this.renderer.applyLevel(this.level);
+    // The old map's zone is meaningless in the new one, and `updateZone` only acts on a change.
+    this.darkness = 0;
+    this.audio.setAmbience(null);
   }
 
   private ensureLocalAvatar(): void {

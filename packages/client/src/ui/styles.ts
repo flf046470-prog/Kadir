@@ -41,6 +41,9 @@ export const UI_CSS = `
 .kc-panel { background: rgba(12,22,15,.9); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 18px; width: min(620px, 94vw); display: flex; flex-direction: column; gap: 12px; max-height: 76vh; overflow-y: auto; }
 .kc-field { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 14px; }
 .kc-field input[type=range] { flex: 1; accent-color: #4caf50; }
+/* A field whose control is a row of buttons rather than one widget: side by side it squeezes the
+   buttons into a column on a phone, so it stacks instead and keeps the label above them. */
+.kc-field-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .kc-field input[type=text] { background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: 8px; padding: 10px; font: inherit; min-width: 0; }
 .kc-note { font-size: 12px; opacity: .6; line-height: 1.5; }
 .kc-credit { border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 8px; font-size: 13px; line-height: 1.5; }

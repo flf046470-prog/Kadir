@@ -20,6 +20,14 @@ export interface ClientHello {
    * it here would invite a client to believe its shape was trusted.
    */
   modeConfig?: unknown;
+  /**
+   * Which map to play, when this hello ends up *creating* a room.
+   *
+   * Ignored when joining an existing one, which is already playing whatever it is playing — so
+   * this can never move a player who is already in a match. An unknown id falls back to the
+   * rotation rather than failing the join, because a client older than a map must still connect.
+   */
+  levelId?: string;
   /** Opaque session token issued by the account service; the server resolves the player id. */
   token?: string;
   crossPlay: boolean;

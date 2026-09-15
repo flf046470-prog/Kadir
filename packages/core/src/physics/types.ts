@@ -30,7 +30,10 @@ export type SurfaceMaterial =
   | 'water'
   | 'metal'
   | 'sand'
-  | 'stone';
+  | 'stone'
+  /** Glacier ice. Its own material rather than a slippery rock, because it has to *look* like ice. */
+  | 'ice'
+  | 'snow';
 
 export interface SurfaceProps {
   /** 0 = ice, 1 = grippy rubber. Scales ground deceleration. */

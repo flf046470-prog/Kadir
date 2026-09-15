@@ -34,18 +34,38 @@ export interface DarknessValues {
  * sky darkens so the fog has something to fade *into*, the fog thickens so the far wall vanishes,
  * and the lights drop so the geometry itself dims.
  *
- * The sun keeps 40% of its strength at full darkness on purpose. A cave with no directional light
- * has no edges at all, and a player needs to see the ledge they are about to jump to — "dark" has
- * to stay playable.
+ * **Fog is only darkness if the fog is darker than what it hides.** The first version of this
+ * ramped the density hard and the sky gently, and a screenshot from inside the cave came back
+ * *brighter* than the same camera with the feature switched off: thick fog toward a 38%-of-sky
+ * blue does not hide a cave, it fills it with sky. Measured at +2.4% where it was meant to be
+ * far below. So the sky is now the aggressive half of the pair — at full darkness it keeps 5% of
+ * the level's colour, which is an unlit interior rather than dusk — and density only decides how
+ * quickly the geometry disappears into it.
+ *
+ * The ramp is a smoothstep rather than a line because the two ends want opposite things. A zone
+ * declaring 0.05 is saying "very slightly enclosed" and must be indistinguishable from open air;
+ * a linear 0.95 factor took 5% off the sky of the ordinary jungle, which is a visible dimming of
+ * the whole map for a value that meant nothing. Smoothstep is flat at both ends and steep in the
+ * middle, so 0.05 costs 0.7% and 0.75 costs 84%.
+ *
+ * The two light floors are the constraint that keeps "dark" playable, and they are floors rather
+ * than gentle coefficients so that tuning the ramp can never quietly erase them. Without a sun a
+ * cave has no edges at all and this game asks players to jump between ledges in there; without a
+ * little hemisphere fill every surface the sun misses is pure black. The sky has no floor worth
+ * defending, because a cave that opens onto nothing really should read as nothing.
  */
+const SUN_FLOOR = 0.32;
+const HEMI_FLOOR = 0.18;
+
 export function darknessValues(darkness: number, baseFogDensity: number): DarknessValues {
   const amount = Number.isFinite(darkness) ? Math.max(0, Math.min(1, darkness)) : 0;
+  const t = amount * amount * (3 - 2 * amount);
   return {
     amount,
-    skyScale: 1 - amount * 0.82,
-    fogDensity: baseFogDensity * (1 + amount * 5.5),
-    hemiIntensity: HEMI_BASE * (1 - amount * 0.72),
-    sunIntensity: SUN_BASE * (1 - amount * 0.6),
+    skyScale: 1 - t * 0.95,
+    fogDensity: baseFogDensity * (1 + t * 5.5),
+    hemiIntensity: HEMI_BASE * Math.max(HEMI_FLOOR, 1 - t * 0.88),
+    sunIntensity: SUN_BASE * Math.max(SUN_FLOOR, 1 - t * 0.7),
   };
 }
 
@@ -67,6 +87,8 @@ export class Renderer {
   /** The level's own fog and sky, kept so darkness is applied *to* them rather than compounding. */
   private baseFogDensity = 0;
   private baseSkyColor = new THREE.Color(0xffffff);
+  /** Scratch for the sRGB components of the sky, so `setDarkness` allocates nothing per frame. */
+  private skyRgb = { r: 1, g: 1, b: 1 };
   private darkness = 0;
 
   private profile: PerformanceProfile;
@@ -161,7 +183,19 @@ export class Renderer {
     const values = darknessValues(darkness, this.baseFogDensity);
     this.darkness = values.amount;
 
-    const sky = this.baseSkyColor.clone().multiplyScalar(values.skyScale);
+    // Scaled in sRGB, not linear, because `skyScale` is a statement about how dark the sky should
+    // *look*. `Color.multiplyScalar` works in the renderer's linear working space, where halving a
+    // channel only takes about a quarter off the displayed brightness — the first attempt asked
+    // for a fifth of the sky inside the cave and a screenshot came back at roughly half, still
+    // reading as an overcast afternoon. Converting out, scaling, and converting back makes the
+    // number mean what the zone data intends.
+    this.baseSkyColor.getRGB(this.skyRgb, THREE.SRGBColorSpace);
+    const sky = new THREE.Color().setRGB(
+      this.skyRgb.r * values.skyScale,
+      this.skyRgb.g * values.skyScale,
+      this.skyRgb.b * values.skyScale,
+      THREE.SRGBColorSpace,
+    );
     this.scene.background = sky;
     const fog = this.scene.fog;
     if (fog instanceof THREE.FogExp2) {

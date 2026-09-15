@@ -453,6 +453,11 @@ function materialPitch(material?: SurfaceMaterial): number {
       return -15;
     case 'metal':
       return 90;
+    // Ice rings higher and harder than rock; snow swallows the impact almost entirely.
+    case 'ice':
+      return 70;
+    case 'snow':
+      return -45;
     default:
       return 0;
   }

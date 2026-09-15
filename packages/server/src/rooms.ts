@@ -1,6 +1,6 @@
 import { Rand, isValidRoomCode, listModes, sanitiseModeConfig } from '@kc/core';
 import type { LevelDef, ModeConfig } from '@kc/core';
-import { buildJungleWorld } from '@kc/core';
+import { buildLevel, defaultLevelId, listLevels } from '@kc/core';
 import { NEW_PRIVATE_ROOM } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { Leaderboard } from './leaderboard.js';
@@ -17,6 +17,11 @@ export interface MatchmakeRequest {
    * would break the "join the fullest room running this mode" assumption matchmaking is built on.
    */
   modeConfig?: unknown;
+  /**
+   * A map by name. Honoured for a room being created; ignored when joining an existing one, which
+   * is already playing whatever it is playing.
+   */
+  levelId?: string;
 }
 
 export type MatchmakeError = 'not-found' | 'full' | 'bad-code' | 'no-capacity' | 'unknown-mode';
@@ -39,18 +44,55 @@ export class RoomManager {
   private timer: NodeJS.Timeout | null = null;
   private accumulator = 0;
   private lastTickAt = 0;
-  private level: LevelDef;
+  /**
+   * One built level per id, shared by every room playing it.
+   *
+   * Rooms never mutate their level — it is the immutable input the simulation reads — so building
+   * each map once and handing the same object out is both correct and what the server already did
+   * when there was only one map to build.
+   */
+  private levels = new Map<string, LevelDef>();
+  /** Which map the next public room gets, so both maps actually get played. */
+  private nextLevelIndex = 0;
 
   constructor(
     private readonly config: ServerConfig,
     private readonly accounts: AccountService,
     private readonly leaderboard: Leaderboard,
   ) {
-    this.level = buildJungleWorld();
+    // Built eagerly so the very first join does not pay for it, and so a level that throws on
+    // construction takes the server down at boot rather than under a player.
+    for (const entry of listLevels()) this.levels.set(entry.id, entry.build());
   }
 
+  /** The default map, for callers that just need a world to reason about. */
   get sharedLevel(): LevelDef {
-    return this.level;
+    return this.levelFor(defaultLevelId());
+  }
+
+  private levelFor(id: string): LevelDef {
+    const existing = this.levels.get(id);
+    if (existing) return existing;
+    const built = buildLevel(id);
+    this.levels.set(built.id, built);
+    return built;
+  }
+
+  /**
+   * Which map a new room plays.
+   *
+   * A private room may ask for one by name — that is the point of a private room. A public room
+   * takes the next in rotation, because a map nobody is ever sent to is a map that does not exist:
+   * with quick play always building the same world, the glacier would have shipped unreachable
+   * unless a player knew to go and ask for it.
+   */
+  private pickLevelId(requested?: string): string {
+    if (requested && this.levels.has(requested)) return requested;
+    const all = listLevels();
+    if (all.length === 0) return defaultLevelId();
+    const entry = all[this.nextLevelIndex % all.length];
+    this.nextLevelIndex = (this.nextLevelIndex + 1) % all.length;
+    return entry?.id ?? defaultLevelId();
   }
 
   get roomCount(): number {
@@ -107,10 +149,10 @@ export class RoomManager {
     }
 
     if (this.rooms.size >= this.config.maxRooms) return { error: 'no-capacity' };
-    return { room: this.createRoom(modeId, createPrivate, modeConfig) };
+    return { room: this.createRoom(modeId, createPrivate, modeConfig, request.levelId) };
   }
 
-  createRoom(modeId: string, isPrivate: boolean, modeConfig?: ModeConfig): Room {
+  createRoom(modeId: string, isPrivate: boolean, modeConfig?: ModeConfig, levelId?: string): Room {
     let code = Room.newCode(this.rand);
     let guard = 0;
     while (this.rooms.has(code) && guard++ < 50) code = Room.newCode(this.rand);
@@ -123,7 +165,7 @@ export class RoomManager {
       snapshotIntervalTicks: Math.max(1, Math.round(this.config.tickRate / this.config.snapshotRate)),
       accounts: this.accounts,
       leaderboard: this.leaderboard,
-      level: this.level,
+      level: this.levelFor(this.pickLevelId(levelId)),
       seed: this.rand.int(0, 2 ** 30),
       ...(modeConfig ? { modeConfig } : {}),
     });

@@ -35,6 +35,10 @@ const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
   metal: 0x9aa3ad,
   sand: 0xd8c48c,
   stone: 0x8c8f94,
+  // Pale blue-white with enough blue in it to separate from snow at a distance; flat-shaded
+  // low-poly ice reads as grey the moment the hue goes out of it.
+  ice: 0xa8d8ea,
+  snow: 0xeef4f8,
 };
 
 const PROP_TINTS = [0x3f8f4a, 0x2f7a3c, 0x57a05a, 0x76b06a];
@@ -94,7 +98,15 @@ export class LevelRenderer {
     // Wide enough that its own edge is beyond the fog: at this density anything past ~250 m is
     // fully hazed into the sky colour, so the plain has no visible end of its own.
     const geometry = new THREE.PlaneGeometry(1400, 1400);
-    const material = new THREE.MeshLambertMaterial({ color: 0x5a6b45 });
+    /**
+     * Tinted from the level's own ground rather than a fixed green.
+     *
+     * The first version hard-coded a jungle green, which was invisible while one map existed and
+     * absurd the moment a second one did: a glacier ringed by a green plain. The colour is taken
+     * from whichever material covers the most ground and darkened, so a distant plain always
+     * belongs to the map in front of it.
+     */
+    const material = new THREE.MeshLambertMaterial({ color: this.backdropColor() });
     const plane = new THREE.Mesh(geometry, material);
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = lowest - 14;
@@ -106,6 +118,27 @@ export class LevelRenderer {
     plane.renderOrder = -1;
     this.disposables.push(geometry, material);
     this.group.add(plane);
+  }
+
+  /** The colour of whichever material covers the most ground, darkened into a distance. */
+  private backdropColor(): number {
+    const area = new Map<SurfaceMaterial, number>();
+    for (const collider of this.level.colliders) {
+      if (collider.kind !== 'box') continue;
+      // Floors only: a tall wall has a large face and covers no ground.
+      if (collider.half.y > Math.min(collider.half.x, collider.half.z)) continue;
+      const key = collider.surface.material;
+      area.set(key, (area.get(key) ?? 0) + collider.half.x * collider.half.z);
+    }
+    let best: SurfaceMaterial = 'dirt';
+    let most = -1;
+    for (const [material, value] of area) {
+      if (value > most) {
+        most = value;
+        best = material;
+      }
+    }
+    return new THREE.Color(MATERIAL_COLORS[best] ?? 0x5a6b45).multiplyScalar(0.72).getHex();
   }
 
   /**
