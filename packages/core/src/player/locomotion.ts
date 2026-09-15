@@ -59,6 +59,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   const grabLeft = hasButton(intent.buttons, Buttons.GrabLeft);
   const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
 
+  startPunchThrows(player, intent, frozen);
   updateHandPoses(player, intent, dt, grabLeft, grabRight);
 
   const handsAnchored = updateHandGrips(player, ctx);
@@ -108,12 +109,70 @@ function advanceTimers(player: PlayerState, dt: number): void {
   player.tagCooldown = Math.max(0, player.tagCooldown - dt);
   player.emoteTimer = Math.max(0, player.emoteTimer - dt);
   if (player.emoteTimer === 0) player.emoteId = 0;
-  for (const hand of player.hands) hand.punchCooldown = Math.max(0, hand.punchCooldown - dt);
+  for (const hand of player.hands) {
+    hand.punchCooldown = Math.max(0, hand.punchCooldown - dt);
+    hand.punchThrow = Math.max(0, hand.punchThrow - dt);
+  }
 }
 
 function directionsFromYaw(yaw: number): void {
   v3set(_forward, Math.sin(yaw), 0, Math.cos(yaw));
   v3set(_right, Math.cos(yaw), 0, -Math.sin(yaw));
+}
+
+/** How long a synthesised punch takes to reach full extension, and to come back. */
+const PUNCH_EXTEND = 0.09;
+const PUNCH_RETRACT = 0.13;
+/** How far in front of the chest a thrown punch reaches, in metres. */
+const PUNCH_REACH = 0.92;
+/** Resting reach of an idle hand; a held grab pulls it out to `GRAB_REACH`. */
+const IDLE_REACH = 0.25;
+const GRAB_REACH = 0.55;
+
+/**
+ * Turn the punch buttons into an arm that actually moves.
+ *
+ * `combat.ts` resolves a punch purely from hand velocity — it has to, because in VR the tracked
+ * hand *is* the punch and there is no button to read. The comment there promised that "on
+ * PC/Mobile the platform layer synthesises a hand thrust when the punch button is pressed", and
+ * nothing anywhere did: `Buttons.PunchLeft` and `Buttons.PunchRight` were set by the PC and mobile
+ * input layers and then read by no one.
+ *
+ * Measured before this existed: two players toe to toe for five seconds, one of them holding the
+ * punch button — the victim finished on 100.0 of 100 health. Holding *grab* instead took them to
+ * 84.3, and alternating it to 57.8, because grab is what extends the arm. So melee on two of the
+ * three platforms was impossible on the button meant for it and an accident on the climbing
+ * button. VR Boxing and the Conversion Duel bouts are built entirely on punching.
+ */
+function startPunchThrows(player: PlayerState, intent: InputIntent, frozen: boolean): void {
+  // A VR player's hands are tracked, and their real motion already carries the punch; adding a
+  // synthetic thrust on top would let a headset player punch with a button *and* their arm.
+  if (intent.hands !== null || frozen) return;
+  const wants = [
+    hasButton(intent.buttons, Buttons.PunchLeft),
+    hasButton(intent.buttons, Buttons.PunchRight),
+  ];
+  for (let i = 0; i < 2; i++) {
+    const hand = player.hands[i] as HandState;
+    // Held rather than tapped is deliberate: the throw runs to completion and can only restart
+    // once the combat cooldown has also expired, so holding the button throws at the weapon's own
+    // cadence instead of once per press. Mashing cannot beat it, which is the point.
+    if (!wants[i] || hand.punchThrow > 0 || hand.punchCooldown > 0) continue;
+    hand.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+  }
+}
+
+/**
+ * How far out a synthesised punch has travelled, 0 at rest and 1 at full extension.
+ *
+ * Out fast and back slower, so the outward half clears the speed threshold that makes it a punch
+ * and the return does not land a second free hit on the way home.
+ */
+function punchExtension(remaining: number): number {
+  if (remaining <= 0) return 0;
+  const elapsed = PUNCH_EXTEND + PUNCH_RETRACT - remaining;
+  if (elapsed < PUNCH_EXTEND) return elapsed / PUNCH_EXTEND;
+  return Math.max(0, 1 - (elapsed - PUNCH_EXTEND) / PUNCH_RETRACT);
 }
 
 /**
@@ -146,12 +205,25 @@ function updateHandPoses(
     } else {
       hand.tracked = false;
       const side = i === LEFT ? -1 : 1;
-      const reach = i === LEFT ? (grabLeft ? 0.55 : 0.25) : grabRight ? 0.55 : 0.25;
+      const grabbing = i === LEFT ? grabLeft : grabRight;
+      const thrust = punchExtension(hand.punchThrow);
+      // A punch overrides the grab pose rather than adding to it, so a player climbing with one
+      // hand and punching with it does not end up with a 1.5 m arm.
+      const reach = Math.max(grabbing ? GRAB_REACH : IDLE_REACH, IDLE_REACH + thrust * (PUNCH_REACH - IDLE_REACH));
+      // Punches land where the player is looking. PC and mobile aim with pitch, and without this
+      // every non-VR punch would be a body shot — handing VR the 1.6× head multiplier as a
+      // permanent platform advantage in the two modes built on fighting.
+      // Positive pitch is up — the camera builds its forward vector as `sin(pitch)` on Y — so an
+      // uppercut is a punch thrown while looking up.
+      const aim = thrust > 0 ? Math.sin(player.pitch) * reach : 0;
+      // Both shoulders swing inwards on a thrust: the fist travels to the centre line rather than
+      // out past the opponent's shoulder, which is what a punch thrown at someone looks like.
+      const lateral = 0.32 * (1 - thrust * 0.55);
       v3set(
         _tmp,
-        _right.x * side * 0.32 + _forward.x * reach,
-        player.height * 0.62,
-        _right.z * side * 0.32 + _forward.z * reach,
+        _right.x * side * lateral + _forward.x * reach,
+        player.height * 0.62 + aim,
+        _right.z * side * lateral + _forward.z * reach,
       );
       v3set(hand.world, player.position.x + _tmp.x, player.position.y + _tmp.y, player.position.z + _tmp.z);
       hand.gripHeld = i === LEFT ? grabLeft : grabRight;

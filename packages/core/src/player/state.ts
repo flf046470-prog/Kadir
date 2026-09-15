@@ -37,6 +37,14 @@ export interface HandState {
   anchorMaterial: SurfaceMaterial;
   /** Seconds until this hand may register another punch. */
   punchCooldown: number;
+  /**
+   * Seconds left in a synthesised punch throw, counting down through the extension and back.
+   *
+   * Non-VR only. A VR punch *is* the tracked hand's motion and needs nothing here; on PC and
+   * mobile the punch button has to be turned into an arm that actually moves, because the
+   * combat resolver only ever looks at hand velocity.
+   */
+  punchThrow: number;
 }
 
 export function createHandState(): HandState {
@@ -51,6 +59,7 @@ export function createHandState(): HandState {
     anchorCollider: -1,
     anchorMaterial: 'dirt',
     punchCooldown: 0,
+    punchThrow: 0,
   };
 }
 

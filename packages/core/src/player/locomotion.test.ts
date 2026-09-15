@@ -274,3 +274,149 @@ describe('VR hand physics', () => {
     expect(player.hands[1].anchored).toBe(false);
   });
 });
+
+/**
+ * The punch button, on the two platforms that have one.
+ *
+ * `resolvePunches` decides a punch purely from hand velocity — it has to, because in VR the
+ * tracked hand *is* the punch and there is no button to read. The comment there promised that
+ * "on PC/Mobile the platform layer synthesises a hand thrust when the punch button is pressed",
+ * and nothing anywhere did it: `Buttons.PunchLeft` and `Buttons.PunchRight` were set by the PC and
+ * mobile input layers and read by no one.
+ *
+ * Measured in the real simulation before this existed — two players toe to toe for five seconds,
+ * one holding the punch button — the victim finished on 100.0 of 100 health. Holding *grab*
+ * instead took them to 84.3, because grab is what extends the arm. Melee on two of three platforms
+ * was impossible with the button meant for it and an accident on the climbing button, in a game
+ * with a boxing mode and a mode whose every catch starts a fistfight.
+ */
+describe('the punch button on PC and mobile', () => {
+  function standing(): { player: PlayerState; ctx: LocomotionContext; intent: InputIntent } {
+    const world = testWorld();
+    const ctx = makeContext(world);
+    const player = createPlayerState({ id: 'p', position: vec3(0, 1, 0) });
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    // Settle onto the floor before measuring anything.
+    run(player, ctx, intent, 30);
+    return { player, ctx, intent };
+  }
+
+  /** Fastest the given hand moves relative to the body over `ticks` — what decides a punch. */
+  function peakHandSpeed(player: PlayerState, ctx: LocomotionContext, intent: InputIntent, hand: 0 | 1, ticks: number): number {
+    let peak = 0;
+    for (let i = 0; i < ticks; i++) {
+      ctx.tick++;
+      stepPlayer(player, intent, ctx, DT);
+      const h = player.hands[hand];
+      if (!h) continue;
+      peak = Math.max(
+        peak,
+        Math.hypot(h.velocity.x - player.velocity.x, h.velocity.y - player.velocity.y, h.velocity.z - player.velocity.z),
+      );
+    }
+    return peak;
+  }
+
+  it('throws the hand fast enough to count as a punch', () => {
+    const { player, ctx, intent } = standing();
+    intent.buttons = Buttons.PunchRight;
+    // DEFAULT_COMBAT.punchSpeed is 3.4 m/s; below it the resolver ignores the hand entirely.
+    expect(peakHandSpeed(player, ctx, intent, 1, 30)).toBeGreaterThan(3.4);
+  });
+
+  it('does nothing at all without the button', () => {
+    const { player, ctx, intent } = standing();
+    intent.buttons = 0;
+    expect(peakHandSpeed(player, ctx, intent, 1, 30)).toBeLessThan(3.4);
+  });
+
+  it('throws the hand the button asked for and not the other one', () => {
+    const { player, ctx, intent } = standing();
+    intent.buttons = Buttons.PunchLeft;
+    const left = peakHandSpeed(player, ctx, intent, 0, 30);
+    const { player: p2, ctx: c2, intent: i2 } = standing();
+    i2.buttons = Buttons.PunchLeft;
+    const right = peakHandSpeed(p2, c2, i2, 1, 30);
+    expect(left).toBeGreaterThan(3.4);
+    expect(right).toBeLessThan(3.4);
+  });
+
+  it('reaches further than a held grab, which is what used to be the only melee', () => {
+    const forward = (buttons: number): number => {
+      const { player, ctx, intent } = standing();
+      intent.buttons = buttons;
+      let furthest = 0;
+      for (let i = 0; i < 30; i++) {
+        ctx.tick++;
+        stepPlayer(player, intent, ctx, DT);
+        const h = player.hands[1];
+        if (!h) continue;
+        furthest = Math.max(furthest, Math.hypot(h.world.x - player.position.x, h.world.z - player.position.z));
+      }
+      return furthest;
+    };
+    expect(forward(Buttons.PunchRight)).toBeGreaterThan(forward(Buttons.GrabRight));
+  });
+
+  it('punches where the player is looking, so a non-VR player can aim for the head', () => {
+    /**
+     * Without this every non-VR punch is a body shot, which hands VR the 1.6x head multiplier as a
+     * permanent platform advantage in the two modes built on fighting. Positive pitch is up: the
+     * mouse handler accumulates `pitch - movementY`, and the camera builds its forward vector as
+     * `sin(pitch)` on Y.
+     */
+    // The height of the fist *at full extension* — not the highest it ever gets, which is the
+    // resting pose between throws and is identical whichever way the punch was aimed.
+    const fistHeightAtFullReach = (pitch: number): number => {
+      const { player, ctx, intent } = standing();
+      intent.buttons = Buttons.PunchRight;
+      intent.lookPitch = pitch;
+      let furthest = 0;
+      let height = 0;
+      for (let i = 0; i < 30; i++) {
+        ctx.tick++;
+        stepPlayer(player, intent, ctx, DT);
+        const h = player.hands[1];
+        if (!h) continue;
+        const reach = Math.hypot(h.world.x - player.position.x, h.world.z - player.position.z);
+        if (reach > furthest) {
+          furthest = reach;
+          height = h.world.y - player.position.y;
+        }
+      }
+      return height;
+    };
+    expect(fistHeightAtFullReach(0.7)).toBeGreaterThan(fistHeightAtFullReach(0));
+    expect(fistHeightAtFullReach(-0.7)).toBeLessThan(fistHeightAtFullReach(0));
+  });
+
+  it('leaves a VR player’s tracked hands alone', () => {
+    /**
+     * A headset punches by moving its arm. Synthesising a thrust on top of that would let a VR
+     * player punch with a button *and* their hand, which is both a cross-play fairness problem and
+     * a hand that visibly teleports away from the controller.
+     */
+    const { player, ctx, intent } = standing();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    for (const hand of intent.hands) {
+      hand.tracked = true;
+      hand.pos.x = 0.3;
+      hand.pos.y = 1;
+      hand.pos.z = 0.2;
+    }
+    intent.buttons = Buttons.PunchRight;
+    run(player, ctx, intent, 20);
+    const h = player.hands[1] as NonNullable<(typeof player.hands)[1]>;
+    expect(h.tracked).toBe(true);
+    // No throw is even armed, which matters beyond the pose: a controller is allowed to drop out
+    // mid-press (asleep, or out of the headset's view), and a throw armed while tracked would fire
+    // itself on the frame the hand goes untracked.
+    expect(h.punchThrow).toBe(0);
+    // Still exactly where the controller says it is, 0.2 m in front at the pose given.
+    expect(Math.hypot(h.world.x - player.position.x, h.world.z - player.position.z)).toBeCloseTo(
+      Math.hypot(0.3, 0.2),
+      4,
+    );
+  });
+});

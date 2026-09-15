@@ -513,12 +513,64 @@ describe('aiming', () => {
   });
 
   it('aims upward when the player looks up', () => {
+    /**
+     * Positive pitch is up, and this test used to say the opposite.
+     *
+     * It read `player.pitch = -0.5; // looking up` and asserted `dir.y > 0`, which `aimFrom`
+     * satisfied by negating the sine — two errors that cancelled, so the test passed while every
+     * projectile in the game flew at the mirror image of the player's aim. Measured with the
+     * hunter's rifle at the real convention: looking up at +0.6 rad put the muzzle at y=0.50, below
+     * the shooter's own head at 1.32, and the shot peaked at 0.50 — into the ground. Looking down
+     * launched from 2.14 and peaked at 32.31, into the sky. Only a level shot went where it was
+     * pointed, and The Hunt is built around that rifle.
+     *
+     * Three input paths agree on the convention and none of them is this test: the mouse handler
+     * accumulates `pitch - movementY` (the DOM reports a positive movementY for a downward push),
+     * the gamepad does the same with its stick axis, and both are flipped by the `invertY` setting
+     * — so the un-inverted default has pitch rising as the player looks up.
+     */
     const player = facing('a', 0, 0);
-    player.pitch = -0.5; // looking up
+    player.pitch = 0.5;
     const muzzle = vec3();
     const dir = vec3();
 
     aimFrom(player, muzzle, dir);
     expect(dir.y).toBeGreaterThan(0);
+    // And the muzzle leads the shot, so it clears the shooter's own head rather than starting below it.
+    expect(muzzle.y).toBeGreaterThan(player.head.y);
+  });
+
+  it('aims downward when the player looks down', () => {
+    const player = facing('a', 0, 0);
+    player.pitch = -0.5;
+    const muzzle = vec3();
+    const dir = vec3();
+
+    aimFrom(player, muzzle, dir);
+    expect(dir.y).toBeLessThan(0);
+    expect(muzzle.y).toBeLessThan(player.head.y);
+  });
+
+  it('points exactly where the third-person camera points', () => {
+    /**
+     * The tie-break that stops this drifting again. The camera is the player's only evidence of
+     * where they are aiming, and it builds its forward vector as `sin(pitch)` on Y (GameClient's
+     * `updateCamera`). A gadget that leaves along any other vector is a gadget that does not go
+     * where the crosshair is, whatever either side's sign convention claims to be.
+     */
+    const player = facing('a', 0, 0);
+    const muzzle = vec3();
+    const dir = vec3();
+    for (const pitch of [-1.2, -0.6, -0.1, 0, 0.1, 0.6, 1.2]) {
+      for (const yaw of [0, 1.1, -2.4, Math.PI]) {
+        player.pitch = pitch;
+        player.yaw = yaw;
+        aimFrom(player, muzzle, dir);
+        const cosPitch = Math.cos(pitch);
+        expect(dir.x, `yaw ${yaw} pitch ${pitch}`).toBeCloseTo(Math.sin(yaw) * cosPitch, 5);
+        expect(dir.y, `yaw ${yaw} pitch ${pitch}`).toBeCloseTo(Math.sin(pitch), 5);
+        expect(dir.z, `yaw ${yaw} pitch ${pitch}`).toBeCloseTo(Math.cos(yaw) * cosPitch, 5);
+      }
+    }
   });
 });

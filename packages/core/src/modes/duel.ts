@@ -63,9 +63,22 @@ export class DuelMode extends RoundMode {
     this.bouts = [];
     this.fighterSpecies.clear();
     const players = ctx.rand.shuffle([...activePlayers(ctx)]);
-    // A third start as kangaroos by default: enough pressure to matter, few enough that the
-    // humans have a game. A player-authored config can change the ratio.
-    const kangarooCount = chaserCount(this.def, players.length, 1 / 3);
+    /**
+     * An even split, which is not the ratio the other chasing modes use.
+     *
+     * Everywhere else a third of the room starts as chasers, because being caught there costs you
+     * a few seconds and the population is roughly stable. Here losing a bout *moves* you to the
+     * other side, so the population is a random walk with an absorbing barrier at each end — and
+     * starting at two-versus-four puts the kangaroos two losses from extinction while the humans
+     * are four from it. With evenly matched fighters that is gambler's ruin: measured across six
+     * rounds at the old ratio, the kangaroos won none of them, and five of the six rounds were
+     * over inside a hundred seconds of a three-hundred-second round.
+     *
+     * Three-versus-three makes the walk symmetric, so the round is decided by who fights and
+     * catches better rather than by where it started. A player-authored config can still set any
+     * ratio it likes.
+     */
+    const kangarooCount = chaserCount(this.def, players.length, 1 / 2);
 
     players.forEach((player, index) => {
       this.setSpecies(ctx, player, index < kangarooCount ? 'kangaroo' : 'human');
@@ -101,10 +114,25 @@ export class DuelMode extends RoundMode {
     this.startNewBouts(ctx);
 
     const humans = this.countRole(ctx, HUMAN_ROLE);
-    if (humans === 0 && this.bouts.length === 0 && ctx.players.size > 1) {
-      this.finish(ctx, 'converted');
+    const kangaroos = this.countRole(ctx, KANGAROO_ROLE);
+
+    /**
+     * One species owning everybody ends the round — *either* species.
+     *
+     * Only the humans-wiped-out half of this existed, and the missing half was not a cosmetic
+     * omission: with no kangaroo left alive there is nobody who can catch anyone, so no bout can
+     * start, so nothing can ever convert a player back. It is an absorbing state, and the round
+     * sat in it running down a five-minute clock with literally no gameplay available to anyone.
+     *
+     * Measured over six 300-second rounds before this: the kangaroos were wiped out in four of
+     * them, and those rounds spent 92, 128, 187 and 217 seconds — an average of 104 seconds per
+     * round across all six — in a state where nothing could happen.
+     */
+    if (this.bouts.length === 0 && ctx.players.size > 1 && (humans === 0 || kangaroos === 0)) {
+      this.finish(ctx, humans === 0 ? 'converted' : 'survived');
       return;
     }
+
     if (this.roundTicks % 60 === 0 && this.bouts.length === 0) {
       this.headline = `${humans} human${humans === 1 ? '' : 's'} left`;
     }
@@ -209,11 +237,29 @@ export class DuelMode extends RoundMode {
       }
 
       if (bout.remaining <= 0) {
-        // Decided on health. A dead-even bout goes to the human: they were the one being hunted,
-        // and rewarding the aggressor for stalling would make catching-and-waiting a strategy.
-        const winner = kangaroo.health > human.health ? kangaroo : human;
-        const loser = winner === kangaroo ? human : kangaroo;
-        this.resolveBout(ctx, bout, winner, loser);
+        /**
+         * Decided on health, and a genuinely level bout is a draw.
+         *
+         * This used to hand every tie to the human, on the reasoning that rewarding the aggressor
+         * for stalling would make catching-and-waiting a strategy. The reasoning is right and the
+         * remedy was not: measured across six rounds, the clock decided eleven of forty-seven
+         * bouts and *all eleven* went to the human, while the thirty-six knockouts split exactly
+         * eighteen-all. So the tiebreak was not settling rare dead heats, it was quietly awarding
+         * a quarter of all bouts to one species.
+         *
+         * A draw settles it better than picking a side. Nobody is converted, so a stalemate cannot
+         * move the population, which is exactly what stalling deserves — the kangaroo gains
+         * nothing from catching and waiting, and the human gains nothing from turtling. A human
+         * cannot force a draw alone either: there is no blocking in this game, so a bout ends level
+         * only when neither fighter landed anything.
+         */
+        if (kangaroo.health === human.health) {
+          this.drawBout(ctx, bout, kangaroo, human);
+        } else {
+          const winner = kangaroo.health > human.health ? kangaroo : human;
+          const loser = winner === kangaroo ? human : kangaroo;
+          this.resolveBout(ctx, bout, winner, loser);
+        }
         this.bouts.splice(i, 1);
       }
     }
@@ -245,6 +291,24 @@ export class DuelMode extends RoundMode {
       otherId: winner.id,
       data: `converted:${winnerSpecies}`,
     });
+  }
+
+  /** Nobody went down: both walk out as whatever they walked in as, and the population is unmoved. */
+  private drawBout(ctx: ModeContext, bout: Bout, kangaroo: PlayerState, human: PlayerState): void {
+    for (const fighter of [kangaroo, human]) {
+      this.setSpecies(ctx, fighter, this.fighterSpecies.get(fighter.id) ?? 'human');
+      this.fighterSpecies.delete(fighter.id);
+      fighter.invulnTimer = POST_BOUT_IMMUNITY;
+      fighter.tagCooldown = POST_BOUT_IMMUNITY;
+    }
+    // Credited to the human as an escape: they were the one with something to lose.
+    this.entry(human.id).escapes++;
+    this.headline = `${kangaroo.name} and ${human.name} fight to a draw`;
+    ctx.events.emit('roundState', kangaroo.id, human.position, ctx.tick, 0, {
+      otherId: human.id,
+      data: 'draw',
+    });
+    void bout;
   }
 
   /** Put an abandoned fighter back to the species they entered the bout as. */

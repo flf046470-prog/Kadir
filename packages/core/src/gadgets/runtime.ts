@@ -408,7 +408,17 @@ export function tickStatus(state: PlayerGadgetState, dt: number): void {
  */
 export function aimFrom(player: PlayerState, muzzle: Vec3, dir: Vec3): void {
   const cosPitch = Math.cos(player.pitch);
-  v3set(dir, Math.sin(player.yaw) * cosPitch, -Math.sin(player.pitch), Math.cos(player.yaw) * cosPitch);
+  // +Y for a positive pitch, because positive pitch is *up*: the mouse handler accumulates
+  // `pitch - movementY` (and the browser reports a negative movementY for an upward push), and the
+  // camera builds its own forward vector as `sin(pitch)` on Y.
+  //
+  // This read `-Math.sin(player.pitch)`, so every projectile in the game flew at the mirror image
+  // of the player's aim. Measured with the hunter's rifle: looking up at +0.6 rad put the muzzle at
+  // y=0.50 — below the shooter's own head at 1.32 — and the shot peaked at 0.50, into the ground;
+  // looking down at -0.6 launched from 2.14 and peaked at 32.31, into the sky. Only a perfectly
+  // level shot went where it was pointed. The Hunt is built around that rifle, and the freeze gun,
+  // the net and every thrown gadget aim through this same function.
+  v3set(dir, Math.sin(player.yaw) * cosPitch, Math.sin(player.pitch), Math.cos(player.yaw) * cosPitch);
   v3normalize(dir, dir);
   v3set(
     muzzle,

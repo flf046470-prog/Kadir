@@ -30,10 +30,19 @@ function bringTogether(kangaroo: PlayerState, human: PlayerState): void {
 }
 
 describe('starting a duel round', () => {
-  it('splits the lobby roughly one kangaroo to two humans', () => {
+  it('splits the lobby evenly, unlike every other chasing mode', () => {
+    /**
+     * This used to start two kangaroos against four humans, inheriting the one-in-three ratio the
+     * tag modes use. It is the wrong ratio here, and not by a little: losing a bout moves you to
+     * the other side, so the population is a random walk with an absorbing barrier at each end,
+     * and starting at 2-4 puts the kangaroos two losses from extinction while the humans are four
+     * from it. Measured over six full rounds of bots at the old ratio, the kangaroos won none of
+     * them and five rounds were over inside a hundred seconds of a three-hundred-second round.
+     * At an even split the same measurement gives 7 of 12 to the kangaroos.
+     */
     const sim = startedDuel(6);
-    expect(byRole(sim, 'chaser')).toHaveLength(2);
-    expect(byRole(sim, 'runner')).toHaveLength(4);
+    expect(byRole(sim, 'chaser')).toHaveLength(3);
+    expect(byRole(sim, 'runner')).toHaveLength(3);
   });
 
   it('always deals at least one kangaroo, even in a two-player room', () => {
@@ -169,7 +178,18 @@ describe('winning a bout', () => {
     expect(human.animalId).toBe('kangaroo');
   });
 
-  it('gives a dead-even bout to the human, so stalling a catch does not pay', () => {
+  it('calls a dead-even bout a draw, converting nobody', () => {
+    /**
+     * The tie used to be awarded to the human, so that catching-and-waiting could not be a
+     * strategy. Right instinct, wrong remedy: measured across six rounds of bots, the clock decided
+     * eleven of forty-seven bouts and *every one* of those eleven went to the human, while the
+     * thirty-six knockouts split exactly eighteen-all. The tiebreak was not settling rare dead
+     * heats — it was handing a quarter of all bouts to one species, and with the absorbing barrier
+     * above it cost the kangaroos every round.
+     *
+     * A draw removes the bias without rewarding the staller: an unmoved population is exactly what
+     * a fight nobody won should produce.
+     */
     const sim = startedDuel(6);
     const { kangaroo, human } = boutOf(sim);
     human.health = 100;
@@ -178,8 +198,26 @@ describe('winning a bout', () => {
     sim.stepMany(Math.ceil(21 / TICK_DT));
 
     expect(human.role).toBe('runner');
-    expect(kangaroo.role).toBe('runner');
-    expect(kangaroo.animalId).toBe('human');
+    expect(human.animalId).toBe('human');
+    // The kangaroo walks out a kangaroo — nobody was converted in either direction.
+    expect(kangaroo.role).toBe('chaser');
+    expect(kangaroo.animalId).toBe('kangaroo');
+    // And both get the post-bout immunity, so the draw does not simply restart itself.
+    expect(human.invulnTimer).toBeGreaterThan(0);
+    expect(kangaroo.invulnTimer).toBeGreaterThan(0);
+  });
+
+  it('still converts on a clock decision when one fighter is ahead', () => {
+    // The draw must not swallow ordinary decisions: a single point of health still settles it.
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+    human.health = 99;
+    kangaroo.health = 100;
+
+    sim.stepMany(Math.ceil(21 / TICK_DT));
+
+    expect(human.role).toBe('chaser');
+    expect(human.animalId).toBe('kangaroo');
   });
 
   it('never leaves a fighter stranded when their opponent disconnects', () => {
@@ -260,6 +298,33 @@ describe('ending a duel round', () => {
     expect(sim.finished()).toBe(true);
   });
 
+  it('ends early when the kangaroos are the ones wiped out', () => {
+    /**
+     * Only the other half of this existed, and the gap was not cosmetic. With no kangaroo left
+     * alive nobody can catch anyone, so no bout can start, so nothing can convert a player back:
+     * it is an absorbing state, and the round sat in it running down a five-minute clock with no
+     * gameplay available to anyone. Measured over six rounds of bots before the fix, the kangaroos
+     * were wiped out in four of them, and those rounds spent 92, 128, 187 and 217 seconds in a
+     * state where nothing could happen — 104 seconds per round averaged over all six.
+     */
+    const sim = startedDuel(3);
+    for (const player of sim.players.values()) {
+      player.role = 'runner';
+      player.animalId = 'human';
+    }
+    sim.stepMany(2);
+    expect(sim.finished()).toBe(true);
+    expect(sim.results().winnerIds.toSorted()).toEqual([...sim.players.keys()].toSorted());
+  });
+
+  it('does not end a round that still has both species standing', () => {
+    // The guard the two tests above would pass just as happily if the round simply ended on tick
+    // two regardless of who was left.
+    const sim = startedDuel(6);
+    sim.stepMany(120);
+    expect(sim.finished()).toBe(false);
+  });
+
   it('gives the round to whichever species is larger at the bell', () => {
     const sim = startedDuel(6);
     sim.endRound('time');
@@ -302,8 +367,8 @@ describe('what a duel publishes to the HUD', () => {
     const sim = startedDuel(6);
     const tally = sim.mode.state().tally;
     expect(tally).toBeDefined();
-    expect(tally?.chaser).toBe(2);
-    expect(tally?.runner).toBe(4);
+    expect(tally?.chaser).toBe(3);
+    expect(tally?.runner).toBe(3);
     expect(tally?.fighter).toBe(0);
     // Everyone is accounted for; a player who fell out of the tally is a player the scoreboard
     // silently stops representing.
@@ -317,8 +382,10 @@ describe('what a duel publishes to the HUD', () => {
 
     const tally = sim.mode.state().tally;
     expect(tally?.fighter).toBe(2);
-    expect(tally?.chaser).toBe(1);
-    expect(tally?.runner).toBe(3);
+    expect(tally?.chaser).toBe(2);
+    expect(tally?.runner).toBe(2);
+    // The two in the ring left their species; nobody was lost on the way.
+    expect((tally?.chaser ?? 0) + (tally?.runner ?? 0) + (tally?.fighter ?? 0)).toBe(6);
   });
 
   it('publishes the bout with both names and a clock', () => {
