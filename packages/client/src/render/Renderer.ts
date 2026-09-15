@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { LevelDef, QualityTier, Settings } from '@kc/core';
+import { profileFor } from '../platform/Platform.js';
 import type { PerformanceProfile, PlatformKind } from '../platform/Platform.js';
 import { isDemotion, nextTier } from './governor.js';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -130,6 +131,8 @@ export class Renderer {
   private bloom: UnrealBloomPass | null = null;
 
   private profile: PerformanceProfile;
+  /** Kept so a settings change can recompute the profile — `profileFor` needs the platform. */
+  private readonly platform: PlatformKind;
   private pixelRatio: number;
   private container: HTMLElement;
   private frameTimes: number[] = [];
@@ -145,6 +148,7 @@ export class Renderer {
   constructor(options: RendererOptions) {
     this.container = options.container;
     this.profile = options.profile;
+    this.platform = options.platform;
     this.pixelRatio = options.pixelRatio;
 
     this.renderer = new THREE.WebGLRenderer({
@@ -359,12 +363,33 @@ export class Renderer {
     return this.currentTier;
   }
 
+  /** The profile in force right now, which is not the one the caller was constructed with. */
+  get currentProfile(): PerformanceProfile {
+    return this.profile;
+  }
+
   setGovernorEnabled(enabled: boolean): void {
     this.governorEnabled = enabled;
   }
 
+  /**
+   * Apply a settings change to what is actually rendered.
+   *
+   * This used to set one boolean and stop, which meant every graphics setting on the Settings
+   * screen was inert. `profileFor` reads shadows, post-processing, render scale, draw distance,
+   * detailed players and target FPS out of the settings — and nothing recomputed the profile when
+   * they changed. A player turning shadows off to claw back frame rate saw the toggle move and
+   * nothing else, until the governor happened to change tier for its own reasons and quietly
+   * applied their choice minutes later.
+   *
+   * With `quality: 'auto'` the governor still owns the tier, so the current one is kept and only
+   * the explicit settings are re-applied over it. With a tier chosen by hand that tier wins and
+   * the governor is off.
+   */
   applySettings(settings: Settings): void {
     this.governorEnabled = settings.graphics.quality === 'auto';
+    const tier = settings.graphics.quality === 'auto' ? this.currentTier : settings.graphics.quality;
+    this.setProfile(profileFor(this.platform, tier, settings), tier);
   }
 
   /**

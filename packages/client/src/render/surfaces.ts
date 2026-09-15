@@ -140,11 +140,18 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
          // transpose is enough here: every collider is a box, sphere or cylinder scaled along the
          // same axes its faces point down, so the direction survives and the normalize fixes the
          // length.
+         vec3 triRawN = mat3( modelMatrix ) * objectNormal;
          #ifdef USE_INSTANCING
-           vTriNormal = normalize( mat3( modelMatrix ) * mat3( instanceMatrix ) * objectNormal );
-         #else
-           vTriNormal = normalize( mat3( modelMatrix ) * objectNormal );
-         #endif`,
+           triRawN = mat3( modelMatrix ) * mat3( instanceMatrix ) * objectNormal;
+         #endif
+         // Guarded, because some geometry genuinely has no normals. The authored props ship without
+         // a normal attribute on purpose — the glTF spec makes a renderer compute flat ones when it
+         // is absent, and dropping them is a third of the file. objectNormal is then zero, and
+         // normalizing a zero vector in GLSL is NaN: NaN weights, NaN samples, and every palm and
+         // bush in the world rendered as a black silhouette. Found by driving the real game, not
+         // the lab, because the lab has no props with authored models in it.
+         float triRawLen = length( triRawN );
+         vTriNormal = triRawLen > 1e-4 ? triRawN / triRawLen : vec3( 0.0, 1.0, 0.0 );`,
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -159,7 +166,11 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
            // Power 4 keeps each face dominant across most of its area and confines the blend to a
            // narrow band at the corner; lower powers wash the whole surface into a triple average.
            vec3 w = pow( abs( vTriNormal ), vec3( 4.0 ) );
-           return w / max( w.x + w.y + w.z, 1e-4 );
+           float sum = w.x + w.y + w.z;
+           // A second guard behind the one in the vertex shader. A single NaN here propagates
+           // through every sample and turns the surface black, which is a long way from the small
+           // shading error a degenerate normal should cost.
+           return sum > 1e-4 ? w / sum : vec3( 0.0, 1.0, 0.0 );
          }
 
          vec4 triSample( sampler2D tex, vec3 w, float scale ) {
@@ -316,7 +327,18 @@ export function createSurfaceMaterial(
     ...(options.detailOnly ? {} : { map: textures.map }),
     roughnessMap: textures.ormMap,
     metalnessMap: textures.ormMap,
-    aoMap: textures.ormMap,
+    // Ambient occlusion is attached only where the geometry can carry it.
+    //
+    // three.js reads `aoMap` through a *second* UV set, and the authored props have no UV set at
+    // all — they ship as POSITION and COLOR_0 only, because dropping normals and texture
+    // coordinates is what makes them 33 KB. With no attribute to read, the occlusion sample comes
+    // back as zero, and occlusion multiplies indirect light: environment and hemisphere are almost
+    // all the light a prop receives, so every palm, fern and bush in the world rendered as a black
+    // silhouette.
+    //
+    // Losing it costs a prop very little. Micro-occlusion is a surface detail on a 3 m palm frond
+    // seen from ten metres, and the roughness that shapes how it catches the sky is kept.
+    ...(options.detailOnly ? {} : { aoMap: textures.ormMap }),
     roughness: 1,
     metalness: 1,
     ...(quality.normalMap ? { normalMap: textures.normalMap } : {}),
@@ -329,6 +351,27 @@ export function createSurfaceMaterial(
     applyTriplanar(standard, TILE_METRES[material] ?? 3, quality.normalMap && !options.detailOnly);
   }
   return standard;
+}
+
+/**
+ * Does a profile change invalidate the world that was already built?
+ *
+ * Only three things are baked into `LevelRenderer`'s meshes at construction: the texture tier
+ * (derived from shadows and shadow-map size), the foliage budget, which fixes the instance counts,
+ * and whether the instances cast shadows. Everything else a profile carries — render scale, draw
+ * distance, post-processing, detailed players, target FPS — the renderer applies live.
+ *
+ * The distinction is load-bearing rather than tidy. The settings sliders fire on every `input`
+ * event, which is continuously while a thumb is dragged, so a rebuild on any profile change would
+ * regenerate every texture and every instanced mesh dozens of times a second for a render-scale
+ * slider that touches no geometry at all.
+ */
+export function worldNeedsRebuild(built: PerformanceProfile, next: PerformanceProfile): boolean {
+  return (
+    built.shadows !== next.shadows ||
+    built.shadowMapSize !== next.shadowMapSize ||
+    built.foliageBudget !== next.foliageBudget
+  );
 }
 
 /** The world size of one tile for a material, exposed for tests and for prop materials. */

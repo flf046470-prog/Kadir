@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
 
-import { createSurfaceMaterial, surfaceQualityFor, tileMetres } from './surfaces.js';
+import { createSurfaceMaterial, surfaceQualityFor, tileMetres, worldNeedsRebuild } from './surfaces.js';
 import { profileFor } from '../platform/Platform.js';
 import { DEFAULT_SETTINGS } from '@kc/core';
 
@@ -120,6 +120,51 @@ describe('surface quality tiers', () => {
     for (const material of ['dirt', 'rock', 'wood', 'foliage', 'water', 'metal', 'sand', 'stone', 'ice', 'snow'] as const) {
       expect(tileMetres(material), material).toBeGreaterThan(0);
       expect(tileMetres(material), material).toBeLessThan(20);
+    }
+  });
+
+  it('rebuilds the world only for the settings baked into its meshes', () => {
+    /**
+     * Every graphics setting on the Settings screen used to be inert. `profileFor` reads shadows,
+     * post-processing, render scale, draw distance, detailed players and target FPS out of the
+     * settings, and `Renderer.applySettings` set one boolean and stopped — nothing recomputed the
+     * profile. A player turning shadows off to claw back frame rate saw the toggle move and nothing
+     * else, until the governor changed tier for its own reasons and quietly applied their choice
+     * minutes later.
+     *
+     * Making settings apply immediately then raised the opposite risk, which is what this guards.
+     * The sliders fire on every `input` event — continuously while a thumb is dragged — so a
+     * rebuild on any profile change would regenerate every texture and every instanced mesh dozens
+     * of times a second for a slider that touches no geometry.
+     */
+    const base = profileFor('pc', 'high', DEFAULT_SETTINGS);
+
+    expect(worldNeedsRebuild(base, base)).toBe(false);
+
+    // Live: the renderer applies these itself, and none of them is baked into a mesh.
+    expect(worldNeedsRebuild(base, { ...base, renderScale: 0.6 })).toBe(false);
+    expect(worldNeedsRebuild(base, { ...base, drawDistance: 80 })).toBe(false);
+    expect(worldNeedsRebuild(base, { ...base, postProcessing: false })).toBe(false);
+    expect(worldNeedsRebuild(base, { ...base, targetFps: 60 })).toBe(false);
+    expect(worldNeedsRebuild(base, { ...base, maxDetailedPlayers: 4 })).toBe(false);
+
+    // Baked in: shadow casting is set per instance, the foliage budget fixes instance counts, and
+    // the shadow-map size decides the texture tier.
+    expect(worldNeedsRebuild(base, { ...base, shadows: false })).toBe(true);
+    expect(worldNeedsRebuild(base, { ...base, shadowMapSize: 1024 })).toBe(true);
+    expect(worldNeedsRebuild(base, { ...base, foliageBudget: 60 })).toBe(true);
+  });
+
+  it('rebuilds whenever the texture tier would change', () => {
+    // The two have to agree: a profile pair that `surfaceQualityFor` maps to different tiers must
+    // be a pair that forces a rebuild, or the world keeps textures the current tier never asked
+    // for. Checked as a relationship rather than restating the field list, so the two cannot drift.
+    const tiers = (['low', 'medium', 'high'] as const).map((t) => profileFor('pc', t, DEFAULT_SETTINGS));
+    for (const a of tiers) {
+      for (const b of tiers) {
+        const differs = JSON.stringify(surfaceQualityFor(a)) !== JSON.stringify(surfaceQualityFor(b));
+        if (differs) expect(worldNeedsRebuild(a, b), `${a.shadowMapSize} vs ${b.shadowMapSize}`).toBe(true);
+      }
     }
   });
 

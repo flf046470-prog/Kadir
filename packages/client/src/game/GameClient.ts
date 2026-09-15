@@ -35,6 +35,7 @@ import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { Renderer } from '../render/Renderer.js';
+import { worldNeedsRebuild } from '../render/surfaces.js';
 import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js';
 
 export interface GameCallbacks {
@@ -91,6 +92,8 @@ export class GameClient {
 
   private level: LevelDef;
   private levelRenderer: LevelRenderer;
+  /** The profile the world was built with, so a settings change knows whether it is stale. */
+  private levelRendererProfile: PerformanceProfile;
   private sim: Simulation;
   private input: PlatformInput;
   private settings: Settings;
@@ -160,7 +163,8 @@ export class GameClient {
     this.tuning = options.tuning;
 
     this.level = buildJungleWorld();
-    this.levelRenderer = new LevelRenderer(this.level, options.profileForQuality, this.assets);
+    this.levelRendererProfile = options.profileForQuality;
+    this.levelRenderer = new LevelRenderer(this.level, this.levelRendererProfile, this.assets);
     this.renderer.scene.add(this.levelRenderer.group);
     this.renderer.applyLevel(this.level);
 
@@ -325,6 +329,33 @@ export class GameClient {
     this.settings = settings;
     this.audio.applySettings(settings);
     this.renderer.applySettings(settings);
+    this.rebuildLevelRendererIfStale();
+  }
+
+  /**
+   * Rebuild the world only when a setting changed something that is baked into its meshes.
+   *
+   * The texture tier, the foliage budget and the shadow-casting flags are all decided when
+   * `LevelRenderer` is constructed, so a settings change that alters any of them leaves the world
+   * built for the old ones. Everything else — render scale, draw distance, post-processing — the
+   * renderer applies live and needs nothing here.
+   *
+   * The comparison matters as much as the rebuild. The settings sliders fire on every `input`
+   * event, which is continuously while a thumb is dragged; rebuilding unconditionally would
+   * regenerate every texture and every instanced mesh dozens of times a second for a render-scale
+   * slider that does not touch geometry at all.
+   */
+  private rebuildLevelRendererIfStale(): void {
+    if (!worldNeedsRebuild(this.levelRendererProfile, this.renderer.currentProfile)) return;
+    this.rebuildLevelRenderer();
+  }
+
+  private rebuildLevelRenderer(): void {
+    this.levelRenderer.dispose();
+    this.renderer.scene.remove(this.levelRenderer.group);
+    this.levelRendererProfile = this.renderer.currentProfile;
+    this.levelRenderer = new LevelRenderer(this.level, this.levelRendererProfile, this.assets);
+    this.renderer.scene.add(this.levelRenderer.group);
   }
 
   /** Solo practice: the same simulation, filled with bots, no socket required. */
@@ -547,12 +578,12 @@ export class GameClient {
   private useLevel(levelId: string): void {
     if (!levelId || levelId === this.level.id) return;
 
-    this.levelRenderer.dispose();
-    this.renderer.scene.remove(this.levelRenderer.group);
-
     this.level = buildLevel(levelId);
-    this.levelRenderer = new LevelRenderer(this.level, this.options.profileForQuality, this.assets);
-    this.renderer.scene.add(this.levelRenderer.group);
+    // Built against the *current* profile rather than the one captured at construction. The old
+    // code passed `options.profileForQuality`, which is a snapshot from start-up, so a player who
+    // had changed quality — or whose governor had dropped a tier — got the new map at the settings
+    // they were using when the game booted.
+    this.rebuildLevelRenderer();
     this.renderer.applyLevel(this.level);
     // The old map's zone is meaningless in the new one, and `updateZone` only acts on a change.
     this.darkness = 0;
