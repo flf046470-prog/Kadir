@@ -128,6 +128,8 @@ export class Renderer {
     this.rig.add(this.camera);
     this.scene.add(this.rig);
 
+    // Ground colour is a placeholder until `applyLevel` reads the level's own — 0x3d5232 is the
+    // jungle floor, and it was the bounce light on every map until levels got to choose.
     const hemi = new THREE.HemisphereLight(0xbfe6ff, 0x3d5232, HEMI_BASE);
     this.scene.add(hemi);
     this.hemi = hemi;
@@ -161,6 +163,21 @@ export class Renderer {
     // frame would darken the *previous* frame's values and the world would fade to black.
     this.baseFogDensity = level.fogDensity;
     this.baseSkyColor.set(level.skyColor);
+
+    // The bounce light. `LevelDef.ambientColor` is declared by every level — the jungle's forest
+    // 0x4c6b3f, the glacier's cold 0x6d8ba8 — and nothing had ever read it, so the hemisphere's
+    // lower colour stayed fixed at the jungle floor green for every map.
+    //
+    // Only the ground half is bound. Rebinding the sky half to `level.skyColor` was tried first
+    // and measured: it moved the glacier *away* from blue, because the hand-picked 0xbfe6ff is a
+    // more saturated tint than the pale sky the map wants behind its horizon. `skyColor` already
+    // has two jobs — background and fog — and a third that fights them is not an improvement.
+    //
+    // Worth knowing how small this is. `groundColor` lights surfaces facing *downward*, and a map
+    // of floors seen from above has almost none, so the honest delta here is a percent or two on
+    // undersides and overhangs. It is correct rather than dramatic: a declared field that nothing
+    // read now reads, and a map that wants cold bounce light gets it.
+    if (this.hemi) this.hemi.groundColor.set(level.ambientColor);
     this.darkness = 0;
     this.setDarkness(0);
   }
