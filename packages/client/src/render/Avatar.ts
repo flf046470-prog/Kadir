@@ -387,8 +387,17 @@ export class Avatar {
     this.currentClip = name;
   }
 
-  private mat(color: number, options: THREE.MeshLambertMaterialParameters = {}): THREE.MeshLambertMaterial {
-    const material = new THREE.MeshLambertMaterial({ color, flatShading: true, ...options });
+  /**
+   * One body material.
+   *
+   * Standard rather than lambert so an avatar sits in the same lighting as the world around it.
+   * With the scene lit by an environment map, a lambert body receives none of it and reads as a
+   * cut-out pasted over the picture — the mismatch is far more obvious than the flat shading was.
+   *
+   * Rough and non-metallic: fur and hide, with just enough specular response to catch the sky.
+   */
+  private mat(color: number, options: THREE.MeshStandardMaterialParameters = {}): THREE.MeshStandardMaterial {
+    const material = new THREE.MeshStandardMaterial({ color, flatShading: true, roughness: 0.82, metalness: 0, ...options });
     this.materials.push(material);
     return material;
   }
@@ -826,7 +835,7 @@ export class Avatar {
   /** Role colour ring on the ground — how you spot the chaser across a canyon. */
   setRole(role: string): void {
     if (!this.roleRing) return;
-    const material = this.roleRing.material as THREE.MeshLambertMaterial;
+    const material = this.roleRing.material as THREE.MeshStandardMaterial;
     switch (role) {
       case 'chaser':
       case 'infected':

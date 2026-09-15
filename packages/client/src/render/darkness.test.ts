@@ -33,6 +33,30 @@ describe('darknessValues', () => {
     expect(v.sunIntensity).toBeLessThan(1.9 * 0.6);
   });
 
+  it('dims the environment map along with the lights', () => {
+    /**
+     * Image-based lighting puts light on every surface from every direction, and it arrives through
+     * `scene.environment` rather than through a light object — so nothing in the original darkness
+     * curve touched it. The first build with IBL therefore turned the cave back into an evenly lit
+     * room while every test here still passed, because the feature had been silently bypassed
+     * rather than broken.
+     *
+     * Anything that puts light into the scene has to dim with the rest of it. The floor is not zero
+     * because the environment is what gives a smooth surface something to reflect: an ice column
+     * with no indirect light at all goes matte black and loses its shape.
+     */
+    expect(darknessValues(0, BASE_FOG).envIntensity).toBe(1);
+    expect(darknessValues(0.05, BASE_FOG).envIntensity).toBeGreaterThan(0.99);
+
+    const cave = darknessValues(0.75, BASE_FOG).envIntensity;
+    expect(cave).toBeLessThan(0.3);
+    expect(cave).toBeGreaterThan(0);
+
+    const full = darknessValues(1, BASE_FOG).envIntensity;
+    expect(full).toBeGreaterThan(0.05);
+    expect(full).toBeLessThan(0.15);
+  });
+
   it('leaves a barely-enclosed zone alone', () => {
     /**
      * The jungle declares 0.05 and the glacier shelf 0.04, both meaning "open air, technically
@@ -98,6 +122,7 @@ describe('darknessValues', () => {
       // the last step of the ramp leaves them exactly where they were rather than dimming further.
       expect(next.hemiIntensity).toBeLessThanOrEqual(previous.hemiIntensity);
       expect(next.sunIntensity).toBeLessThanOrEqual(previous.sunIntensity);
+      expect(next.envIntensity).toBeLessThanOrEqual(previous.envIntensity);
       previous = next;
     }
     // …and over the range as a whole they really do fall, so "non-increasing" cannot be satisfied

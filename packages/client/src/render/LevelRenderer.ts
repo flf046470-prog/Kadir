@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Collider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
+import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
 import type { AssetLibrary } from './AssetLibrary.js';
 
@@ -42,6 +43,30 @@ const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
 };
 
 const PROP_TINTS = [0x3f8f4a, 0x2f7a3c, 0x57a05a, 0x76b06a];
+
+/**
+ * Which surface's detail a prop borrows.
+ *
+ * Only the normal, roughness and occlusion are taken — never the albedo — because a prop carries
+ * its own colour per instance and multiplying two greens together darkens every leaf in the world.
+ * So this is a question about *surface*, not about hue: a crystal wants ice's polish and its
+ * cracks, a log wants wood's grain, a stalagmite wants rock's creases.
+ */
+const PROP_SURFACES: Record<string, SurfaceMaterial> = {
+  tree: 'foliage',
+  palm: 'foliage',
+  bush: 'foliage',
+  vine: 'foliage',
+  flower: 'foliage',
+  mushroom: 'foliage',
+  rock: 'rock',
+  boulder: 'rock',
+  stalagmite: 'stone',
+  log: 'wood',
+  banner: 'wood',
+  torch: 'wood',
+  crystal: 'ice',
+};
 
 /**
  * Builds the visible world from a `LevelDef`.
@@ -106,7 +131,9 @@ export class LevelRenderer {
      * from whichever material covers the most ground and darkened, so a distant plain always
      * belongs to the map in front of it.
      */
-    const material = new THREE.MeshLambertMaterial({ color: this.backdropColor() });
+    // Standard like everything else, and rough: the backdrop is a distant plain seen through fog,
+    // so a specular response on it would put a sheen on the horizon.
+    const material = new THREE.MeshStandardMaterial({ color: this.backdropColor(), roughness: 1, metalness: 0 });
     const plane = new THREE.Mesh(geometry, material);
     plane.rotation.x = -Math.PI / 2;
     plane.position.y = lowest - 14;
@@ -181,7 +208,12 @@ export class LevelRenderer {
       // for exactly that case, but this material is built here rather than by the loader, so
       // nothing had set it: the shader got no normals, Lambert returned no diffuse light, and
       // every bush and fern in the world rendered solid black.
-      const material = new THREE.MeshLambertMaterial({ vertexColors: true, color: 0xffffff, flatShading: true });
+      const material = createSurfaceMaterial(PROP_SURFACES[kind] ?? 'foliage', surfaceQualityFor(this.profile), {
+        color: 0xffffff,
+        vertexColors: true,
+        detailOnly: true,
+        flatShading: true,
+      });
       this.disposables.push(material);
 
       const perVariant: PropInstance[][] = usable.map(() => []);
@@ -239,13 +271,20 @@ export class LevelRenderer {
     return byKind;
   }
 
+  /**
+   * The material for one surface kind.
+   *
+   * `MATERIAL_COLORS` survives as the tint and as the whole appearance on the lowest tier, where
+   * textures are skipped entirely — a device that cannot afford a shadow map is not handed a
+   * triplanar shader either. Everywhere else the colour is carried by the generated albedo and this
+   * value only shades it.
+   */
   private material(material: SurfaceMaterial): THREE.Material {
     const color = MATERIAL_COLORS[material] ?? 0x888888;
     const isWater = material === 'water';
-    const mat = new THREE.MeshLambertMaterial({
+    const mat = createSurfaceMaterial(material, surfaceQualityFor(this.profile), {
       color,
-      transparent: isWater,
-      opacity: isWater ? 0.72 : 1,
+      ...(isWater ? { transparent: true, opacity: 0.72 } : {}),
       flatShading: true,
     });
     this.disposables.push(mat);
@@ -311,7 +350,13 @@ export class LevelRenderer {
       if (!geometry) continue;
       this.disposables.push(geometry);
       const budget = Math.min(props.length, this.profile.foliageBudget);
-      const material = new THREE.MeshLambertMaterial({ flatShading: true, vertexColors: false, color: 0xffffff });
+      // White, because `instanceColor` below carries each prop's own tint and three.js multiplies
+      // it into the diffuse term.
+      const material = createSurfaceMaterial(PROP_SURFACES[kind] ?? 'foliage', surfaceQualityFor(this.profile), {
+        color: 0xffffff,
+        detailOnly: true,
+        flatShading: true,
+      });
       this.disposables.push(material);
       const mesh = new THREE.InstancedMesh(geometry, material, budget);
       mesh.castShadow = this.profile.shadows && kind !== 'flower' && kind !== 'bush';

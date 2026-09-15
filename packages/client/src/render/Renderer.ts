@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { LevelDef, QualityTier, Settings } from '@kc/core';
 import type { PerformanceProfile, PlatformKind } from '../platform/Platform.js';
 import { isDemotion, nextTier } from './governor.js';
+import { buildSkyEnvironment } from './sky.js';
 
 export interface RendererOptions {
   container: HTMLElement;
@@ -20,6 +21,15 @@ export interface DarknessValues {
   fogDensity: number;
   hemiIntensity: number;
   sunIntensity: number;
+  /**
+   * How much of the environment map's indirect light survives.
+   *
+   * Added when image-based lighting arrived, and not optional: `scene.environment` lights every
+   * surface from every direction and `setDarkness` did not control it, so the first build with IBL
+   * turned the cave back into an evenly lit room and silently undid the darkness work. Anything
+   * that puts light into the scene has to dim with the rest of it.
+   */
+  envIntensity: number;
 }
 
 /**
@@ -56,6 +66,14 @@ export interface DarknessValues {
  */
 const SUN_FLOOR = 0.32;
 const HEMI_FLOOR = 0.18;
+/**
+ * The environment keeps a tenth of its strength underground.
+ *
+ * Not zero, because the environment is what gives a smooth surface anything to reflect: an ice
+ * column in an unlit crevasse with no indirect light at all goes matte black and loses its shape
+ * entirely, which is worse than being a little brighter than a real cave would be.
+ */
+const ENV_FLOOR = 0.1;
 
 export function darknessValues(darkness: number, baseFogDensity: number): DarknessValues {
   const amount = Number.isFinite(darkness) ? Math.max(0, Math.min(1, darkness)) : 0;
@@ -66,6 +84,7 @@ export function darknessValues(darkness: number, baseFogDensity: number): Darkne
     fogDensity: baseFogDensity * (1 + t * 5.5),
     hemiIntensity: HEMI_BASE * Math.max(HEMI_FLOOR, 1 - t * 0.88),
     sunIntensity: SUN_BASE * Math.max(SUN_FLOOR, 1 - t * 0.7),
+    envIntensity: Math.max(ENV_FLOOR, 1 - t * 0.9),
   };
 }
 
@@ -90,6 +109,13 @@ export class Renderer {
   /** Scratch for the sRGB components of the sky, so `setDarkness` allocates nothing per frame. */
   private skyRgb = { r: 1, g: 1, b: 1 };
   private darkness = 0;
+  /**
+   * The level's image-based lighting, rebuilt per level and disposed with the old one.
+   *
+   * Held rather than left on the scene alone because it is a render target of a few megabytes and
+   * a session that visits both maps repeatedly would otherwise accumulate one per visit.
+   */
+  private environment: THREE.Texture | null = null;
 
   private profile: PerformanceProfile;
   private pixelRatio: number;
@@ -116,6 +142,14 @@ export class Renderer {
       stencil: false,
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    // ACES filmic, replacing three.js's default of no tone mapping at all.
+    //
+    // Without it, anything brighter than white is clipped flat — which is most of a snowfield lit
+    // by a sun and an environment — so highlights lose all their shape and the picture reads as
+    // washed out rather than bright. ACES rolls those values off instead, and it is the curve the
+    // rest of the industry grades against, so colours chosen here look the same elsewhere.
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
     this.renderer.setPixelRatio(this.pixelRatio * options.profile.renderScale);
     this.renderer.setSize(options.container.clientWidth || 1, options.container.clientHeight || 1, false);
     this.renderer.shadowMap.enabled = options.profile.shadows;
@@ -178,6 +212,22 @@ export class Renderer {
     // undersides and overhangs. It is correct rather than dramatic: a declared field that nothing
     // read now reads, and a map that wants cold bounce light gets it.
     if (this.hemi) this.hemi.groundColor.set(level.ambientColor);
+
+    // Image-based lighting, built from this level's own sky and ground rather than a downloaded
+    // HDRI. It is what makes a `MeshStandardMaterial` worth having: with nothing to reflect, a
+    // standard material is *flatter* than the lambert one it replaces, because it has a specular
+    // term and no light to put in it. Ice is the worst case and half the glacier is ice.
+    //
+    // The sun direction is taken from the directional light rather than restated, so a highlight
+    // in a reflection always agrees with the direction the shadows fall.
+    this.environment?.dispose();
+    this.environment = buildSkyEnvironment(this.renderer, {
+      skyColor: level.skyColor,
+      groundColor: level.ambientColor,
+      sunDirection: this.sun.position.clone().normalize(),
+    });
+    this.scene.environment = this.environment;
+
     this.darkness = 0;
     this.setDarkness(0);
   }
@@ -222,6 +272,10 @@ export class Renderer {
 
     if (this.hemi) this.hemi.intensity = values.hemiIntensity;
     this.sun.intensity = values.sunIntensity;
+    // The environment lights every surface from every direction, so it has to dim with the rest or
+    // a cave is simply a room with thicker fog. Missing this is how the first build with IBL threw
+    // away the whole darkness feature without changing a line of it.
+    this.scene.environmentIntensity = values.envIntensity;
   }
 
   get currentDarkness(): number {
