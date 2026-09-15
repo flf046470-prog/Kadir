@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import type { LevelDef, QualityTier, Settings } from '@kc/core';
 import type { PerformanceProfile, PlatformKind } from '../platform/Platform.js';
 import { isDemotion, nextTier } from './governor.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { buildSkyEnvironment } from './sky.js';
 
 export interface RendererOptions {
@@ -116,6 +120,14 @@ export class Renderer {
    * a session that visits both maps repeatedly would otherwise accumulate one per visit.
    */
   private environment: THREE.Texture | null = null;
+  /**
+   * The post-processing chain, or null when the profile does not want one.
+   *
+   * `Settings.postProcessing` has existed since the settings screen did — offered as a toggle, set
+   * true on the high profile — and had no consumer anywhere in the codebase. It switched nothing.
+   */
+  private composer: EffectComposer | null = null;
+  private bloom: UnrealBloomPass | null = null;
 
   private profile: PerformanceProfile;
   private pixelRatio: number;
@@ -184,7 +196,51 @@ export class Renderer {
     this.scene.add(this.sun.target);
 
     globalThis.addEventListener('resize', this.onResize);
+    this.buildComposer();
     this.onResize();
+  }
+
+  /**
+   * Build or tear down the post-processing chain for the current profile.
+   *
+   * Never runs in VR, and the profile enforces that rather than this code trusting itself to: an
+   * `EffectComposer` renders the scene into its own target, and WebXR owns the render target per
+   * eye, so a composer in a headset renders one eye's worth of the wrong thing. `profileFor` sets
+   * `postProcessing = false` for the VR platform outright.
+   *
+   * Tone mapping moves to `OutputPass` here, and is not applied twice: three.js only tone-maps when
+   * the destination is the canvas or an XR target, so rendering into the composer's buffer skips
+   * it and the final pass performs it once, reading the same `renderer.toneMapping` set in the
+   * constructor.
+   */
+  private buildComposer(): void {
+    this.composer?.dispose();
+    this.composer = null;
+    this.bloom = null;
+    if (!this.profile.postProcessing) return;
+
+    const composer = new EffectComposer(this.renderer);
+    composer.addPass(new RenderPass(this.scene, this.camera));
+
+    /**
+     * Bloom, thresholded above what a *diffuse* surface can produce.
+     *
+     * The first attempt used 0.85, the value most examples ship, and the glacier came back washed
+     * to near-white while the jungle looked right — which is the whole diagnosis: the threshold is
+     * compared against linear radiance before tone mapping, and a white snowfield with albedo 0.9
+     * under a sun at 1.9 plus the environment sits around 1.2 to 1.8. The entire floor qualified as
+     * a highlight, so bloom stopped being a highlight effect and became a fog.
+     *
+     * Above 2.0 only things genuinely brighter than a lit white surface spill: the sun's specular
+     * glint off ice, a crystal, a torch. Strength can then be higher than it could when everything
+     * qualified, because far less of the screen does.
+     */
+    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.5, 2);
+    composer.addPass(bloom);
+    this.bloom = bloom;
+
+    composer.addPass(new OutputPass());
+    this.composer = composer;
   }
 
   applyLevel(level: LevelDef): void {
@@ -293,6 +349,9 @@ export class Renderer {
     this.sun.shadow.map = null;
     this.camera.far = Math.max(200, profile.drawDistance * 2.2);
     this.camera.updateProjectionMatrix();
+    // The governor can drop a tier mid-match, and post-processing is one of the things a dropped
+    // tier gives up — so the chain is rebuilt rather than left running at the old cost.
+    this.buildComposer();
     this.onResize();
   }
 
@@ -338,7 +397,11 @@ export class Renderer {
   }
 
   render(): void {
-    this.renderer.render(this.scene, this.camera);
+    // `isPresenting` is checked as well as the profile because a session can begin after the
+    // renderer was built — the player enters VR from a desktop page — and a composer left running
+    // into an XR frame renders one eye of the wrong buffer.
+    if (this.composer && !this.renderer.xr.isPresenting) this.composer.render();
+    else this.renderer.render(this.scene, this.camera);
   }
 
   setAnimationLoop(loop: ((time: number, frame?: XRFrame) => void) | null): void {
@@ -355,6 +418,8 @@ export class Renderer {
 
   dispose(): void {
     globalThis.removeEventListener('resize', this.onResize);
+    this.composer?.dispose();
+    this.environment?.dispose();
     this.renderer.setAnimationLoop(null);
     this.renderer.dispose();
     this.renderer.domElement.remove();
@@ -366,5 +431,10 @@ export class Renderer {
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
+    // The composer owns render targets sized in device pixels, so it needs the pixel ratio applied
+    // — `setSize` on the renderer does that itself, `EffectComposer.setSize` does not.
+    const ratio = this.renderer.getPixelRatio();
+    this.composer?.setSize(width * ratio, height * ratio);
+    this.bloom?.setSize(width * ratio, height * ratio);
   };
 }

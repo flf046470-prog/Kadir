@@ -135,7 +135,16 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
            triWorld = modelMatrix * instanceMatrix * vec4( transformed, 1.0 );
          #endif
          vTriWorld = triWorld.xyz;
-         vTriNormal = normalize( mat3( modelMatrix ) * objectNormal );`,
+         // Instances carry their own rotation, so the normal has to go through it as well or every
+         // rotated box samples as though it were axis-aligned. A plain mat3 rather than the inverse
+         // transpose is enough here: every collider is a box, sphere or cylinder scaled along the
+         // same axes its faces point down, so the direction survives and the normalize fixes the
+         // length.
+         #ifdef USE_INSTANCING
+           vTriNormal = normalize( mat3( modelMatrix ) * mat3( instanceMatrix ) * objectNormal );
+         #else
+           vTriNormal = normalize( mat3( modelMatrix ) * objectNormal );
+         #endif`,
       );
 
     shader.fragmentShader = shader.fragmentShader
@@ -194,12 +203,47 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <normal_fragment_maps>',
         `#ifdef USE_NORMALMAP
-           vec3 triMapN = triSample( normalMap, triWeights(), uTriplanarScale ).xyz * 2.0 - 1.0;
-           triMapN.xy *= normalScale;
-           // Blended in world space rather than through a TBN matrix: the geometry carries no
-           // tangents — it is instanced unit boxes — so there is no tangent frame to transform
-           // into, and perturbing the world normal directly is both correct here and cheaper.
-           normal = normalize( normal + triMapN * 0.55 );
+           // Whiteout triplanar normal blending.
+           //
+           // The first version added the sampled tangent normal straight onto the shading normal,
+           // which is wrong twice over and measurably so. A tangent-space normal has z near 1
+           // pointing out of its own surface, so adding it to a floor's normal tilts that floor
+           // about forty-five degrees toward world +Z — every flat surface in the map ends up
+           // facing the same wrong way, which lights it uniformly and flattens it. Measured as
+           // contrast: the glacier's standard deviation fell from 82 at the tier below to 19 here,
+           // with post-processing off, so the normal map was the only suspect left.
+           //
+           // And three.js shades in *view* space, so even a correctly blended world normal has to
+           // be transformed before it is assigned.
+           //
+           // Whiteout blending reorients each projection's tangent normal around its own axis and
+           // then mixes them, which is the standard solution and the only one that keeps a box's
+           // three faces consistent with each other.
+           // Named apart from the one in the albedo block on purpose: both are spliced into the
+           // same scope of main(), and declaring vec3 triW twice is a GLSL redefinition error. It
+           // fails the whole program, so the material silently stops drawing — the glacier floor
+           // vanished and the map rendered as rocks floating over the sky, with the only clue in a
+           // console the screenshot probe was not reporting.
+           vec3 triWn = triWeights();
+           vec3 triWorldN = normalize( vTriNormal );
+
+           vec3 tnX = texture2D( normalMap, vTriWorld.zy * uTriplanarScale ).xyz * 2.0 - 1.0;
+           vec3 tnY = texture2D( normalMap, vTriWorld.xz * uTriplanarScale ).xyz * 2.0 - 1.0;
+           vec3 tnZ = texture2D( normalMap, vTriWorld.xy * uTriplanarScale ).xyz * 2.0 - 1.0;
+
+           tnX.xy *= normalScale;
+           tnY.xy *= normalScale;
+           tnZ.xy *= normalScale;
+
+           tnX = vec3( tnX.xy + triWorldN.zy, abs( tnX.z ) * triWorldN.x );
+           tnY = vec3( tnY.xy + triWorldN.xz, abs( tnY.z ) * triWorldN.y );
+           tnZ = vec3( tnZ.xy + triWorldN.xy, abs( tnZ.z ) * triWorldN.z );
+
+           vec3 triBlended = normalize(
+             tnX.zyx * triWn.x + tnY.xzy * triWn.y + tnZ.xyz * triWn.z
+           );
+
+           normal = normalize( ( viewMatrix * vec4( triBlended, 0.0 ) ).xyz );
          #endif`,
       );
     }

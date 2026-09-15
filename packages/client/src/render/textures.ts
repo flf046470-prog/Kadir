@@ -152,14 +152,20 @@ const RECIPES: Record<SurfaceMaterial, Recipe> = {
    * Ice: broad smooth sheets cut by sharp cracks.
    *
    * The cracks are ridged noise at a low frequency and high contrast, and they are most of why a
-   * glacier reads as ice rather than as pale plastic. Roughness is low and *varies* — polished
-   * where the sheet is intact, scuffed in the cracks — because a uniformly shiny surface reads as
-   * plastic no matter what colour it is.
+   * glacier reads as ice rather than as pale plastic. Roughness varies — scuffed in the cracks,
+   * smoother where the sheet is intact — because a uniformly shiny surface reads as plastic no
+   * matter what colour it is.
+   *
+   * It is deliberately *not* mirror-smooth, and that was learned the hard way. At 0.06 the shelf
+   * became a true mirror, and a mirror-flat floor seen from a player's eye height reflects the sky
+   * back almost perfectly: the ice vanished, and the map rendered as rocks floating in a void with
+   * no ground under them at all. Physically right and unplayable. Real glacier ice is scuffed,
+   * wind-scoured and dusted with snow, so this range is both more honest and readable.
    */
   ice: {
     color: [0.62, 0.79, 0.86],
     contrast: 0.32,
-    roughness: [0.42, 0.06],
+    roughness: [0.58, 0.24],
     metalness: 0,
     bump: 2.8,
     height: (u, v, s) => {
