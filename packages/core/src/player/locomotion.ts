@@ -523,8 +523,26 @@ function applyGroundAndAir(
   }
 }
 
+/**
+ * How much grip the ground gives, as a multiplier on the player's own friction.
+ *
+ * This used to read `groundMaterial === 'water' ? 0.4 : 1`, which meant every solid surface in the
+ * game decelerated identically. Surfaces have declared a `friction` since the level builder existed
+ * — ice 0.35, glazed ice 0.28, snow 1.05, sand 1.15 — and `MovementConfig.friction` has always been
+ * documented as "scaled by the surface's friction". Nothing scaled it. Measured as a coast from
+ * full speed, ice and dirt both stopped in 1.7916666666666679 m — identical to the last digit — so
+ * Glacier World, a map whose entire premise is that you cannot stop on ice, played exactly like
+ * the jungle.
+ *
+ * The water special case is gone rather than kept beside it: the `water` preset declares 0.3, which
+ * is what the hard-coded 0.4 was approximating, so reading the data covers that case too and one
+ * rule now explains every surface in the game.
+ */
 function frictionOfGround(player: PlayerState): number {
-  return player.groundMaterial === 'water' ? 0.4 : 1;
+  const friction = player.groundFriction;
+  // A malformed collider must not divide a player's braking by zero or reverse it into
+  // acceleration; an unknown surface behaves like ordinary ground.
+  return Number.isFinite(friction) && friction > 0 ? friction : 1;
 }
 
 function doJump(player: PlayerState, ctx: LocomotionContext, dirX: number, dirZ: number): void {
@@ -571,6 +589,7 @@ function applyCollisionResults(
   if (result.grounded) {
     v3copy(player.groundNormal, result.groundNormal);
     player.groundMaterial = result.groundSurface.material;
+    player.groundFriction = result.groundSurface.friction;
     player.coyoteTimer = cfg.coyoteTime;
   } else if (wasGrounded) {
     player.coyoteTimer = cfg.coyoteTime;

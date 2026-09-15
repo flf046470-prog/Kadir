@@ -74,6 +74,17 @@ export interface PlayerState {
   wasGrounded: boolean;
   groundNormal: Vec3;
   groundMaterial: SurfaceMaterial;
+  /**
+   * Grip of the surface underfoot, copied from the collider the player is standing on.
+   *
+   * Kept beside `groundMaterial` rather than looked up on demand because locomotion runs after the
+   * move has resolved and no longer holds the collider it hit.
+   *
+   * Not on the wire, and must not be: the client predicts with the same `Simulation` against a
+   * level it built from the same seed, so it resolves the same collider and reads the same number.
+   * Sending it would add a field that can disagree with the geometry both sides already share.
+   */
+  groundFriction: number;
   touchingWall: boolean;
   wallNormal: Vec3;
 
@@ -161,6 +172,7 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     wasGrounded: false,
     groundNormal: vec3(0, 1, 0),
     groundMaterial: 'dirt',
+    groundFriction: 1,
     touchingWall: false,
     wallNormal: vec3(),
 
