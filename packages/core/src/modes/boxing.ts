@@ -47,7 +47,26 @@ export class BoxingMode extends RoundMode {
       const entry = this.entry(player.id);
 
       if (!player.alive) {
-        const remaining = (this.downTimers.get(player.id) ?? KO_RESPAWN_SECONDS) - ctx.dt;
+        /**
+         * A fighter who is down with no respawn clock yet has only just gone down, and this is
+         * the only moment the knockout can be caught.
+         *
+         * `knockOut` used to be called from a `player.health <= 0` check below, which could never
+         * run: `resolvePunches` sets `alive = false` on the same tick it takes health to zero, so
+         * this `!player.alive` branch always `continue`d first. The result was a mode whose
+         * description is "Most knockouts wins" awarding nothing for any of them — measured over a
+         * 200-second round: 342 punches landed, 25 fighters knocked down, 0 knockouts scored, all
+         * six players tied on zero and all six declared the winner.
+         *
+         * Reading the transition rather than the health value also picks up a ring-out, because
+         * the kill plane sets `alive = false` without touching health. Knocking someone off the
+         * map with a punch should count, and `lastTaggedBy` still names who did it.
+         */
+        if (!this.downTimers.has(player.id)) {
+          this.knockOut(ctx, player);
+          continue;
+        }
+        const remaining = (this.downTimers.get(player.id) as number) - ctx.dt;
         if (remaining <= 0) {
           this.downTimers.delete(player.id);
           player.health = 100;
@@ -62,10 +81,6 @@ export class BoxingMode extends RoundMode {
 
       entry.survivalTicks++;
       regenerateStamina(player, ctx.dt);
-
-      if (player.health <= 0) {
-        this.knockOut(ctx, player);
-      }
     }
   }
 

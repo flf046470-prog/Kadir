@@ -721,7 +721,12 @@ export class GameClient {
       for (const bot of this.bots) {
         const self = this.sim.players.get(bot.playerId);
         if (!self) continue;
-        this.sim.setIntent(bot.playerId, bot.think(self, this.sim.players.values(), this.level, TICK_DT), false);
+        this.sim.setIntent(
+          bot.playerId,
+          // The mode decides where a bot should be heading when there is nobody to chase.
+          bot.think(self, this.sim.players.values(), this.level, TICK_DT, this.sim.mode.objectiveFor?.(self) ?? null),
+          false,
+        );
       }
     }
 

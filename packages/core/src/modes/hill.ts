@@ -98,6 +98,11 @@ export class HillMode extends RoundMode {
     ctx.events.emit('checkpoint', 'system', this.hill, ctx.tick, HILL_RADIUS, { data: 'hill' });
   }
 
+  /** The ring. Everyone wants the same point in this mode, which is the whole design. */
+  objectiveFor(_player: PlayerState): Vec3 | null {
+    return this.phase === 'playing' ? this.hill : null;
+  }
+
   protected override onPlaying(ctx: ModeContext): void {
     this.sinceMove += ctx.dt;
     if (this.sinceMove >= HILL_SECONDS) this.moveHill(ctx);

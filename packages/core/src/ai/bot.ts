@@ -59,8 +59,20 @@ export class Bot {
     this.wanderYaw = this.rand.range(-Math.PI, Math.PI);
   }
 
-  /** Produce this tick's intent. `others` is everyone the bot can see. */
-  think(self: PlayerState, others: Iterable<PlayerState>, level: LevelDef, dt: number): InputIntent {
+  /**
+   * Produce this tick's intent. `others` is everyone the bot can see.
+   *
+   * `objective` is a place the mode wants this player to go — the next checkpoint in a race, the
+   * ring in King of the Hill. Everything a bot knew how to want used to be another player, so in
+   * those modes they simply wandered; see `GameMode.objectiveFor`.
+   */
+  think(
+    self: PlayerState,
+    others: Iterable<PlayerState>,
+    level: LevelDef,
+    dt: number,
+    objective: { x: number; y: number; z: number } | null = null,
+  ): InputIntent {
     const intent = this.intent;
     intent.buttons = 0;
     intent.hands = null;
@@ -84,6 +96,13 @@ export class Bot {
       const toTarget = Math.atan2(dx, dz);
       // Chasers home in; runners flee, with a little noise so they are not perfectly predictable.
       desiredYaw = chasing ? toTarget : toTarget + Math.PI + this.rand.range(-0.5, 0.5) * (1 - this.options.skill);
+    } else if (objective) {
+      // Nobody to chase and somewhere to be. The wobble is skill-scaled so a weak bot still takes
+      // a sloppy line rather than running the course on rails, which is what makes a race worth
+      // entering.
+      const dx = objective.x - self.position.x;
+      const dz = objective.z - self.position.z;
+      desiredYaw = Math.atan2(dx, dz) + this.rand.range(-0.25, 0.25) * (1 - this.options.skill);
     } else if (this.repathTimer <= 0) {
       this.repathTimer = this.rand.range(1.5, 4);
       this.wanderYaw += this.rand.range(-1.4, 1.4);
@@ -117,7 +136,25 @@ export class Bot {
       if (this.rand.bool(0.25 + this.options.skill * 0.3)) this.jumpTimer = this.rand.range(0.15, 0.5);
       else this.jumpTimer = this.rand.range(0.5, 1.4);
     }
-    if (self.stamina > 40 && (chasing || distance < 18)) intent.buttons |= Buttons.Sprint;
+    if (self.stamina > 40 && (chasing || objective !== null || distance < 18)) intent.buttons |= Buttons.Sprint;
+
+    /**
+     * Climb when the objective is above you.
+     *
+     * The stuck check below only fires when a bot stops moving, and a bot standing under a ledge
+     * does not stop — it hops on the spot and drifts, which reads as progress. Measured on the
+     * jungle course, all six racers ended a full 300-second race parked at checkpoint 1 with the
+     * next one twelve metres over their heads, one of them 2.4 m away horizontally: they had
+     * arrived, and had no idea the route went up. Climbing is this game's core verb, so a bot that
+     * cannot do it deliberately cannot play half the map.
+     */
+    if (objective) {
+      const rise = objective.y - self.position.y;
+      const flat = Math.hypot(objective.x - self.position.x, objective.z - self.position.z);
+      if (rise > 1.5 && flat < 10) {
+        intent.buttons |= Buttons.GrabLeft | Buttons.GrabRight | Buttons.Jump;
+      }
+    }
 
     // If we stop making progress, we are probably against geometry: grab and climb over it.
     const moved = Math.hypot(self.position.x - this.lastX, self.position.z - this.lastZ);

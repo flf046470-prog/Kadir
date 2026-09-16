@@ -1,3 +1,4 @@
+import type { Vec3 } from '../math/vec3.js';
 import type { Rand } from '../math/rand.js';
 import type { SimEventQueue } from '../sim/events.js';
 import type { PlayerState } from '../player/state.js';
@@ -140,6 +141,21 @@ export interface GameMode {
    * have landed still grants hit-immunity, which swallows catches and enables team griefing.
    */
   canDamage?(attacker: PlayerState, victim: PlayerState): boolean;
+  /**
+   * Where a player should be heading, for a mode whose objective is a place.
+   *
+   * Bots drive the same `InputIntent` as a human and read the world the same way, so everything
+   * they knew how to want was another player — chase them, or run from them. In Parkour and King
+   * of the Hill the thing you want is a *point*, and with no way to express that the bots simply
+   * wandered: measured over a full 300-second race, six bots reached six checkpoints between them
+   * and not one finished the route, so every solo practice race ended "Nobody finished the
+   * route"; on the hill they scored 0-3 in four minutes because they rarely stood in the ring.
+   *
+   * Published by the mode rather than worked out by the bot, because the mode is the only thing
+   * that knows the rules — which checkpoint is next for *this* player, where the ring moved to.
+   * Modes whose objective is a player return null and keep the chase behaviour.
+   */
+  objectiveFor?(player: PlayerState): Vec3 | null;
   state(): ModeStateView;
   finished(): boolean;
   /** End the round early (host action, empty room, admin tooling, tests). */

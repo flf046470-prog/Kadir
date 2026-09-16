@@ -1,4 +1,6 @@
+import type { Vec3 } from '../math/vec3.js';
 import type { PlayerState } from '../player/state.js';
+import type { LevelDef } from '../world/level.js';
 import { RoundMode, activePlayers } from './base.js';
 import { registerMode } from './registry.js';
 import type { GameModeDef, ModeContext, PlayerResult } from './types.js';
@@ -27,9 +29,12 @@ const CHECKPOINT_SCORE = 8;
  */
 export class ParkourMode extends RoundMode {
   private finishTicks = new Map<string, number>();
+  /** Kept from the round start so `objectiveFor` can answer without a context. */
+  private level: LevelDef | null = null;
 
   protected override onRoundStart(ctx: ModeContext): void {
     this.finishTicks.clear();
+    this.level = ctx.level;
     for (const player of activePlayers(ctx)) {
       player.role = 'racer';
       player.checkpointIndex = -1;
@@ -77,6 +82,23 @@ export class ParkourMode extends RoundMode {
       });
       this.headline = `${player.name} finished in ${(lapTicks / 60).toFixed(2)}s`;
     }
+  }
+
+  /**
+   * The next checkpoint this racer has to take.
+   *
+   * Sequential, so it is simply the one after the last they cleared — which is also why a bot
+   * cannot be given "the nearest checkpoint": taking them out of order does not count, so the
+   * nearest one is usually the wrong one to run at.
+   */
+  objectiveFor(player: PlayerState): Vec3 | null {
+    if (this.phase !== 'playing') return null;
+    // A finished racer needs no separate check: finishing means clearing the last checkpoint, so
+    // there is no `index + 1` to find and this returns null on its own. An explicit
+    // `finishTicks.has(...)` guard was here and was unreachable — it looked like it was doing the
+    // work, which is the kind of code that makes the next person trust a thing that never runs.
+    const next = this.level?.checkpoints.find((c) => c.index === player.checkpointIndex + 1);
+    return next ? next.position : null;
   }
 
   private racerCount(ctx: ModeContext): number {
