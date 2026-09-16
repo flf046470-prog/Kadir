@@ -90,9 +90,37 @@ const PORTAL_COLORS: Record<string, number> = {
   parkour: 0x9b5de5,
 };
 
+/**
+ * What each door says on it.
+ *
+ * Colour alone makes a lobby you have to memorise, which is fine on your hundredth visit and
+ * useless on your first — and this is the screen a new player lands on. Taken from a table rather
+ * than from the mode registry because the renderer already has the level and a level is plain
+ * data; importing the gameplay modules here to read eight display names would be the wrong
+ * dependency for the wrong reason.
+ */
+const PORTAL_LABELS: Record<string, string> = {
+  'kangaroo-chase': 'Kangaroo Chase',
+  infection: 'Infection',
+  duel: 'Conversion Duel',
+  hunt: 'The Hunt',
+  'freeze-tag': 'Freeze Tag',
+  hill: 'King of the Hill',
+  boxing: 'VR Boxing',
+  parkour: 'Parkour Race',
+};
+
 export class LevelRenderer {
   readonly group = new THREE.Group();
-  private disposables: (THREE.BufferGeometry | THREE.Material)[] = [];
+  /**
+   * Everything holding GPU memory, released together in `dispose()`.
+   *
+   * Textures belong here as much as geometry and materials do: the portal signs are drawn onto
+   * canvases at runtime, and a material's `dispose()` does not touch its `map`. Leaving them out
+   * would leak eight 512x128 textures every time a level is torn down and rebuilt, which is once
+   * per round.
+   */
+  private disposables: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [];
   private instanced: THREE.InstancedMesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
   private portals: { group: THREE.Group; arch: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
@@ -457,11 +485,73 @@ export class LevelRenderer {
       arch.castShadow = this.profile.shadows;
       group.add(arch);
 
+      const sign = this.portalSign(PORTAL_LABELS[portal.modeId] ?? portal.modeId, colour);
+      if (sign) {
+        // Above the arch rather than across the opening, so it never sits between you and the
+        // thing you are walking into.
+        sign.position.y = 3.9;
+        group.add(sign);
+      }
+
       this.group.add(group);
       this.portals.push({ group, arch, material: archMaterial });
     }
 
     if (this.assets && this.level.portals.length > 0) void this.upgradePortals(this.assets);
+  }
+
+  /**
+   * A name board for one door, as a camera-facing sprite.
+   *
+   * A sprite rather than text geometry because it stays legible from any angle in the ring and
+   * costs one quad; and drawn at 2x with `depthTest` left on, so an arch behind a tree reads as
+   * being behind the tree rather than floating in front of it — the opposite of a player
+   * nameplate, which you *do* want to see through the world.
+   */
+  private portalSign(text: string, colour: number): THREE.Sprite | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.font = 'bold 60px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    /**
+     * A dark board behind the letters, sized to the text.
+     *
+     * Coloured text alone was legible against the jungle floor and marginal against the sky:
+     * measured in the lobby, "Parkour Race" is violet and the sky behind it is bright blue, which
+     * is two similarly-light colours with an outline between them. A board makes every door read
+     * the same regardless of what is behind it, and the mode colour still does its job as the
+     * thing you recognise from across the ring.
+     */
+    const width = Math.min(480, ctx.measureText(text).width + 56);
+    const plate = new Path2D();
+    plate.roundRect(256 - width / 2, 18, width, 92, 18);
+    ctx.fillStyle = 'rgba(12,16,22,0.82)';
+    ctx.fill(plate);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = `#${colour.toString(16).padStart(6, '0')}`;
+    ctx.stroke(plate);
+
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(text, 256, 64);
+    ctx.fillStyle = `#${colour.toString(16).padStart(6, '0')}`;
+    ctx.fillText(text, 256, 64);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.disposables.push(texture);
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    this.disposables.push(material);
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(3.2, 0.8, 1);
+    return sprite;
   }
 
   /** Swap the stand-in torus for the generated arch once it has downloaded. */
