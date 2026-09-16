@@ -3,6 +3,7 @@ import type { Settings } from '@kc/core';
 import { NEW_PRIVATE_ROOM } from '@kc/net';
 import { Api, localContent } from './net/Api.js';
 import { GameClient } from './game/GameClient.js';
+import { VoiceChat } from './audio/VoiceChat.js';
 import { MobileInput } from './platform/mobile/MobileInput.js';
 import { PCInput } from './platform/pc/PCInput.js';
 import { VRInput } from './platform/vr/VRInput.js';
@@ -98,6 +99,15 @@ async function main(): Promise<void> {
           if (enabled) void game.enableVoice();
           else game.voice.disable();
         },
+        listMicDevices: () => VoiceChat.listInputs(),
+        onMicDeviceChanged: (deviceId) => {
+          void game?.voice.setInputDevice(deviceId);
+        },
+        micState: () => ({
+          level: game?.micLevel ?? 0,
+          open: game?.micOpen ?? false,
+          enabled: game?.voice.isEnabled ?? false,
+        }),
       },
     },
     settings,
@@ -172,6 +182,7 @@ async function main(): Promise<void> {
           setInMatch(false);
           shell.showResults(result, rewards, session?.playerId ?? '');
         },
+        onMicState: (enabled, open, muted) => hud?.setMicState(enabled, open, muted),
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
         onChat: (from, text, channel, own) => hud?.pushChat(from, text, channel, own),
         onNotice: (text) => shell.setNotice(text),

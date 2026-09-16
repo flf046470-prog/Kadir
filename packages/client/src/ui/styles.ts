@@ -56,6 +56,26 @@ export const UI_CSS = `
 .kc-field-stack { flex-direction: column; align-items: stretch; gap: 8px; }
 .kc-field input[type=text] { background: rgba(0,0,0,.4); border: 1px solid rgba(255,255,255,.2); color: inherit; border-radius: 8px; padding: 10px; font: inherit; min-width: 0; }
 .kc-note { font-size: 12px; opacity: .6; line-height: 1.5; }
+
+/* Microphone test meter. The bar moves with your voice; it turns green only while audio is
+   actually leaving the machine, which is what separates "my mic works" from "they can hear me".
+   flex: none is load-bearing: .kc-panel is a column flex box that overflows, so every child is a
+   shrinkable flex item, and the 10px bar collapsed to a measured height of exactly 0 while the
+   JavaScript behind it cheerfully reported 86%. */
+.kc-mic-meter { position: relative; flex: none; height: 10px; border-radius: 5px; background: rgba(255,255,255,.12); overflow: hidden; margin: 2px 0 8px; }
+.kc-mic-fill { height: 100%; width: 0; border-radius: 5px; background: #9aa5b1; transition: width .05s linear, background-color .12s ease; }
+.kc-mic-fill.is-live { background: #4ade80; }
+/* Where the voice-activation threshold sits, on the meter's own scale, so a player can line the
+   slider up against how loud they actually are instead of guessing at a number. */
+.kc-mic-marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: #ffd166; }
+
+/* The in-match indicator. Only the live state pulses: a muted badge is a reassurance and a live
+   badge is a warning, and they should not compete for attention. */
+.kc-mic-pill { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 17px; font-size: 15px; background: rgba(12,16,22,.55); border: 1px solid rgba(255,255,255,.14); opacity: .5; }
+.kc-mic-pill.is-live { opacity: 1; border-color: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.55); animation: kc-mic-pulse 1.4s ease-in-out infinite; }
+.kc-mic-pill.is-muted { opacity: 1; border-color: #f87171; }
+@keyframes kc-mic-pulse { 0%, 100% { box-shadow: 0 0 6px rgba(74,222,128,.35); } 50% { box-shadow: 0 0 14px rgba(74,222,128,.75); } }
+@media (prefers-reduced-motion: reduce) { .kc-mic-pill.is-live { animation: none; } }
 .kc-credit { border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 8px; font-size: 13px; line-height: 1.5; }
 .kc-credit:last-child { border-bottom: 0; }
 .kc-credit .kc-note { word-break: break-word; }

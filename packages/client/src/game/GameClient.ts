@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   Bot,
   Buttons,
+  MicGate,
   Simulation,
   TICK_DT,
   botName,
@@ -42,6 +43,8 @@ export interface GameCallbacks {
   onModeState(state: ModeStateView): void;
   onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
   onNetStatus(status: NetStatus): void;
+  /** Microphone state, every frame, for the HUD indicator. Optional: VR draws its own panels. */
+  onMicState?(enabled: boolean, open: boolean, muted: boolean): void;
   onChat(name: string, text: string, channel: 'room' | 'team' | 'system', own: boolean): void;
   onNotice(text: string): void;
   /**
@@ -88,6 +91,8 @@ export class GameClient {
   readonly renderer: Renderer;
   readonly audio = new AudioSystem();
   readonly voice: VoiceChat;
+  /** Decides whether the microphone transmits this frame. See `updateMicrophone`. */
+  private readonly micGate = new MicGate();
   readonly net: NetClient;
 
   private level: LevelDef;
@@ -316,9 +321,63 @@ export class GameClient {
    * a permission prompt is open-ended, and nobody should be held out of a round waiting for one.
    */
   async enableVoice(): Promise<void> {
-    const ready = await this.voice.enable();
-    if (!ready || !this.online) return;
+    const ready = await this.voice.enable(this.settings.audio.micDeviceId);
+    if (!ready) return;
+    this.micGate.reset();
+    if (!this.online) return;
     this.voice.connectToAll(this.remotes.keys());
+  }
+
+  /**
+   * Decide, every frame, whether the microphone is open — and tell both the transport and the
+   * simulation the same answer.
+   *
+   * These two used to disagree, which is how the bug hid for so long. `Buttons.Talk` reached the
+   * simulation and drove the avatar's mouth, so push-to-talk *looked* like it worked from the
+   * outside: press the key, the kangaroo's jaw moves; release it, the jaw stops. The microphone
+   * itself was never in that loop and had been live since the moment permission was granted.
+   *
+   * One gate now answers for both, so a shut mouth means a shut microphone by construction.
+   */
+  private updateMicrophone(dt: number): void {
+    const talkHeld = !this.inputSuspended && (this.intent.buttons & Buttons.Talk) !== 0;
+    // Read before the gate is consulted: this is the raw meter, which stays live behind a closed
+    // gate on purpose, because it is the thing an open mic opens *on*.
+    const level = this.voice.level;
+    const open =
+      this.voice.isEnabled &&
+      this.micGate.update(dt, {
+        mode: this.settings.audio.micMode,
+        talkHeld,
+        level,
+        threshold: this.settings.audio.micThreshold,
+        muted: this.voice.isMuted,
+      });
+
+    this.voice.setTransmitting(open);
+    this.callbacks.onMicState?.(this.voice.isEnabled, open, this.voice.isMuted);
+    // Lip sync rides the intent so every viewer sees the same mouth on the same tick, and it
+    // carries the gate's answer rather than the meter's: a jaw that moves while the microphone is
+    // shut is the game telling everyone in the room a lie about who can hear you.
+    this.intent.voice = open ? level : 0;
+  }
+
+  /** Is the microphone live this instant? The HUD indicator reads this. */
+  get micOpen(): boolean {
+    return this.voice.isTransmitting;
+  }
+
+  /** Raw microphone loudness, gate or no gate — for the settings panel's test meter. */
+  get micLevel(): number {
+    return this.voice.level;
+  }
+
+  setMicMuted(muted: boolean): void {
+    this.voice.setMuted(muted);
+  }
+
+  get micMuted(): boolean {
+    return this.voice.isMuted;
   }
 
   leaveMatch(): void {
@@ -704,9 +763,7 @@ export class GameClient {
     } else {
       this.input.sample(this.intent, dt, this.settings);
     }
-    // Mic loudness rides the intent so every viewer sees the same mouth on the same tick. The
-    // platform layer owns the Talk button; this only supplies the level behind it.
-    this.intent.voice = this.inputSuspended ? 0 : this.voice.level;
+    this.updateMicrophone(dt);
 
     // Fixed-step simulation with a bounded catch-up, so a hitch cannot spiral.
     this.accumulator += dt;

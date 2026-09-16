@@ -51,6 +51,14 @@ export class Hud {
   private role: HTMLElement;
   private scores: HTMLElement;
   private status: HTMLElement;
+  /**
+   * Whether the room can hear you, on screen, at all times.
+   *
+   * Not decoration. Push-to-talk and an open mic both leave a player guessing about the one thing
+   * they cannot check for themselves, and the guess that costs something is always the same
+   * direction — believing you are muted when you are not.
+   */
+  private micPill: HTMLElement;
   private chat: ChatPanel;
   private toast: HTMLElement;
   private chargeFill: HTMLElement;
@@ -108,6 +116,7 @@ export class Hud {
     this.role = el('div', { class: 'kc-role kc-role--other' }, '');
     this.scores = el('div', { class: 'kc-scores' });
     this.status = el('div', { class: 'kc-status' }, '');
+    this.micPill = el('div', { class: 'kc-mic-pill', hidden: true }, '🎙');
     this.chat = new ChatPanel({
       send: (text, channel) => options.onChat?.(text, channel),
       onFocusChange: (focused) => options.onChatFocus?.(focused),
@@ -167,6 +176,7 @@ export class Hud {
         // Hidden until a room broadcast arrives, so solo practice — which has no lobby — does not
         // show a button that opens an empty panel.
         this.lobbyButton,
+        this.micPill,
       ),
     );
     options.root.append(this.element);
@@ -487,6 +497,22 @@ export class Hud {
 
   setStatus(text: string): void {
     this.status.textContent = text;
+  }
+
+  /**
+   * Show what the microphone is doing.
+   *
+   * Three states, because the fourth — voice off entirely — is not worth a permanent badge and
+   * hides the pill instead. Live is the one that has to be unmissable; a muted pill is a
+   * reassurance, and a live pill is a warning, so only one of them animates.
+   */
+  setMicState(enabled: boolean, open: boolean, muted: boolean): void {
+    this.micPill.hidden = !enabled;
+    if (!enabled) return;
+    this.micPill.classList.toggle('is-live', open && !muted);
+    this.micPill.classList.toggle('is-muted', muted);
+    this.micPill.textContent = muted ? '🔇' : '🎙';
+    this.micPill.title = muted ? 'Microphone muted' : open ? 'Live — the room can hear you' : 'Microphone idle';
   }
 
   pushChat(name: string, text: string, channel: 'room' | 'team' | 'system' = 'room', own = false): void {

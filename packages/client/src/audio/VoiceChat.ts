@@ -50,6 +50,16 @@ export class VoiceChat {
   private localStream: MediaStream | null = null;
   private enabled = false;
   private muted = false;
+  /**
+   * Whether the gate currently lets audio out.
+   *
+   * Separate from `muted` because they mean different things to a player: mute is a switch you
+   * threw, this is the push-to-talk key or the voice gate deciding moment to moment. Both end at
+   * the same `track.enabled`, and the HUD shows them differently.
+   */
+  private transmitting = false;
+  /** The input the player picked, so re-opening the microphone keeps it. */
+  private deviceId = '';
   private localId = '';
   private blocked = new Set<string>();
   /**
@@ -61,6 +71,9 @@ export class VoiceChat {
    */
   private analyser: AnalyserNode | null = null;
   private analyserSource: MediaStreamAudioSourceNode | null = null;
+  /** The gate itself: 1 while transmitting, 0 otherwise. See `startLevelMeter` for why. */
+  private gateGain: GainNode | null = null;
+  private gateDestination: MediaStreamAudioDestinationNode | null = null;
   private levelBuffer = new Uint8Array(new ArrayBuffer(0));
   private smoothedLevel = 0;
 
@@ -85,15 +98,38 @@ export class VoiceChat {
     this.localId = id;
   }
 
+  /** Is the gate letting audio out this instant? */
+  get isTransmitting(): boolean {
+    return this.transmitting;
+  }
+
+  /** Which input is open, or '' for the system default. */
+  get inputDeviceId(): string {
+    return this.deviceId;
+  }
+
   /** Ask for the microphone. Must follow a user gesture; failure is non-fatal. */
-  async enable(): Promise<boolean> {
+  async enable(deviceId = this.deviceId): Promise<boolean> {
     if (this.enabled) return true;
     try {
+      this.deviceId = deviceId;
       this.localStream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          // `exact` would reject outright when the chosen headset is unplugged. A preference
+          // falls back to the system default instead, which is the behaviour a player wants from
+          // a device they picked once and forgot about.
+          ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
+        },
         video: false,
       });
       this.enabled = true;
+      // Shut until something asks for it. Opening a microphone is not consent to broadcast from
+      // it, and the frame loop turns the gate on within a tick of the player earning it.
+      this.transmitting = false;
+      this.applyTrackState();
       this.startLevelMeter();
       this.flushPendingSignals();
       return true;
@@ -120,13 +156,27 @@ export class VoiceChat {
     this.localStream?.getTracks().forEach((track) => track.stop());
     this.localStream = null;
     this.enabled = false;
+    // Or re-enabling would come back mid-transmission, on a gate nobody reopened.
+    this.transmitting = false;
   }
 
   /**
-   * Attach an analyser to the local microphone.
+   * Build the local microphone graph: a measuring tap and a gate, in that order.
    *
-   * Non-fatal on failure: a missing AudioContext costs lip sync, not voice, and a browser that
-   * refuses the node should not take the microphone down with it.
+   *     getUserMedia -> source -+-> analyser                      (always live)
+   *                             +-> gateGain -> destination -> the track peers receive
+   *
+   * The shape matters, and it was measured rather than guessed. The obvious gate is
+   * `track.enabled = false` on the microphone track, and in Chromium that makes an analyser
+   * reading the same track return exactly 0.000 — so an open mic would deadlock on itself: gate
+   * shut, meter silent, nothing to open the gate with, forever. The same measurement with a gain
+   * node at 0 leaves the analyser reading 0.76 while the outbound track carries silence, which is
+   * the behaviour this needs. It also kills lip sync for a push-to-talk player mid-word, since
+   * the jaw is driven from the same meter.
+   *
+   * Non-fatal on failure: without an AudioContext there is no gate node, so `applyTrackState`
+   * falls back to `track.enabled` — push-to-talk still works exactly, and open mic degrades to
+   * the Talk key, which is stated in the settings panel rather than hidden.
    */
   private startLevelMeter(): void {
     const context = this.audio.context;
@@ -138,19 +188,46 @@ export class VoiceChat {
       this.analyser.fftSize = 512;
       this.levelBuffer = new Uint8Array(new ArrayBuffer(this.analyser.fftSize));
       this.analyserSource.connect(this.analyser);
-      // Deliberately not connected onward: this branch is for measurement, and routing the
-      // microphone to the speakers is how you give someone feedback howl in a headset.
+      // The analyser is deliberately not connected onward: that branch is for measurement, and
+      // routing the microphone to the speakers is how you give someone feedback howl in a headset.
+
+      this.gateGain = context.createGain();
+      this.gateGain.gain.value = 0;
+      this.gateDestination = context.createMediaStreamDestination();
+      this.analyserSource.connect(this.gateGain);
+      this.gateGain.connect(this.gateDestination);
+      this.applyTrackState();
     } catch (error) {
       console.warn('[voice] level meter unavailable:', (error as Error).message);
       this.analyser = null;
+      this.gateGain = null;
+      this.gateDestination = null;
     }
+  }
+
+  /**
+   * The track peers should receive: the gated one when the graph built, the raw one otherwise.
+   *
+   * Every place that hands a track to a peer connection goes through here, so there is exactly
+   * one answer to "what do other people hear" and no path that accidentally sends the ungated
+   * microphone.
+   */
+  private outboundTracks(): MediaStreamTrack[] {
+    const gated = this.gateDestination?.stream.getAudioTracks() ?? [];
+    if (gated.length > 0) return gated;
+    return this.localStream?.getAudioTracks() ?? [];
   }
 
   private stopLevelMeter(): void {
     this.analyserSource?.disconnect();
     this.analyser?.disconnect();
+    this.gateGain?.disconnect();
+    this.gateDestination?.disconnect();
+    this.gateDestination?.stream.getTracks().forEach((track) => track.stop());
     this.analyserSource = null;
     this.analyser = null;
+    this.gateGain = null;
+    this.gateDestination = null;
     this.smoothedLevel = 0;
   }
 
@@ -184,8 +261,124 @@ export class VoiceChat {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
+    this.applyTrackState();
+  }
+
+  /**
+   * Open or close the gate. Driven every frame from the client's `MicGate`.
+   *
+   * `track.enabled = false` is the right lever rather than removing the track or renegotiating:
+   * it makes the sender transmit silence immediately, with no round trip to the peer and nothing
+   * for a peer to get wrong, and flipping it back is equally instant — which matters, because the
+   * time between pressing push-to-talk and being audible is the time a player loses their first
+   * word in.
+   */
+  setTransmitting(on: boolean): void {
+    if (this.transmitting === on) return;
+    this.transmitting = on;
+    this.applyTrackState();
+  }
+
+  /**
+   * Swap to a different microphone, keeping every peer connection up.
+   *
+   * `replaceTrack` on each sender rather than tearing the call down: renegotiating would drop
+   * audio for a second or two on every peer, and the player is most likely doing this *because*
+   * nobody can hear them.
+   */
+  async setInputDevice(deviceId: string): Promise<boolean> {
+    if (deviceId === this.deviceId && this.localStream) return true;
+    this.deviceId = deviceId;
+    if (!this.enabled) return true;
+
+    let replacement: MediaStream;
+    try {
+      replacement = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          ...(deviceId ? { deviceId: { ideal: deviceId } } : {}),
+        },
+        video: false,
+      });
+    } catch (error) {
+      console.warn('[voice] could not open that microphone:', (error as Error).message);
+      return false;
+    }
+
+    const track = replacement.getAudioTracks()[0];
+    if (!track) {
+      replacement.getTracks().forEach((t) => t.stop());
+      return false;
+    }
+
+    const previous = this.localStream;
+    this.localStream = replacement;
+
+    // Rebuilt *before* the senders are repointed, and in this order for a reason: the meter and
+    // the gate are one graph hanging off the old stream's source node, so tearing it down also
+    // destroys the gated track the peers are currently sending. Repointing them at
+    // `replacement`'s own track instead would hand every peer the ungated microphone.
+    this.stopLevelMeter();
+    this.startLevelMeter();
+
+    const outbound = this.outboundTracks()[0] ?? track;
+    for (const peer of this.peers.values()) {
+      for (const sender of peer.connection.getSenders()) {
+        if (sender.track?.kind === 'audio') void sender.replaceTrack(outbound).catch(() => undefined);
+      }
+    }
+
+    previous?.getTracks().forEach((t) => t.stop());
+    return true;
+  }
+
+  /**
+   * The microphones this browser will admit to having.
+   *
+   * Labels are empty until permission has been granted at least once, which is why the settings
+   * panel offers this only after voice has been switched on — a list of four blank entries is
+   * worse than no list.
+   */
+  static async listInputs(): Promise<{ deviceId: string; label: string }[]> {
+    if (typeof navigator === 'undefined' || !navigator.mediaDevices?.enumerateDevices) return [];
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices
+        .filter((device) => device.kind === 'audioinput')
+        .map((device, index) => ({
+          deviceId: device.deviceId,
+          label: device.label || `Microphone ${index + 1}`,
+        }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Mute and the gate both land here; either one closed means silence on the wire.
+   *
+   * Mute additionally cuts the raw track. The gate cannot — that would blind the meter it is
+   * driven by — but mute has no such problem, because a muted player's meter reads 0 anyway and
+   * their gate is held shut regardless. So the one control a player reaches for when they need to
+   * be *certain* gets the hard cut at the source as well as the gain, and no single failure in
+   * the graph can leak it.
+   */
+  private applyTrackState(): void {
+    const live = this.transmitting && !this.muted;
+    if (this.gateGain) {
+      const context = this.audio.context;
+      const now = context?.currentTime ?? 0;
+      // A short ramp rather than a step: a gain that jumps between 0 and 1 mid-waveform clicks,
+      // and 12 ms is below the threshold where anyone hears it as a fade-in on their first word.
+      this.gateGain.gain.cancelScheduledValues(now);
+      this.gateGain.gain.setValueAtTime(this.gateGain.gain.value, now);
+      this.gateGain.gain.linearRampToValueAtTime(live ? 1 : 0, now + 0.012);
+    }
     this.localStream?.getAudioTracks().forEach((track) => {
-      track.enabled = !muted;
+      // Without the gain node this is the only gate there is; with it, this is mute's hard cut.
+      track.enabled = this.gateGain ? !this.muted : live;
     });
   }
 
@@ -227,8 +420,11 @@ export class VoiceChat {
     const peer: Peer = { connection, panner: null, element: null, polite: this.localId > peerId, makingOffer: false };
     this.peers.set(peerId, peer);
 
-    for (const track of this.localStream?.getTracks() ?? []) {
-      connection.addTrack(track, this.localStream as MediaStream);
+    // The gated track, never the raw microphone — see `outboundTracks`.
+    const outbound = this.outboundTracks();
+    const stream = this.gateDestination?.stream ?? this.localStream;
+    for (const track of outbound) {
+      if (stream) connection.addTrack(track, stream);
     }
 
     connection.addEventListener('icecandidate', (event) => {

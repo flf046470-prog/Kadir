@@ -224,10 +224,21 @@ export class Simulation {
     if (hasButton(pressed, Buttons.CycleGadget)) cycleSelection(player.gadgets);
     if (hasButton(pressed, Buttons.UseGadget)) this.gadgets.use(player, this.gadgetCtx);
     if (hasButton(pressed, Buttons.Emote)) this.startEmote(player);
-    // Lip sync. The number is the speaker's own measured mic amplitude, gated by their
-    // push-to-talk button on the client — routing it through the intent means every viewer sees
-    // the same mouth on the same tick, which a per-listener WebRTC analyser could never promise.
-    player.voiceLevel = hasButton(intent.buttons, Buttons.Talk) ? intent.voice : 0;
+    /**
+     * Lip sync. The speaker's own measured mic amplitude, already gated on their client.
+     *
+     * Routing it through the intent means every viewer sees the same mouth on the same tick,
+     * which a per-listener WebRTC analyser could never promise.
+     *
+     * This used to re-gate on `Buttons.Talk` here, which was wrong in both directions once the
+     * microphone grew a real gate. In open-mic mode nobody holds Talk, so every mouth in the room
+     * stayed shut while people talked; and the check was never a safeguard anyway, because the
+     * button and the level arrive in the same client-authored packet, so it only ever asked the
+     * client to agree with itself. It is cosmetic either way — `voiceLevel` moves a jaw and
+     * nothing else — and the one honest gate is the one on the client that also decides whether
+     * any audio leaves the machine.
+     */
+    player.voiceLevel = intent.voice;
   }
 
   /**

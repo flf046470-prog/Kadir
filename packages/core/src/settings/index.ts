@@ -1,3 +1,6 @@
+import type { MicMode } from '../voice/gate.js';
+import { DEFAULT_MIC_THRESHOLD } from '../voice/gate.js';
+
 export type QualityTier = 'low' | 'medium' | 'high';
 
 export interface GraphicsSettings {
@@ -20,6 +23,22 @@ export interface AudioSettings {
   music: number;
   voice: number;
   spatialVoice: boolean;
+  /**
+   * How the microphone opens: only while the Talk control is held, or whenever you speak.
+   *
+   * Defaults to `push`. A social game wants open mic and most players will switch to it, but the
+   * default has to be the one that cannot embarrass somebody who never opened this panel.
+   */
+  micMode: MicMode;
+  /** Loudness an open mic must reach before it transmits, 0..1. */
+  micThreshold: number;
+  /**
+   * `deviceId` of the chosen input, or '' for the system default.
+   *
+   * Stored because a headset and a webcam are both microphones and the browser's idea of the
+   * default is rarely the one in front of the player's face.
+   */
+  micDeviceId: string;
 }
 
 export type Handedness = 'right' | 'left';
@@ -88,7 +107,16 @@ export const DEFAULT_SETTINGS: Settings = {
     targetFps: 60,
     drawDistance: 140,
   },
-  audio: { master: 0.9, sfx: 1, music: 0.5, voice: 1, spatialVoice: true },
+  audio: {
+    master: 0.9,
+    sfx: 1,
+    music: 0.5,
+    voice: 1,
+    spatialVoice: true,
+    micMode: 'push',
+    micThreshold: DEFAULT_MIC_THRESHOLD,
+    micDeviceId: '',
+  },
   comfort: {
     snapTurn: true,
     snapAngleDegrees: 30,
@@ -139,6 +167,12 @@ export function mergeSettings(stored: unknown): Settings {
   base.audio.sfx = clamp01(base.audio.sfx);
   base.audio.music = clamp01(base.audio.music);
   base.audio.voice = clamp01(base.audio.voice);
+  // audio is merged with Object.assign, so these arrive from storage unchecked. An unrecognised
+  // mode must fall back to push-to-talk rather than to whatever `!== 'push'` happens to mean,
+  // because the wrong answer here leaves a microphone open.
+  if (base.audio.micMode !== 'open') base.audio.micMode = 'push';
+  base.audio.micThreshold = clamp01(base.audio.micThreshold);
+  if (typeof base.audio.micDeviceId !== 'string') base.audio.micDeviceId = '';
   base.comfort.snapAngleDegrees = clamp(base.comfort.snapAngleDegrees, 15, 90);
   base.comfort.vignette = clamp01(base.comfort.vignette);
   base.comfort.sensitivity = clamp(base.comfort.sensitivity, 0.2, 3);

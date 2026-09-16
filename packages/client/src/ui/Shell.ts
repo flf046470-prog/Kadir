@@ -49,6 +49,12 @@ export interface ShellCallbacks {
   onResume(): void;
   onLeaveMatch(): void;
   onVoiceToggle(enabled: boolean): void;
+  /** The microphones this browser admits to; labels are blank until permission is granted once. */
+  listMicDevices(): Promise<{ deviceId: string; label: string }[]>;
+  /** Swap input device without dropping the call. '' means the system default. */
+  onMicDeviceChanged(deviceId: string): void;
+  /** Live microphone state, polled while the settings panel is open, for the test meter. */
+  micState(): { level: number; open: boolean; enabled: boolean };
 }
 
 export interface ShellOptions {
@@ -916,6 +922,159 @@ export class Shell {
     return rows;
   }
 
+  /** The moving part of the microphone test meter, while the settings panel is open. */
+  private micMeterFill: HTMLElement | null = null;
+  private micStatusNote: HTMLElement | null = null;
+
+  /**
+   * The microphone controls, with a meter you can actually speak into.
+   *
+   * The meter is the part that earns its place. "Nobody can hear me" is the single most common
+   * thing that goes wrong with voice chat in a game, and without a local readout a player has no
+   * way to tell the difference between the wrong input device, a threshold set too high, a muted
+   * track, and a peer connection that never formed — four different problems with one symptom.
+   * A bar that moves when you talk separates the first three from the fourth in two seconds.
+   */
+  private micSection(s: Settings): HTMLElement[] {
+    const rows: HTMLElement[] = [];
+
+    const modeRow = el('label', { class: 'kc-field' }, el('span', {}, 'Microphone'));
+    const modeSelect = el('select', {}) as HTMLSelectElement;
+    for (const [value, label] of [
+      ['push', 'Push to talk'],
+      ['open', 'Open mic'],
+    ] as const) {
+      const option = el('option', { value }, label);
+      if (s.audio.micMode === value) option.selected = true;
+      modeSelect.append(option);
+    }
+    modeSelect.addEventListener('change', () => {
+      s.audio.micMode = modeSelect.value === 'open' ? 'open' : 'push';
+      this.options.callbacks.onSettingsChanged(this.settings);
+      this.render();
+    });
+    modeRow.append(modeSelect);
+    rows.push(modeRow);
+
+    rows.push(
+      el(
+        'p',
+        { class: 'kc-note' },
+        s.audio.micMode === 'push'
+          ? 'Nobody hears you until you hold the talk control, and the microphone closes the ' +
+              'instant you let go. PC: V. VR: click the left thumbstick. Mobile: hold the mic button.'
+          : 'Your microphone opens by itself when you speak and closes shortly after you stop. ' +
+              'Holding the talk control still works, for when you are speaking too quietly to ' +
+              'trip the gate.',
+      ),
+    );
+
+    const meter = el('div', { class: 'kc-mic-meter' });
+    const fill = el('div', { class: 'kc-mic-fill' });
+    meter.append(fill);
+    this.micMeterFill = fill;
+
+    // The threshold only exists in open mic; push-to-talk still gets the meter, because "is my
+    // microphone working at all" is a question in both modes.
+    if (s.audio.micMode === 'open') {
+      const thresholdRow = el('label', { class: 'kc-field' }, el('span', {}, 'Voice activation'));
+      const thresholdInput = el('input', {
+        type: 'range',
+        min: '0',
+        max: '0.4',
+        step: '0.005',
+        value: String(s.audio.micThreshold),
+      }) as HTMLInputElement;
+      const marker = el('span', { class: 'kc-mic-marker' });
+      const setMarker = (value: number) => {
+        // 0.4 is the slider's ceiling, so the marker shares the meter's scale and a player can
+        // line the threshold up against how loud they actually are.
+        marker.style.left = `${Math.min(100, (value / 0.4) * 100)}%`;
+      };
+      setMarker(s.audio.micThreshold);
+      thresholdInput.addEventListener('input', () => {
+        s.audio.micThreshold = Number(thresholdInput.value);
+        setMarker(s.audio.micThreshold);
+        this.options.callbacks.onSettingsChanged(this.settings);
+      });
+      thresholdRow.append(thresholdInput);
+      rows.push(thresholdRow);
+      meter.append(marker);
+    }
+    rows.push(meter);
+
+    rows.push(
+      el(
+        'p',
+        { class: 'kc-note kc-mic-status' },
+        'Turn voice chat on and speak — the bar should move.',
+      ),
+    );
+    this.micStatusNote = rows[rows.length - 1] as HTMLElement;
+
+    const deviceRow = el('label', { class: 'kc-field' }, el('span', {}, 'Input device'));
+    const deviceSelect = el('select', {}) as HTMLSelectElement;
+    deviceSelect.append(el('option', { value: '' }, 'System default'));
+    deviceSelect.addEventListener('change', () => {
+      s.audio.micDeviceId = deviceSelect.value;
+      this.options.callbacks.onSettingsChanged(this.settings);
+      this.options.callbacks.onMicDeviceChanged(deviceSelect.value);
+    });
+    deviceRow.append(deviceSelect);
+    rows.push(deviceRow);
+
+    // Labels are blank until the microphone has been granted once, so this fills in after the
+    // fact rather than blocking the panel on a permission the player may never give.
+    void this.options.callbacks.listMicDevices().then((devices) => {
+      if (!deviceSelect.isConnected) return;
+      for (const device of devices) {
+        if (!device.deviceId) continue;
+        const option = el('option', { value: device.deviceId }, device.label);
+        if (device.deviceId === s.audio.micDeviceId) option.selected = true;
+        deviceSelect.append(option);
+      }
+    });
+
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this.pumpMicMeter());
+    return rows;
+  }
+
+  /**
+   * Drive the microphone meter from the frame loop.
+   *
+   * Called by the client each frame while the menu is open; does nothing when it is not, so a
+   * closed panel costs one null check.
+   */
+  private pumpMicMeter(): void {
+    const fill = this.micMeterFill;
+    if (!fill) return;
+    // Stops itself when the panel goes away: `render()` replaces the element, so the one this
+    // closure captured is no longer in the document and the loop has nothing left to drive.
+    if (!fill.isConnected) {
+      if (this.micMeterFill === fill) this.micMeterFill = null;
+      return;
+    }
+    const state = this.options.callbacks.micState();
+    this.updateMicMeter(state.level, state.open, state.enabled);
+    requestAnimationFrame(() => this.pumpMicMeter());
+  }
+
+  updateMicMeter(level: number, open: boolean, enabled: boolean): void {
+    if (!this.micMeterFill) return;
+    this.micMeterFill.style.width = `${Math.min(100, (level / 0.4) * 100)}%`;
+    // Green only while audio is genuinely leaving the machine. The difference between "the bar
+    // moves" and "the bar moves and it is green" is exactly the difference between a microphone
+    // that works and one the room can hear, and a player debugging this needs to see both.
+    this.micMeterFill.classList.toggle('is-live', open);
+    if (this.micStatusNote) {
+      this.micStatusNote.textContent = !enabled
+        ? 'Voice chat is off — switch it on above to test your microphone.'
+        : open
+          ? 'Live — the room can hear you.'
+          : 'Microphone open, not transmitting.';
+    }
+  }
+
   private settingsScreen(): HTMLElement {
     const s = this.settings;
     const panel = el('div', { class: 'kc-panel' });
@@ -984,6 +1143,7 @@ export class Shell {
         s.voiceEnabled = v;
         this.options.callbacks.onVoiceToggle(v);
       }),
+      ...this.micSection(s),
 
       el('h3', {}, 'Comfort (VR)'),
       // First in the section because it decides what the other comfort options are even for:
