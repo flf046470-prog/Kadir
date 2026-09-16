@@ -20,6 +20,8 @@ export type SimEventType =
   | 'lapComplete'
   | 'stagger'
   | 'respawn'
+  /** A player stepped into a mode portal in the lobby. `data` is the mode id. */
+  | 'portal'
   | 'roleChange'
   | 'roundState'
   | 'gadgetUse'

@@ -4,6 +4,7 @@ import { LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
 import type { BoxCollider } from '../physics/types.js';
 import type { LevelDef, PropKind } from './level.js';
+import { LOBBY_MODE_IDS } from './level.js';
 
 export const JUNGLE_SEED = hashString('kangaroo-chase/jungle-world/v1');
 
@@ -28,6 +29,10 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   buildCanyonDistrict(b, rand);
   dressWorld(b, rand);
   buildParkourRoute(b);
+
+  // The lobby: where you land, ringed by a door into every mode.
+  b.spawn(vec3(0, 0.5, 0), 0, 'jungle', 'lobby');
+  b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
 
   b.zone('jungle', vec3(0, 0, 0), 60, 'jungle', 0.05);
   b.zone('cave', vec3(-72, 0, 0), 34, 'cave', 0.75);

@@ -54,7 +54,8 @@
     "check:lobby": "node scripts/check-lobby.mjs",
     "capture:shots": "node scripts/capture-shots.mjs",
     "pack:preview": "node scripts/pack-preview.mjs",
-    "assets:sculpt": "python3 tools/blender/sculpt.py"
+    "assets:sculpt": "python3 tools/blender/sculpt.py",
+    "assets:portal": "python3 tools/blender/portal.py"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

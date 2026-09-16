@@ -3,6 +3,7 @@ import { vec3 } from '../math/vec3.js';
 import { LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
 import type { LevelDef } from './level.js';
+import { LOBBY_MODE_IDS } from './level.js';
 
 export const GLACIER_SEED = hashString('kangaroo-chase/glacier-world/v1');
 
@@ -34,6 +35,10 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   buildSeracField(b, rand);
   dressGlacier(b, rand);
   buildGlacierRoute(b);
+
+  // The same ring of doors, so the lobby reads identically whichever map you are standing on.
+  b.spawn(vec3(0, 0.5, 0), 0, 'shelf', 'lobby');
+  b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
 
   b.zone('shelf', vec3(0, 0, 0), 62, 'canyon', 0.04);
   // Below the ice and genuinely dark — the same role the jungle's cave plays, and the reason the

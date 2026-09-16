@@ -30,6 +30,47 @@ export interface CheckpointDef {
   finish?: boolean;
 }
 
+/**
+ * A doorway into a game mode, standing in the world.
+ *
+ * Picking a mode from a menu is the one moment this game stops being a place you are standing in.
+ * A portal keeps it: you walk to the mode you want, and your friends can see which one you are
+ * heading for and follow you in. It is also the only mode-select that works identically in a
+ * headset, on a phone and on a desktop, because walking is the one input all three already have.
+ *
+ * Part of `LevelDef`, so it is built from the seed like everything else and every client agrees on
+ * where the doors are without downloading anything.
+ */
+export interface PortalDef {
+  /** The mode this door opens. Must be a registered mode id. */
+  modeId: string;
+  position: Vec3;
+  /** How close you have to be for it to take you. */
+  radius: number;
+  /** Facing, so the arch is drawn side-on to whoever is approaching from the lobby centre. */
+  yaw: number;
+}
+
+/**
+ * The modes that get a door in the lobby, in the order they are rung around it.
+ *
+ * Named here rather than read from the mode registry because a level is plain data and must not
+ * depend on the gameplay modules — the whole point of `LevelDef` is that the server, every client
+ * and a future map editor can all build the same world from a seed with nothing else loaded.
+ * `Training Room` is missing on purpose: it *is* the lobby, so a door back into it would be a
+ * door to where you are standing.
+ */
+export const LOBBY_MODE_IDS = [
+  'kangaroo-chase',
+  'infection',
+  'duel',
+  'hunt',
+  'freeze-tag',
+  'hill',
+  'boxing',
+  'parkour',
+] as const;
+
 export interface ZoneDef {
   name: string;
   center: Vec3;
@@ -76,6 +117,8 @@ export interface LevelDef {
   checkpoints: CheckpointDef[];
   zones: ZoneDef[];
   props: PropInstance[];
+  /** Doorways into the game modes, standing in the lobby. */
+  portals: PortalDef[];
   killPlaneY: number;
   /** Playable radius from origin; used for out-of-bounds warnings and interest management. */
   playRadius: number;

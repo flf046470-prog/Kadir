@@ -48,7 +48,7 @@ export interface ModeContext {
   /** Seconds per tick. */
   dt: number;
   /** Move a player to a spawn point appropriate for their role. */
-  respawn(player: PlayerState, tag?: 'runner' | 'chaser' | 'start'): void;
+  respawn(player: PlayerState, tag?: 'runner' | 'chaser' | 'start' | 'lobby'): void;
 }
 
 export interface PlayerResult {

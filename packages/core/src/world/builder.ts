@@ -3,7 +3,7 @@ import type { Vec3 } from '../math/vec3.js';
 import { vec3 } from '../math/vec3.js';
 import type { Collider, SurfaceMaterial, SurfaceProps } from '../physics/types.js';
 import { SurfaceFlags } from '../physics/types.js';
-import type { CheckpointDef, GripDef, GripKind, LevelDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
+import type { CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
 
 export interface SurfacePreset {
   friction: number;
@@ -53,6 +53,7 @@ export class LevelBuilder {
   readonly spawns: SpawnPoint[] = [];
   readonly checkpoints: CheckpointDef[] = [];
   readonly zones: ZoneDef[] = [];
+  readonly portals: PortalDef[] = [];
   private nextId = 0;
 
   constructor(readonly rand: Rand) {}
@@ -201,7 +202,37 @@ export class LevelBuilder {
     }
   }
 
-  build(meta: Omit<LevelDef, 'colliders' | 'props' | 'grips' | 'spawns' | 'checkpoints' | 'zones'>): LevelDef {
+  /**
+   * Ring the lobby with a doorway per mode.
+   *
+   * Laid out in a circle around the lobby spawn and facing inwards, so a player who spawns in
+   * turns on the spot and reads every option — which is the job a mode menu used to do, done by
+   * standing somewhere instead.
+   *
+   * Radius grows with the number of doors rather than being fixed, or a big list would put them
+   * shoulder to shoulder and a player aiming for one would fall into its neighbour.
+   */
+  addModePortals(modeIds: readonly string[], centre: Vec3, portalRadius = 2.2): void {
+    if (modeIds.length === 0) return;
+    const spacing = portalRadius * 3.2;
+    const ring = Math.max(9, (spacing * modeIds.length) / (Math.PI * 2));
+    modeIds.forEach((modeId, index) => {
+      const angle = (index / modeIds.length) * Math.PI * 2;
+      const x = centre.x + Math.sin(angle) * ring;
+      const z = centre.z + Math.cos(angle) * ring;
+      this.portals.push({
+        modeId,
+        position: { x, y: centre.y, z },
+        radius: portalRadius,
+        // Facing back at the lobby centre, so the arch is broadside to anyone walking out to it.
+        yaw: Math.atan2(centre.x - x, centre.z - z),
+      });
+    });
+  }
+
+  build(
+    meta: Omit<LevelDef, 'colliders' | 'props' | 'grips' | 'spawns' | 'checkpoints' | 'zones' | 'portals'>,
+  ): LevelDef {
     return {
       ...meta,
       colliders: this.colliders,
@@ -210,6 +241,7 @@ export class LevelBuilder {
       spawns: this.spawns,
       checkpoints: this.checkpoints,
       zones: this.zones,
+      portals: this.portals,
     };
   }
 }

@@ -75,11 +75,28 @@ const PROP_SURFACES: Record<string, SurfaceMaterial> = {
  * jungle costs a few dozen draw calls instead of a few thousand — the single most important
  * thing for holding frame rate on a phone or a Quest.
  */
+/**
+ * One colour per door, so the lobby is navigable by memory rather than by reading eight labels.
+ * Warm for the chasing modes, cold for the timed ones, red for the fight.
+ */
+const PORTAL_COLORS: Record<string, number> = {
+  'kangaroo-chase': 0xffb703,
+  infection: 0x8ac926,
+  duel: 0xff6b35,
+  hunt: 0xef476f,
+  'freeze-tag': 0x4cc9f0,
+  hill: 0xffd166,
+  boxing: 0xdc2626,
+  parkour: 0x9b5de5,
+};
+
 export class LevelRenderer {
   readonly group = new THREE.Group();
   private disposables: (THREE.BufferGeometry | THREE.Material)[] = [];
   private instanced: THREE.InstancedMesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
+  private portals: { group: THREE.Group; arch: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
+  private portalVeils: THREE.Mesh[] = [];
 
   /** Instanced meshes built from procedural geometry, replaced if authored models arrive. */
   private proceduralProps: THREE.InstancedMesh[] = [];
@@ -94,6 +111,7 @@ export class LevelRenderer {
     this.buildColliders();
     this.buildProps();
     this.buildCheckpoints();
+    this.buildPortals();
     if (this.assets) void this.upgradeProps(this.assets);
   }
 
@@ -384,6 +402,83 @@ export class LevelRenderer {
     }
   }
 
+  /**
+   * The doors in the lobby, one per mode.
+   *
+   * Drawn as a stand-in arch immediately and upgraded to the Blender model when it arrives, the
+   * same two-stage trick the props use: a player who spawns into the lobby on a cold cache should
+   * see eight doorways, not eight gaps where the doorways will be.
+   *
+   * Colour is per mode and applied here rather than baked, so one 22 KB arch serves all eight and
+   * the palette can change without regenerating anything.
+   */
+  private buildPortals(): void {
+    for (const portal of this.level.portals) {
+      const group = new THREE.Group();
+      group.position.set(portal.position.x, portal.position.y, portal.position.z);
+      group.rotation.y = portal.yaw;
+
+      const colour = PORTAL_COLORS[portal.modeId] ?? 0x9aa5b1;
+
+      // The veil: a disc that faces whoever walks up to it. Basic rather than standard, and
+      // additive, because this is the one thing in the lobby that should read as light rather
+      // than as a lit surface — it is how you tell a door from a rock at fifty metres.
+      const veilGeometry = new THREE.CircleGeometry(1.5, 24);
+      this.disposables.push(veilGeometry);
+      const veilMaterial = new THREE.MeshBasicMaterial({
+        color: colour,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      this.disposables.push(veilMaterial);
+      const veil = new THREE.Mesh(veilGeometry, veilMaterial);
+      veil.position.y = 1.75;
+      group.add(veil);
+      this.portalVeils.push(veil);
+
+      // The arch. A torus stands in until the model loads; both are the same size, so the swap
+      // does not make the door jump.
+      const archGeometry = new THREE.TorusGeometry(1.7, 0.18, 6, 20);
+      this.disposables.push(archGeometry);
+      const archMaterial = new THREE.MeshStandardMaterial({
+        color: colour,
+        emissive: colour,
+        emissiveIntensity: 0.35,
+        roughness: 0.6,
+        metalness: 0.1,
+        flatShading: true,
+      });
+      this.disposables.push(archMaterial);
+      const arch = new THREE.Mesh(archGeometry, archMaterial);
+      arch.position.y = 1.75;
+      arch.castShadow = this.profile.shadows;
+      group.add(arch);
+
+      this.group.add(group);
+      this.portals.push({ group, arch, material: archMaterial });
+    }
+
+    if (this.assets && this.level.portals.length > 0) void this.upgradePortals(this.assets);
+  }
+
+  /** Swap the stand-in torus for the generated arch once it has downloaded. */
+  private async upgradePortals(assets: AssetLibrary): Promise<void> {
+    const geometry = await assets.loadGeometry('/models/props/portal.glb');
+    if (!geometry || this.disposed) return;
+    this.disposables.push(geometry);
+    for (const entry of this.portals) {
+      entry.group.remove(entry.arch);
+      const mesh = new THREE.Mesh(geometry, entry.material);
+      mesh.castShadow = this.profile.shadows;
+      mesh.receiveShadow = true;
+      entry.group.add(mesh);
+      entry.arch = mesh;
+    }
+  }
+
   private buildCheckpoints(): void {
     const geometry = new THREE.TorusGeometry(1.6, 0.14, 6, 20);
     this.disposables.push(geometry);
@@ -412,7 +507,23 @@ export class LevelRenderer {
     });
   }
 
+  /**
+   * Doors are for the lobby. In a match they would be eight glowing rings in the middle of the
+   * map that do nothing, which reads as scenery nobody can explain.
+   */
+  setPortalsVisible(visible: boolean): void {
+    for (const entry of this.portals) entry.group.visible = visible;
+  }
+
   animate(time: number): void {
+    // A slow breath on the veils. Enough to say "this is live" without becoming a strobe in a
+    // headset, where eight of them are in view at once.
+    for (let i = 0; i < this.portalVeils.length; i++) {
+      const veil = this.portalVeils[i] as THREE.Mesh;
+      const material = veil.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.34 + Math.sin(time * 1.6 + i * 0.8) * 0.12;
+    }
+
     for (let i = 0; i < this.checkpointRings.length; i++) {
       const ring = this.checkpointRings[i] as THREE.Mesh;
       if (!ring.visible) continue;

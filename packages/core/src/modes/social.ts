@@ -37,6 +37,8 @@ export class TrainingRoomMode implements GameMode {
   readonly def: GameModeDef;
   private roster: Map<string, PlayerState> = new Map();
   private ticks = 0;
+  /** Which portal each player is currently standing in, so entry fires once and not per tick. */
+  private insidePortal = new Map<string, string>();
 
   constructor(def: GameModeDef) {
     this.def = def;
@@ -45,6 +47,7 @@ export class TrainingRoomMode implements GameMode {
   start(ctx: ModeContext): void {
     this.roster = ctx.players;
     this.ticks = 0;
+    this.insidePortal.clear();
   }
 
   playerJoined(ctx: ModeContext, player: PlayerState): void {
@@ -52,11 +55,13 @@ export class TrainingRoomMode implements GameMode {
     player.health = 100;
     player.stamina = 100;
     player.alive = true;
-    ctx.respawn(player, 'start');
+    // Into the middle of the ring of doors, so the first thing a new player sees is their choices.
+    ctx.respawn(player, 'lobby');
   }
 
-  playerLeft(): void {
-    // Nothing to clean up: there is no score, no bout and no round state to unwind.
+  playerLeft(_ctx: ModeContext, playerId: string): void {
+    // No score, no bout and no round state to unwind — only which door they were standing in.
+    this.insidePortal.delete(playerId);
   }
 
   step(ctx: ModeContext): void {
@@ -65,11 +70,48 @@ export class TrainingRoomMode implements GameMode {
       if (!player.active) continue;
       // Fell off the world. In a match this costs you the round; here it costs you nothing.
       if (player.position.y < ctx.level.killPlaneY) {
-        ctx.respawn(player, 'start');
+        ctx.respawn(player, 'lobby');
+        this.insidePortal.delete(player.id);
         ctx.events.emit('respawn', player.id, player.position, ctx.tick, 0, { data: 'training' });
       }
       // Status effects from a gadget someone is trying out wear off; nothing is held.
       player.health = Math.min(100, player.health + 8 * ctx.dt);
+      this.checkPortals(ctx, player);
+    }
+  }
+
+  /**
+   * Walking into a door announces which mode you want.
+   *
+   * Fired on the way *in* only, and the mode you are standing in is remembered until you leave,
+   * because the alternative is an announcement sixty times a second for as long as you loiter in
+   * the arch — and people do loiter in the arch, waiting for a friend.
+   *
+   * The mode itself only says "this player stepped through here". What that means — start a solo
+   * round, vote in a lobby, queue for matchmaking — belongs to whoever is running the room, which
+   * is the same split every other mode event follows.
+   */
+  private checkPortals(ctx: ModeContext, player: PlayerState): void {
+    let entered: string | null = null;
+    for (const portal of ctx.level.portals) {
+      // Horizontal only: a portal you are standing on top of on a ledge is not one you walked
+      // through, and the lobby floor is flat anyway.
+      const dx = player.position.x - portal.position.x;
+      const dz = player.position.z - portal.position.z;
+      if (Math.hypot(dx, dz) <= portal.radius) {
+        entered = portal.modeId;
+        break;
+      }
+    }
+
+    const previous = this.insidePortal.get(player.id) ?? null;
+    if (entered === previous) return;
+
+    if (entered === null) this.insidePortal.delete(player.id);
+    else this.insidePortal.set(player.id, entered);
+
+    if (entered !== null) {
+      ctx.events.emit('portal', player.id, player.position, ctx.tick, 0, { data: entered });
     }
   }
 

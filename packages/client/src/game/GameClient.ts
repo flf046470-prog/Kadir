@@ -184,6 +184,8 @@ export class GameClient {
       onModeState: (state) => {
         this.callbacks.onModeState(state);
         this.levelRenderer.setCheckpointsVisible(state.modeId === 'parkour');
+        // Doors belong to the lobby; in a match they would be eight glowing rings nobody can explain.
+        this.levelRenderer.setPortalsVisible(state.modeId === 'training');
       },
       onGear: (gear) => {
         this.shop = gear.shop;
@@ -386,6 +388,7 @@ export class GameClient {
       });
     }
     this.levelRenderer.setCheckpointsVisible(modeId === 'parkour');
+    this.levelRenderer.setPortalsVisible(modeId === 'training');
     this.soloPractice = true;
     this.soloResultsSent = false;
     this.applyTuning();
@@ -519,10 +522,34 @@ export class GameClient {
     for (const event of events) {
       const isLocal = event.playerId === this.localId;
       this.audio.handleEvent(event, isLocal);
+      if (isLocal && event.type === 'portal') this.enterPortal(String(event.data ?? ''));
       if (isLocal || event.otherId === this.localId) {
         this.callbacks.onLocalEvent(event);
         this.playHaptics(event, isLocal);
       }
+    }
+  }
+
+  /**
+   * Walk into a door in the lobby, come out in that mode.
+   *
+   * The simulation only reports that this player crossed into a portal; choosing what that means
+   * is the room's job. Offline that is simply "start this mode", which is the whole point — a
+   * player who has never opened a menu can pick a game by walking at it, and it works the same in
+   * a headset, on a phone and at a desk because walking is the one input all three share.
+   *
+   * Online it is a request rather than an act: the server owns which mode a room is playing, and a
+   * client that could switch it by standing somewhere would be a client that can end everyone
+   * else's round.
+   */
+  private enterPortal(modeId: string): void {
+    if (!modeId || modeId === this.modeId) return;
+    if (this.soloPractice) {
+      this.callbacks.onNotice(`Entering ${modeId.replace(/-/g, ' ')}…`);
+      this.startSoloPractice(modeId);
+    } else {
+      this.net.sendJson({ t: 'vote', modeId });
+      this.callbacks.onNotice(`Voted for ${modeId.replace(/-/g, ' ')}`);
     }
   }
 

@@ -67,7 +67,15 @@ export class HillMode extends RoundMode {
    * the mode's rhythm depends on everyone having to actually cross the map.
    */
   private moveHill(ctx: ModeContext): void {
-    const candidates = ctx.level.spawns;
+    /**
+     * Anywhere a player can spawn, except the lobby.
+     *
+     * The lobby is the ring of mode portals, and a hill that lands in the middle of it is a hill
+     * inside the furniture — players contest it standing among eight glowing doorways, and on a
+     * map whose lobby sits at the origin it is also the most boringly central point there is.
+     * Filtered rather than removed from the level, because the lobby spawn has a real job.
+     */
+    const candidates = ctx.level.spawns.filter((s) => s.tag !== 'lobby');
     if (candidates.length === 0) {
       this.hill = vec3(0, 2, 0);
       return;
