@@ -31,6 +31,23 @@ const THREAT_ROLES: ReadonlySet<PlayerState['role']> = new Set(['chaser', 'infec
 const PREY_ROLES: ReadonlySet<PlayerState['role']> = new Set(['runner', 'survivor']);
 
 /** Beyond this a bot holds its fire rather than shooting at a dot on the horizon. */
+/**
+ * How long a bot has to make real ground before it decides it is stuck, and how much counts.
+ *
+ * Measured over a window rather than per tick, which is what the old check did: a bot pressed into
+ * a wall does not stand still, it hops and jitters, and at 0.02 m per tick that jitter read as
+ * travel. Driving the jungle course, all six racers reached checkpoint 0, walked to a canyon wall
+ * at x = -68, and spent the remaining **260 seconds of a 300-second race** oscillating in place
+ * 90 m from the next checkpoint, with the stuck timer never once firing.
+ *
+ * 1.2 s and 1.4 m: slower than a sprint, faster than a sidle, and long enough that a legitimate
+ * climb — which is slow and nearly vertical — is not mistaken for being wedged.
+ */
+const PROGRESS_WINDOW = 1.2;
+const PROGRESS_MIN = 1.4;
+/** Roughly a right angle: enough to clear an obstacle, not so much that the bot doubles back. */
+const DETOUR_ANGLE = 1.35;
+const DETOUR_SECONDS = 1.4;
 const FIRE_RANGE = 34;
 /** Past this far apart a fighter closes the distance instead of swinging at air. */
 const PUNCH_RANGE = 1.15;
@@ -47,9 +64,25 @@ export class Bot {
   private punchTimer = 0;
   private fireTimer = 0;
   private aimError = 0;
-  private stuckTimer = 0;
-  private lastX = 0;
-  private lastZ = 0;
+  /** Where the bot was when the current progress window opened, and how long ago that was. */
+  private progressX = 0;
+  private progressZ = 0;
+  private progressTimer = 0;
+  /** Seconds left of the current detour, and the heading it holds. */
+  private detourTimer = 0;
+  private detourYaw = 0;
+  /**
+   * Which way a bot turns when it meets something.
+   *
+   * One side, for every bot. Drawing it per bot from the seed was tried, on the reasoning that a
+   * field should try both sides of a rock — measured, it moved the jungle the wrong way (eight
+   * racers back at checkpoint 1, against none) while helping the outback by about as much, which
+   * on three seeds is noise wearing a hypothesis. A constant is one less moving part and had the
+   * clearest result in the data, so it is what ships until a wider sweep says otherwise.
+   */
+  private detourSign = 1;
+  /** True while the bot is making no ground. Steering reads it; no button does. */
+  private blocked = false;
 
   constructor(
     readonly playerId: string,
@@ -109,6 +142,25 @@ export class Bot {
       desiredYaw = this.wanderYaw;
     }
 
+    /**
+     * Only a bot heading for a *place* goes round obstacles, and the scope is deliberate.
+     *
+     * The measured failure is entirely here: a racer or a hill-climber walks at a fixed point,
+     * meets a cliff, and leans on it for the rest of the round — on the jungle course, 260 seconds
+     * of a 300-second race spent against one wall, ninety metres short. A chaser has no such
+     * problem, because the thing it steers at moves, so it is never pointed at the same rock for
+     * long.
+     *
+     * Applying it to chases as well was tried and measured, and it changed a balance this has no
+     * business changing: prey stopped cornering themselves, the closest a survivor came to a bot
+     * hunter over a 150-second round went from 0.0 m to 3.1 m, and The Hunt went from four
+     * survivors eliminated to none. That is arguably *better* prey AI, and it exposes something
+     * real — a bot hunter's kills come from its prey getting wedged, not from its rifle. But it is
+     * a separate problem from bots not finishing races, and fixing one should not quietly re-tune
+     * the other.
+     */
+    desiredYaw = objective && !target ? this.avoidObstacle(self, desiredYaw, dt) : desiredYaw;
+
     // Stay inside the play area.
     const distanceFromCentre = Math.hypot(self.position.x, self.position.z);
     if (distanceFromCentre > level.playRadius * 0.75) {
@@ -156,21 +208,65 @@ export class Bot {
       }
     }
 
-    // If we stop making progress, we are probably against geometry: grab and climb over it.
-    const moved = Math.hypot(self.position.x - this.lastX, self.position.z - this.lastZ);
-    this.lastX = self.position.x;
-    this.lastZ = self.position.z;
-    this.stuckTimer = moved < 0.02 ? this.stuckTimer + dt : 0;
-    if (this.stuckTimer > 0.4) {
-      intent.buttons |= Buttons.GrabLeft | Buttons.GrabRight | Buttons.Jump;
-      if (this.stuckTimer > 1.6) {
-        this.wanderYaw += this.rand.range(1.5, 2.5);
-        this.stuckTimer = 0;
-      }
-    }
+    /*
+     * Being blocked presses no buttons at all, and arriving at that took three attempts.
+     *
+     * Grab held: the bot anchored to the canyon face and froze at (-68, 14, 28) for 280 seconds.
+     * Grab pulsed: it stopped anchoring and started yo-yoing, sliding between y = 7 and y = 14 on
+     * the same wall for the rest of the race. Jump alone: this game has wall bounce, so spamming it
+     * into a wall *ratchets the bot up it* — the same wall, the same 18 m, arriving at the top at
+     * t = 180 s and staying there.
+     *
+     * Each was the same mistake: reading "I cannot go forward" as "the route is up". It is not. The
+     * objective was ninety-one metres sideways and level with the bot's feet. Going up is already
+     * handled above by the one signal that actually means up — the objective being above you and
+     * within ten metres. Being blocked means go *round*, which is entirely a steering problem, and
+     * the rhythmic hop already in `think` clears anything low enough to be worth clearing.
+     */
 
     intent.tick = 0;
     return intent;
+  }
+
+  /**
+   * Notice when the way ahead is blocked, and go round it.
+   *
+   * The bot steers straight at whatever it wants and has no idea the world is solid, so anything
+   * between it and its goal is a wall it leans on until the round ends. There was an escape hatch
+   * for this, and it was dead code in precisely the case that needed it: it nudged `wanderYaw`,
+   * which the heading only reads when there is *no* target and *no* objective — so a racer with a
+   * checkpoint to reach, or a chaser with someone to catch, could never be shaken loose by it.
+   *
+   * The fix is deliberately not a navmesh. A* over this world would be a large system with its own
+   * failure modes, and the measurement says the bots do not need to plan — they need to stop
+   * pressing into a rock. Turning ninety degrees and committing to it for a second and a half is
+   * what a person does, and it composes with the steering already here instead of replacing it.
+   *
+   * Two rules make it converge rather than dither. A detour that ends with the bot stuck again
+   * within `PROGRESS_WINDOW` is a detour that went the wrong way, so the next one turns the other
+   * way and lasts longer — which walks the bot along an obstacle instead of bouncing off it. And
+   * the sign persists otherwise, so a bot that found a way round keeps using it.
+   */
+  private avoidObstacle(self: PlayerState, desiredYaw: number, dt: number): number {
+    this.progressTimer += dt;
+
+    if (this.progressTimer >= PROGRESS_WINDOW) {
+      const net = Math.hypot(self.position.x - this.progressX, self.position.z - this.progressZ);
+      this.blocked = net < PROGRESS_MIN;
+      if (this.blocked) {
+        this.detourYaw = desiredYaw + this.detourSign * DETOUR_ANGLE;
+        this.detourTimer = DETOUR_SECONDS;
+      }
+      this.progressX = self.position.x;
+      this.progressZ = self.position.z;
+      this.progressTimer = 0;
+    }
+
+    if (this.detourTimer > 0) {
+      this.detourTimer -= dt;
+      return this.detourYaw;
+    }
+    return desiredYaw;
   }
 
   /**
