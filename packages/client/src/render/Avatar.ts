@@ -76,6 +76,68 @@ export function clipFor(state: {
   return 'idle';
 }
 
+/** The three clips that describe moving on the ground, and how much of each to use. */
+export interface LocomotionBlend {
+  idle: number;
+  walk: number;
+  run: number;
+}
+
+/** Below this the body is standing still. */
+export const WALK_START = 0.5;
+/** Where the walk cycle is at full weight and the run has not started. */
+export const WALK_FULL = 2.4;
+/** Where the run cycle is at full weight. */
+export const RUN_FULL = 7;
+
+/**
+ * How much idle, walk and run to mix at a given ground speed.
+ *
+ * `clipFor` picks exactly one clip and switches at 4.2 m/s, so a player accelerating through that
+ * number went from a walk to a full run between one frame and the next. The 0.25 s crossfade in
+ * `playClip` hides the seam but not the jump in *rate*: the legs change stride length instantly,
+ * which is the single most obvious thing wrong with the way the game moves.
+ *
+ * Blending three clips by weight costs nothing extra — the mixer already evaluates whichever
+ * actions are enabled — and it needs no new animation. It is also the part of "AAA locomotion"
+ * that is actually about code rather than about art.
+ *
+ * Deliberately linear between the anchors. Smoothstep here reads as the avatar hesitating at the
+ * transition, because the *speed* is already the output of a physics ramp and easing an eased
+ * value twice is what makes a character feel like it is wading.
+ */
+export function locomotionBlend(speed: number): LocomotionBlend {
+  const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  if (v <= WALK_START) return { idle: 1, walk: 0, run: 0 };
+  if (v < WALK_FULL) {
+    const t = (v - WALK_START) / (WALK_FULL - WALK_START);
+    return { idle: 1 - t, walk: t, run: 0 };
+  }
+  if (v < RUN_FULL) {
+    const t = (v - WALK_FULL) / (RUN_FULL - WALK_FULL);
+    return { idle: 0, walk: 1 - t, run: t };
+  }
+  return { idle: 0, walk: 0, run: 1 };
+}
+
+/**
+ * How fast to play the gait cycles, as a multiple of their authored rate.
+ *
+ * Blending two cycles that run at their own speeds is what produces the skating you see in games
+ * that blend naively: the feet of the walk and the feet of the run are in different places, so the
+ * average of the two is a foot that never quite commits to the ground. Driving both from one
+ * stride rate keeps them in step, and tying that rate to the actual ground speed is also what
+ * makes a slow walk look slow instead of looking like a walk cycle played at walking pace while
+ * the body creeps.
+ *
+ * Clamped at both ends: below the floor a nearly-stationary player would play a stride every ten
+ * seconds, and above the ceiling a player launched by a jump pad would blur.
+ */
+export function strideRate(speed: number): number {
+  const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  return Math.min(1.8, Math.max(0.55, v / 4.6));
+}
+
 /**
  * How a body plan is put together.
  *
@@ -447,6 +509,76 @@ export class Avatar {
     return true;
   }
 
+  /**
+   * Run idle, walk and run together, weighted by speed and locked to one stride.
+   *
+   * Two details do the work. The weights come from `locomotionBlend`, so there is no threshold to
+   * cross. And both gaits are driven from a single `strideRate`, with the run's playhead slaved to
+   * the walk's — blending two cycles that each run at their own rate is exactly how naive blending
+   * produces skating feet, because the average of two legs in different places is a leg that never
+   * commits to the ground.
+   *
+   * Anything that is not one of the three is faded out rather than stopped, so coming back from a
+   * punch or a hop rejoins the gait instead of snapping to it.
+   */
+  private blendLocomotion(speed: number): void {
+    if (!this.mixer) return;
+    const weights = locomotionBlend(speed);
+    const rate = strideRate(speed);
+
+    for (const [name, action] of this.actions) {
+      if (name === 'idle' || name === 'walk' || name === 'run') continue;
+      if (action.getEffectiveWeight() > 0.001) action.fadeOut(0.2);
+    }
+
+    const walk = this.actions.get('walk');
+    const run = this.actions.get('run');
+    for (const [name, weight] of [
+      ['idle', weights.idle],
+      ['walk', weights.walk],
+      ['run', weights.run],
+    ] as const) {
+      const action = this.actions.get(name);
+      if (!action) continue;
+      if (weight <= 0.001) {
+        action.setEffectiveWeight(0);
+        continue;
+      }
+      if (!action.isRunning()) {
+        action.reset();
+        action.play();
+      }
+      action.enabled = true;
+      action.setEffectiveWeight(weight);
+      action.timeScale = name === 'idle' ? 1 : rate;
+    }
+
+    // Phase lock. The two gaits are authored at different lengths — a stride of walk is 24 frames
+    // and a stride of run is 16 — so matching the playback rate is not enough on its own; the run
+    // has to be told where in its own cycle the walk currently is.
+    if (walk && run && weights.walk > 0.001 && weights.run > 0.001) {
+      const walkLength = walk.getClip().duration;
+      const runLength = run.getClip().duration;
+      if (walkLength > 0 && runLength > 0) run.time = (walk.time / walkLength) * runLength;
+    }
+
+    /**
+     * Report the heaviest of the three, not "blending".
+     *
+     * `currentClip` is two things at once: what `playClip` crossfades *from*, and what
+     * `playingClip` tells the outside world the body is doing. Clearing it during a blend was the
+     * first attempt and it broke the second job — the avatar tests ask what a player at 2 m/s is
+     * doing and got `null` back, which is a worse answer than "walking" in every way that matters.
+     * The dominant clip is the true answer to both questions: it is what a viewer would call it,
+     * and it is the right action for an incoming punch or hop to fade away from.
+     */
+    this.currentClip = weights.run >= weights.walk && weights.run >= weights.idle
+      ? 'run'
+      : weights.walk >= weights.idle
+        ? 'walk'
+        : 'idle';
+  }
+
   private playClip(name: ClipName): void {
     if (!this.mixer || this.currentClip === name) return;
     const next = this.actions.get(name);
@@ -457,6 +589,17 @@ export class Avatar {
     next.setEffectiveWeight(1);
     if (previous && previous !== next) {
       next.crossFadeFrom(previous, 0.25, true);
+    }
+    /**
+     * Fade out anything the gait blend left running.
+     *
+     * `crossFadeFrom` only knows about the one action named in `currentClip`, and the blend leaves
+     * up to three weighted at once with no single name among them — so without this a punch or a
+     * hop plays *on top of* a full-weight run, and the mixer adds the two poses together.
+     */
+    for (const [other, action] of this.actions) {
+      if (other === name || other === this.currentClip) continue;
+      if (action.getEffectiveWeight() > 0.001) action.fadeOut(0.25);
     }
     next.play();
     this.currentClip = name;
@@ -1038,7 +1181,9 @@ export class Avatar {
     crouching: boolean,
     speed: number,
   ): void {
-    this.playClip(clipFor({ grounded, speed, hitTimer: this.hitTimer, emoteId: snapshot.emoteId }));
+    const clip = clipFor({ grounded, speed, hitTimer: this.hitTimer, emoteId: snapshot.emoteId });
+    if (clip === 'idle' || clip === 'walk' || clip === 'run') this.blendLocomotion(speed);
+    else this.playClip(clip);
     (this.mixer as THREE.AnimationMixer).update(dt);
 
     // Crouch is a state the clips do not cover, and it changes the player's actual capsule
