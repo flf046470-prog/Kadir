@@ -29,6 +29,10 @@ const TILE_METRES: Partial<Record<SurfaceMaterial, number>> = {
   stone: 3.5,
   ice: 6,
   snow: 3,
+  // Coarser than sand: the flat is the biggest unbroken surface in the game and a fine tile on it
+  // turns into moire at the far end of an eighty-metre sightline.
+  redEarth: 4,
+  redRock: 4.5,
 };
 
 /**

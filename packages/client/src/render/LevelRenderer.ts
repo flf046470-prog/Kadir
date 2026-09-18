@@ -40,6 +40,10 @@ const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
   // low-poly ice reads as grey the moment the hue goes out of it.
   ice: 0xa8d8ea,
   snow: 0xeef4f8,
+  // Iron-oxide ochre, and a darker, greyer version of it for the cliffs — close enough to read as
+  // the same country, far enough apart that a wall never disappears into the ground in front of it.
+  redEarth: 0xb06437,
+  redRock: 0x8a5539,
 };
 
 const PROP_TINTS = [0x3f8f4a, 0x2f7a3c, 0x57a05a, 0x76b06a];

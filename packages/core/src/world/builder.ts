@@ -37,6 +37,28 @@ export const SURFACES = {
   snow: { friction: 1.05, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'snow' },
   /** A hard ice wall — no grip at all, which is what makes the seracs a committed jump. */
   glazedIce: { friction: 0.28, bounciness: 0.05, flags: SurfaceFlags.NoGrip | SurfaceFlags.Slippery, material: 'ice' },
+  /**
+   * Corrugated iron: the station's roofs, tank and crates.
+   *
+   * Between dirt and ice on purpose. At 0.72 you can run flat out along a shed roof and you cannot
+   * turn hard on one, which is exactly the bargain the station is built around — the fastest way
+   * across the yard is also the one that will not hold a swerve.
+   *
+   * It is the first surface to use the `metal` material, which the renderer has always had a
+   * colour, a tile size and a brushed procedural texture for and which no level had ever reached.
+   */
+  corrugatedIron: { friction: 0.72, bounciness: 0.08, flags: SurfaceFlags.Climbable, material: 'metal' },
+  /**
+   * Baked red earth, and the sandstone it sits on.
+   *
+   * `sand`'s and `rock`'s physics exactly — the outback plays no differently underfoot, and
+   * pretending otherwise would be inventing a mechanic to justify a colour. They exist because the
+   * renderer picks colour and texture from the *material*, so the first build of Outback Station
+   * came out as a pale yellow beach between concrete-grey cliffs. Same reason `ice` is not
+   * `wetRock`.
+   */
+  redEarth: { friction: 1.15, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'redEarth' },
+  redRock: { friction: 1, bounciness: 0.05, flags: SurfaceFlags.Climbable, material: 'redRock' },
 } as const satisfies Record<string, SurfacePreset>;
 
 export type SurfaceName = keyof typeof SURFACES;

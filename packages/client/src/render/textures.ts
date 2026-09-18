@@ -139,6 +139,24 @@ const RECIPES: Record<SurfaceMaterial, Recipe> = {
     bump: 1.6,
     height: (u, v, s) => (1 - worley(u, v, 22, s)) * 0.45 + fbm(u, v, BROAD, s + 9) * 0.55,
   },
+  /** Baked red earth: sand's even grain, cracked by the broad polygons of a dry claypan. */
+  redEarth: {
+    color: [0.69, 0.39, 0.21],
+    contrast: 0.34,
+    roughness: [1, 0.9],
+    metalness: 0,
+    bump: 1.9,
+    height: (u, v, s) => (1 - worley(u, v, 7, s)) * 0.55 + fbm(u, v, FINE, s + 13) * 0.45,
+  },
+  /** Weathered sandstone: rock's creases, warmer and with the bedding a little more even. */
+  redRock: {
+    color: [0.55, 0.34, 0.23],
+    contrast: 0.42,
+    roughness: [0.96, 0.74],
+    metalness: 0,
+    bump: 3.1,
+    height: (u, v, s) => ridged(u, v, CREASE, s) * 0.6 + fbm(u, v, BROAD, s + 23) * 0.4,
+  },
   /** Cut stone: flatter than rock, with hairline fracture. */
   stone: {
     color: [0.53, 0.54, 0.56],

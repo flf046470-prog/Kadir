@@ -33,7 +33,18 @@ export type SurfaceMaterial =
   | 'stone'
   /** Glacier ice. Its own material rather than a slippery rock, because it has to *look* like ice. */
   | 'ice'
-  | 'snow';
+  | 'snow'
+  /**
+   * The outback's ground and its cliffs.
+   *
+   * Same argument that earned ice its own material rather than reusing slippery rock: the renderer
+   * colours a surface by what it says it is, so an outback built on `sand` and `rock` came out as
+   * a pale yellow beach between concrete-grey walls. Red earth is the one thing that says
+   * "Australia" before anything else in the frame does, and it cannot be borrowed from a material
+   * that means something else.
+   */
+  | 'redEarth'
+  | 'redRock';
 
 export interface SurfaceProps {
   /** 0 = ice, 1 = grippy rubber. Scales ground deceleration. */

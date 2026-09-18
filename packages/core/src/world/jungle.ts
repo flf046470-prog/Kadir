@@ -30,8 +30,16 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   dressWorld(b, rand);
   buildParkourRoute(b);
 
-  // The lobby: where you land, ringed by a door into every mode.
-  b.spawn(vec3(0, 0.5, 0), 0, 'jungle', 'lobby');
+  /**
+   * The lobby: where you land, ringed by a door into every mode.
+   *
+   * The ring stays centred on the origin — the landmark tree in the middle of it is the rally
+   * point and looks like one. The *spawn* sits three metres south of it, because the origin is
+   * the tree's own axis: the first version of this put every arriving player inside a 26-metre
+   * trunk, dead centre, and left the physics to shove them out. Nothing failed loudly, which is
+   * why it survived until a test went looking for spawns buried in scenery.
+   */
+  b.spawn(vec3(0, 0.5, 3), 0, 'jungle', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
 
   b.zone('jungle', vec3(0, 0, 0), 60, 'jungle', 0.05);
