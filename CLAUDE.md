@@ -93,16 +93,45 @@ bell (`data: 'bout'`), so the fistfight that mode is built on started in silence
 The HUD's `FROZEN 2.4s` pill is polled from `PlayerState.gadgets`, not driven by the `status`
 event — so a visible indicator existing is not evidence that the event has a consumer.
 
+## Measurement hazards
+
+These silently invalidated real measurements in this repo. Check them before believing a number.
+
+- **The level ids are `jungle-world`, `glacier-world`, `outback-station`.** `buildLevel(id)` falls
+  back to the default level for anything it does not know, rather than throwing — right for the
+  runtime (a client asked for a map it lacks should not crash), fatal for a probe. Guessing
+  `jungle-lobby` / `glacier-ridge` measured the *same* map three times and produced identical
+  numbers across supposedly different worlds. Identical results from different inputs is the tell.
+- **Each landed projectile emits two `gadgetHit` events** — one from `applyPayload` carrying the
+  damage dealt, one from `detonate` with magnitude 1 meaning "direct hit". Counting events as hits
+  reports a 100 % hit rate; the real figure is about half.
+- Roles are assigned when the round starts, not in `addPlayer`. Read `player.role` before the
+  countdown ends and everyone is `idle`.
+- A mode's countdown freezes players, and a round reset restores the state you were watching. Both
+  will hide an effect inside a long run.
+
+## Map density — the number that decides whether it feels like a game
+
+Median distance to the *nearest* other player, six players, sampled once a second from t=10 s, and
+the share of the round spent within 15 m of anybody:
+
+| map | median nearest | within 15 m | Hunt survivors left after 180 s |
+| --- | --- | --- | --- |
+| `jungle-world` | 15.1 m | 50 % | 0, 0, 0 |
+| `glacier-world` | 28.5 m | 24 % | 4, 3, 2 |
+| `outback-station` | 51.3 m | 10 % | 5, 1, 5 |
+
+All three have `playRadius: 150`, which is why that field is the wrong lever — it steers bots and
+contains nobody. Outback Station is the emptiest map in the game: nine tenths of a round with
+nobody in sight, and a hunter who usually catches no one. A tag game is only a game at the density
+the top row shows.
+
 ## Hunt
 
-Measured over 180 s rounds on all three maps: the hunter's rifle works. Shots land for the full 55
-and the hunter clears five survivors by ~t=125 s. The older note that "eliminations come from prey
-getting wedged rather than from the rifle" **no longer reproduces** — the bot obstacle-avoidance
-change fixed the wedging that caused it.
-
-Beware when counting hits: **each landed projectile emits two `gadgetHit` events** — one from
-`applyPayload` carrying the damage dealt, and one from `detonate` with magnitude 1 meaning "direct
-hit". Counting events as hits reports a 100 % hit rate; the real figure is about half that.
+The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by
+~t=125 s. The older note that "eliminations come from prey getting wedged rather than from the
+rifle" no longer reproduces; the bot obstacle-avoidance change fixed the wedging. On the two
+sparser maps the hunter simply cannot find people, which is a density problem, not a weapon one.
 
 ## How to find defects here
 
