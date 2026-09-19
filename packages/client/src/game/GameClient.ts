@@ -893,7 +893,8 @@ export class GameClient {
       }
     }
 
-    this.voice.updatePositions(voicePositions);
+    // The listener is the local player's head, the same point `updateListener` places it at.
+    this.voice.updatePositions(voicePositions, local ? { x: local.position.x, y: local.position.y + 1.6, z: local.position.z } : undefined);
   }
 
   /**

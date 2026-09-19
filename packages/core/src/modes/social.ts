@@ -160,7 +160,21 @@ export class TrainingRoomMode implements GameMode {
  * exactly the distance where you want to hear them.
  */
 export function proximityGain(a: PlayerState, b: PlayerState, near = VOICE_NEAR, far = VOICE_FAR): number {
-  const distance = v3distance(a.head, b.head);
+  return proximityGainAt(v3distance(a.head, b.head), near, far);
+}
+
+/**
+ * The same curve, from a distance the caller already has.
+ *
+ * Split out because the client has positions rather than `PlayerState`s, and until it existed
+ * `proximityGain` was exported, documented, unit tested and **called by nobody**: the only thing
+ * quietening a distant voice was the `PannerNode`'s own inverse rolloff, tuned to `refDistance 4`
+ * and `maxDistance 45`. So the rule the game documents — full volume to 6 m, silence past 22 m —
+ * was not the rule it ran: two players 40 m apart could still hear each other, which on a map
+ * where breaking line of sight is the whole point is a different game.
+ */
+export function proximityGainAt(distance: number, near = VOICE_NEAR, far = VOICE_FAR): number {
+  if (!Number.isFinite(distance)) return 0;
   if (distance <= near) return 1;
   if (distance >= far) return 0;
   return 1 - (distance - near) / (far - near);

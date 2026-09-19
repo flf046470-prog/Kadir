@@ -1,3 +1,4 @@
+import { proximityGainAt } from '@kc/core';
 import type { AudioSystem } from './AudioSystem.js';
 
 export type SignalKind = 'offer' | 'answer' | 'ice' | 'leave';
@@ -12,6 +13,8 @@ const MAX_PENDING_SIGNALS = 32;
 interface Peer {
   connection: RTCPeerConnection;
   panner: PannerNode | null;
+  /** Proximity falloff, applied on top of the panner. See `updatePositions`. */
+  proximity: GainNode | null;
   element: HTMLAudioElement | null;
   polite: boolean;
   makingOffer: boolean;
@@ -419,7 +422,7 @@ export class VoiceChat {
 
   private createPeer(peerId: string): Peer {
     const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    const peer: Peer = { connection, panner: null, element: null, polite: this.localId > peerId, makingOffer: false };
+    const peer: Peer = { connection, panner: null, proximity: null, element: null, polite: this.localId > peerId, makingOffer: false };
     this.peers.set(peerId, peer);
 
     // The gated track, never the raw microphone — see `outboundTracks`.
@@ -555,9 +558,13 @@ export class VoiceChat {
     panner.refDistance = 4;
     panner.maxDistance = 45;
     panner.rolloffFactor = 1.6;
+    const proximity = ctx.createGain();
+    proximity.gain.value = 1;
     source.connect(panner);
-    panner.connect(bus);
+    panner.connect(proximity);
+    proximity.connect(bus);
     peer.panner = panner;
+    peer.proximity = proximity;
   }
 
   /**
@@ -581,14 +588,35 @@ export class VoiceChat {
     }
   }
 
-  /** Called every frame with each speaker's world position. Distance does the rest. */
-  updatePositions(positions: Map<string, { x: number; y: number; z: number }>): void {
+  /**
+   * Called every frame with each speaker's world position, and the listener's.
+   *
+   * The panner places a voice; this decides whether it carries. `proximityGainAt` is the game's
+   * own rule — full volume to `VOICE_NEAR`, silence past `VOICE_FAR`, linear between — and it was
+   * exported, documented, unit tested and called by nobody, so the only falloff was the panner's
+   * inverse curve out to 45 m. Two players forty metres apart could hold a conversation on a map
+   * whose whole subject is breaking line of sight.
+   *
+   * This makes an honest client obey the documented rule. It does **not** make proximity voice
+   * enforceable: this is a WebRTC mesh, every peer already receives every stream, and a modified
+   * client can simply not turn its own gain down. Enforcing it means putting the server in the
+   * audio path — the SFU already listed as a known gap.
+   */
+  updatePositions(
+    positions: Map<string, { x: number; y: number; z: number }>,
+    listener?: { x: number; y: number; z: number },
+  ): void {
+    const ctx = this.audio.context;
     for (const [id, peer] of this.peers) {
       const position = positions.get(id);
       if (!peer.panner || !position) continue;
       peer.panner.positionX.value = position.x;
       peer.panner.positionY.value = position.y;
       peer.panner.positionZ.value = position.z;
+      if (!peer.proximity || !listener || !ctx) continue;
+      const distance = Math.hypot(position.x - listener.x, position.y - listener.y, position.z - listener.z);
+      // Ramped rather than assigned: a gain that steps every frame as someone walks clicks.
+      peer.proximity.gain.setTargetAtTime(proximityGainAt(distance), ctx.currentTime, 0.05);
     }
   }
 

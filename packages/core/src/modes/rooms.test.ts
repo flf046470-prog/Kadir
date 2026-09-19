@@ -7,7 +7,7 @@ import { Simulation, TICK_DT } from '../sim/simulation.js';
 import { buildJungleWorld } from '../world/jungle.js';
 import { FREEZE_TAG_DEF, FreezeTagMode } from './freezetag.js';
 import { HILL_DEF, HillMode } from './hill.js';
-import { TRAINING_ROOM_DEF, TrainingRoomMode, VOICE_FAR, VOICE_NEAR, proximityGain } from './social.js';
+import { TRAINING_ROOM_DEF, TrainingRoomMode, VOICE_FAR, VOICE_NEAR, proximityGain, proximityGainAt } from './social.js';
 import './freezetag.js';
 import './hill.js';
 import './social.js';
@@ -284,5 +284,47 @@ describe('proximity voice', () => {
     const flat = proximityGain(at(0, 0), at(0, 10));
     const above = proximityGain(at(0, 0), at(15, 10));
     expect(above).toBeLessThan(flat);
+  });
+});
+
+/**
+ * The curve, reachable from a distance rather than from two players.
+ *
+ * `proximityGain` was exported, documented, unit tested — and called by nobody, because the client
+ * has positions rather than `PlayerState`s. So the rule the game documents (full volume to 6 m,
+ * silence past 22 m) was not the rule it ran: the only falloff was the `PannerNode`'s inverse
+ * curve, tuned `refDistance 4` / `maxDistance 45`, and two players forty metres apart could hold a
+ * conversation on a map whose whole subject is breaking line of sight.
+ */
+describe('proximity gain by distance', () => {
+  it('agrees with the two-player form it was extracted from', () => {
+    const at = (z: number): PlayerState =>
+      ({ head: { x: 0, y: 0, z } }) as unknown as PlayerState;
+    for (const d of [0, 3, VOICE_NEAR, 10, 15, VOICE_FAR, 40]) {
+      expect(proximityGainAt(d), `${d} m`).toBeCloseTo(proximityGain(at(0), at(d)), 10);
+    }
+  });
+
+  it('is silent past the far limit and full inside the near one', () => {
+    expect(proximityGainAt(VOICE_NEAR)).toBe(1);
+    expect(proximityGainAt(0)).toBe(1);
+    expect(proximityGainAt(VOICE_FAR)).toBe(0);
+    // 45 m is where the panner alone still had someone audible.
+    expect(proximityGainAt(45)).toBe(0);
+  });
+
+  it('falls off monotonically with no step in it', () => {
+    let previous = 1;
+    for (let d = 0; d <= 30; d += 0.05) {
+      const gain = proximityGainAt(d);
+      expect(gain).toBeLessThanOrEqual(previous + 1e-9);
+      expect(Math.abs(gain - previous), `step at ${d.toFixed(2)} m`).toBeLessThan(0.01);
+      previous = gain;
+    }
+  });
+
+  it('survives a distance that is not a number', () => {
+    // Derived from a snapshot position, which arrives over the wire.
+    expect(proximityGainAt(Number.NaN)).toBe(0);
   });
 });

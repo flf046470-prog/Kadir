@@ -88,18 +88,31 @@ now, except `locale`, which was removed because there is no i18n system for it t
 comes back with one.
 
 - `spatialVoice` switches the panning model (HRTF ↔ equalpower), **not** whether distance
-  attenuates. Bypassing the panner is the obvious reading and it would be a cheat: its
-  `refDistance`/`rolloffFactor` are the only thing quietening a distant player, because
-  **`proximityGain` in `social.ts` is exported, documented, unit tested and called by nobody.**
-  Voice distance is therefore enforced client-side only — worth fixing, and a bigger job than a
-  setting: with a WebRTC mesh every peer already receives every stream, so real enforcement means
-  gating signalling by distance.
+  attenuates. Bypassing the panner would be a cheat — see the voice note below.
 - `colorblindSafe` swaps the role-ring palette for blue/orange/white. The ring also encodes role in
   **size** now, always and for everyone — chaser 1.5×, fighter 1.25×, runner 1× — because hue alone
   put the chaser's red and the fighter's yellow on the axis protanopia compresses, and those are
   the two most urgent states in the game.
 - `holdToGrab` uses `platform/latch.ts`, shared by PC and mobile so the rule is not written twice.
   VR has no use for it: a hand grabs because it is closed, and there is no button to hold.
+
+## Voice
+
+`proximityGainAt(distance)` in `social.ts` is the game's falloff rule — full volume to
+`VOICE_NEAR` (6 m), silence past `VOICE_FAR` (22 m), linear between — and `VoiceChat` applies it as
+a gain node per peer. It used to exist only as `proximityGain(a, b)`, exported, documented, unit
+tested and **called by nobody**, because the client has positions rather than `PlayerState`s. So
+the documented rule was not the rule that ran: the only falloff was the `PannerNode`'s inverse
+curve at `refDistance 4` / `maxDistance 45`, and two players forty metres apart could talk.
+
+**This is not enforceable and must not be described as if it were.** Voice is a WebRTC mesh: every
+peer already receives every stream, so a modified client can simply not turn its own gain down, and
+`spatialVoice` must never be implemented as a panner bypass for the same reason. Enforcing
+proximity means putting the server in the audio path — the SFU already listed as a known gap.
+
+The unit suite covers the curve, not the wiring: deleting the one line in `updatePositions` that
+applies it passes every test, because `VoiceChat` needs WebAudio. `npm run check:voice` exercises
+the real path.
 
 ## Events
 
@@ -229,7 +242,10 @@ Measurement beats reading the code, every time. What has actually worked:
 - Headless full-speed simulation with the real `Simulation` and `Bot` via `tsx`.
 - A/B screenshots compared with Pillow; Playwright + Chromium at
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` with `--use-gl=swiftshader`.
-- Two real browser clients over real WebRTC, measuring RMS on the listener.
+- Two real browser clients over real WebRTC, measuring RMS on the listener — `npm run check:voice`,
+  which in this container needs `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+  because Playwright looks for a `chrome-headless-shell` build that is not installed. Never run
+  `npx playwright install`.
 - **Mutation testing on every fix** — break the fix, confirm the new test fails, restore.
   Back the file up with `cp`, never `git checkout`: the working tree usually holds other
   uncommitted work, and a checkout takes that with it. It cost two finished edits once.
