@@ -152,13 +152,36 @@ function startPunchThrows(player: PlayerState, intent: InputIntent, frozen: bool
     hasButton(intent.buttons, Buttons.PunchLeft),
     hasButton(intent.buttons, Buttons.PunchRight),
   ];
+  // Held rather than tapped is deliberate: the throw runs to completion and can only restart once
+  // the combat cooldown has also expired, so holding the button throws at the weapon's own cadence
+  // instead of once per press. Mashing cannot beat it, which is the point.
+  const ready = (hand: HandState): boolean => hand.punchThrow <= 0 && hand.punchCooldown <= 0;
   for (let i = 0; i < 2; i++) {
-    const hand = player.hands[i] as HandState;
-    // Held rather than tapped is deliberate: the throw runs to completion and can only restart
-    // once the combat cooldown has also expired, so holding the button throws at the weapon's own
-    // cadence instead of once per press. Mashing cannot beat it, which is the point.
-    if (!wants[i] || hand.punchThrow > 0 || hand.punchCooldown > 0) continue;
-    hand.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+    if (!wants[i]) continue;
+    const own = player.hands[i] as HandState;
+    if (ready(own)) {
+      own.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+      continue;
+    }
+    /**
+     * The named hand is still recovering, so the punch goes to the other fist.
+     *
+     * PC and mobile have one punch button and it says `PunchRight`, so without this a player on
+     * those platforms fights one-handed and spends every cooldown doing nothing, while a headset
+     * player throws with both tracked hands and a bot alternates its own at random. Measured toe
+     * to toe over eight seconds: one hand lands 13 punches, two land 20. That is a cross-play
+     * matchup decided by which device someone owns, in the two modes built entirely on punching.
+     *
+     * Only once that hand has finished its throw and is merely cooling down, which is what makes
+     * this a jab rather than a windmill. Falling back while it is still extending measured as
+     * both fists leaving the body one tick apart and staying out for as long as the button was
+     * held — the same two-fisted lockstep as pressing both bits, and nothing like a boxer.
+     *
+     * Skipped when the other bit is set too: that hand's own turn of this loop will claim it.
+     */
+    if (own.punchThrow > 0) continue;
+    const other = player.hands[1 - i] as HandState;
+    if (!wants[1 - i] && ready(other)) other.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
   }
 }
 

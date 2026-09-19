@@ -277,7 +277,7 @@ export class VRInput implements PlatformInput {
 
     // Jump is a button-triggered launch: the view moves without the body having asked, which is
     // the classic nausea source. Arms-first drops it; pushing off the ground with a hand is the
-    // way up. Every other button (interact, emote, sprint) is unaffected.
+    // way up. Every other button (grab, emote, shop) is unaffected.
     let buttons = armsOnly ? this.buttons & ~Buttons.Jump : this.buttons;
     if (!out.hands) out.hands = [createHandIntent(), createHandIntent()];
 

@@ -13,7 +13,6 @@ interface TouchStick {
 export interface MobileButtonState {
   jump: boolean;
   grab: boolean;
-  interact: boolean;
   emote: boolean;
   punch: boolean;
   /** Fire / throw / place the selected gadget. */
@@ -41,7 +40,6 @@ export class MobileInput implements PlatformInput {
     { action: 'Look', hint: 'Swipe right side' },
     { action: 'Hop (hold to charge)', hint: 'Jump button' },
     { action: 'Grab / climb', hint: 'Grab button' },
-    { action: 'Interact', hint: 'Interact button' },
     { action: 'Emote', hint: 'Emote button' },
     { action: 'Use gadget', hint: 'Gadget button' },
     { action: 'Next gadget', hint: 'Tap the gadget name' },
@@ -52,7 +50,6 @@ export class MobileInput implements PlatformInput {
   readonly buttons: MobileButtonState = {
     jump: false,
     grab: false,
-    interact: false,
     emote: false,
     punch: false,
     gadget: false,
@@ -137,7 +134,6 @@ export class MobileInput implements PlatformInput {
     let buttons = 0;
     if (this.held('jump')) buttons |= Buttons.Jump;
     if (this.held('grab')) buttons |= Buttons.GrabLeft | Buttons.GrabRight;
-    if (this.held('interact')) buttons |= Buttons.Interact;
     if (this.held('emote')) buttons |= Buttons.Emote;
     if (this.held('punch')) buttons |= Buttons.PunchRight;
     if (this.held('gadget')) buttons |= Buttons.UseGadget;

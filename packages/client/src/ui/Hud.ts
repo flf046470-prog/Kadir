@@ -223,7 +223,6 @@ export class Hud {
         makeButton('GRAB', 'grab'),
         makeButton('HOP', 'jump', true),
         makeButton('PUNCH', 'punch'),
-        makeButton('USE', 'interact'),
         makeButton('EMOTE', 'emote'),
       ),
       // Second cluster, top-right: the equipment controls. Kept apart from the movement pad so a

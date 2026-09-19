@@ -174,3 +174,89 @@ describe('mouse look without pointer lock', () => {
     expect(out.buttons & Buttons.Jump).toBeTruthy();
   });
 });
+
+/** Stand a gamepad in front of `navigator` with exactly one button held down. */
+function withPadButton(index: number, run: () => void): void {
+  const host = globalThis as Record<string, unknown>;
+  const saved = Object.getOwnPropertyDescriptor(host, 'navigator');
+  const pad = {
+    connected: true,
+    axes: [0, 0, 0, 0],
+    buttons: Array.from({ length: 17 }, (_, i) => ({ pressed: i === index })),
+  };
+  Object.defineProperty(host, 'navigator', {
+    value: { getGamepads: () => [pad] },
+    configurable: true,
+    writable: true,
+  });
+  try {
+    run();
+  } finally {
+    if (saved) Object.defineProperty(host, 'navigator', saved);
+    else delete host.navigator;
+  }
+}
+
+/**
+ * One pad button, one action.
+ *
+ * Gadget fire used to sit on button 5 alongside the right-hand grab, so the two fired together and
+ * nothing in the mapping said so — you read the two lines eleven apart and they look fine. What it
+ * cost was measured in the simulation: holding that bumper for two seconds in the Training Room
+ * emitted a `gadgetUse` and took the freeze gun from 4 charges to 3, while a grab on its own spent
+ * nothing. A quarter of the round's ammunition per ledge, in a game where climbing *is* the
+ * movement.
+ *
+ * Asserted over the whole pad rather than on that one pair, because the failure is a property of
+ * the mapping — any future control dropped onto an occupied index fails here the same way. Two
+ * buttons sharing an *action* is fine and deliberate (L3 and the left trigger both sprint); the
+ * invariant runs the other way.
+ */
+describe('the gamepad mapping', () => {
+  let dom: ReturnType<typeof fakeDom>;
+  let input: PCInput;
+
+  beforeEach(() => {
+    dom = fakeDom();
+    input = new PCInput(dom.canvas);
+    input.start();
+  });
+
+  afterEach(() => {
+    input.stop();
+    dom.restore();
+  });
+
+  /** The button mask a single held pad button produces. */
+  const maskFor = (index: number): number => {
+    let mask = 0;
+    withPadButton(index, () => {
+      const out = createIntent();
+      input.sample(out, 1 / 60, DEFAULT_SETTINGS);
+      mask = out.buttons;
+    });
+    return mask;
+  };
+
+  it('never makes one button do two things at once', () => {
+    for (let index = 0; index < 17; index++) {
+      const mask = maskFor(index);
+      const bits = mask.toString(2).split('').filter((c) => c === '1').length;
+      expect(bits, `pad button ${index} produced mask 0b${mask.toString(2)}`).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('keeps grabbing and firing on separate buttons', () => {
+    // The regression itself, named: the bumper climbs and nothing else.
+    expect(maskFor(5)).toBe(Buttons.GrabRight);
+    expect(maskFor(2)).toBe(Buttons.UseGadget);
+  });
+
+  it('still reaches every control the keyboard has', () => {
+    // A mapping with no collisions is easy to get by deleting bindings, so pin the coverage too.
+    const reachable = Array.from({ length: 17 }, (_, i) => maskFor(i)).reduce((a, b) => a | b, 0);
+    for (const action of ['Jump', 'Sprint', 'Crouch', 'GrabLeft', 'GrabRight', 'PunchRight', 'Emote', 'UseGadget', 'CycleGadget', 'Shop', 'Talk'] as const) {
+      expect(reachable & Buttons[action], `${action} is unreachable on a gamepad`).toBeTruthy();
+    }
+  });
+});

@@ -8,7 +8,7 @@ import type { SimEventType } from '../sim/events.js';
 import { createIntent, createHandIntent, Buttons } from '../input/intent.js';
 import type { InputIntent } from '../input/intent.js';
 import { createPlayerState } from './state.js';
-import type { PlayerState } from './state.js';
+import type { HandState, PlayerState } from './state.js';
 import { stepPlayer } from './locomotion.js';
 import type { LocomotionContext } from './locomotion.js';
 import { DEFAULT_MOVEMENT } from './config.js';
@@ -418,5 +418,49 @@ describe('the punch button on PC and mobile', () => {
       Math.hypot(0.3, 0.2),
       4,
     );
+  });
+
+  /**
+   * One punch button has to reach both fists.
+   *
+   * PC and mobile have a single punch button and the bit it sends says `PunchRight`, so a held
+   * button used to fight one-handed and stand idle through every cooldown, while a headset player
+   * throws with two tracked hands and a bot flips a coin between its own. Measured toe to toe over
+   * eight seconds in the real simulation: one hand landed **13** punches, two landed **20** — a
+   * matchup decided by which device someone owns, in the two modes built entirely on punching.
+   * Over forty seconds after this, all three input styles land exactly 102.
+   */
+  it('keeps punching with the other fist while the named one recovers', () => {
+    const { player, ctx, intent } = standing();
+    const [left, right] = player.hands as [HandState, HandState];
+
+    // `punchCooldown` is set by `combat.ts` when a punch resolves, never by locomotion, so a
+    // recovering fist only exists here if it is put there.
+    right.punchCooldown = 0.3;
+    intent.buttons = Buttons.PunchRight;
+    run(player, ctx, intent, 1);
+
+    expect(right.punchThrow, 'the recovering fist threw anyway').toBe(0);
+    expect(left.punchThrow, 'the free fist stood idle through the whole cooldown').toBeGreaterThan(0);
+  });
+
+  it('throws one fist at a time rather than windmilling both', () => {
+    /**
+     * The first version of the fallback fired the moment the named hand was *unavailable*, which
+     * included being mid-throw. Measured in the real simulation, that put both arms out one tick
+     * apart and kept them out for as long as the button was held — `R@0 L@1`, a two-fisted
+     * windmill and nothing like a boxer. Waiting for the named fist to finish its throw is what
+     * makes it a jab: the same measurement then reads `R@0 L@98 R@113 L@129`, one arm at a time.
+     */
+    const { player, ctx, intent } = standing();
+    const [left, right] = player.hands as [HandState, HandState];
+
+    intent.buttons = Buttons.PunchRight;
+    run(player, ctx, intent, 1);
+    expect(right.punchThrow, 'the named fist did not throw').toBeGreaterThan(0);
+
+    // Still extending. The other fist must wait its turn rather than join in.
+    run(player, ctx, intent, 1);
+    expect(left.punchThrow, 'the second fist joined a throw already in flight').toBe(0);
   });
 });

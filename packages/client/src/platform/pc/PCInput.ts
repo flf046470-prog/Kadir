@@ -18,7 +18,6 @@ const PC_CONTROL_HINTS = [
   { action: 'Crouch', hint: 'Ctrl' },
   { action: 'Grab / climb', hint: 'Right mouse' },
   { action: 'Punch', hint: 'Left mouse' },
-  { action: 'Interact', hint: 'E' },
   { action: 'Emote', hint: 'X' },
   { action: 'Use gadget', hint: 'F' },
   { action: 'Next gadget', hint: 'Q' },
@@ -137,7 +136,6 @@ export class PCInput implements PlatformInput {
     if (this.keys.has('Space')) buttons |= Buttons.Jump;
     if (this.keys.has('ShiftLeft') || this.keys.has('ShiftRight')) buttons |= Buttons.Sprint;
     if (this.keys.has('ControlLeft') || this.keys.has('KeyC')) buttons |= Buttons.Crouch;
-    if (this.keys.has('KeyE')) buttons |= Buttons.Interact;
     if (this.keys.has('KeyX')) buttons |= Buttons.Emote;
     if (this.keys.has('KeyF')) buttons |= Buttons.UseGadget;
     if (this.keys.has('KeyQ')) buttons |= Buttons.CycleGadget;
@@ -189,12 +187,14 @@ export class PCInput implements PlatformInput {
     if (pressed(1)) buttons |= Buttons.Crouch;
     if (pressed(4)) buttons |= Buttons.GrabLeft;
     if (pressed(5)) buttons |= Buttons.GrabRight;
-    if (pressed(2)) buttons |= Buttons.Interact;
     if (pressed(3)) buttons |= Buttons.Emote;
     if (pressed(7)) buttons |= Buttons.PunchRight;
-    // Gamepad: right bumper fires the gadget, D-pad up cycles, D-pad down opens the shop, and
+    // Gadget fire is on the west face button, not the right bumper. The bumper already grabs with
+    // the right hand, and sharing it meant every ledge you caught also pulled the trigger: measured
+    // at one `gadgetUse` and a freeze-gun charge — a quarter of the round's ammunition — per grab,
+    // in a game whose whole traversal is grabbing. D-pad up cycles, D-pad down opens the shop, and
     // the right stick click is push-to-talk — the same shape as the VR controller mapping.
-    if (pressed(5)) buttons |= Buttons.UseGadget;
+    if (pressed(2)) buttons |= Buttons.UseGadget;
     if (pressed(12)) buttons |= Buttons.CycleGadget;
     if (pressed(13)) buttons |= Buttons.Shop;
     if (pressed(11)) buttons |= Buttons.Talk;

@@ -15,7 +15,9 @@ export const Buttons = {
   Crouch: 1 << 2,
   GrabLeft: 1 << 3,
   GrabRight: 1 << 4,
-  Interact: 1 << 5,
+  // Bit 5 is free. It carried `Interact`, which three platforms sent and nothing ever read: a
+  // player could hold it for nine hundred ticks in any mode and not one value on them moved.
+  // Left as a hole rather than reused, so a recorded intent still decodes to the same buttons.
   Emote: 1 << 6,
   /** Non-VR platforms map a punch button; VR derives punches from hand velocity. */
   PunchLeft: 1 << 7,
@@ -31,6 +33,18 @@ export const Buttons = {
 } as const;
 
 export type ButtonMask = number;
+
+/**
+ * Every bit `Buttons` actually defines, derived rather than written down.
+ *
+ * `sanitizeIntent` used a literal `0x1fff` with a comment telling the next person to widen it by
+ * hand. That is a constant which is only ever wrong quietly: forget it and a new button is
+ * silently stripped off every intent that crosses the wire, and the control simply never fires
+ * for anyone. Computing it from the table removes the instruction and the hazard together — and
+ * it also closes the hole at bit 5, which a modified client could otherwise still set and have
+ * relayed to every other player untouched.
+ */
+export const BUTTON_MASK: ButtonMask = Object.values(Buttons).reduce((mask, bit) => mask | bit, 0);
 
 export function hasButton(mask: ButtonMask, button: number): boolean {
   return (mask & button) !== 0;
@@ -133,8 +147,8 @@ export function sanitizeIntent(intent: InputIntent, maxHandReach = 1.2): InputIn
   intent.headHeight = Number.isFinite(intent.headHeight)
     ? Math.max(0.4, Math.min(2.4, intent.headHeight))
     : 1.6;
-  // Mask to the buttons that exist. Widen this together with `Buttons` or new bits are dropped.
-  intent.buttons = (intent.buttons | 0) & 0x1fff;
+  // Mask to the buttons that exist; `BUTTON_MASK` follows the table on its own.
+  intent.buttons = (intent.buttons | 0) & BUTTON_MASK;
   intent.voice = Number.isFinite(intent.voice) ? Math.max(0, Math.min(1, intent.voice)) : 0;
   if (intent.hands) {
     for (const hand of intent.hands) {
