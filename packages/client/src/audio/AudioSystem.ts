@@ -1,3 +1,4 @@
+import { getGadget } from '@kc/core';
 import type { SimEvent, SurfaceMaterial, Settings, ZoneDef } from '@kc/core';
 
 export type AmbienceKind = ZoneDef['ambience'];
@@ -171,8 +172,88 @@ export class AudioSystem {
       case 'respawn':
         this.chime(at, 300, 2);
         break;
+      case 'gadgetUse':
+        this.gadgetFire(at, String(event.data ?? ''));
+        break;
+      case 'gadgetHit':
+        // `magnitude` is the damage dealt when the payload was damage, 1 for a direct hit that
+        // did something else (a freeze, a snare), and 0 for a detonation that caught nobody.
+        if (event.magnitude > 1) this.impact(at, Math.min(1, 0.35 + event.magnitude / 90), 150);
+        else if (event.magnitude > 0) this.impact(at, 0.55, 260);
+        else this.impact(at, 0.25, 90);
+        break;
+      case 'gadgetExpire':
+        // A trap or cloud giving up. Quiet on purpose: it is information, not an event you did.
+        this.click(at, 190, 0.12);
+        break;
+      case 'status':
+        this.statusCue(at, String(event.data ?? ''), isLocalPlayer);
+        break;
+      case 'roundState':
+        // Phase changes arrive through the mode state every tick and need no cue. The two that do
+        // are Conversion Duel's: a catch that starts a fistfight, and the bell that ends it level.
+        if (event.data === 'bout') {
+          this.impact(at, 0.8, 240);
+          this.chime(at, 540, 3);
+        } else if (event.data === 'draw') {
+          this.chime(at, 300, 2);
+        }
+        break;
       default:
         break;
+    }
+  }
+
+  /**
+   * Firing a gadget.
+   *
+   * Picked from the gadget's `visual` rather than its id, which is the same hint the renderer
+   * chooses a mesh from — so a gadget added to the catalog is audible without touching this.
+   */
+  private gadgetFire(at: { x: number; y: number; z: number }, gadgetId: string): void {
+    switch (getGadget(gadgetId)?.visual) {
+      case 'rifle':
+        // A crack with a tail, loud enough to be the thing that tells a survivor where the
+        // hunter is. In Hunt that is the only warning they get.
+        this.impact(at, 1, 420);
+        break;
+      case 'canister':
+        this.impact(at, 0.55, 300);
+        this.click(at, 880, 0.05);
+        break;
+      case 'grenade':
+        this.whoosh(at, 0.4);
+        break;
+      case 'beacon':
+        this.chime(at, 700, 2);
+        break;
+      case 'kit':
+        this.chime(at, 460, 2);
+        break;
+      default:
+        // Armour and anything new: a mechanical clack rather than silence.
+        this.click(at, 300, 0.1);
+        break;
+    }
+  }
+
+  /**
+   * A status effect landing on somebody.
+   *
+   * The HUD already prints `FROZEN 2.4s`, but a player who has just stopped moving is looking at
+   * the world and not at a corner of it, and three seconds of unexplained paralysis reads as the
+   * game having broken. Being frozen yourself drops a low pair; hearing it happen to someone else
+   * is pitched up and stays quiet, because in a six-player room it happens often.
+   */
+  private statusCue(at: { x: number; y: number; z: number }, kind: string, isLocalPlayer: boolean): void {
+    if (kind === 'frozen') {
+      this.chime(at, isLocalPlayer ? 190 : 620, 2);
+      if (isLocalPlayer) this.impact(at, 0.7, 110);
+    } else if (kind === 'snared') {
+      this.impact(at, 0.45, 130);
+    } else if (kind === 'revealed' && isLocalPlayer) {
+      // Only the person who has been lit up needs to know. Everyone else already has the mark.
+      this.chime(at, 880, 3);
     }
   }
 

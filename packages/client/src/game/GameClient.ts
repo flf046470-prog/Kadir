@@ -645,6 +645,24 @@ export class GameClient {
       case 'stagger':
         feedback('hardLand', 'both', 0.6);
         break;
+      case 'gadgetUse':
+        // Recoil in the hand holding it. Non-VR platforms collapse `hand` to the whole pad.
+        feedback('gadgetFire', 'right', 1);
+        break;
+      case 'gadgetHit':
+        // Only when it landed on *you* — `handleEvents` routes an event here when the local player
+        // is either its subject or its `otherId`, and for a hit the subject is the shooter.
+        if (!isLocal) feedback('gadgetHit', 'both', 1);
+        break;
+      case 'status':
+        // The one pulse that fires while the player's own input is about to stop working.
+        if (isLocal && (event.data === 'frozen' || event.data === 'snared')) feedback('frozen', 'both', 1);
+        break;
+      case 'roundState':
+        // Only the duel bell. Both fighters are routed here — the kangaroo is the event's subject
+        // and the human its `otherId` — and both are about to be swung at.
+        if (event.data === 'bout') feedback('tag', 'both', 1);
+        break;
       default:
         break;
     }

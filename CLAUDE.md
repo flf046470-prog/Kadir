@@ -76,6 +76,34 @@ somewhere else. `packages/core/src/input/intent.test.ts` scans the source and en
   (a quarter of the round's ammunition) per grab. It is on button 2 now, and a test sweeps all 17
   indices.
 
+## Events
+
+`AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in
+`default: break`, so an event nobody wrote a case for is **silently discarded** — the code looks
+complete and the player gets nothing. `packages/client/src/game/event-coverage.test.ts` scans for
+event types with no consumer at all. (It cannot see a *partial* regression: dropping a sound while
+the haptic case survives still passes.)
+
+Five were being dropped at once and together they were the whole gadget layer: `gadgetUse`,
+`gadgetHit`, `gadgetExpire`, `status` and `roundState`. Firing a freeze gun, being hit by one, and
+being **frozen in place for three seconds** all produced no sound and no pulse — which reads as
+the game having stopped responding, not as a mechanic. `roundState` also carries Conversion Duel's
+bell (`data: 'bout'`), so the fistfight that mode is built on started in silence.
+
+The HUD's `FROZEN 2.4s` pill is polled from `PlayerState.gadgets`, not driven by the `status`
+event — so a visible indicator existing is not evidence that the event has a consumer.
+
+## Hunt
+
+Measured over 180 s rounds on all three maps: the hunter's rifle works. Shots land for the full 55
+and the hunter clears five survivors by ~t=125 s. The older note that "eliminations come from prey
+getting wedged rather than from the rifle" **no longer reproduces** — the bot obstacle-avoidance
+change fixed the wedging that caused it.
+
+Beware when counting hits: **each landed projectile emits two `gadgetHit` events** — one from
+`applyPayload` carrying the damage dealt, and one from `detonate` with magnitude 1 meaning "direct
+hit". Counting events as hits reports a 100 % hit rate; the real figure is about half that.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

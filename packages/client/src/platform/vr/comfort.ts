@@ -101,7 +101,21 @@ export function approach(current: number, target: number, dt: number, perSecond 
   return current + (target - current) * t;
 }
 
-export type HapticEvent = 'grab' | 'release' | 'land' | 'hardLand' | 'punch' | 'tagged' | 'tag' | 'ui';
+export type HapticEvent =
+  | 'grab'
+  | 'release'
+  | 'land'
+  | 'hardLand'
+  | 'punch'
+  | 'tagged'
+  | 'tag'
+  | 'ui'
+  /** Recoil, in the hand that fired. */
+  | 'gadgetFire'
+  /** A gadget landed on you. */
+  | 'gadgetHit'
+  /** You have been frozen or snared and are about to stop responding to your own input. */
+  | 'frozen';
 
 export interface HapticPulse {
   intensity: number;
@@ -123,6 +137,12 @@ const HAPTICS: Record<HapticEvent, HapticPulse> = {
   tagged: { intensity: 1, durationMs: 120 },
   tag: { intensity: 0.8, durationMs: 80 },
   ui: { intensity: 0.2, durationMs: 12 },
+  gadgetFire: { intensity: 0.7, durationMs: 40 },
+  gadgetHit: { intensity: 0.85, durationMs: 70 },
+  // The longest pulse in the table, and deliberately so: it is the only one that fires while the
+  // player's own input has stopped working, so it has to outlast the confusion rather than the
+  // moment. Still well under the freeze itself.
+  frozen: { intensity: 1, durationMs: 160 },
 };
 
 export function hapticFor(event: HapticEvent, scale = 1): HapticPulse {
