@@ -1,0 +1,51 @@
+# Server + Postgres, the shape a real deployment has.
+#
+#   KC_SESSION_SECRET=$(openssl rand -hex 32) docker compose up --build
+#
+# Postgres is not optional scenery here. With no KC_DATABASE_URL the server falls back to file
+# storage, which is correct for exactly one writer: a profile save and a leaderboard submit are
+# both read-modify-write over a file, so a second instance silently loses one of the two writes.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: kangaroo
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD:-kangaroo-dev}
+      POSTGRES_DB: kangaroo
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # The server's first act is to migrate, so it must not start against a database that is
+    # still initialising. `service_started` would race; this waits for actual readiness.
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kangaroo -d kangaroo']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  server:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - '${KC_PORT:-8787}:8787'
+    environment:
+      NODE_ENV: production
+      # Required in production — the server refuses to boot without it, because session tokens
+      # signed with a default secret are forgeable by anyone who has read this file.
+      KC_SESSION_SECRET: ${KC_SESSION_SECRET:?set KC_SESSION_SECRET, e.g. $(openssl rand -hex 32)}
+      KC_DATABASE_URL: postgres://kangaroo:${KC_DB_PASSWORD:-kangaroo-dev}@db:5432/kangaroo
+      # Browsers send Origin on the WebSocket upgrade. Empty means "allow any", which is fine
+      # for the Quest and Steam builds but wrong for a public web origin.
+      KC_ALLOWED_ORIGINS: ${KC_ALLOWED_ORIGINS:-}
+      # Store credentials. A store with none configured has its receipts refused rather than
+      # accepted unverified, so leaving these empty is safe, not lax.
+      KC_META_APP_ID: ${KC_META_APP_ID:-}
+      KC_META_APP_SECRET: ${KC_META_APP_SECRET:-}
+      KC_STEAM_APP_ID: ${KC_STEAM_APP_ID:-}
+      KC_STEAM_WEB_API_KEY: ${KC_STEAM_WEB_API_KEY:-}
+    restart: unless-stopped
+
+volumes:
+  db-data:
