@@ -127,6 +127,27 @@ describe('/.well-known/', () => {
     bare.close();
   });
 
+  it('takes the statements inline, for a host with no file to point at', async () => {
+    /**
+     * The asset-links file is written next to the keystore that signed it and is gitignored, so
+     * it never enters the container image — and a container host has no filesystem to put it on.
+     * A path-only setting would be one that cannot be used in the place it is needed.
+     */
+    const handler = createHttpHandler({
+      config: config({ publicDir: join(dir, 'public'), assetLinksFile: JSON.stringify([quest, phone]) }),
+    } as unknown as Parameters<typeof createHttpHandler>[0]);
+    const inline = createServer((req, res) => void handler(req, res));
+    await new Promise<void>((resolve) => inline.listen(0, '127.0.0.1', resolve));
+    const address = inline.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/.well-known/assetlinks.json`);
+    expect(response.headers.get('content-type')).toContain('application/json');
+    // Not comma-split: the commas inside the array are its own, and a path cannot start with `[`.
+    await expect(response.json()).resolves.toHaveLength(2);
+    inline.close();
+  });
+
   it('404s rather than serving a file it could not parse', async () => {
     // A malformed asset-links file fails Android's verification in a way that reads as a network
     // problem. Refusing to serve it is the difference between a wrong answer and no answer.

@@ -113,24 +113,43 @@ async function serveWellKnown(config: ServerConfig, path: string, res: ServerRes
 }
 
 /**
- * Every statement from a comma-separated list of asset-link files, merged.
+ * Every asset-link statement the configured value yields, merged and de-duplicated.
  *
- * One origin can serve more than one app — the Quest TWA and the Play TWA are built from the same
- * `dist/client` and would both point at it — and each build writes a **single-element** array into
- * its own packaging directory. Serving one of those files verifies one app and silently fails the
- * other, which shows up as a URL bar on whichever one you did not think of.
+ * The value is **either** a JSON array of statements, used as it stands, **or** a comma-separated
+ * list of files to read. A path cannot begin with `[`, so the two never collide, and the array
+ * form is not comma-split — the commas inside it are its own.
  *
- * Merged and read per request rather than cached: the file changes when a build is signed, which
- * is exactly when nobody wants to remember to restart the server. It is one small file.
+ * Both forms exist because the file and the deployment are in different places. `build:quest` and
+ * `build:phone` write a file each, next to the keystore that signed it, and those files are
+ * gitignored and never enter the image; a container host has no filesystem to put them on, so a
+ * path-only setting would be a setting that cannot be used where it is needed. Locally the paths
+ * are what you have.
+ *
+ * Merged, because one origin can serve more than one app — the Quest TWA and the Play TWA are
+ * built from the same `dist/client` and both point at it — and each build writes a
+ * **single-element** array signed with its own key. Serving one of them verifies one app and
+ * silently fails the other, which shows up as a URL bar on whichever one you did not think of.
+ *
+ * Read per request rather than cached: the file changes when a build is signed, which is exactly
+ * when nobody wants to have to remember to restart the server. It is one small file.
  */
-async function assetLinkStatements(list: string): Promise<unknown[]> {
+async function assetLinkStatements(value: string): Promise<unknown[]> {
+  const trimmed = value.trim();
+  const sources: (() => Promise<string>)[] = trimmed.startsWith('[')
+    ? [async () => trimmed]
+    : trimmed
+        .split(',')
+        .map((file) => file.trim())
+        .filter(Boolean)
+        .map((file) => () => readFile(resolve(file), 'utf8'));
+
   const out: unknown[] = [];
   const seen = new Set<string>();
-  for (const file of list.split(',').map((f) => f.trim()).filter(Boolean)) {
+  for (const read of sources) {
     try {
-      const parsed: unknown = JSON.parse(await readFile(resolve(file), 'utf8'));
-      // A malformed or non-array file fails Android's verification in a way that reads as a
-      // networking problem. Skipped here rather than served, so the 404 says something is wrong.
+      const parsed: unknown = JSON.parse(await read());
+      // Malformed or not an array: Android's verification fails on it in a way that reads as a
+      // networking problem. Skipped rather than served, so the 404 says something is wrong.
       if (!Array.isArray(parsed)) continue;
       for (const statement of parsed) {
         const key = JSON.stringify(statement);
