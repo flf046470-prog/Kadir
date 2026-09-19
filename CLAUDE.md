@@ -230,6 +230,46 @@ the first thing that disagrees is a headset on submission day.
 `packageId` and the signing key are permanent, and `horizonOSAppMode: immersive` is a different
 product type from 2D — see `docs/STORES.md`.
 
+`KC_ASSETLINKS` takes **either** the JSON array itself **or** a comma-separated list of files. Both
+forms are needed: `build:quest`/`build:phone` write a file each next to the keystore that signed
+it, those files are gitignored and never enter the image, and a container host has nowhere to put
+one. A path cannot start with `[`, so the two do not collide.
+
+### The live deployment
+
+Railway project `kangaroo-chase` (workspace `flf046470-prog's Projects`): a `Postgres` service and
+`game-server`, built from this branch's `Dockerfile`, at
+`https://game-server-production-d3a6.up.railway.app`. It is the client the TWA will load *and* the
+server matches run on — one deployment, because `KC_PUBLIC_DIR` serves `dist/client`.
+
+Two things cost a deploy each and will again:
+
+- **Railway injects `PORT`** (it used 8080) and the generated domain targets whatever port you
+  asked for. The Dockerfile's `ENV PORT=8787` loses, so the service came up healthy on 8080 while
+  the domain routed to 8787 and every request 502'd — **the logs say "listening on :8080" and look
+  completely fine**. `PORT` is pinned to 8787 as a service variable now.
+- **This repo holds more than one project.** Branches like
+  `claude/patagonia-underground-redesign` live here too, and a Railway service whose source has no
+  branch pinned builds whichever branch was pushed last — three deploys built a Next.js site from
+  another branch, and one of them became the live one. `describe-service` reports
+  `source: {repo}` with **no branch field even when a branch is set**, so it cannot confirm the
+  pin; check `list-deployments` and read `meta.branch` instead.
+
+Verified against the live deployment, not inferred: `/api/health` 200 JSON; `/api/content` lists
+all three levels, 9 modes, 7 animals, 9 gadgets; `/.well-known/assetlinks.json` and a missing
+`.glb` 404 as `text/plain` while `/play/<level>` still gets the shell; and a real socket client
+joined, was put in a room and received **286 snapshots in 15 s (~19/s against the configured
+20 Hz)**, first one 707 ms after connecting.
+
+The storefront being empty is correct, not a regression: `LAUNCH_STORE` is `[]` and
+`validateCatalog` refuses any priced item at boot, which is the free-game rule enforced rather
+than remembered.
+
+**`ClientMessage`'s discriminator is `t`, not `type`, and the join message is `hello`** — with
+`protocol` (`PROTOCOL_VERSION`, currently 2), `name`, `animalId`, `cosmetics`, `platform`,
+`crossPlay` and `token` all required. A guessed `{type:'join'}` connects, is ignored, and sends
+nothing back for as long as you care to wait, which looks exactly like a broken server.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in
