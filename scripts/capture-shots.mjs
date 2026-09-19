@@ -102,6 +102,42 @@ const look = async (dx, dy = 0, steps = 8) => {
  */
 const back = () => page.locator('button', { hasText: /^Back$/ }).first().click();
 
+/**
+ * Wait for the round to actually start.
+ *
+ * Every world shot used to be taken during the warm-up: the script slept 6.5 s after entering a
+ * match and the countdown runs about eight, so `05-jungle` came out reading "Starting in 4" and
+ * `07-chase` "Starting in 1" — a chase screenshot of nobody chasing. Worse, players are frozen
+ * during the countdown, so the `walk()` calls that were meant to find a view moved nothing and the
+ * camera pitched into the underside of a platform, which is what `07-chase` actually showed.
+ *
+ * The frame scorer passed all of it: edge density, colour count and brightness say nothing about
+ * whether a game is being played.
+ */
+const waitForPlay = async (what) => {
+  // Polled on the role badge rather than on body text. The badge reads WARM-UP through the
+  // countdown and the player's actual role once the bell goes, so it says "the round is live"
+  // rather than "the word COUNTDOWN is absent", which was also true for the second or two before
+  // the HUD existed at all.
+  // Ninety seconds, not five. The round is five seconds of countdown at 60 fps, but this capture
+  // runs on swiftshader at a **measured 1.3 fps**, and the client only catches the simulation up so
+  // far per frame, so the bell actually lands around forty-five seconds in. Nothing here can be
+  // timed in wall clock as if it were a real machine.
+  const deadline = Date.now() + 90000;
+  let live = false;
+  while (Date.now() < deadline) {
+    const label = await page.locator('.kc-role').first().textContent().catch(() => null);
+    if (label && label.trim() && label.trim() !== 'WARM-UP') {
+      live = true;
+      break;
+    }
+    await sleep(250);
+  }
+  if (!live) errors.push(`the ${what} round never left its countdown`);
+  // A beat past the bell so the HUD has swapped and the first frame of play has rendered.
+  await sleep(900);
+};
+
 const walk = async (key, ms) => {
   await page.keyboard.down(key);
   await sleep(ms);
@@ -142,11 +178,12 @@ await sleep(500);
 
 // Into a real round against bots.
 await page.locator('button', { hasText: 'Practice with bots' }).first().click();
-await sleep(6500);
-// Tilt down a little before anything is captured. Measured on the first pass: with the camera at
-// its default pitch the horizon sat near the top of frame and roughly half of every world shot
-// was flat sky, which scores well on brightness and shows nothing.
-await look(0, 70, 6);
+await waitForPlay('practice');
+// Tilt down a little before anything is captured. 70 px of drag was measured back when every shot
+// was taken during the countdown with the player stood on the spawn; once the round actually
+// starts the camera sits behind a moving kangaroo and that much pitch buries the bottom half of
+// the frame in ground. 30 keeps the horizon in shot and the avatar off the floor line.
+await look(0, 30, 6);
 await shoot('05-jungle');
 
 // Turn rather than travel. Measured across five earlier captures: the scenery is dense around the
@@ -186,9 +223,9 @@ await sleep(900);
 await page.locator('button', { hasText: 'Private room' }).first().click();
 await sleep(600);
 await page.locator('button', { hasText: 'Create a private room' }).first().click();
-await sleep(5000);
+await waitForPlay('private room');
 // The camera resets on entering a new match, so it needs tilting down again here.
-await look(0, 70, 6);
+await look(0, 30, 6);
 await page.keyboard.press('Tab');
 await sleep(900);
 if ((await page.locator('.kc-lobby:not(.kc-hidden)').count()) === 0) {
