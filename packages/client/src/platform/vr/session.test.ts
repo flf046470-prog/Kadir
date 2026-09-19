@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { detectDevice } from '../detect.js';
-import { VRInput } from './VRInput.js';
+import { Buttons } from '@kc/core';
+
+import { VRInput, VR_BINDINGS } from './VRInput.js';
 import type { Renderer } from '../../render/Renderer.js';
 
 /**
@@ -164,5 +166,67 @@ describe('entering VR', () => {
     await input.enterVr();
     await input.exitVr();
     expect(end).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * Every VR control the player has, said out loud.
+ *
+ * The mapping and the tutorial were two lists, and they had drifted: the right thumbstick click
+ * was bound to Sprint and the hints never mentioned it, so a headset player had no way to discover
+ * they could sprint. That is the same defect as a button that does nothing — the game behaves
+ * differently from what it tells you — and it is invisible for the same reason, because each list
+ * looks complete on its own.
+ *
+ * They are one table now. These pin what that table has to keep true.
+ */
+describe('the VR control list', () => {
+  it('advertises every button that is live in the current mode', () => {
+    /**
+     * Arms-first is the default, and it masks `Buttons.Jump` out of the intent — pushing off the
+     * ground with a hand is the way up, and a hop button would make the hand locomotion optional.
+     * So the hop is the one binding that is *correctly* absent from the hints there, and the list
+     * says so in its place. Everything else has to be named.
+     */
+    const { renderer } = fakeRenderer();
+    restore = withNavigator({ isSessionSupported: async () => true, requestSession: async () => ({}) });
+    const hints = new VRInput(renderer).controlHints;
+
+    for (const binding of VR_BINDINGS.filter((b) => b.bit !== Buttons.Jump)) {
+      expect(
+        hints.some((h) => h.action === binding.action),
+        `${binding.action} is bound to button ${binding.button} and told to nobody`,
+      ).toBe(true);
+    }
+    expect(hints.some((h) => h.action === 'Hop'), 'arms-first advertised a hop it masks out').toBe(false);
+    expect(hints.some((h) => h.action === 'Jump' && /hand/i.test(h.hint))).toBe(true);
+  });
+
+  it('binds one action per button per hand', () => {
+    // The collision that cost a freeze-gun charge per ledge grab on the gamepad, checked here
+    // before a headset can repeat it.
+    const seen = new Set<string>();
+    for (const binding of VR_BINDINGS) {
+      for (const side of binding.hand === 'both' ? ['left', 'right'] : [binding.hand]) {
+        const key = `${side}:${binding.button}`;
+        expect(seen.has(key), `${side} button ${binding.button} is bound twice`).toBe(false);
+        seen.add(key);
+      }
+    }
+  });
+
+  it('names the controls that are movements rather than buttons', () => {
+    /**
+     * Crouch is real — `locomotion.ts` crouches a tracked player whose head drops below 1.15 m —
+     * and it had no entry at all, so the one way to break a sightline in a game about being seen
+     * was undiscoverable. Punch and Turn are checked alongside it because they are the other two
+     * that no button in the table will ever cover.
+     */
+    const { renderer } = fakeRenderer();
+    restore = withNavigator({ isSessionSupported: async () => true, requestSession: async () => ({}) });
+    const actions = new VRInput(renderer).controlHints.map((h) => h.action);
+    for (const action of ['Crouch', 'Punch', 'Turn', 'Move', 'Climb']) {
+      expect(actions, `${action} is not in the VR control list`).toContain(action);
+    }
   });
 });

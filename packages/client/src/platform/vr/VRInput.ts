@@ -34,6 +34,38 @@ const WORLD = new THREE.Vector3();
  * comfort turn offset (snap or smooth), and the render rig is rotated by that same offset so the
  * world turns around the player rather than the player sliding through it.
  */
+/**
+ * Controller buttons, and what the tutorial says about them — in one table.
+ *
+ * They were two lists. The mapping bound the right thumbstick click to Sprint and the hints never
+ * mentioned it, so a VR player could not discover they were able to sprint at all; the same shape
+ * as a control that does nothing, and just as invisible, because both halves look complete on
+ * their own. Deriving the hints from the bindings means a button cannot be bound without saying so.
+ *
+ * Standard OpenXR mapping: 0 = trigger, 1 = grip, 3 = thumbstick click, 4 = A/X, 5 = B/Y.
+ */
+export interface VrBinding {
+  button: number;
+  hand: 'left' | 'right' | 'both';
+  bit: number;
+  action: string;
+  hint: string;
+}
+
+export const VR_BINDINGS: readonly VrBinding[] = [
+  { button: 4, hand: 'right', bit: Buttons.Jump, action: 'Hop', hint: 'A button (hold to charge)' },
+  { button: 4, hand: 'left', bit: Buttons.Shop, action: 'Shop / board', hint: 'X button' },
+  { button: 5, hand: 'both', bit: Buttons.Emote, action: 'Emote', hint: 'B / Y button' },
+  // Talk is on a stick rather than a face button because it is *held*, and a held face button is
+  // the one your thumb needs for everything else.
+  { button: 3, hand: 'right', bit: Buttons.Sprint, action: 'Sprint', hint: 'Press the right thumbstick in' },
+  { button: 3, hand: 'left', bit: Buttons.Talk, action: 'Talk', hint: 'Hold the left thumbstick in' },
+  // Triggers, not grips: grip is how you hold the world in arms-first mode, and taking it for the
+  // gadget would make firing and climbing the same gesture.
+  { button: 0, hand: 'right', bit: Buttons.UseGadget, action: 'Use gadget', hint: 'Right trigger' },
+  { button: 0, hand: 'left', bit: Buttons.CycleGadget, action: 'Next gadget', hint: 'Left trigger' },
+];
+
 export class VRInput implements PlatformInput {
   readonly kind = 'vr' as const;
 
@@ -48,18 +80,21 @@ export class VRInput implements PlatformInput {
       { action: 'Climb', hint: 'Grip with either hand and haul yourself up' },
       { action: 'Push off', hint: 'Shove a wall with an open palm' },
     ];
-    const tail = [
+    const physical = [
       { action: 'Turn', hint: 'Right thumbstick' },
       { action: 'Punch', hint: 'Throw a real punch' },
-      { action: 'Emote', hint: 'B / Y button' },
-      { action: 'Use gadget', hint: 'Right trigger' },
-      { action: 'Next gadget', hint: 'Left trigger' },
-      { action: 'Shop / board', hint: 'X button' },
-      { action: 'Talk', hint: 'Hold the left thumbstick in' },
+      // Implemented in the simulation, not by a button: `locomotion.ts` crouches a tracked player
+      // whose head drops below 1.15 m. Worth saying out loud in a game about not being seen.
+      { action: 'Crouch', hint: 'Duck your head — there is no crouch button' },
     ];
-    return this.armsOnly
-      ? [...shared, { action: 'Jump', hint: 'Push off the ground with a hand — there is no jump button' }, ...tail]
-      : [...shared, { action: 'Hop', hint: 'A button (hold to charge)' }, ...tail];
+    // Every bound button, in table order, minus the hop when arms-first has switched it off.
+    const bound = VR_BINDINGS.filter((b) => !(this.armsOnly && b.bit === Buttons.Jump)).map(
+      ({ action, hint }) => ({ action, hint }),
+    );
+    const jump = this.armsOnly
+      ? [{ action: 'Jump', hint: 'Push off the ground with a hand — there is no jump button' }]
+      : [];
+    return [...shared, ...jump, ...physical, ...bound];
   }
 
   /** Mirrors settings.comfort.vrLocomotion, refreshed each sample so the hints stay honest.
@@ -228,18 +263,11 @@ export class VRInput implements PlatformInput {
     for (const hand of this.hands) {
       const gamepad = hand.source?.gamepad;
       if (!gamepad) continue;
-      const handedness = hand.source?.handedness;
-      // Standard OpenXR mapping: 0 = trigger, 3 = thumbstick click, 4 = A/X, 5 = B/Y.
-      const right = handedness === 'right';
-      if (gamepad.buttons[4]?.pressed) buttons |= right ? Buttons.Jump : Buttons.Shop;
-      if (gamepad.buttons[5]?.pressed) buttons |= Buttons.Emote;
-      // Thumbstick click: sprint on the right, push-to-talk on the left. Talk is on a stick
-      // rather than a face button because it is *held*, and a held face button is the one your
-      // thumb needs for everything else.
-      if (gamepad.buttons[3]?.pressed) buttons |= right ? Buttons.Sprint : Buttons.Talk;
-      // Triggers, not grips: grip is how you hold the world in arms-first mode, and taking it
-      // for the gadget would make firing and climbing the same gesture.
-      if (gamepad.buttons[0]?.pressed) buttons |= right ? Buttons.UseGadget : Buttons.CycleGadget;
+      const side = hand.source?.handedness === 'right' ? 'right' : 'left';
+      for (const binding of VR_BINDINGS) {
+        if (binding.hand !== 'both' && binding.hand !== side) continue;
+        if (gamepad.buttons[binding.button]?.pressed) buttons |= binding.bit;
+      }
     }
     // Crouching is physical: ducking your head is the crouch input, no button needed.
     this.buttons = buttons;

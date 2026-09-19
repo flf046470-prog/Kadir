@@ -133,6 +133,25 @@ The unit suite covers the curve, not the wiring: deleting the one line in `updat
 applies it passes every test, because `VoiceChat` needs WebAudio. `npm run check:voice` exercises
 the real path.
 
+## VR
+
+There is no headset in CI and there never will be, so the VR entry path is exercised by
+`platform/vr/session.test.ts` against a stubbed `navigator.xr`: capability probe, session request,
+refusal, and exit. That covers the decisions. It does **not** cover three.js presenting to a real
+`XRSession`, projection matrices, hand meshes, comfort or frame rate — a green suite is not "VR
+works".
+
+`VR_BINDINGS` in `VRInput.ts` is the single table for controller buttons: the sampling loop and the
+tutorial's hint list are both derived from it. They used to be two lists and had already drifted —
+the right thumbstick click was bound to Sprint and the hints never said so, which is the same
+defect as a button that does nothing, in the other direction. Arms-first masks `Buttons.Jump` out
+of the intent, so the hop is the one binding correctly absent from the hints there.
+
+Two controls are real but have no button, so they live in the prose half of the list: **crouch is
+ducking your head** (`locomotion.ts` crouches a tracked player below 1.15 m) and punching is
+throwing a punch. Crouch had no entry at all — on maps about not being seen, the one way to break
+a sightline was undiscoverable.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in
