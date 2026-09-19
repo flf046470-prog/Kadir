@@ -87,7 +87,11 @@ describe('glacier world', () => {
   it('keeps one place with grip, so a runner has somewhere to stop', () => {
     // The crevasse is the whole reason to risk a dead end. If its floor were ice too there would
     // be no reason to go down there at all.
-    const crevasseFloor = boxes.find((c) => c.center.y < -8 && c.half.x > 20);
+    // Found by depth and footprint rank rather than by a literal half-extent: `half.x > 20` was a
+    // number copied off the geometry of the day, and it stopped matching the moment the map was
+    // rescaled — reporting "there is no crevasse floor" for a crevasse that was right there.
+    const deep = boxes.filter((c) => c.center.y < -8);
+    const crevasseFloor = deep.sort((a, b) => b.half.x * b.half.z - a.half.x * a.half.z)[0];
     expect(crevasseFloor).toBeDefined();
     expect((crevasseFloor?.surface.flags ?? 0) & SurfaceFlags.Slippery).toBe(0);
   });

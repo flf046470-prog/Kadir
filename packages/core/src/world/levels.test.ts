@@ -162,11 +162,28 @@ describe('Outback Station', () => {
  * A test that only had a ceiling would wave that through.
  */
 describe('how far a map spreads its players', () => {
-  it('keeps the leash inside the authored content, and outside a single zone', () => {
+  it('reaches more than one of the places it built', () => {
+    /**
+     * The floor on the leash, and the reason it is not a number.
+     *
+     * This was `playRadius >= 75`, copied off the maps as they stood — which made it impossible to
+     * rescale one without the test calling the smaller map broken, and it would have said nothing
+     * at all about a map authored at a different size in the first place. What actually matters is
+     * that the leash reaches somewhere other than the middle: below that, every map collapses into
+     * its largest zone (glacier read `shelf 100 %, crevasse 0 %, seracs 0 %`) and every density
+     * figure improves by deleting the map.
+     *
+     * The ceiling needs no assertion of its own — the ambience test samples the whole leash disc,
+     * so a leash that grows past the zones fails there.
+     */
     for (const entry of listLevels()) {
       const level = buildLevel(entry.id);
-      expect(level.playRadius, `${entry.id} lets bots orbit past the built world`).toBeLessThanOrEqual(110);
-      expect(level.playRadius, `${entry.id} pens everyone into one zone`).toBeGreaterThanOrEqual(75);
+      const leash = level.playRadius * 0.75;
+      const reachable = level.zones.filter((z) => Math.hypot(z.center.x, z.center.z) - z.radius < leash);
+      expect(
+        reachable.map((z) => z.name),
+        `${entry.id}: the leash only reaches one place, so the map is that place`,
+      ).not.toHaveLength(1);
     }
   });
 

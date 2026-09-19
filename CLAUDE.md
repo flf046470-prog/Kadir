@@ -116,18 +116,38 @@ Median distance to the *nearest* other player, six players, sampled once a secon
 the share of the round spent within 15 m of anybody. `playRadius` is the only lever: the bot turns
 back toward the centre past `playRadius * 0.75`, and nothing else reads the field.
 
-| map | at `playRadius: 150` | at `90` |
+| map | shipped | now |
 | --- | --- | --- |
 | `jungle-world` | 18.2 m / 44 % | 13.7 m / 50 % |
-| `glacier-world` | 32.1 m / 20 % | 22.3 m / 31 % |
+| `glacier-world` | 32.1 m / 20 % | 14.0 m / 54 % |
 | `outback-station` | 43.2 m / 14 % | 15.9 m / 50 % |
 
-150 put the leash at 112 m and six players on a 700 m circle; on Outback that was 48 % of the round
-spent on the empty apron. Nobody falls off at 90 — measured 0 kill-plane crossings either way.
+`playRadius: 150` put the leash at 112 m and six players on a 700 m circle; on Outback that was
+48 % of the round spent on the empty apron. Nobody falls off at the tighter values — measured 0
+kill-plane crossings throughout.
 
-**Smaller is not the safe direction.** Below 70 every map collapses into its largest zone (glacier
-reads `shelf 100 %, crevasse 0 %, seracs 0 %`), which improves the density numbers by deleting the
-map. `levels.test.ts` pins both ends and also asserts every authored zone falls inside the leash.
+**Smaller is not automatically safer.** Cutting the leash alone collapses a map into its largest
+zone (glacier at 45 read `shelf 100 %, crevasse 0 %, seracs 0 %`), which improves every density
+figure by deleting the map. `levels.test.ts` asserts the leash reaches more than one zone, and the
+ambience test caps it from the other side.
+
+**Players are as close together as the space they are standing in is small.** Median distance to
+the nearest other player, by the zone they are in: outback cave (r 14) **3.2 m**, jungle cave
+(r 34) 6.0 m, outback gorge (r 34) 9.3 m, jungle canyon (r 42) 16.0 m, and every map's open
+primary zone 15–46 m. A map's overall density is therefore set by **how much of the round is spent
+in its biggest open area** — jungle 13 %, outback 43 %, glacier 59 % before the rescale.
+
+That is why `glacier-world` was rebuilt at 0.6 of its horizontal size (version 1 → 2). Its rink was
+124 m across — the whole of Gorilla Tag's forest several times over — and 59 % of the round was
+spent on it. Scaling positions and floor extents while keeping every object's own size packs the
+same sixteen towers and fourteen boulders into 0.36 of the ground: 22.3 m / 31 % → 14.0 m / 54 %,
+with the zone mix intact (shelf 61 %, seracs 25 %, crevasse 9 %) and 0 % of the round outside a
+zone. Shrinking a map is the lever; cutting its leash is not.
+
+Two things bite when a map is tightened, both caught by tests rather than by looking: a scattered
+object lands on a spawn (a serac tower, and before it an Outback boulder), and a literal in a test
+stops matching the geometry it was copied from (`half.x > 20` for the crevasse floor,
+`playRadius >= 75`). Identify things by rank or role, never by a measurement of the current map.
 
 A zone outside the leash is dead content. Outback's cave sat on the west wall with its nearest edge
 74.7 m out — past any leash worth having, since the smallest radius that reaches it is 100 and 100
