@@ -29,6 +29,8 @@ const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
  */
 export class VoiceChat {
   private peers = new Map<string, Peer>();
+  /** Applied to peers that connect later, so the preference survives a reconnect. */
+  private panningModel: PanningModelType = 'HRTF';
   /** One promise chain per peer, so signals are handled in the order the wire delivered them. */
   private signalChain = new Map<string, Promise<void>>();
   /**
@@ -548,7 +550,7 @@ export class VoiceChat {
 
     const source = ctx.createMediaStreamSource(stream);
     const panner = ctx.createPanner();
-    panner.panningModel = 'HRTF';
+    panner.panningModel = this.panningModel;
     panner.distanceModel = 'inverse';
     panner.refDistance = 4;
     panner.maxDistance = 45;
@@ -556,6 +558,27 @@ export class VoiceChat {
     source.connect(panner);
     panner.connect(bus);
     peer.panner = panner;
+  }
+
+  /**
+   * How a voice is placed in the stereo field — **not** whether distance still quietens it.
+   *
+   * `audio.spatialVoice` was declared, defaulted on, merged from storage and read by nothing. The
+   * obvious reading of "spatial voice: off" is to bypass the panner, and that would be a cheat:
+   * `refDistance`/`rolloffFactor` on this node are the *only* thing attenuating a distant player,
+   * because `proximityGain` in `social.ts` is exported, documented, unit tested and called by
+   * nobody. Turning the panner off would let anyone hear the whole map at full volume.
+   *
+   * So the switch does what it can safely do: HRTF convolution, which is the 3D cue, against plain
+   * equal-power stereo. That is a real accessibility and CPU option — HRTF is tiring for some
+   * listeners and fights a hearing aid — and it cannot become an advantage, because every distance
+   * term is untouched.
+   */
+  setSpatial(spatial: boolean): void {
+    this.panningModel = spatial ? 'HRTF' : 'equalpower';
+    for (const peer of this.peers.values()) {
+      if (peer.panner) peer.panner.panningModel = this.panningModel;
+    }
   }
 
   /** Called every frame with each speaker's world position. Distance does the rest. */

@@ -1,5 +1,6 @@
 import { Buttons } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
+import { HoldOrToggle } from '../latch.js';
 import type { PlatformInput } from '../Platform.js';
 
 interface TouchStick {
@@ -68,6 +69,7 @@ export class MobileInput implements PlatformInput {
    */
   private latched = new Set<keyof MobileButtonState>();
 
+  private grabLatch = new HoldOrToggle();
   private stick: TouchStick | null = null;
   private lookPointer: number | null = null;
   private lastLookX = 0;
@@ -133,7 +135,9 @@ export class MobileInput implements PlatformInput {
 
     let buttons = 0;
     if (this.held('jump')) buttons |= Buttons.Jump;
-    if (this.held('grab')) buttons |= Buttons.GrabLeft | Buttons.GrabRight;
+    if (this.grabLatch.update(this.held('grab'), settings.controls.holdToGrab)) {
+      buttons |= Buttons.GrabLeft | Buttons.GrabRight;
+    }
     if (this.held('emote')) buttons |= Buttons.Emote;
     if (this.held('punch')) buttons |= Buttons.PunchRight;
     if (this.held('gadget')) buttons |= Buttons.UseGadget;

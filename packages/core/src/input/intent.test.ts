@@ -6,6 +6,21 @@ import { BUTTON_MASK, Buttons, createIntent, sanitizeIntent } from './intent.js'
 
 const PACKAGES = fileURLToPath(new URL('../../../', import.meta.url));
 
+/**
+ * Source with its comments removed.
+ *
+ * Without this the scan is defeated by prose: the doc comment explaining why a setting must be
+ * read contains the setting's name, so deleting the code that reads it still passes. Measured —
+ * removing the only read of `hapticStrength` left the guard green because the comment above it
+ * said the word. A comment must never vouch for the code it describes.
+ *
+ * `//` is only treated as a line comment when it is not preceded by a colon, so a `https://` URL
+ * inside a string does not swallow the rest of its line.
+ */
+function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 /** Every `.ts` file under `packages/`, excluding builds and tests. */
 function sources(): { path: string; text: string }[] {
   const out: { path: string; text: string }[] = [];
@@ -16,7 +31,7 @@ function sources(): { path: string; text: string }[] {
         if (entry.name === 'node_modules' || entry.name === 'dist') continue;
         walk(path);
       } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
-        out.push({ path, text: readFileSync(path, 'utf8') });
+        out.push({ path, text: stripComments(readFileSync(path, 'utf8')) });
       }
     }
   };

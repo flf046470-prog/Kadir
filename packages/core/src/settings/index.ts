@@ -94,7 +94,6 @@ export interface Settings {
   /** Reduced-motion / high-contrast style accessibility switches. */
   reduceMotion: boolean;
   colorblindSafe: boolean;
-  locale: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -140,7 +139,6 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceEnabled: true,
   reduceMotion: false,
   colorblindSafe: false,
-  locale: 'en',
 };
 
 /** Deep-merge stored settings over the defaults, clamping anything out of range. */
@@ -157,7 +155,6 @@ export function mergeSettings(stored: unknown): Settings {
   if (typeof raw.voiceEnabled === 'boolean') base.voiceEnabled = raw.voiceEnabled;
   if (typeof raw.reduceMotion === 'boolean') base.reduceMotion = raw.reduceMotion;
   if (typeof raw.colorblindSafe === 'boolean') base.colorblindSafe = raw.colorblindSafe;
-  if (typeof raw.locale === 'string') base.locale = raw.locale;
 
   base.graphics.renderScale = clamp(base.graphics.renderScale, 0.5, 1.5);
   base.graphics.maxDetailedPlayers = Math.round(clamp(base.graphics.maxDetailedPlayers, 2, 16));

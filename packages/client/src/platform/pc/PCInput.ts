@@ -1,5 +1,6 @@
 import { Buttons } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
+import { HoldOrToggle } from '../latch.js';
 import type { PlatformInput } from '../Platform.js';
 
 /**
@@ -53,6 +54,7 @@ export class PCInput implements PlatformInput {
   private attached = false;
   /** Set once the browser has refused pointer lock, so the drag fallback takes over for good. */
   private pointerLockBlocked = false;
+  private grabLatch = new HoldOrToggle();
   private dragging = false;
   private dragDistance = 0;
 
@@ -141,7 +143,9 @@ export class PCInput implements PlatformInput {
     if (this.keys.has('KeyQ')) buttons |= Buttons.CycleGadget;
     if (this.keys.has('KeyB')) buttons |= Buttons.Shop;
     if (this.keys.has('KeyV')) buttons |= Buttons.Talk;
-    if (this.mouseButtons.has(2)) buttons |= Buttons.GrabRight | Buttons.GrabLeft;
+    if (this.grabLatch.update(this.mouseButtons.has(2), settings.controls.holdToGrab)) {
+      buttons |= Buttons.GrabRight | Buttons.GrabLeft;
+    }
     if (this.mouseButtons.has(0)) buttons |= Buttons.PunchRight;
 
     if (settings.controls.gamepadEnabled) {

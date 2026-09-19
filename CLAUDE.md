@@ -76,6 +76,31 @@ somewhere else. `packages/core/src/input/intent.test.ts` scans the source and en
   (a quarter of the round's ammunition) per grab. It is on button 2 now, and a test sweeps all 17
   indices.
 
+## Settings
+
+Every field in `Settings` must be read by something other than `settings/index.ts`.
+`packages/core/src/settings/coverage.test.ts` scans for ones that are not.
+
+Five shipped declared, defaulted, merged from storage and clamped — every ceremony a working
+setting performs — and read by **nothing**: `spatialVoice`, `holdToGrab`, `hapticStrength`,
+`colorblindSafe` and `locale`. Two of them were the accessibility controls. They are implemented
+now, except `locale`, which was removed because there is no i18n system for it to configure; it
+comes back with one.
+
+- `spatialVoice` switches the panning model (HRTF ↔ equalpower), **not** whether distance
+  attenuates. Bypassing the panner is the obvious reading and it would be a cheat: its
+  `refDistance`/`rolloffFactor` are the only thing quietening a distant player, because
+  **`proximityGain` in `social.ts` is exported, documented, unit tested and called by nobody.**
+  Voice distance is therefore enforced client-side only — worth fixing, and a bigger job than a
+  setting: with a WebRTC mesh every peer already receives every stream, so real enforcement means
+  gating signalling by distance.
+- `colorblindSafe` swaps the role-ring palette for blue/orange/white. The ring also encodes role in
+  **size** now, always and for everyone — chaser 1.5×, fighter 1.25×, runner 1× — because hue alone
+  put the chaser's red and the fighter's yellow on the axis protanopia compresses, and those are
+  the two most urgent states in the game.
+- `holdToGrab` uses `platform/latch.ts`, shared by PC and mobile so the rule is not written twice.
+  VR has no use for it: a hand grabs because it is closed, and there is no button to hold.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in
@@ -206,6 +231,16 @@ Measurement beats reading the code, every time. What has actually worked:
   `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` with `--use-gl=swiftshader`.
 - Two real browser clients over real WebRTC, measuring RMS on the listener.
 - **Mutation testing on every fix** — break the fix, confirm the new test fails, restore.
+  Back the file up with `cp`, never `git checkout`: the working tree usually holds other
+  uncommitted work, and a checkout takes that with it. It cost two finished edits once.
+  Verify the mutation actually applied before believing a green result — a `perl -0pi -e` whose
+  pattern did not match reports nothing and looks exactly like a surviving mutant.
+
+**A source scan must strip comments first.** All three of the "declared but never read" guards
+(buttons, events, settings) search source text, and the doc comment explaining *why* a thing must
+be read contains its name — so deleting the only real use still passes. Measured: removing the
+sole read of `hapticStrength` left the settings guard green, vouched for by the comment above the
+line that had just been deleted.
 
 Watch for harness artefacts before believing a result: a probe that reports "no difference" may be
 measuring the wrong event name, running a mode whose countdown freezes the player, or crossing a

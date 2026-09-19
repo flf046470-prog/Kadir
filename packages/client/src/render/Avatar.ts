@@ -1050,27 +1050,40 @@ export class Avatar {
     disposeMaterial(material);
   }
 
-  /** Role colour ring on the ground — how you spot the chaser across a canyon. */
-  setRole(role: string): void {
+  /**
+   * Role ring on the ground — how you spot the chaser across a canyon.
+   *
+   * Role was carried by hue alone, and `settings.colorblindSafe` was declared, defaulted and read
+   * by nothing. Hue alone is the wrong channel for it: the chaser's red and the fighter's yellow
+   * sit on the axis that protanopia and deuteranopia compress, so the two most urgent states in
+   * the game — someone is hunting you, someone is fighting you — were the pair most likely to
+   * merge, for roughly one man in twelve.
+   *
+   * So the ring now carries the role in **size** as well, always and for everyone: a chaser's ring
+   * is half again as wide as a runner's, which survives any palette, any distance at which the
+   * colour has washed out, and a screenshot in greyscale. `colorblindSafe` then also swaps the
+   * palette for blue/orange/white, which separates under all three common dichromacies where
+   * red/cyan/yellow does not.
+   */
+  setRole(role: string, colorblindSafe = false): void {
     if (!this.roleRing) return;
     const material = this.roleRing.material as THREE.MeshStandardMaterial;
-    switch (role) {
-      case 'chaser':
-      case 'infected':
-        material.color.setHex(0xff4d4d);
-        material.opacity = 0.85;
-        break;
-      case 'runner':
-        material.color.setHex(0x4cc9f0);
-        material.opacity = 0.35;
-        break;
-      case 'fighter':
-        material.color.setHex(0xffd166);
-        material.opacity = 0.5;
-        break;
-      default:
-        material.opacity = 0;
+    // [hue, safe hue, opacity, ring scale]
+    const style: Record<string, [number, number, number, number]> = {
+      chaser: [0xff4d4d, 0xff8c1a, 0.85, 1.5],
+      infected: [0xff4d4d, 0xff8c1a, 0.85, 1.5],
+      runner: [0x4cc9f0, 0x2b6cff, 0.35, 1],
+      fighter: [0xffd166, 0xf2f2f2, 0.5, 1.25],
+    };
+    const preset = style[role];
+    if (!preset) {
+      material.opacity = 0;
+      return;
     }
+    const [hue, safeHue, opacity, scale] = preset;
+    material.color.setHex(colorblindSafe ? safeHue : hue);
+    material.opacity = opacity;
+    this.roleRing.scale.set(scale, scale, 1);
   }
 
   /**

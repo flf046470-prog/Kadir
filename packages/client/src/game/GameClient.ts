@@ -179,6 +179,9 @@ export class GameClient {
     this.voice = new VoiceChat(this.audio, (targetId, payload, kind) => {
       this.net.sendJson({ t: 'voice', targetId, payload, kind });
     });
+    // Constructed after `audio.applySettings`, so the saved preference has to be handed over here
+    // as well as in `applySettings` — otherwise it only takes effect once the panel is opened.
+    this.voice.setSpatial(this.settings.audio.spatialVoice);
 
     this.net = new NetClient({
       onWelcome: (message) => this.handleWelcome(message),
@@ -389,6 +392,7 @@ export class GameClient {
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.audio.applySettings(settings);
+    this.voice.setSpatial(settings.audio.spatialVoice);
     this.renderer.applySettings(settings);
     this.rebuildLevelRendererIfStale();
   }
@@ -856,7 +860,7 @@ export class GameClient {
       snapshot.y += this.prediction.smoothingOffset.y;
       snapshot.z += this.prediction.smoothingOffset.z;
       this.localAvatar.update(snapshot, dt, cameraPosition);
-      this.localAvatar.setRole(local.role);
+      this.localAvatar.setRole(local.role, this.settings.colorblindSafe);
       // In VR the player *is* the avatar; hide the head so it never blocks the view.
       this.localAvatar.group.visible = this.input.kind !== 'vr';
     }
@@ -874,7 +878,7 @@ export class GameClient {
         }
         remote.avatar.group.visible = true;
         remote.avatar.update(sample, dt, cameraPosition);
-        remote.avatar.setRole(sample.role);
+        remote.avatar.setRole(sample.role, this.settings.colorblindSafe);
         remote.avatar.setDetailed(rendered++ < detailBudget);
         voicePositions.set(id, { x: sample.x, y: sample.y + 1.2, z: sample.z });
       }
@@ -884,7 +888,7 @@ export class GameClient {
         if (!player) continue;
         remote.avatar.group.visible = true;
         remote.avatar.update(snapshotPlayer(player), dt, cameraPosition);
-        remote.avatar.setRole(player.role);
+        remote.avatar.setRole(player.role, this.settings.colorblindSafe);
         remote.avatar.setDetailed(rendered++ < detailBudget);
       }
     }

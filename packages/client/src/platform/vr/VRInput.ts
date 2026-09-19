@@ -65,6 +65,15 @@ export class VRInput implements PlatformInput {
   /** Mirrors settings.comfort.vrLocomotion, refreshed each sample so the hints stay honest.
    * Defaults to the setting's default so the tutorial is right before the first frame. */
   private armsOnly = true;
+  /**
+   * The player's haptic strength preference, refreshed every sample.
+   *
+   * `controls.hapticStrength` was declared, defaulted to 0.7, merged from storage and clamped, and
+   * then read by nothing — so the one control a player reaches for when a headset's rumble is too
+   * much did nothing at all. Kept here rather than threaded into `feedback` because that is called
+   * from the game loop's event handler, which has no settings to hand.
+   */
+  private hapticScale = 1;
   private renderer: Renderer;
   private hands: [HandTracker, HandTracker];
   private turnOffset = 0;
@@ -262,6 +271,7 @@ export class VRInput implements PlatformInput {
     // so there is no vestibular mismatch to make anyone sick.
     const armsOnly = settings.comfort.vrLocomotion === 'arms';
     this.armsOnly = armsOnly;
+    this.hapticScale = settings.controls.hapticStrength;
 
     if (armsOnly) {
       out.moveX = 0;
@@ -327,7 +337,9 @@ export class VRInput implements PlatformInput {
    * Hand-tracked sources have no actuator, so this is silently a no-op for them.
    */
   feedback(event: HapticEvent, hand: 'left' | 'right' | 'both' = 'both', scale = 1): void {
-    const { intensity, durationMs } = hapticFor(event, scale);
+    // The player's preference multiplies the event's own strength, so 0 is genuinely silent —
+    // which is the setting's whole point for anyone the rumble bothers.
+    const { intensity, durationMs } = hapticFor(event, scale * this.hapticScale);
     for (let i = 0; i < this.hands.length; i += 1) {
       if (hand !== 'both') {
         const handedness = this.hands[i]?.source?.handedness;
