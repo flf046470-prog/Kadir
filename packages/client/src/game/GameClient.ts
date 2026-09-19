@@ -799,6 +799,7 @@ export class GameClient {
     this.updateAvatars(dt);
     this.updateCamera(dt);
     this.updateZone(dt);
+    this.updateMood();
     this.levelRenderer.animate(time / 1000);
 
     const local = this.localPlayer;
@@ -914,6 +915,32 @@ export class GameClient {
    * frame reads as a glitch. The ambience bed is switched rather than eased because it crossfades
    * itself over a second and a bed that eased *as well* would double the transition.
    */
+  /**
+   * Pick what the music should be doing, from what is happening to this player.
+   *
+   * Driven off the local player's role rather than off the mode id, because the thing a soundtrack
+   * has to answer is "is something after me right now", and the modes disagree about which role
+   * that is — you are prey as a `runner` in Kangaroo Chase and as a `survivor` in the Hunt, and you
+   * are the threat as a `chaser` or `infected`. A per-mode table would have to be extended every
+   * time a mode is added and would be wrong until somebody noticed.
+   *
+   * Cheap to call every frame: the player only switches bar to bar, and an unchanged mood is a
+   * field assignment.
+   */
+  private updateMood(): void {
+    const local = this.localPlayer;
+    if (!local) {
+      this.audio.setMood('menu');
+      return;
+    }
+    const phase = this.sim.mode.state().phase;
+    if (phase === 'ended') this.audio.setMood('victory');
+    else if (phase !== 'playing') this.audio.setMood('menu');
+    else if (local.role === 'runner' || local.role === 'survivor' || local.role === 'chaser' || local.role === 'infected') {
+      this.audio.setMood('chase');
+    } else this.audio.setMood('match');
+  }
+
   private updateZone(dt: number): void {
     const local = this.localPlayer;
     if (!local) return;

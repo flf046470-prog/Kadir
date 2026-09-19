@@ -96,6 +96,25 @@ comes back with one.
 - `holdToGrab` uses `platform/latch.ts`, shared by PC and mobile so the rule is not written twice.
   VR has no use for it: a hand grabs because it is closed, and there is no button to hold.
 
+## Music
+
+There was none. The `music` bus carried only the per-zone ambience beds — filtered noise, which is
+what a *room* sounds like — so the Music slider controlled silence.
+
+`audio/score.ts` composes bars as data: arithmetic over a seed, no `AudioContext`, unit tested for
+the things a listener notices and a type checker cannot (an empty bar, a note overrunning its bar,
+an off-key pitch, a chase sparser than the menu). `audio/Music.ts` only turns notes into
+oscillators, scheduled ahead on WebAudio's own clock rather than per frame — a Quest holding 72 Hz
+with a full room will stall the render thread, and music driven off `requestAnimationFrame` stutters
+exactly when the scene gets busy.
+
+Mood comes from the **local player's role**, not the mode id: the question a soundtrack answers is
+"is something after me", and modes disagree about which role that is (prey is `runner` in Kangaroo
+Chase and `survivor` in the Hunt). A per-mode table would need extending for every new mode and
+would be wrong until somebody noticed.
+
+Measured in a real browser: 13 notes over 8 s, 8 distinct pitches, 98–587 Hz, all three voices.
+
 ## Voice
 
 `proximityGainAt(distance)` in `social.ts` is the game's falloff rule — full volume to

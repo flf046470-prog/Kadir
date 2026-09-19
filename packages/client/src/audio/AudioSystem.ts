@@ -1,4 +1,7 @@
 import { getGadget } from '@kc/core';
+
+import { MusicPlayer } from './Music.js';
+import type { Mood } from './score.js';
 import type { SimEvent, SurfaceMaterial, Settings, ZoneDef } from '@kc/core';
 
 export type AmbienceKind = ZoneDef['ambience'];
@@ -37,6 +40,9 @@ export class AudioSystem {
   private settings: Settings | null = null;
   private muted = false;
   private lastPlayAt = new Map<string, number>();
+  private music: MusicPlayer | null = null;
+  /** The mood asked for before the context existed; audio starts on a gesture, menus do not. */
+  private pendingMood: Mood = 'menu';
   /** The running ambience bed, if any, kept so it can be faded out when the zone changes. */
   private ambience: { source: AudioBufferSourceNode; lfo: OscillatorNode; gain: GainNode } | null = null;
   private ambienceKind: AmbienceKind | null = null;
@@ -78,6 +84,13 @@ export class AudioSystem {
       return gain;
     };
     this.buses = { sfx: makeBus(1), music: makeBus(0.5), voice: makeBus(1) };
+
+    // The music shares the ambience bus, so one slider governs "everything that is not the game
+    // making a noise at you". Started here rather than on demand because the context only exists
+    // after a user gesture, which is exactly the moment music may begin.
+    this.music = new MusicPlayer(ctx, this.buses.music);
+    this.music.setMood(this.pendingMood);
+    this.music.start();
 
     // One second of white noise, reused by every impact and whoosh.
     const buffer = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
@@ -334,6 +347,22 @@ export class AudioSystem {
 
   get currentAmbience(): AmbienceKind | null {
     return this.ambienceKind;
+  }
+
+  /**
+   * What the music should be doing: reading a menu, playing a round, or being chased.
+   *
+   * Remembered when there is no context yet, for the same reason `setAmbience` remembers a zone —
+   * the player is looking at the menu long before they have clicked anything, and audio cannot
+   * start until they do.
+   */
+  setMood(mood: Mood): void {
+    this.pendingMood = mood;
+    this.music?.setMood(mood);
+  }
+
+  get currentMood(): Mood {
+    return this.music?.currentMood ?? this.pendingMood;
   }
 
   /** Fade the running bed out and let it stop itself, so a zone change never clicks. */
