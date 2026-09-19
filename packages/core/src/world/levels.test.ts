@@ -4,6 +4,7 @@ import type { Collider } from '../physics/types.js';
 import type { Vec3 } from '../math/vec3.js';
 import { buildLevel, listLevels } from './registry.js';
 import { buildOutbackWorld } from './outback.js';
+import { zoneAt } from './zone.js';
 import './index.js';
 
 /**
@@ -166,6 +167,36 @@ describe('how far a map spreads its players', () => {
       const level = buildLevel(entry.id);
       expect(level.playRadius, `${entry.id} lets bots orbit past the built world`).toBeLessThanOrEqual(110);
       expect(level.playRadius, `${entry.id} pens everyone into one zone`).toBeGreaterThanOrEqual(75);
+    }
+  });
+
+  it('has an ambience everywhere a player can be', () => {
+    /**
+     * Outside every zone, `updateZone` calls `setAmbience(null)` and the bed stops — the world
+     * goes silent. Every map's primary zone ended at 60–66 m while the leash puts players at
+     * 67.5 m, so there was a ring right where they spend their time with no ambience in it at
+     * all: measured at 29 % of an Outback round and 20 % of a glacier one.
+     *
+     * Sampled across the disc the bots actually stay inside, and at height, because `zoneAt`
+     * measures in three dimensions — a player on a tree platform is further from a zone's centre
+     * than the map from above would suggest.
+     */
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      const leash = level.playRadius * 0.75;
+      for (let ring = 0; ring <= 8; ring++) {
+        const radius = (leash * ring) / 8;
+        for (let step = 0; step < 16; step++) {
+          const angle = (step / 16) * Math.PI * 2;
+          for (const y of [0, 12, 24]) {
+            const at = { x: Math.cos(angle) * radius, y, z: Math.sin(angle) * radius };
+            expect(
+              zoneAt(level, at),
+              `${entry.id}: silence at (${at.x.toFixed(0)}, ${y}, ${at.z.toFixed(0)}), ${radius.toFixed(0)} m out`,
+            ).toBeDefined();
+          }
+        }
+      }
     }
   });
 

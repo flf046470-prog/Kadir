@@ -42,7 +42,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   b.spawn(vec3(0, 0.5, 3), 0, 'jungle', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
 
-  b.zone('jungle', vec3(0, 0, 0), 60, 'jungle', 0.05);
+  b.zone('jungle', vec3(0, 0, 0), 72, 'jungle', 0.05);
   b.zone('cave', vec3(-72, 0, 0), 34, 'cave', 0.75);
   b.zone('canyon', vec3(76, 0, 6), 42, 'canyon', 0.15);
 

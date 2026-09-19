@@ -129,10 +129,22 @@ spent on the empty apron. Nobody falls off at 90 — measured 0 kill-plane cross
 reads `shelf 100 %, crevasse 0 %, seracs 0 %`), which improves the density numbers by deleting the
 map. `levels.test.ts` pins both ends and also asserts every authored zone falls inside the leash.
 
-Reachability is necessary, not sufficient: Outback's cave was moved from the west wall (nearest
-edge 74.7 m, outside any workable leash) to the east face, and bots **still** never enter it —
-`cave = 0 %`. The leash stops them leaving; it does not draw them in. Getting a bot into a place
-needs an objective there, which is a mode's job, not the map's.
+A zone outside the leash is dead content. Outback's cave sat on the west wall with its nearest edge
+74.7 m out — past any leash worth having, since the smallest radius that reaches it is 100 and 100
+measures a third worse on density. Moving it to the gorge's east face took it from `cave 0 %` to
+`cave 10 %`, and the time came out of the gorge (39 % → 24 %), which is the second place to be that
+the gorge wanted.
+
+**Measure zone occupancy with `zoneAt`, never with your own loop.** It is 3D and it picks the
+*smallest* zone containing the point; a first-match-in-declaration-order loop reports something
+else entirely, and once a primary zone is widened it reports nonsense. That bug made the cave look
+unvisited at 0 % when it was at 10 %, and it made every zone look swallowed by `flat`.
+
+Ambience is not a background detail: outside every zone `updateZone` calls `setAmbience(null)` and
+the bed **stops**. Every map's primary zone used to end at 60–66 m while the leash puts players at
+67.5 m, leaving a silent ring exactly where they spend their time — 29 % of an Outback round, 20 %
+of a glacier one. Primary zones are 72 m now and `levels.test.ts` samples the whole disc, at three
+heights, for holes.
 
 ## Hunt
 

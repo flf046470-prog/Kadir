@@ -50,7 +50,7 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
   buildSpawns(b);
 
-  b.zone('flat', vec3(0, 0, 0), 66, 'jungle', 0);
+  b.zone('flat', vec3(0, 0, 0), 72, 'jungle', 0);
   b.zone('gorge', vec3(-74, -8, 0), 34, 'canyon', 0.25);
   // Genuinely dark, and the only such pocket here. On a map whose whole subject is sightlines, one
   // room you cannot be seen in is worth more than it would be anywhere else.

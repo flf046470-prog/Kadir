@@ -40,7 +40,7 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   b.spawn(vec3(0, 0.5, 0), 0, 'shelf', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
 
-  b.zone('shelf', vec3(0, 0, 0), 62, 'canyon', 0.04);
+  b.zone('shelf', vec3(0, 0, 0), 72, 'canyon', 0.04);
   // Below the ice and genuinely dark — the same role the jungle's cave plays, and the reason the
   // zone darkness work had to land before a second map could be worth building.
   b.zone('crevasse', vec3(-70, 0, 0), 32, 'cave', 0.7);
