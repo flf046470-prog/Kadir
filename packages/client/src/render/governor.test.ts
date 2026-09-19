@@ -25,6 +25,7 @@ const settled = (over: Partial<Parameters<typeof nextTier>[0]> & { tier: Quality
   samples: MIN_SAMPLES,
   sinceChangeMs: SETTLE_MS,
   sinceDemotionMs: Infinity,
+  floorFps: 0,
   ...over,
 });
 
@@ -96,5 +97,51 @@ describe('quality governor', () => {
     expect(budgetMs('low')).toBeCloseTo(1000 / 30);
     expect(budgetMs('medium')).toBeCloseTo(1000 / 60);
     expect(budgetMs('high')).toBeCloseTo(1000 / 60);
+  });
+});
+
+/**
+ * The headset's budget, which the governor did not have.
+ *
+ * `profileFor` set `targetFps = 72` for VR with a comment saying dropped frames are nauseating,
+ * and four lines later overwrote it with the player's setting — and nothing read the field
+ * anyway. The governor judged a 72Hz display against the flat-screen table, so a Quest had to
+ * fall to 44fps before it demoted a tier. These pin the number the headset is actually held to.
+ */
+describe('the frame-rate floor a display imposes', () => {
+  const HZ = 72;
+
+  it('raises every tier to the display rate and lowers none', () => {
+    expect(budgetMs('low', HZ)).toBeCloseTo(1000 / HZ);
+    expect(budgetMs('medium', HZ)).toBeCloseTo(1000 / HZ);
+    // A floor under the tier's own ambition changes nothing: this only ever asks for more.
+    expect(budgetMs('medium', 30)).toBeCloseTo(1000 / 60);
+  });
+
+  it('gives one frame time two answers, depending on what the display asks for', () => {
+    // 50fps: tolerable on a monitor, and in a headset it is one frame in three arriving late.
+    const p90Ms = 20;
+    expect(nextTier(settled({ tier: 'medium', p90Ms, floorFps: HZ }))).toBe('low');
+    expect(nextTier(settled({ tier: 'medium', p90Ms, floorFps: 0 }))).toBeNull();
+  });
+
+  it('demotes a headset at 53fps rather than at 44', () => {
+    /**
+     * The whole size of the fix, stated as the number it moves. `DEMOTE_FACTOR` is shared with
+     * the flat-screen path and is not retuned here: 1.35 of a 72Hz budget still tolerates a
+     * sustained 60fps in a headset, which is not good, and narrowing it is a decision to make
+     * against a real device rather than against an assumption. This part is arithmetic.
+     */
+    const flat = 1000 / (budgetMs('medium') * DEMOTE_FACTOR);
+    const vr = 1000 / (budgetMs('medium', HZ) * DEMOTE_FACTOR);
+    expect(flat).toBeCloseTo(44.4, 1);
+    expect(vr).toBeCloseTo(53.3, 1);
+  });
+
+  it('will not climb into a tier that could not hold the display rate', () => {
+    // 11ms clears the flat-screen promotion bar and not the headset's, and a tier that cannot
+    // hold 72 is a tier that makes the player ill for the ten seconds before it is dropped again.
+    expect(nextTier(settled({ tier: 'low', p90Ms: 11, floorFps: 0 }))).toBe('medium');
+    expect(nextTier(settled({ tier: 'low', p90Ms: 11, floorFps: HZ }))).toBeNull();
   });
 });

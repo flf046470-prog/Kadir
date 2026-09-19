@@ -152,6 +152,48 @@ ducking your head** (`locomotion.ts` crouches a tracked player below 1.15 m) and
 throwing a punch. Crouch had no entry at all — on maps about not being seen, the one way to break
 a sightline was undiscoverable.
 
+## The frame budget
+
+**A headset must hold 72 Hz at every tier, and the number that says so has to reach the governor.**
+`profileFor` set `targetFps = 72` for VR and overwrote it four lines later with the player's
+setting (default 60) — and nothing read `PerformanceProfile.targetFps` at all, because the governor
+computed its own budget from `TARGET_FPS[tier]`. So a Quest was judged against a flat-screen table
+and had to fall to **44 fps** before it dropped a tier. `GovernorInput.floorFps` carries the
+profile's target now and `budgetMs(tier, floorFps)` takes the larger of the two; the threshold is
+**53 fps**. `DEMOTE_FACTOR` is still the shared 1.35, so a sustained 60 fps in a headset is still
+tolerated — narrowing that is a decision for a real device, not an assumption.
+
+`fpsFloor(kind)` is the one place that knows a headset's display rate. The player's `targetFps` is
+floored by it rather than overriding it: in VR "target 60" is not a request for less work, it is a
+request to stop noticing.
+
+**Geometry, counted in a real browser** by patching `gl.drawElements`/`drawElementsInstanced`/
+`drawArrays` in the page. `jungle-world`, six players, per **scene pass**:
+
+| tier | draw calls | triangles |
+| --- | --- | --- |
+| low | 44 | 410k |
+| medium | 90 | 1,131k |
+| medium, shadows off | 46 | 633k |
+| medium, `drawDistance` 70 | 90 | 1,131k |
+| high | 105 | 1,302k |
+
+A headset draws the **scene pass twice** (one per eye) and the **shadow map once** — doubling
+everything overstates it. `suggestQuality` hands a Quest `medium` (cores ≥ 8), so a headset was
+being asked for ≈136 calls / 1.76M triangles a frame against Meta's published Quest 2 budget of
+750k–1M. The VR branch now drops shadows and clamps `foliageBudget` to `VR_FOLIAGE_BUDGET` (60, the
+low tier's figure) below `high`: **measured 45 / 410k**, i.e. ≈90 / 820k in stereo, while keeping
+medium's `renderScale` 0.9, its antialias and its ten detailed avatars — the two things you look at
+in a headset are the pixels and the other players, not the ferns. Shadows stay on at `high` because
+nothing *suggests* high for VR and the governor only climbs into it after seeing 103 fps of
+headroom, which means a tethered headset.
+
+**`drawDistance` culls nothing.** 120 → 70 changed the frame by zero draw calls and zero triangles.
+Its only effect is `camera.far = max(200, drawDistance * 2.2)`, already past every map's geometry;
+`LevelRenderer` thins props by count (`foliageBudget`, applied **per prop kind**, taking the first
+N in level order) and never by distance. The settings screen offers a "Draw distance" slider for
+it. It is not a performance lever until something implements the culling.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in

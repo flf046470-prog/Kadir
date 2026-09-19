@@ -4,6 +4,38 @@ import { TARGET_FPS } from '../render/governor.js';
 
 export type PlatformKind = 'pc' | 'mobile' | 'vr';
 
+/**
+ * The frame rate a headset has to hold, whatever quality tier it is on.
+ *
+ * 72 is the Quest 2/3 default refresh rate and the floor the game is built to. A flat screen has
+ * no equivalent: a phone dropping to 40 fps looks worse, a headset dropping to 40 fps makes the
+ * player ill, so this is a constraint rather than a preference and nothing may lower it.
+ */
+export const VR_DISPLAY_HZ = 72;
+
+/**
+ * Foliage instances per prop kind in a headset. The low tier's figure, reached by measurement.
+ *
+ * Counted in a real browser on `jungle-world` with six players, patching the WebGL context to add
+ * up draw calls and triangles per frame. Per scene pass: low 44 calls / 410k triangles, medium 90
+ * / 1131k, medium with shadows off 46 / 633k. A headset draws that scene pass **twice**, once per
+ * eye, so the medium tier a Quest is handed costs about 1.76M triangles a frame against Meta's
+ * published Quest 2 budget of 750k–1M. Thinning foliage to this figure is what takes the geometry
+ * back to the low tier's while keeping medium's resolution and its ten detailed avatars, which are
+ * the two things a player in a headset actually looks at.
+ */
+export const VR_FOLIAGE_BUDGET = 60;
+
+/**
+ * The frame rate the display itself demands, regardless of tier. 0 where there is no such demand.
+ *
+ * Lives here rather than in `governor.ts` because it is a fact about the platform, and the
+ * governor is deliberately arithmetic that knows nothing about devices.
+ */
+export function fpsFloor(kind: PlatformKind): number {
+  return kind === 'vr' ? VR_DISPLAY_HZ : 0;
+}
+
 export interface DeviceCapabilities {
   kind: PlatformKind;
   hasTouch: boolean;
@@ -24,7 +56,15 @@ export interface PerformanceProfile {
   shadows: boolean;
   shadowMapSize: number;
   postProcessing: boolean;
-  /** Metres. Props beyond this are culled; the level's static geometry always draws. */
+  /**
+   * Metres. Sets `camera.far` (`max(200, drawDistance * 2.2)`) and **nothing else**.
+   *
+   * It says it culls props and it does not: measured on `jungle-world`, dropping the medium tier
+   * from 120 to 70 changed the frame by zero draw calls and zero triangles. Nothing in
+   * `LevelRenderer` reads it — props are thinned by count (`foliageBudget`), never by distance —
+   * so the settings screen's "Draw distance" slider moves a far plane that is already beyond
+   * every map's geometry. Do not reach for it as a performance lever; it is not one yet.
+   */
   drawDistance: number;
   maxDetailedPlayers: number;
   /** Number of foliage instances rendered. */
@@ -109,11 +149,25 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
 
   if (kind === 'vr') {
     // VR trades resolution for frame time: dropped frames are nauseating, a soft shadow is not.
-    profile.targetFps = 72;
     profile.postProcessing = false;
     profile.shadowMapSize = Math.min(profile.shadowMapSize, 1024);
     profile.renderScale = Math.min(profile.renderScale, 1);
     profile.maxDetailedPlayers = Math.min(profile.maxDetailedPlayers, 12);
+    if (quality !== 'high') {
+      /**
+       * The shadow map is a second pass over the same geometry — measured at 44 of the medium
+       * tier's 90 draw calls and 498k of its 1131k triangles — and it buys a contact cue that
+       * stereo vision already gives you in a headset. Off, with foliage thinned, a Quest gets the
+       * low tier's geometry at the medium tier's resolution.
+       *
+       * Left on at `high` deliberately. Nothing *suggests* high for a headset, and the governor
+       * only climbs into it after measuring 103fps of headroom at medium — a PC driving a tethered
+       * headset, in other words, which has the frame time to spend on a shadow and no reason to be
+       * held to a standalone chipset's budget.
+       */
+      profile.shadows = false;
+      profile.foliageBudget = Math.min(profile.foliageBudget, VR_FOLIAGE_BUDGET);
+    }
   }
   if (kind === 'mobile') {
     profile.renderScale = Math.min(profile.renderScale, 0.9);
@@ -126,6 +180,9 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
   profile.postProcessing = profile.postProcessing && settings.graphics.postProcessing;
   profile.drawDistance = Math.min(profile.drawDistance, settings.graphics.drawDistance);
   profile.maxDetailedPlayers = Math.min(profile.maxDetailedPlayers, settings.graphics.maxDetailedPlayers);
-  profile.targetFps = settings.graphics.targetFps;
+  // Every other setting is allowed to win outright. This one is floored by the platform, because
+  // in VR "target 60" does not mean "run at 60" — it means "judge a 72 Hz display against a 60 Hz
+  // budget", which is a request to accept judder rather than a request for less work.
+  profile.targetFps = Math.max(settings.graphics.targetFps, fpsFloor(kind));
   return profile;
 }

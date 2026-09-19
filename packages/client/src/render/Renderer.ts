@@ -411,6 +411,7 @@ export class Renderer {
       samples: this.frameTimes.length,
       sinceChangeMs: now - this.lastTierChange,
       sinceDemotionMs: this.lastDemotion === null ? Infinity : now - this.lastDemotion,
+      floorFps: this.profile.targetFps,
     });
     if (!next || next === this.currentTier) return;
 

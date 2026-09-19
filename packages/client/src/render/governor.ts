@@ -9,10 +9,14 @@ import type { QualityTier } from '@kc/core';
  */
 
 /**
- * Frame-time target per tier. The low tier deliberately aims at 30, not 60.
+ * Frame-time target per tier **on a flat screen**. The low tier deliberately aims at 30, not 60.
  *
  * Exported because `profileFor` puts the same number in the performance profile: two copies of
  * this table would be two places to change it and one place to forget.
+ *
+ * A headset overrides it from below — see `floorFps`. Aiming a tier at 30 is a reasonable trade on
+ * a phone and is not one in VR at any tier, because anything under the display rate is reprojected
+ * and reprojection is what makes people take the headset off.
  */
 export const TARGET_FPS: Record<QualityTier, number> = { low: 30, medium: 60, high: 60 };
 
@@ -44,10 +48,21 @@ export interface GovernorInput {
   sinceChangeMs: number;
   /** Milliseconds since the last *demotion*; `Infinity` when there has not been one. */
   sinceDemotionMs: number;
+  /**
+   * The frame rate the device and the player between them demand, whatever the tier aims at.
+   *
+   * `PerformanceProfile.targetFps`: the player's setting, floored by the platform. It raises a
+   * tier's target and never lowers it, so the table below stays the floor of the ambition and
+   * this is the ceiling of the tolerance.
+   *
+   * Required rather than defaulted: a caller that forgets it gets the flat-screen budget, and a
+   * headset judged against a flat-screen budget is precisely the defect this exists to stop.
+   */
+  floorFps: number;
 }
 
-export function budgetMs(tier: QualityTier): number {
-  return 1000 / TARGET_FPS[tier];
+export function budgetMs(tier: QualityTier, floorFps = 0): number {
+  return 1000 / Math.max(TARGET_FPS[tier], floorFps);
 }
 
 function neighbour(tier: QualityTier, step: 1 | -1): QualityTier | null {
@@ -68,17 +83,22 @@ function neighbour(tier: QualityTier, step: 1 | -1): QualityTier | null {
  * numbers was told to climb and then told to drop, forever, ten seconds apart — and the climb
  * itself raises the render scale, turns shadows on and nearly doubles the draw distance, so the
  * measurement that justified it stopped being true the moment it was acted on.
+ *
+ * Both budgets are floored by `input.floorFps`, which is what makes this usable in a headset. A
+ * Quest runs its display at 72Hz and every tier has to hold it; judged against the flat-screen
+ * table a headset had to fall to 44fps before anything happened, and 44fps in VR is not "slightly
+ * worse", it is the state players describe as making them ill.
  */
 export function nextTier(input: GovernorInput): QualityTier | null {
   if (input.samples < MIN_SAMPLES) return null;
   if (input.sinceChangeMs < SETTLE_MS) return null;
 
-  if (input.p90Ms > budgetMs(input.tier) * DEMOTE_FACTOR) return neighbour(input.tier, -1);
+  if (input.p90Ms > budgetMs(input.tier, input.floorFps) * DEMOTE_FACTOR) return neighbour(input.tier, -1);
 
   const up = neighbour(input.tier, 1);
   if (!up) return null;
   if (input.sinceDemotionMs < PROMOTION_LOCKOUT_MS) return null;
-  return input.p90Ms < budgetMs(up) * PROMOTE_FACTOR ? up : null;
+  return input.p90Ms < budgetMs(up, input.floorFps) * PROMOTE_FACTOR ? up : null;
 }
 
 /** True when `to` is a step down from `from`. Used to start the promotion lockout. */
