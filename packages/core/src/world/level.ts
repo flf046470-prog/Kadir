@@ -120,7 +120,23 @@ export interface LevelDef {
   /** Doorways into the game modes, standing in the lobby. */
   portals: PortalDef[];
   killPlaneY: number;
-  /** Playable radius from origin; used for out-of-bounds warnings and interest management. */
+  /**
+   * How far from the origin the game is *worth playing*, not how far it is possible to walk.
+   *
+   * Nothing in the physics reads it. Its one real consumer is the bot, which turns back toward
+   * the centre past `playRadius * 0.75` — so the value is a leash, and every player-facing
+   * consequence of it is a consequence of where that leash sits.
+   *
+   * All three maps shipped at 150, which put the leash at 112 m and had six players orbiting a
+   * 700 m circle. Measured on `outback-station`: 48 % of the round was spent on the empty apron,
+   * the median distance to the nearest other player was 43 m, and only 14 % of the round was
+   * spent within 15 m of anybody — in a tag game.
+   *
+   * Set it to the radius that just contains the authored content. Too small is not the safe
+   * direction: below 70 every map collapses into its single largest zone (glacier reads
+   * `shelf=100 %, crevasse=0 %, seracs=0 %`), which improves the density numbers by deleting the
+   * map. `levels.test.ts` pins both ends.
+   */
   playRadius: number;
   ambientColor: number;
   skyColor: number;

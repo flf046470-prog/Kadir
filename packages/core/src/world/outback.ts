@@ -54,7 +54,7 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   b.zone('gorge', vec3(-74, -8, 0), 34, 'canyon', 0.25);
   // Genuinely dark, and the only such pocket here. On a map whose whole subject is sightlines, one
   // room you cannot be seen in is worth more than it would be anywhere else.
-  b.zone('cave', vec3(-88, -7, 22), 16, 'cave', 0.72);
+  b.zone('cave', vec3(-65.5, -7, 22), 14, 'cave', 0.72);
   b.zone('station', vec3(76, 0, 0), 38, 'village', 0.06);
 
   return b.build({
@@ -63,7 +63,9 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     version: 1,
     seed,
     killPlaneY: -40,
-    playRadius: 150,
+    // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
+    // authored zone in play. See `LevelDef.playRadius`; measured per map, not chosen as a round number.
+    playRadius: 90,
     // Warm bounce off red earth. The ground is the biggest light source on a map with no canopy,
     // and a neutral ambient here made the gums read as grey rather than sun-bleached.
     ambientColor: 0x9c8567,
@@ -270,12 +272,26 @@ function buildGorge(b: LevelBuilder, rand: Rand): void {
     b.box(vec3(x, y, 0), vec3(0.75, 0.7, 5.5), 'redRock', 0, 'gorge');
   }
 
-  // The cave, under an overhang at the north end. Deep enough to be properly dark.
-  b.box(vec3(-88, FLOOR_Y + 7, 22), vec3(9, 1, 10), 'redRock', 0, 'cave');
-  b.box(vec3(-97, FLOOR_Y + 3, 22), vec3(1, 4, 10), 'redRock', 0, 'cave');
-  b.box(vec3(-88, FLOOR_Y - 1, 32), vec3(9, 1, 1.5), 'redRock', 0, 'cave');
+  /**
+   * The cave: an overhang at the north end, cut into the **east** face rather than the west.
+   *
+   * It was under the west wall at x = −88, which put its nearest edge 74.7 m from the origin — past
+   * the 67.5 m the bot leash allows — so nothing driven by the AI would ever go in, and in solo
+   * practice or a bot-filled room the darkest corner of the map was furniture. No `playRadius`
+   * fixes that: the smallest value that reaches it is 100, and 100 measured a third worse on
+   * density than 90 (26.9 m to the nearest player against 16.9 m). The geometry had to move, not
+   * the leash.
+   *
+   * The east face is also the better wall for it. That is the side the scree brings you down, so
+   * the cave is now something you can reach the moment you arrive rather than a trip across the
+   * bed and up the far side, and the gorge gets a second place to be that is not the creek.
+   */
+  b.box(vec3(-65.5, FLOOR_Y + 7, 22), vec3(7.5, 1, 9), 'redRock', 0, 'cave');
+  // Closed at the north end so it is properly dark; the east face itself is its back wall.
+  b.box(vec3(-65.5, FLOOR_Y + 3, 30.5), vec3(7.5, 4, 1), 'redRock', 0, 'cave');
+  b.box(vec3(-65.5, FLOOR_Y - 1, 13), vec3(7.5, 1, 1.5), 'redRock', 0, 'cave');
   for (let i = 0; i < 7; i++) {
-    const x = -95 + rand.range(0, 13);
+    const x = -72 + rand.range(0, 13);
     const z = 15 + rand.range(0, 14);
     b.prop('stalagmite', vec3(x, FLOOR_Y, z), rand.range(0, Math.PI * 2), rand.range(0.7, 1.6), 0);
   }

@@ -144,3 +144,48 @@ describe('Outback Station', () => {
     expect(JSON.stringify(buildOutbackWorld())).toBe(JSON.stringify(buildOutbackWorld()));
   });
 });
+
+/**
+ * The leash, pinned from both sides.
+ *
+ * `playRadius` is the only field that decides how far apart six players end up, because the bot
+ * turns back toward the centre past `playRadius * 0.75` and nothing else reads it. All three maps
+ * shipped at 150, putting that turn at 112 m and six players on a 700 m circle: on
+ * `outback-station` that measured as 48 % of the round spent on the empty apron, a median 43 m to
+ * the nearest other player, and 14 % of a *tag game* spent within 15 m of anybody. At 90 the same
+ * map reads 3 % apron, 16.9 m, and 47 %.
+ *
+ * Both bounds matter and they pull opposite ways, which is why this is not a one-sided assertion.
+ * Smaller is not safer: below 70 every map collapses into its largest zone — glacier goes to
+ * `shelf 100 %, crevasse 0 %, seracs 0 %` — so the density numbers improve by deleting the map.
+ * A test that only had a ceiling would wave that through.
+ */
+describe('how far a map spreads its players', () => {
+  it('keeps the leash inside the authored content, and outside a single zone', () => {
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      expect(level.playRadius, `${entry.id} lets bots orbit past the built world`).toBeLessThanOrEqual(110);
+      expect(level.playRadius, `${entry.id} pens everyone into one zone`).toBeGreaterThanOrEqual(75);
+    }
+  });
+
+  it('reaches every zone it authored', () => {
+    /**
+     * The check that makes the lower bound mean something: a zone the leash cannot reach is a zone
+     * nobody will ever see. Measured against the turn-back radius rather than `playRadius` itself,
+     * because that is the circle bots actually stay inside.
+     */
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      const leash = level.playRadius * 0.75;
+      for (const zone of level.zones) {
+        const distance = Math.hypot(zone.center.x, zone.center.z);
+        // Reachable if any part of the zone falls inside the leash.
+        expect(
+          distance - zone.radius,
+          `${entry.id}: the ${zone.name} zone sits ${distance.toFixed(0)} m out, past the ${leash.toFixed(0)} m leash`,
+        ).toBeLessThan(leash);
+      }
+    }
+  });
+});

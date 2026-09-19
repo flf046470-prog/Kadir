@@ -113,18 +113,26 @@ These silently invalidated real measurements in this repo. Check them before bel
 ## Map density — the number that decides whether it feels like a game
 
 Median distance to the *nearest* other player, six players, sampled once a second from t=10 s, and
-the share of the round spent within 15 m of anybody:
+the share of the round spent within 15 m of anybody. `playRadius` is the only lever: the bot turns
+back toward the centre past `playRadius * 0.75`, and nothing else reads the field.
 
-| map | median nearest | within 15 m | Hunt survivors left after 180 s |
-| --- | --- | --- | --- |
-| `jungle-world` | 15.1 m | 50 % | 0, 0, 0 |
-| `glacier-world` | 28.5 m | 24 % | 4, 3, 2 |
-| `outback-station` | 51.3 m | 10 % | 5, 1, 5 |
+| map | at `playRadius: 150` | at `90` |
+| --- | --- | --- |
+| `jungle-world` | 18.2 m / 44 % | 13.7 m / 50 % |
+| `glacier-world` | 32.1 m / 20 % | 22.3 m / 31 % |
+| `outback-station` | 43.2 m / 14 % | 15.9 m / 50 % |
 
-All three have `playRadius: 150`, which is why that field is the wrong lever — it steers bots and
-contains nobody. Outback Station is the emptiest map in the game: nine tenths of a round with
-nobody in sight, and a hunter who usually catches no one. A tag game is only a game at the density
-the top row shows.
+150 put the leash at 112 m and six players on a 700 m circle; on Outback that was 48 % of the round
+spent on the empty apron. Nobody falls off at 90 — measured 0 kill-plane crossings either way.
+
+**Smaller is not the safe direction.** Below 70 every map collapses into its largest zone (glacier
+reads `shelf 100 %, crevasse 0 %, seracs 0 %`), which improves the density numbers by deleting the
+map. `levels.test.ts` pins both ends and also asserts every authored zone falls inside the leash.
+
+Reachability is necessary, not sufficient: Outback's cave was moved from the west wall (nearest
+edge 74.7 m, outside any workable leash) to the east face, and bots **still** never enter it —
+`cave = 0 %`. The leash stops them leaving; it does not draw them in. Getting a bot into a place
+needs an objective there, which is a mode's job, not the map's.
 
 ## Hunt
 

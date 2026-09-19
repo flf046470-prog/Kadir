@@ -52,7 +52,9 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     version: 1,
     seed,
     killPlaneY: -40,
-    playRadius: 150,
+    // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
+    // authored zone in play. See `LevelDef.playRadius`; measured per map, not chosen as a round number.
+    playRadius: 90,
     ambientColor: 0x6d8ba8,
     // A pale, slightly grey sky. A saturated blue over white ice makes the horizon vanish, and
     // players read distance off the horizon when everything underfoot is the same colour.
