@@ -149,6 +149,16 @@ object lands on a spawn (a serac tower, and before it an Outback boulder), and a
 stops matching the geometry it was copied from (`half.x > 20` for the crevasse floor,
 `playRadius >= 75`). Identify things by rank or role, never by a measurement of the current map.
 
+**Outback's station has been measured and left alone — do not "fix" it again.** It is the loneliest
+place in the game (median 42.2 m to the nearest other player) and takes only 9 % of the round, and
+the geometry explains why: players in it sit at a median 65.1 m from the origin against a 67.5 m
+leash, reaching a median depth of 0.61 into a zone whose water tank is at x = 92. They graze its
+near half and turn back. Moving it inward is the obvious fix and it is wrong — measured at three
+settings, every one made the **map** worse while improving the station: centre 76 → 56 takes the
+station from 9 %/42.2 m to 18 %/24.0 m and the map from 15.1 m/50 % to 20.0 m/41 %. Outback is
+already at target, and on a map whose whole subject is being seen, a far corner where you are alone
+is a destination rather than a defect.
+
 A zone outside the leash is dead content. Outback's cave sat on the west wall with its nearest edge
 74.7 m out — past any leash worth having, since the smallest radius that reaches it is 100 and 100
 measures a third worse on density. Moving it to the gorge's east face took it from `cave 0 %` to
