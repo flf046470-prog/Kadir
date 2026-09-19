@@ -39,6 +39,11 @@ services:
       # Browsers send Origin on the WebSocket upgrade. Empty means "allow any", which is fine
       # for the Quest and Steam builds but wrong for a public web origin.
       KC_ALLOWED_ORIGINS: ${KC_ALLOWED_ORIGINS:-}
+      # Digital Asset Links, served merged at /.well-known/assetlinks.json. Without them Android
+      # cannot verify the Trusted Web Activity and the Quest app launches with a browser URL bar
+      # on top of it, which the Horizon Store rejects for an immersive title. Comma-separated:
+      # one origin serving both the Quest and the Play app needs both statements.
+      KC_ASSETLINKS: ${KC_ASSETLINKS:-}
       # Store credentials. A store with none configured has its receipts refused rather than
       # accepted unverified, so leaving these empty is safe, not lax.
       KC_META_APP_ID: ${KC_META_APP_ID:-}

@@ -204,6 +204,32 @@ Its only effect is `camera.far = max(200, drawDistance * 2.2)`, already past eve
 N in level order) and never by distance. The settings screen offers a "Draw distance" slider for
 it. It is not a performance lever until something implements the culling.
 
+## Shipping to the Quest
+
+The Meta package is a **Bubblewrap TWA**: an Android app that loads the site over HTTPS. So the
+blocker for a Meta release is not the APK — that has built here — it is an origin. And the origin
+cannot be Vercel: a room is a 60 Hz loop holding open WebSockets in memory (`docs/DEPLOY.md`), so
+the server needs a container host, and it serves `dist/client` itself via `KC_PUBLIC_DIR`. One
+deployment is both the client the TWA loads and the server it plays on.
+
+**`/.well-known/assetlinks.json` returned the app shell.** `serveStatic`'s SPA fallback answered
+*every* missing path with `index.html` — measured 200, `text/html`, 1241 bytes — and Android's
+Trusted Web Activity verifier fetches that URL and parses it as JSON. Verification failed, so the
+app launched with a browser URL bar across the top, which the Horizon Store rejects outright for an
+immersive title. **The 200 is what hid it**: any check that asks "does the URL answer" passes, and
+the first thing that disagrees is a headset on submission day.
+
+- `KC_ASSETLINKS` is a **comma-separated** list, served merged. `build:quest` and `build:phone`
+  each write a single-element array signed with their own key; one origin serving both apps needs
+  both statements, and serving one file verifies one app and silently fails the other.
+- Anything else under `/.well-known/` 404s. RFC 8615 paths are machine-readable; a missing one has
+  to say it is missing.
+- The SPA fallback now applies **only to extension-less paths**. It used to hand `GLTFLoader` an
+  HTML document for a missing `.glb`, so a path typo surfaced as a parse error inside three.js.
+
+`packageId` and the signing key are permanent, and `horizonOSAppMode: immersive` is a different
+product type from 2D — see `docs/STORES.md`.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in

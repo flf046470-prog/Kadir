@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize, resolve } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -77,8 +77,72 @@ export function createHttpHandler(deps: HttpDeps) {
       return;
     }
 
+    if (path.startsWith('/.well-known/')) {
+      await serveWellKnown(deps.config, path, res);
+      return;
+    }
+
     await serveStatic(deps.config, path, res);
   };
+}
+
+/**
+ * `/.well-known/` paths, which are machine-readable and must never fall back to the app shell.
+ *
+ * Android verifies a Trusted Web Activity by fetching `/.well-known/assetlinks.json` and parsing
+ * it as JSON. Left to `serveStatic` it hit the SPA fallback and got `index.html` — 200, HTML,
+ * 1241 bytes — so verification failed and the app launched with a browser URL bar on top of it,
+ * which the Horizon Store rejects for an immersive title. The 200 is the trap: a smoke check that
+ * asserts the URL answers passes, and only a real headset install shows the URL bar.
+ *
+ * So everything under `/.well-known/` 404s when it is not configured, per RFC 8615. A missing
+ * machine-readable endpoint has to say it is missing.
+ */
+async function serveWellKnown(config: ServerConfig, path: string, res: ServerResponse): Promise<void> {
+  if (path !== '/.well-known/assetlinks.json' || !config.assetLinksFile) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
+    return;
+  }
+  const statements = await assetLinkStatements(config.assetLinksFile);
+  if (statements.length === 0) {
+    res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
+    return;
+  }
+  res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'public, max-age=3600' });
+  res.end(JSON.stringify(statements, null, 2));
+}
+
+/**
+ * Every statement from a comma-separated list of asset-link files, merged.
+ *
+ * One origin can serve more than one app — the Quest TWA and the Play TWA are built from the same
+ * `dist/client` and would both point at it — and each build writes a **single-element** array into
+ * its own packaging directory. Serving one of those files verifies one app and silently fails the
+ * other, which shows up as a URL bar on whichever one you did not think of.
+ *
+ * Merged and read per request rather than cached: the file changes when a build is signed, which
+ * is exactly when nobody wants to remember to restart the server. It is one small file.
+ */
+async function assetLinkStatements(list: string): Promise<unknown[]> {
+  const out: unknown[] = [];
+  const seen = new Set<string>();
+  for (const file of list.split(',').map((f) => f.trim()).filter(Boolean)) {
+    try {
+      const parsed: unknown = JSON.parse(await readFile(resolve(file), 'utf8'));
+      // A malformed or non-array file fails Android's verification in a way that reads as a
+      // networking problem. Skipped here rather than served, so the 404 says something is wrong.
+      if (!Array.isArray(parsed)) continue;
+      for (const statement of parsed) {
+        const key = JSON.stringify(statement);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(statement);
+      }
+    } catch {
+      continue;
+    }
+  }
+  return out;
 }
 
 async function handleApi(
@@ -297,7 +361,21 @@ async function serveStatic(config: ServerConfig, path: string, res: ServerRespon
     });
     createReadStream(target).pipe(res);
   } catch {
-    // SPA fallback so deep links work without a router on the server.
+    /**
+     * SPA fallback, for **navigations only**.
+     *
+     * It used to answer every missing path with `index.html`, which meant a mistyped or
+     * not-yet-built asset came back as 200 `text/html`. A missing `.glb` handed `GLTFLoader` an
+     * HTML document to parse, so the error a developer saw was a parse failure inside three.js
+     * rather than "that file is not there", and a missing texture or JSON did the same.
+     *
+     * A request with a file extension is asking for a file; only an extension-less path is a
+     * route the client's own router should get a chance at.
+     */
+    if (extname(requested)) {
+      res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('not found');
+      return;
+    }
     try {
       const index = resolve(join(root, 'index.html'));
       await stat(index);

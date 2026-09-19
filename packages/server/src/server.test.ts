@@ -28,6 +28,7 @@ function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     messageRateLimit: 90,
     allowedOrigins: [],
     publicDir: 'dist/client',
+    assetLinksFile: '',
     stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },
     allowDevPurchases: true,
     databaseUrl: '',

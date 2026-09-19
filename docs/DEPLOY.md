@@ -44,6 +44,7 @@ docker run --rm -p 8787:8787 \
 | `PORT` / `HOST` | `8787` / `0.0.0.0` | |
 | `KC_DATA_DIR` | `/data` in the image | Only used by file storage. Needs a volume if you rely on it. |
 | `KC_PUBLIC_DIR` | `/app/dist/client` | Static client. Harmless to serve alongside the API; the store builds carry their own copy. |
+| `KC_ASSETLINKS` | *(empty)* | Comma-separated paths to Digital Asset Links files, served merged at `/.well-known/assetlinks.json`. **Required for the Quest and Play builds**: without it Android cannot verify the Trusted Web Activity and the app launches with a browser URL bar, which the Horizon Store rejects for an immersive title. `build:quest` and `build:phone` each write one — pass both. |
 | `KC_ALLOWED_ORIGINS` | *(empty = any)* | Comma-separated. Browsers send `Origin` on the WebSocket upgrade. Empty is fine for the Quest and Steam builds; set it if a public web origin exists. |
 | `KC_MAX_ROOMS` / `KC_MAX_PLAYERS` | `200` / `16` | Voice is a mesh, so past ~16 per room it needs an SFU. |
 | `KC_META_APP_ID`, `KC_META_APP_SECRET` | *(empty)* | Meta receipt verification. |

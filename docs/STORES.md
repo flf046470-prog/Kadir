@@ -51,6 +51,21 @@ then writes `packaging/meta-quest/assetlinks.json` with the signing certificate'
 filled in — serve that at `https://<host>/.well-known/assetlinks.json`. Without it the app
 launches with a browser URL bar, which the store rejects for an immersive title.
 
+The game server serves it, from `KC_ASSETLINKS`:
+
+```bash
+KC_ASSETLINKS=packaging/meta-quest/assetlinks.json,packaging/android-phone/assetlinks.json
+```
+
+Comma-separated and **merged**, because each build writes a single-element array signed with its
+own key: one origin serving both the Quest app and the Play app needs both statements, and serving
+one file verifies one app while silently failing the other.
+
+Do not assume this works because the URL answers. It used to answer — 200, `text/html`, the app
+shell — because every missing path fell through to the SPA fallback, and Android's verifier wants
+JSON. Anything under `/.well-known/` 404s now when it is not configured, so a miss says it missed.
+`curl -sI https://<host>/.well-known/assetlinks.json` must show `application/json`.
+
 Three details in that script are not obvious, and each one cost a failed build:
 
 * **Bubblewrap fetches the icons and web manifest over HTTP at generation time** and bakes them
