@@ -47,10 +47,27 @@ export class AudioSystem {
   private ambience: { source: AudioBufferSourceNode; lfo: OscillatorNode; gain: GainNode } | null = null;
   private ambienceKind: AmbienceKind | null = null;
 
-  /** Must be called from a user gesture — browsers refuse to start audio otherwise. */
+  /**
+   * Try to start audio. Best-effort by design, and safe to call from anywhere.
+   *
+   * Browsers refuse to start an `AudioContext` without a user gesture, so this is called from
+   * several places in the hope that one of them qualifies — boot, the Play button, entering VR.
+   * A refusal **rejects**, and every caller uses `void`, so a throw here became an unhandled
+   * rejection and, worse, skipped the ambience block below: the one call that did land on a
+   * gesture could still leave the spawn zone's bed silent because an earlier one had thrown.
+   *
+   * Caught rather than propagated because there is nothing for a caller to do about it. The next
+   * gesture calls this again.
+   */
   async resume(): Promise<void> {
     if (!this.ctx) this.init();
-    if (this.ctx?.state === 'suspended') await this.ctx.resume();
+    if (this.ctx?.state === 'suspended') {
+      try {
+        await this.ctx.resume();
+      } catch {
+        /* No gesture yet. The next one will get here too. */
+      }
+    }
 
     /**
      * Start the bed the player is already standing in.

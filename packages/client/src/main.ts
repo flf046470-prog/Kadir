@@ -312,6 +312,16 @@ async function main(): Promise<void> {
     const enterButton = button(
       'Enter VR',
       () => {
+        /**
+         * Start the audio here, on the one unambiguous user gesture in the VR path.
+         *
+         * Everything else that resumes audio is reached from the VR menu, which is a three.js
+         * panel driven by the controller's `selectstart`. WebXR does count that as user
+         * activation, so it ought to work — but "ought to" is the whole of the evidence, there is
+         * no headset here to check it on, and the failure mode is a game with no sound at all in
+         * the one place the sound matters most. A DOM click is not a judgement call.
+         */
+        void game?.audio.resume();
         void vrInput.enterVr().then((ok) => {
           if (ok) {
             shell.hide();
