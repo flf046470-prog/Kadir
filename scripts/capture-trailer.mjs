@@ -116,7 +116,32 @@ if (await page.locator('button', { hasText: 'Got it' }).count()) {
 await record(1.2);
 
 await page.locator('button', { hasText: 'Practice with bots' }).first().click();
-await sleep(6500);
+
+/**
+ * Wait for the bell, not for a stopwatch.
+ *
+ * This slept a fixed 6.5 s, so the whole trailer was shot during the warm-up: a countdown ticking
+ * over a frozen kangaroo, with every camera move landing on a player who could not move. The HUD's
+ * role badge reads WARM-UP until the round starts and the player's real role after it.
+ *
+ * Ninety seconds because the countdown is five at 60 fps and this runs on swiftshader at a
+ * measured 1.3 fps, so the bell lands around forty-five seconds in. Nothing here can be timed in
+ * wall clock as though it were a real machine.
+ */
+{
+  const deadline = Date.now() + 90000;
+  let live = false;
+  while (Date.now() < deadline) {
+    const label = await page.locator('.kc-role').first().textContent().catch(() => null);
+    if (label && label.trim() && label.trim() !== 'WARM-UP') {
+      live = true;
+      break;
+    }
+    await sleep(250);
+  }
+  if (!live) console.warn('warning: the round never left its countdown; the take will show a warm-up');
+  await sleep(900);
+}
 
 /**
  * A lap of the clearing, not a straight line out of it.

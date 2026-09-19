@@ -11,7 +11,10 @@ coverage
 !.vscode/extensions.json
 .idea
 *.log
-data/*.json
+# Server state. Guest profiles land in `data/<shard>/<id>.json`, one level deeper than the old
+# `data/*.json` pattern reached — so running the server locally (which every capture script does)
+# left real account files untracked and one careless `git add -A` away from the repository.
+data/**/*.json
 !data/.gitkeep
 
 # Art packs are installed by `npm run assets:fetch` from assets/packs.json.
