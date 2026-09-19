@@ -188,6 +188,16 @@ in a headset are the pixels and the other players, not the ferns. Shadows stay o
 nothing *suggests* high for VR and the governor only climbs into it after seeing 103 fps of
 headroom, which means a tethered headset.
 
+**Turning shadows off used to turn the textures off with them.** `surfaceQualityFor` chose the
+texture tier from `profile.shadows` and `profile.shadowMapSize` — "a device too weak for shadows is
+too weak for a normal map", true of the tier table and false of any platform that drops shadows for
+its own reasons. Dropping the VR shadow pass therefore returned `textures: false` and would have
+handed a headset flat untextured colour: the entire procedural PBR pipeline, undone by a line about
+shadow maps, from a profile that reads as reasonable. `PerformanceProfile.textureDetail`
+(`none`/`basic`/`full`) states it instead, and `worldNeedsRebuild` compares that rather than
+`shadowMapSize` — which is applied live and bakes nothing. **A field inferred from another field is
+a defect waiting for the day the two stop meaning the same thing.**
+
 **`drawDistance` culls nothing.** 120 → 70 changed the frame by zero draw calls and zero triangles.
 Its only effect is `camera.far = max(200, drawDistance * 2.2)`, already past every map's geometry;
 `LevelRenderer` thins props by count (`foliageBudget`, applied **per prop kind**, taking the first

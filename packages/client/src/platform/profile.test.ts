@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS } from '@kc/core';
 import type { QualityTier, Settings } from '@kc/core';
 
+import { surfaceQualityFor } from '../render/surfaces.js';
+
 import { VR_DISPLAY_HZ, VR_FOLIAGE_BUDGET, fpsFloor, profileFor } from './Platform.js';
 
 /**
@@ -89,6 +91,20 @@ describe('the geometry a headset is given', () => {
       expect(vr.shadows, tier).toBe(false);
       expect(vr.foliageBudget, tier).toBeLessThanOrEqual(VR_FOLIAGE_BUDGET);
     }
+  });
+
+  it('keeps the textures it turned the shadows off to afford', () => {
+    /**
+     * Nearly shipped: `surfaceQualityFor` chose the texture tier from `profile.shadows` and
+     * `profile.shadowMapSize`, so turning the shadow pass off for VR also turned off every
+     * procedural surface texture in the game — the whole PBR pipeline, undone by a line about
+     * shadow maps. A headset would have been handed flat untextured colour, and the profile it
+     * was built from would have looked entirely reasonable.
+     */
+    const vr = profileFor('vr', 'medium', settings());
+    expect(vr.shadows).toBe(false);
+    expect(surfaceQualityFor(vr).textures).toBe(true);
+    expect(surfaceQualityFor(vr)).toEqual(surfaceQualityFor(profileFor('pc', 'medium', settings())));
   });
 
   it('lets a tethered headset keep what it measured it could afford', () => {

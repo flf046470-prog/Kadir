@@ -147,11 +147,12 @@ describe('surface quality tiers', () => {
     expect(worldNeedsRebuild(base, { ...base, postProcessing: false })).toBe(false);
     expect(worldNeedsRebuild(base, { ...base, targetFps: 60 })).toBe(false);
     expect(worldNeedsRebuild(base, { ...base, maxDetailedPlayers: 4 })).toBe(false);
+    expect(worldNeedsRebuild(base, { ...base, shadowMapSize: 1024 })).toBe(false);
 
     // Baked in: shadow casting is set per instance, the foliage budget fixes instance counts, and
-    // the shadow-map size decides the texture tier.
+    // the texture detail decides which maps were generated.
     expect(worldNeedsRebuild(base, { ...base, shadows: false })).toBe(true);
-    expect(worldNeedsRebuild(base, { ...base, shadowMapSize: 1024 })).toBe(true);
+    expect(worldNeedsRebuild(base, { ...base, textureDetail: 'basic' })).toBe(true);
     expect(worldNeedsRebuild(base, { ...base, foliageBudget: 60 })).toBe(true);
   });
 

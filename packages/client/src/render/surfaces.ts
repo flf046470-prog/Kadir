@@ -51,11 +51,23 @@ export interface SurfaceQuality {
 }
 
 export function surfaceQualityFor(profile: PerformanceProfile): SurfaceQuality {
-  // Keyed off the same numbers the profile already uses to decide shadows and draw distance, so a
-  // device that cannot afford shadows is never handed a 1024² normal map either.
-  if (!profile.shadows) return { textures: false, normalMap: false, triplanar: false, size: 0 };
-  if (profile.shadowMapSize <= 1024) return { textures: true, normalMap: false, triplanar: true, size: 256 };
-  return { textures: true, normalMap: true, triplanar: true, size: 512 };
+  /**
+   * Read off the profile's own `textureDetail` rather than inferred from its shadow settings.
+   *
+   * It used to be `!profile.shadows` and `shadowMapSize <= 1024`, on the reasoning that a device
+   * too weak for shadows is too weak for a normal map — true of the tier table and false of any
+   * platform that turns shadows off for its own reasons. Dropping the shadow pass in VR, which is
+   * a stereo cost rather than a weakness, took every procedural texture in the game with it: a
+   * headset would have been handed flat untextured colour by a line about shadow maps.
+   */
+  switch (profile.textureDetail) {
+    case 'none':
+      return { textures: false, normalMap: false, triplanar: false, size: 0 };
+    case 'basic':
+      return { textures: true, normalMap: false, triplanar: true, size: 256 };
+    default:
+      return { textures: true, normalMap: true, triplanar: true, size: 512 };
+  }
 }
 
 /**
@@ -360,10 +372,10 @@ export function createSurfaceMaterial(
 /**
  * Does a profile change invalidate the world that was already built?
  *
- * Only three things are baked into `LevelRenderer`'s meshes at construction: the texture tier
- * (derived from shadows and shadow-map size), the foliage budget, which fixes the instance counts,
- * and whether the instances cast shadows. Everything else a profile carries — render scale, draw
- * distance, post-processing, detailed players, target FPS — the renderer applies live.
+ * Only three things are baked into `LevelRenderer`'s meshes at construction: the texture tier, the
+ * foliage budget, which fixes the instance counts, and whether the instances cast shadows.
+ * Everything else a profile carries — render scale, shadow-map size, draw distance,
+ * post-processing, detailed players, target FPS — the renderer applies live.
  *
  * The distinction is load-bearing rather than tidy. The settings sliders fire on every `input`
  * event, which is continuously while a thumb is dragged, so a rebuild on any profile change would
@@ -373,7 +385,7 @@ export function createSurfaceMaterial(
 export function worldNeedsRebuild(built: PerformanceProfile, next: PerformanceProfile): boolean {
   return (
     built.shadows !== next.shadows ||
-    built.shadowMapSize !== next.shadowMapSize ||
+    built.textureDetail !== next.textureDetail ||
     built.foliageBudget !== next.foliageBudget
   );
 }

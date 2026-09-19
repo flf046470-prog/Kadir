@@ -27,6 +27,18 @@ export const VR_DISPLAY_HZ = 72;
 export const VR_FOLIAGE_BUDGET = 60;
 
 /**
+ * How much a tier spends on surface textures, stated rather than inferred.
+ *
+ * `surfaceQualityFor` used to read this off `profile.shadows` and `profile.shadowMapSize`, on the
+ * reasoning that a device too weak for shadows is too weak for a normal map. That reasoning breaks
+ * the moment shadows are turned off for a reason other than weakness: dropping the shadow pass in
+ * VR — a stereo cost, not a device one — silently turned off every procedural texture in the game
+ * and handed a headset flat untextured colour. The two are separate decisions and are separate
+ * fields now.
+ */
+export type TextureDetail = 'none' | 'basic' | 'full';
+
+/**
  * The frame rate the display itself demands, regardless of tier. 0 where there is no such demand.
  *
  * Lives here rather than in `governor.ts` because it is a fact about the platform, and the
@@ -67,8 +79,10 @@ export interface PerformanceProfile {
    */
   drawDistance: number;
   maxDetailedPlayers: number;
-  /** Number of foliage instances rendered. */
+  /** Number of foliage instances rendered, **per prop kind**. */
   foliageBudget: number;
+  /** Which surface textures `surfaceQualityFor` builds. Independent of `shadows` — see above. */
+  textureDetail: TextureDetail;
   targetFps: number;
   antialias: boolean;
 }
@@ -118,6 +132,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 70,
       maxDetailedPlayers: 6,
       foliageBudget: 60,
+      textureDetail: 'none',
       targetFps: TARGET_FPS.low,
       antialias: false,
     },
@@ -129,6 +144,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 120,
       maxDetailedPlayers: 10,
       foliageBudget: 160,
+      textureDetail: 'basic',
       targetFps: TARGET_FPS.medium,
       antialias: true,
     },
@@ -140,6 +156,7 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
       drawDistance: 200,
       maxDetailedPlayers: 16,
       foliageBudget: 320,
+      textureDetail: 'full',
       targetFps: TARGET_FPS.high,
       antialias: true,
     },
