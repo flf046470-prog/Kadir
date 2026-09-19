@@ -48,6 +48,29 @@ export function getLevelEntry(id: string): LevelEntry | undefined {
   return levels.get(id);
 }
 
+/** Built versions, so asking for one does not rebuild a whole world every time. */
+const versions = new Map<string, number>();
+
+/**
+ * A level's course version.
+ *
+ * Read from the built level rather than declared on the registry entry, so the two can never
+ * disagree — a version that lived in both places would eventually be bumped in only one, and the
+ * thing it protects is a leaderboard, where being quietly wrong is the whole failure.
+ *
+ * Returns 0 for an unknown id: callers key records with it, and inventing a version for a map
+ * that does not exist here would file those records under a real map's name.
+ */
+export function levelVersion(id: string): number {
+  const cached = versions.get(id);
+  if (cached !== undefined) return cached;
+  const entry = levels.get(id);
+  if (!entry) return 0;
+  const version = entry.build().version;
+  versions.set(id, version);
+  return version;
+}
+
 /**
  * Build a level by id, falling back to the first registered one.
  *

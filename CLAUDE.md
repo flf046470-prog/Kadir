@@ -153,6 +153,20 @@ The hunter's rifle works — on `jungle-world` it lands for the full 55 and clea
 rifle" no longer reproduces; the bot obstacle-avoidance change fixed the wedging. On the two
 sparser maps the hunter simply cannot find people, which is a density problem, not a weapon one.
 
+## Leaderboards
+
+A record is filed under **the course it was run on**, not the map's name: `Leaderboard` keys every
+call `"<levelId>@v<version>"`. Maps are generated from a seed, so editing one changes the course
+everybody runs while the id stays put — and the old course's times would sit on the board beside
+the new one's, with nothing in the rows to say so. **Bump a map's `version` whenever its geometry
+changes**; that starts a clean board and leaves the old one intact under its own key.
+
+The key is resolved inside the class, not at the three call sites (the room and two HTTP routes),
+because a board is only trustworthy if none of them can forget. `levelVersion(id)` memoises the
+built level's own `version` rather than declaring it a second time on the registry entry, and
+returns **0** for an unknown id so a nonexistent map's times cannot land on a real map's board —
+`buildLevel`'s fallback would otherwise stamp them with the jungle's version.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:
