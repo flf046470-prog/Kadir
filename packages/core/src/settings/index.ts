@@ -101,6 +101,16 @@ export interface Settings {
   /** Reduced-motion / high-contrast style accessibility switches. */
   reduceMotion: boolean;
   colorblindSafe: boolean;
+  /**
+   * Send a crash report when the game breaks.
+   *
+   * On by default, and the default is the decision worth defending: the reports carry no name,
+   * no chat, no voice and no position — `telemetry/errors.ts` strips all of it and the scrubbing
+   * is unit tested — and the first headset sessions are the ones where a silent crash costs the
+   * most. A player who would rather not can turn it off here, and a build with no DSN never
+   * sends anything whatever this says.
+   */
+  errorReports: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -146,6 +156,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voiceEnabled: true,
   reduceMotion: false,
   colorblindSafe: false,
+  errorReports: true,
 };
 
 /** Deep-merge stored settings over the defaults, clamping anything out of range. */
@@ -162,6 +173,7 @@ export function mergeSettings(stored: unknown): Settings {
   if (typeof raw.voiceEnabled === 'boolean') base.voiceEnabled = raw.voiceEnabled;
   if (typeof raw.reduceMotion === 'boolean') base.reduceMotion = raw.reduceMotion;
   if (typeof raw.colorblindSafe === 'boolean') base.colorblindSafe = raw.colorblindSafe;
+  if (typeof raw.errorReports === 'boolean') base.errorReports = raw.errorReports;
 
   base.graphics.renderScale = clamp(base.graphics.renderScale, 0.5, 1.5);
   base.graphics.maxDetailedPlayers = Math.round(clamp(base.graphics.maxDetailedPlayers, 2, 16));

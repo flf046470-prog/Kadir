@@ -24,7 +24,25 @@ COPY packages/shell/package.json     packages/shell/
 RUN npm ci
 
 COPY . .
+
+# Crash reporting is compiled in, because the client is a static bundle with nothing to read a
+# variable from at runtime. Both are build-time only and neither is a secret: a Sentry DSN is a
+# write-only ingest address that every web build in the world ships in the clear, and the release
+# is a commit hash. The token that *uploads source maps* is a real secret and is not here.
+#
+# Empty by default, which is the state that matters: with no DSN the reporter never initialises,
+# never fetches its chunk and never sends anything.
+ARG VITE_SENTRY_DSN=""
+ARG VITE_KC_RELEASE="dev"
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN VITE_KC_RELEASE=$VITE_KC_RELEASE
+
 RUN npm run build
+
+# Source maps are build-time artefacts: they exist so a minified stack trace from somebody's
+# headset can be read, which means uploading them to Sentry from *here* — a step that needs an
+# auth token and goes immediately above this line when there is one. They are 6.4 MB and must not
+# reach a device, so the image does not carry them.
+RUN find dist/client -name '*.map' -delete
 
 # ---------------------------------------------------------------------------------------------
 # Runtime: production dependencies only, no toolchain, no sources.

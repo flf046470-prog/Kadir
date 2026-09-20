@@ -1201,6 +1201,12 @@ export class Shell {
       toggle('Reduce motion', s.reduceMotion, (v) => {
         s.reduceMotion = v;
       }),
+      // Named for what it sends rather than for the word "telemetry", which tells a player
+      // nothing about what they are agreeing to. What it sends is in telemetry/errors.ts: the
+      // error, the build, the platform and the route — no name, no chat, no voice, no position.
+      toggle('Send crash reports (no personal data)', s.errorReports, (v) => {
+        s.errorReports = v;
+      }),
     );
 
     return el(

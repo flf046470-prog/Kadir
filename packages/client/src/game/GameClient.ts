@@ -508,6 +508,11 @@ export class GameClient {
     return this.modeId;
   }
 
+  /** The map currently loaded. Read by the crash reporter, which tags an issue with where it was. */
+  get currentLevelId(): string {
+    return this.level.id;
+  }
+
   /** True while movement tuning may be edited: solo practice, where nobody else is affected. */
   get canTune(): boolean {
     return this.soloPractice;

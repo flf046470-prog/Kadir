@@ -19,6 +19,7 @@ import { TuningStore } from './game/TuningStore.js';
 import { VRMenu } from './ui/VRPanels.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
+import { configuredRelease, setRoundContext, startErrorReporting } from './telemetry/errors.js';
 
 /**
  * Application bootstrap.
@@ -228,6 +229,16 @@ async function main(): Promise<void> {
     game.start();
     void game.audio.resume();
 
+    /**
+     * Crash reporting, started after the game is running and never awaited.
+     *
+     * An immersive PWA launches straight into the WebXR session and everything fetched before
+     * that counts against Meta's startup requirement, so the SDK is a lazy chunk that arrives
+     * whenever it arrives. It is inert in a build with no DSN — which is every build until one
+     * is configured — and inert for a player who turned it off.
+     */
+    void startErrorReporting({ platform: device.kind, release: configuredRelease() }, settings.errorReports);
+
     if (device.kind === 'vr') setupVr();
     shell.show(store.tutorialSeen() ? 'menu' : 'tutorial');
     store.markTutorialSeen();
@@ -398,6 +409,9 @@ async function main(): Promise<void> {
     resumeInput();
     void game.audio.resume();
     game.startSoloPractice(modeId);
+    // Tag the round, so an issue says where it happened rather than only that it did. After the
+    // call, because that is what settles which level is loaded.
+    void setRoundContext(game.currentLevelId, modeId, renderer.tier);
   }
 
   function resumeInput(): void {

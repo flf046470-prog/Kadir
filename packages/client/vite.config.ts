@@ -25,10 +25,23 @@ export default defineConfig({
     outDir: r('../../dist/client'),
     emptyOutDir: true,
     target: 'es2022',
-    sourcemap: false,
+    /**
+     * `hidden`: the maps are written but no `sourceMappingURL` comment points at them.
+     *
+     * A minified stack trace from somebody's headset names `t` and `e` and is close to useless,
+     * so the maps have to exist to be uploaded to Sentry. `hidden` rather than `true` because
+     * nothing should fetch them at runtime — that is a download on a device whose startup budget
+     * is a store requirement. Uploading them needs a Sentry auth token, which is a real secret
+     * and belongs in the build environment, never in the client.
+     */
+    sourcemap: 'hidden',
     rollupOptions: {
       output: {
-        manualChunks: { three: ['three'] },
+        // `sentry` is named rather than left to the hash so the precache builder can exclude it
+        // by name. It is reached only by a dynamic import and must stay that way: precaching it
+        // would have the service worker download the crash reporter during install, which is the
+        // startup budget the lazy import exists to protect.
+        manualChunks: { three: ['three'], sentry: ['@sentry/browser'] },
       },
     },
   },

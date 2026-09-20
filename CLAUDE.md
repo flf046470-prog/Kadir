@@ -327,6 +327,40 @@ rule per-file instead would have made those two indistinguishable forever.
 `crossPlay` and `token` all required. A guessed `{type:'join'}` connects, is ignored, and sends
 nothing back for as long as you care to wait, which looks exactly like a broken server.
 
+## Crash reporting
+
+There was none, and there was no global error handler either — an unhandled error in the client
+went nowhere at all, so the only way to learn the game had broken on a device was to be told.
+`telemetry/errors.ts` is Sentry, wired under three constraints that all come from this project:
+
+- **Off the boot path.** The SDK is behind a dynamic `import()` and a named `sentry` chunk.
+  Measured: the entry chunk has zero Sentry in it, precache is 12 entries / 959 kB — the same as
+  before it was added — and in a real browser with no DSN the chunk is never fetched and
+  `sentry.io` is never contacted.
+- **Nothing about a person.** `scrubEvent`/`scrubBreadcrumb` are pure and unit tested rather than
+  trusted to a vendor default: the user object and request headers are deleted, query strings
+  (where the guest token travels) are stripped, room codes become `<room>` so one route stays one
+  issue, and **console and `ui.*` breadcrumbs are dropped as whole categories** — a filter would
+  be a list of the leaks somebody thought of, and chat, voice state and names all pass through
+  code that could one day log them.
+- **The DSN is not a secret; the auth token is.** A DSN is a write-only ingest address that every
+  web build ships in the clear, so it does not contradict the rule about keys in web builds. The
+  token that uploads source maps is a real secret and never goes near the client.
+
+Two back doors were found by measuring rather than by reading, and both would have undone the
+first constraint silently:
+
+- **`build-precache.mjs` sweeps `assets/` wholesale**, so it precached the 444 kB Sentry chunk —
+  the service worker would have downloaded the crash reporter during install, which is exactly
+  what the lazy import exists to prevent. It also precached **6.4 MB of source maps** the moment
+  `sourcemap: 'hidden'` was turned on. Both are excluded by name now, which is why `sentry` is a
+  named chunk rather than a hashed one.
+- The maps are deleted from the image after the build. They exist to be uploaded from the build
+  machine; the upload step goes immediately above that deletion in the `Dockerfile`.
+
+`Settings.errorReports` is the opt-out, on by default, and a build with no `VITE_SENTRY_DSN`
+sends nothing whatever it says.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in

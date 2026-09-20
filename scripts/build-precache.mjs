@@ -28,6 +28,23 @@ const dist = path.join(fileURLToPath(new URL('..', import.meta.url)), 'dist', 'c
 const ROOTS = ['index.html', 'manifest.webmanifest', 'favicon.svg'];
 const DIRS = ['assets', 'icons'];
 
+/**
+ * Two things live in `assets/` that must never be installed on a device.
+ *
+ * Source maps, because they are 6.4 MB and exist to be uploaded to an issue tracker from the
+ * build machine, not fetched by a headset. And the crash reporter, which is behind a dynamic
+ * import precisely so it stays off the boot path — precaching it would have the service worker
+ * download it during install and undo that, which is exactly the kind of back door that makes a
+ * startup budget quietly untrue.
+ *
+ * Matched by name rather than by size or content: `sentry` is a named chunk in vite.config.ts
+ * for this reason.
+ */
+function excludedFromPrecache(rel) {
+  const name = path.basename(rel);
+  return name.endsWith('.map') || /^sentry-/.test(name);
+}
+
 async function listDir(rel) {
   const abs = path.join(dist, rel);
   try {
@@ -36,7 +53,7 @@ async function listDir(rel) {
     for (const entry of entries) {
       const child = `${rel}/${entry.name}`;
       if (entry.isDirectory()) out.push(...(await listDir(child)));
-      else out.push(child);
+      else if (!excludedFromPrecache(child)) out.push(child);
     }
     return out;
   } catch {

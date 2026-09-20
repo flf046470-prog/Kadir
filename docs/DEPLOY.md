@@ -54,6 +54,32 @@ A store with no credentials configured is absent from the routing table, so **it
 refused rather than accepted unverified**. Leaving these empty is safe, not lax — it means
 purchases fail closed. `dev:` receipts do not exist when `NODE_ENV=production`.
 
+## Crash reporting
+
+Two **build-time** variables, read by Vite when the client bundle is compiled. They are not server
+settings and setting them at runtime does nothing — the client is a static bundle with nothing to
+read a variable from.
+
+| Variable | Notes |
+| --- | --- |
+| `VITE_SENTRY_DSN` | Sentry ingest address. Empty (the default) means the reporter never initialises, never fetches its chunk and never sends anything. **Not a secret**: a DSN is write-only, cannot read an issue, and every web build ships one in the clear. |
+| `VITE_KC_RELEASE` | Build identity for the release tag, so an issue points at a commit. `dev` when unset. On Railway, `RAILWAY_GIT_COMMIT_SHA`. |
+
+The Dockerfile takes both as `ARG`s before `npm run build`. On Railway they are ordinary service
+variables; the builder passes them through.
+
+What is sent is in `packages/client/src/telemetry/errors.ts` and is unit tested rather than
+trusted: the error, the build, the platform and the route. No name, no chat, no voice, no
+position; the user object and request headers are deleted, query strings are stripped, room codes
+are replaced with `<room>`, and console and UI breadcrumbs are dropped as categories. Players can
+turn it off in Settings; it is on by default.
+
+**The Sentry auth token is a real secret and is a different thing from the DSN.** It uploads
+source maps and must never reach the client. `vite.config.ts` emits `hidden` source maps so they
+exist to be uploaded from the build machine, and the Dockerfile deletes them from the image
+afterwards — they are 6.4 MB and have no business on a headset. The upload step goes immediately
+above that deletion.
+
 ## Storage
 
 File storage is correct for exactly one writer: local development, and the Steam build's
