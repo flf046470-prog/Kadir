@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { reportingEnabled, scrubBreadcrumb, scrubEvent, scrubUrl } from './errors.js';
+import { afterEach, beforeEach } from 'vitest';
+
+import {
+  crashNotice,
+  installCrashSurface,
+  reportingEnabled,
+  resetErrorReportingForTests,
+  scrubBreadcrumb,
+  scrubEvent,
+  scrubUrl,
+} from './errors.js';
 
 /**
  * What leaves the device.
@@ -124,5 +134,96 @@ describe('whether reporting runs at all', () => {
     // The default state of this repository. Nothing is sent, nothing is fetched, and the game
     // does not behave differently for it.
     expect(reportingEnabled('', true)).toBe(false);
+  });
+});
+
+/**
+ * Telling the player, which is a different job from telling an issue tracker.
+ *
+ * `main()` already catches a failure to start, and says "check the console for details" — advice
+ * for somebody at a desk, and a dead end for the one player it is actually written for, who is
+ * wearing a headset and has no console to open. Nothing at all handled an error *after* boot: a
+ * render loop that throws stops rAF, the picture freezes, and the game says nothing.
+ */
+describe('the sentence a player gets', () => {
+  beforeEach(() => resetErrorReportingForTests());
+  afterEach(() => resetErrorReportingForTests());
+
+  it('says what to do, not where to look', () => {
+    const notice = crashNotice(new Error('Cannot read properties of null'));
+    expect(notice).toContain('reload');
+    expect(notice).toContain('Cannot read properties of null');
+    expect(notice).not.toContain('console');
+  });
+
+  it('still says something when the error carries no message', () => {
+    expect(crashNotice(undefined)).toBe('Something went wrong — reload to start again.');
+    expect(crashNotice('')).toBe('Something went wrong — reload to start again.');
+  });
+
+  it('stays short enough to put on a screen', () => {
+    // It goes in a notice bar, not a log. A stack trace pasted into one is unreadable anywhere.
+    const notice = crashNotice(new Error('x'.repeat(500)));
+    expect(notice.length).toBeLessThan(200);
+  });
+
+  it('collapses the whitespace a multi-line error arrives with', () => {
+    expect(crashNotice(new Error('first line\n   second line'))).toContain('first line second line');
+  });
+
+  /**
+   * Each case listens on its own `EventTarget` rather than on the global.
+   *
+   * Partly because there is no global `addEventListener` under Node, which is what made this
+   * untestable before the target became an argument — but mostly because a listener installed on
+   * a shared object outlives the case that installed it, and the next case then measures both.
+   */
+  it('announces once, however many times the loop throws', () => {
+    /**
+     * The reason this matters: a render loop that throws does it every frame. At 72 Hz that is
+     * seventy-two identical notices a second, and after the first there is nothing more to say.
+     */
+    const target = new EventTarget();
+    const seen: string[] = [];
+    const remove = installCrashSurface((m) => seen.push(m), target);
+
+    for (let i = 0; i < 5; i++) {
+      target.dispatchEvent(Object.assign(new Event('error'), { error: new Error('boom') }));
+    }
+    target.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: new Error('also boom') }));
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toContain('boom');
+    remove();
+  });
+
+  it('listens for a rejection as well as a throw', () => {
+    const target = new EventTarget();
+    const seen: string[] = [];
+    const remove = installCrashSurface((m) => seen.push(m), target);
+    target.dispatchEvent(Object.assign(new Event('unhandledrejection'), { reason: new Error('a promise nobody caught') }));
+    expect(seen[0]).toContain('a promise nobody caught');
+    remove();
+  });
+
+  it('falls back to the message when an ErrorEvent carries no error object', () => {
+    // A cross-origin script error arrives this way: `error` is null and only `message` is set.
+    const target = new EventTarget();
+    const seen: string[] = [];
+    const remove = installCrashSurface((m) => seen.push(m), target);
+    target.dispatchEvent(Object.assign(new Event('error'), { error: null, message: 'Script error.' }));
+    expect(seen[0]).toContain('Script error.');
+    remove();
+  });
+
+  it('stops listening when removed', () => {
+    const target = new EventTarget();
+    const seen: string[] = [];
+    installCrashSurface((m) => seen.push(m), target)();
+    // Reset after removal, so the silence below is the listener being gone rather than the
+    // once-only latch still being set from a previous case.
+    resetErrorReportingForTests();
+    target.dispatchEvent(Object.assign(new Event('error'), { error: new Error('after removal') }));
+    expect(seen).toHaveLength(0);
   });
 });

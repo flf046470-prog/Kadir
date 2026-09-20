@@ -361,6 +361,36 @@ first constraint silently:
 `Settings.errorReports` is the opt-out, on by default, and a build with no `VITE_SENTRY_DSN`
 sends nothing whatever it says.
 
+**Telling an issue tracker and telling the player are different jobs, and only the first one was
+being done.** Sentry installs its handlers when it initialises, so with no DSN — which is every
+build until one is configured — *nothing* handled an error after boot. `main().catch` covers a
+rejected boot promise and said "Kangaroo Chase failed to start. Check the console for details",
+which is advice for somebody at a desk and a dead end for somebody in a headset. So
+`installCrashSurface` is installed at import time, before `main()` runs, always, with or without
+a DSN.
+
+- **A throw in the render loop is permanent.** three.js's `WebGLAnimation` re-requests the next
+  frame *after* the callback returns (`node_modules/three/src/renderers/webgl/WebGLAnimation.js`),
+  so one throw ends the loop. The picture freezes and the game says nothing — which reads as the
+  game having stopped responding rather than as an error, the same failure mode as the dropped
+  gadget events.
+- **In an immersive session the DOM is not on screen**, so the overlay ends the XR session first
+  (`vrInput.exitVr()`) or the player never sees it.
+- **Once.** At 72 Hz a throwing loop is seventy-two identical notices a second.
+- The overlay is appended over the page with inline styles, never written into `#app`: replacing
+  `#app` destroys the canvas (wrong if the throw came from a UI handler and the game is still
+  running), and a boot that fails before `injectStyles()` has no stylesheet for `kc-btn` to use.
+  It carries a **Reload button**, because "reload to start again" is an instruction and the
+  player it is written for has no address bar, no keyboard and no console.
+- `installCrashSurface(announce, target)` takes its `EventTarget`. Not for tidiness: a bare
+  `addEventListener` is a browser global and made the whole thing untestable under Node.
+
+Measured in a real browser against the built client: no overlay during play (canvas present),
+then a real uncaught error from a timer produces one full-viewport panel — `elementFromPoint` at
+the centre returns it, so it is genuinely on top of the canvas rather than merely in the DOM —
+and five further throws plus an unhandled rejection leave `#kc-crash` at **one** panel still
+showing the first message.
+
 ## Events
 
 `AudioSystem.handleEvent` and `GameClient.playHaptics` are both a `switch` ending in

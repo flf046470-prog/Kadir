@@ -205,4 +205,68 @@ export async function setRoundContext(levelId: string, modeId: string, tier: str
 /** Test seam: forget that reporting was started. Not part of the runtime path. */
 export function resetErrorReportingForTests(): void {
   started = false;
+  announced = false;
+}
+
+/**
+ * The sentence a player gets when something breaks.
+ *
+ * `main()` already catches a failure to *start* and says so, but it says "check the console for
+ * details" — which is advice for somebody at a desk. In an immersive PWA there is no console to
+ * open, so for the one player this is actually written for it is a dead end. And nothing at all
+ * handled an error *after* boot: if the render loop throws, rAF stops, the picture freezes and
+ * the game says nothing, which reads as the game having stopped responding rather than as an
+ * error. This repo already knows that failure mode from the dropped gadget events.
+ *
+ * Short, and truncated, because it goes on screen rather than into a log. The detail is included
+ * because the player is the only person who can tell you what they were doing — but it stays on
+ * their device; what gets *sent* is decided by `scrubEvent`, not by this.
+ */
+export function crashNotice(raw: unknown): string {
+  const text = raw instanceof Error ? raw.message : String(raw ?? '');
+  const detail = text.trim().replace(/\s+/g, ' ').slice(0, 120);
+  return detail
+    ? `Something went wrong: ${detail} — reload to start again.`
+    : 'Something went wrong — reload to start again.';
+}
+
+let announced = false;
+
+/**
+ * Watch for errors nothing else caught, and tell the player once.
+ *
+ * Installed always, with or without a DSN: reporting a crash to an issue tracker and telling the
+ * person in the headset are different jobs, and the second one is the one that cannot wait for an
+ * account to exist. Sentry installs its own handlers when it initialises and captures from them;
+ * this one does not capture, so the two do not duplicate.
+ *
+ * **Once.** A render loop that throws does it every frame — at 72 Hz, seventy-two identical
+ * notices a second — and after the first one there is nothing further to say. Returns the
+ * listeners' removal so a test can clean up.
+ */
+export function installCrashSurface(
+  announce: (message: string) => void,
+  /**
+   * What to listen on. `window` in a browser; a test passes its own `EventTarget` so the cases
+   * do not leak listeners into each other. Not a bare `addEventListener` call, which is only a
+   * global in a browser and made this untestable outside one.
+   */
+  target: EventTarget = globalThis as unknown as EventTarget,
+): () => void {
+  const onError = (event: Event): void => {
+    if (announced) return;
+    announced = true;
+    announce(crashNotice((event as { error?: unknown; message?: unknown }).error ?? (event as { message?: unknown }).message));
+  };
+  const onRejection = (event: Event): void => {
+    if (announced) return;
+    announced = true;
+    announce(crashNotice((event as { reason?: unknown }).reason));
+  };
+  target.addEventListener('error', onError);
+  target.addEventListener('unhandledrejection', onRejection);
+  return () => {
+    target.removeEventListener('error', onError);
+    target.removeEventListener('unhandledrejection', onRejection);
+  };
 }

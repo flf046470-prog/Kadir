@@ -19,7 +19,96 @@ import { TuningStore } from './game/TuningStore.js';
 import { VRMenu } from './ui/VRPanels.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
-import { configuredRelease, setRoundContext, startErrorReporting } from './telemetry/errors.js';
+import { crashNotice, installCrashSurface, configuredRelease, setRoundContext, startErrorReporting } from './telemetry/errors.js';
+
+/**
+ * The VR input layer, once one exists, so a crash can get the player out of the headset.
+ *
+ * Module scope rather than `main()`'s, because the crash surface is installed before `main()` is
+ * called — an error thrown during boot is the one most worth catching, and a handler installed at
+ * the end of a successful boot cannot catch it.
+ */
+let vrInput: VRInput | null = null;
+
+/**
+ * Put a crash where the player can see it.
+ *
+ * Appended over the page rather than written into `#app`, for two reasons. Replacing `#app`
+ * destroys the canvas, which is the wrong thing to do if the throw came from a UI handler and the
+ * game behind it is still running; and the boot path can fail before `injectStyles()` has run, so
+ * anything that relies on the stylesheet would be invisible exactly when it is needed. Every
+ * style here is inline for the same reason.
+ *
+ * The reload button is the point. "Reload to start again" is an instruction, and an instruction
+ * given to somebody wearing a headset — who has no address bar, no keyboard and no console — is
+ * not the same thing as a way out.
+ */
+function showCrashOverlay(message: string): void {
+  // A throw inside the render loop stops it for good: three.js's WebGLAnimation re-requests the
+  // next frame *after* the callback returns, so nothing re-requests. In an immersive session that
+  // leaves the headset on a frozen frame with no DOM in front of it, so the only way the player
+  // ever sees this notice is to end the session first.
+  void vrInput?.exitVr();
+
+  const existing = document.getElementById('kc-crash');
+  if (existing) {
+    existing.querySelector('p')?.replaceChildren(message);
+    return;
+  }
+
+  const panel = el(
+    'div',
+    {
+      id: 'kc-crash',
+      style: {
+        position: 'fixed',
+        inset: '0',
+        // Above everything, including the HUD and any panel that was open when it happened.
+        zIndex: '2147483647',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '16px',
+        padding: '32px',
+        textAlign: 'center',
+        background: '#0b120e',
+        color: '#f2f7f0',
+        font: '15px/1.5 system-ui, sans-serif',
+      },
+    },
+    el('h1', { style: { margin: '0', fontSize: '22px' } }, 'Kangaroo Chase stopped'),
+    el('p', { style: { margin: '0', maxWidth: '34em', opacity: '0.85' } }, message),
+    // Not `button()` from ui/dom: that one is styled by the injected stylesheet, and this panel
+    // has to render when the failure happened before the stylesheet existed.
+    el(
+      'button',
+      {
+        onClick: () => location.reload(),
+        style: {
+          padding: '12px 26px',
+          fontSize: '16px',
+          cursor: 'pointer',
+          borderRadius: '8px',
+          border: '0',
+          background: '#7cc96a',
+          color: '#0b120e',
+        },
+      },
+      'Reload',
+    ),
+  );
+  document.body.append(panel);
+}
+
+/**
+ * Watch for anything nothing else caught, from before boot until the tab closes.
+ *
+ * Installed at import time rather than inside `main()`: `main().catch` below only sees a rejected
+ * boot promise, and neither of them saw an error thrown after boot at all, which is the case that
+ * matters most — the render loop dies, the picture stops, and the game says nothing.
+ */
+installCrashSurface(showCrashOverlay);
 
 /**
  * Application bootstrap.
@@ -56,6 +145,9 @@ async function main(): Promise<void> {
       : device.kind === 'mobile'
         ? new MobileInput(root)
         : new PCInput(renderer.renderer.domElement);
+  // Handed to the crash surface, which is installed before this function runs and otherwise has
+  // no way to end an immersive session.
+  if (input instanceof VRInput) vrInput = input;
 
   // Created here rather than inside GameClient: tuning is a persisted user preference shared
   // with the menus, and the menus exist before the first match does.
@@ -518,9 +610,8 @@ function registerServiceWorker(): void {
 
 main().then(registerServiceWorker).catch((error: unknown) => {
   console.error(error);
-  const root = document.getElementById('app');
-  if (root) {
-    root.innerHTML =
-      '<div style="padding:32px;font:15px system-ui;color:#f2f7f0">Kangaroo Chase failed to start. Check the console for details.</div>';
-  }
+  // The console line stays — it is the useful one when the failure happens at a desk. What the
+  // player is told is the overlay, because "check the console for details" is advice for somebody
+  // who has a console, and the player this game is built for is wearing a headset.
+  showCrashOverlay(crashNotice(error));
 });

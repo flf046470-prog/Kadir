@@ -74,6 +74,10 @@ position; the user object and request headers are deleted, query strings are str
 are replaced with `<room>`, and console and UI breadcrumbs are dropped as categories. Players can
 turn it off in Settings; it is on by default.
 
+Telling the player is separate from telling the issue tracker and does not depend on either
+variable: a crash overlay with a Reload button is installed in every build, with or without a
+DSN, and ends the WebXR session first so a player in a headset can see it.
+
 **The Sentry auth token is a real secret and is a different thing from the DSN.** It uploads
 source maps and must never reach the client. `vite.config.ts` emits `hidden` source maps so they
 exist to be uploaded from the build machine, and the Dockerfile deletes them from the image
