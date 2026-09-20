@@ -129,6 +129,8 @@ export class LevelRenderer {
   private checkpointRings: THREE.Mesh[] = [];
   private portals: { group: THREE.Group; arch: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
   private portalVeils: THREE.Mesh[] = [];
+  /** Every water material this level built — one per `kind:water` collider bucket, usually one. */
+  private waterMaterials: THREE.MeshStandardMaterial[] = [];
 
   /** Instanced meshes built from procedural geometry, replaced if authored models arrive. */
   private proceduralProps: THREE.InstancedMesh[] = [];
@@ -338,6 +340,7 @@ export class LevelRenderer {
       flatShading: true,
     });
     this.disposables.push(mat);
+    if (isWater) this.waterMaterials.push(mat);
     return mat;
   }
 
@@ -622,6 +625,16 @@ export class LevelRenderer {
       const ring = this.checkpointRings[i] as THREE.Mesh;
       if (!ring.visible) continue;
       ring.rotation.z = time * 0.7 + i;
+    }
+
+    // Water was a perfectly still, glossy surface — the ripple normal map is real but frozen, so a
+    // river read as varnished glass rather than moving water. `flowOffset` is `applyTriplanar`'s
+    // generic per-material UV scroll (see surfaces.ts); water is the only material that ever moves
+    // it. Different rates on each axis so the drift reads as a current rather than a diagonal
+    // texture repeat sliding past.
+    for (const mat of this.waterMaterials) {
+      const flow = mat.userData.flowOffset as { value: THREE.Vector2 } | undefined;
+      if (flow) flow.value.set(time * 0.035, time * 0.05);
     }
   }
 

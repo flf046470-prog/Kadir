@@ -449,6 +449,43 @@ These silently invalidated real measurements in this repo. Check them before bel
 - A mode's countdown freezes players, and a round reset restores the state you were watching. Both
   will hide an effect inside a long run.
 
+## Water
+
+Asked to make the maps "more realistic" (`Haritaları daha iyi gerçekçi geliştirebilir misin`), the
+terrain itself was **not** the defect: `glacier-world`'s ice shelf and `outback-station`'s Gum Flat
+are deliberately flat — see Map density below — and `LevelBuilder` has no heightmap/terrain
+primitive to add texture to anyway, only box/cylinder/sphere/ramp. What was actually wrong,
+measured rather than assumed: every water surface (jungle's river and cave pool, its canyon plunge
+pool, outback's creek) was **completely static**. `textures.ts`'s water recipe is nearly smooth
+(`roughness: [0.14, 0.04]`) specifically so it reads as wet, glossy and specular — and a specular
+surface with a frozen ripple normal map reads as varnished glass, not moving water, because the
+one thing that would show motion is exactly the thing that never moved.
+
+`applyTriplanar` (`surfaces.ts`) now gives every triplanar material a `uFlowOffset` vec2 uniform,
+added to all three triplanar sample coordinates (`triSample`, and the whiteout normal-map block) —
+kept generic rather than gated behind a boolean, because the cost is one vector add before a
+texture fetch that already happens, and a second compiled shader variant to omit it would double
+the program count for nothing measurable. `LevelRenderer.material()` records every material built
+for `'water'` in `waterMaterials`; `animate(time)` — the same per-frame hook that already breathes
+the portal veils and spins checkpoint rings — is the **only** place that ever writes to it, at
+`(time*0.035, time*0.05)`, different rates per axis so it reads as a current rather than a
+repeating texture sliding diagonally. Every other triplanar material's offset stays at its default
+zero.
+
+`onBeforeCompile` — where `flowOffset` actually attaches to `material.userData` — only fires once
+a real renderer compiles the material, which vitest's headless run never does (`surfaces.test.ts`
+already documents this). `LevelRenderer.water.test.ts` stands in for that compile step by
+attaching a stub uniform object by hand, then checks that `animate` moves every water material's
+offset and nothing else's — mutation-tested by deleting the update loop (test failed: offset stuck
+at zero) and by making `material()` push every material into `waterMaterials` instead of only
+water (test failed: a rock material got moved too). The visible effect was checked the way
+`surfaces.test.ts` says a shader compile has to be — in a browser: a standalone probe page loaded
+the real `createSurfaceMaterial('water', …)` through Vite, not the full game, rendered it at
+`t=0` and `t=6`, and diffed the two frames — 205,297 of 360,000 pixels moved (measured, not
+inferred from the shader text compiling). No geometry, instance count, or texture changed, so the
+frame budget is unaffected by construction; nothing here needed re-measuring against the Quest
+draw-call table.
+
 ## Map density — the number that decides whether it feels like a game
 
 Median distance to the *nearest* other player, six players, sampled once a second from t=10 s, and

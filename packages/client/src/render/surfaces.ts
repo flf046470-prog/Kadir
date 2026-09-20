@@ -133,6 +133,13 @@ export function disposeSurfaceTextures(): void {
 function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, withNormal: boolean): void {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uTriplanarScale = { value: 1 / tile };
+    // A per-material scroll, in tile units, left at zero for every material except water — see
+    // `LevelRenderer.animate`, the one place that ever writes to it. Kept generic rather than
+    // water-specific because the cost is one vector add per sample, already dwarfed by the texture
+    // fetch itself, and a second shader variant just to omit it would double the compiled programs
+    // for no measurable saving.
+    shader.uniforms.uFlowOffset = { value: new THREE.Vector2(0, 0) };
+    material.userData.flowOffset = shader.uniforms.uFlowOffset;
 
     shader.vertexShader = shader.vertexShader
       .replace(
@@ -175,6 +182,7 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
         '#include <common>',
         `#include <common>
          uniform float uTriplanarScale;
+         uniform vec2 uFlowOffset;
          varying vec3 vTriWorld;
          varying vec3 vTriNormal;
 
@@ -190,9 +198,9 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
          }
 
          vec4 triSample( sampler2D tex, vec3 w, float scale ) {
-           vec4 x = texture2D( tex, vTriWorld.zy * scale );
-           vec4 y = texture2D( tex, vTriWorld.xz * scale );
-           vec4 z = texture2D( tex, vTriWorld.xy * scale );
+           vec4 x = texture2D( tex, vTriWorld.zy * scale + uFlowOffset );
+           vec4 y = texture2D( tex, vTriWorld.xz * scale + uFlowOffset );
+           vec4 z = texture2D( tex, vTriWorld.xy * scale + uFlowOffset );
            return x * w.x + y * w.y + z * w.z;
          }`,
       )
@@ -254,9 +262,9 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
            vec3 triWn = triWeights();
            vec3 triWorldN = normalize( vTriNormal );
 
-           vec3 tnX = texture2D( normalMap, vTriWorld.zy * uTriplanarScale ).xyz * 2.0 - 1.0;
-           vec3 tnY = texture2D( normalMap, vTriWorld.xz * uTriplanarScale ).xyz * 2.0 - 1.0;
-           vec3 tnZ = texture2D( normalMap, vTriWorld.xy * uTriplanarScale ).xyz * 2.0 - 1.0;
+           vec3 tnX = texture2D( normalMap, vTriWorld.zy * uTriplanarScale + uFlowOffset ).xyz * 2.0 - 1.0;
+           vec3 tnY = texture2D( normalMap, vTriWorld.xz * uTriplanarScale + uFlowOffset ).xyz * 2.0 - 1.0;
+           vec3 tnZ = texture2D( normalMap, vTriWorld.xy * uTriplanarScale + uFlowOffset ).xyz * 2.0 - 1.0;
 
            tnX.xy *= normalScale;
            tnY.xy *= normalScale;
