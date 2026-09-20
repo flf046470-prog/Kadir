@@ -1125,8 +1125,8 @@ export class Shell {
       slider('Render scale', s.graphics.renderScale, 0.5, 1.5, 0.05, (v) => {
         s.graphics.renderScale = v;
       }),
-      slider('Draw distance', s.graphics.drawDistance, 40, 400, 10, (v) => {
-        s.graphics.drawDistance = v;
+      slider('Scenery', s.graphics.sceneryDetail, 0.25, 1, 0.05, (v) => {
+        s.graphics.sceneryDetail = v;
       }),
 
       el('h3', {}, 'Audio'),

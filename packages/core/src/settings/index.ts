@@ -13,8 +13,15 @@ export interface GraphicsSettings {
   /** How many other players get full-detail avatars. */
   maxDetailedPlayers: number;
   targetFps: number;
-  /** Foliage/prop draw distance in metres. */
-  drawDistance: number;
+  /**
+   * Multiplier on how much scenery the tier draws, 0.25–1. Thins only; it cannot ask for more
+   * than the tier and the platform already allow.
+   *
+   * Replaces a "Draw distance" slider that moved nothing. Measured: dropping the medium tier from
+   * 120 m to 70 changed the frame by zero draw calls and zero triangles, because nothing culls by
+   * distance — props are thinned by *count*, which is what this scales.
+   */
+  sceneryDetail: number;
 }
 
 export interface AudioSettings {
@@ -104,7 +111,7 @@ export const DEFAULT_SETTINGS: Settings = {
     renderScale: 1,
     maxDetailedPlayers: 12,
     targetFps: 60,
-    drawDistance: 140,
+    sceneryDetail: 1,
   },
   audio: {
     master: 0.9,
@@ -159,7 +166,7 @@ export function mergeSettings(stored: unknown): Settings {
   base.graphics.renderScale = clamp(base.graphics.renderScale, 0.5, 1.5);
   base.graphics.maxDetailedPlayers = Math.round(clamp(base.graphics.maxDetailedPlayers, 2, 16));
   base.graphics.targetFps = Math.round(clamp(base.graphics.targetFps, 30, 144));
-  base.graphics.drawDistance = clamp(base.graphics.drawDistance, 40, 400);
+  base.graphics.sceneryDetail = clamp(base.graphics.sceneryDetail, 0.25, 1);
   base.audio.master = clamp01(base.audio.master);
   base.audio.sfx = clamp01(base.audio.sfx);
   base.audio.music = clamp01(base.audio.music);

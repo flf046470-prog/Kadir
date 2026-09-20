@@ -71,11 +71,12 @@ export interface PerformanceProfile {
   /**
    * Metres. Sets `camera.far` (`max(200, drawDistance * 2.2)`) and **nothing else**.
    *
-   * It says it culls props and it does not: measured on `jungle-world`, dropping the medium tier
-   * from 120 to 70 changed the frame by zero draw calls and zero triangles. Nothing in
-   * `LevelRenderer` reads it — props are thinned by count (`foliageBudget`), never by distance —
-   * so the settings screen's "Draw distance" slider moves a far plane that is already beyond
-   * every map's geometry. Do not reach for it as a performance lever; it is not one yet.
+   * It is named for culling it does not do: measured on `jungle-world`, dropping the medium tier
+   * from 120 to 70 changed the frame by zero draw calls and zero triangles, because nothing in
+   * `LevelRenderer` reads it — props are thinned by count (`foliageBudget`), never by distance,
+   * and the far plane is already past every map's geometry at the lowest tier. It is a tier
+   * constant now, with no setting behind it; `Settings.sceneryDetail` scales the count instead,
+   * which is the thing that moves. Do not reach for this as a performance lever.
    */
   drawDistance: number;
   maxDetailedPlayers: number;
@@ -195,7 +196,19 @@ export function profileFor(kind: PlatformKind, quality: QualityTier, settings: S
   profile.renderScale *= settings.graphics.renderScale;
   profile.shadows = profile.shadows && settings.graphics.shadows;
   profile.postProcessing = profile.postProcessing && settings.graphics.postProcessing;
-  profile.drawDistance = Math.min(profile.drawDistance, settings.graphics.drawDistance);
+  /**
+   * Scenery thins, and only thins.
+   *
+   * Applied against whatever the platform branches above left, so the VR ceiling cannot be
+   * climbed back over by a settings value — a headset's foliage budget is a frame-time promise,
+   * not a preference. `Math.min` rather than a raw multiply for the same reason.
+   *
+   * This is the slider that used to say "Draw distance" and move nothing: `drawDistance` sets
+   * `camera.far` and no more, and props are thinned by count. Measured, this one does something
+   * — the medium tier loses about a third of its triangles at the bottom of the range.
+   */
+  const scenery = profile.foliageBudget;
+  profile.foliageBudget = Math.max(1, Math.min(scenery, Math.round(scenery * settings.graphics.sceneryDetail)));
   profile.maxDetailedPlayers = Math.min(profile.maxDetailedPlayers, settings.graphics.maxDetailedPlayers);
   // Every other setting is allowed to win outright. This one is floored by the platform, because
   // in VR "target 60" does not mean "run at 60" — it means "judge a 72 Hz display against a 60 Hz

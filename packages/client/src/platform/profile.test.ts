@@ -107,6 +107,30 @@ describe('the geometry a headset is given', () => {
     expect(surfaceQualityFor(vr)).toEqual(surfaceQualityFor(profileFor('pc', 'medium', settings())));
   });
 
+  it('gives the scenery slider something to move', () => {
+    /**
+     * The control it replaces said "Draw distance" and changed nothing: `drawDistance` sets
+     * `camera.far` and no more, and 120 → 70 measured zero draw calls and zero triangles of
+     * difference. Props are thinned by *count*, so that is what a player-facing slider has to
+     * scale if it is going to be honest about existing.
+     */
+    const full = profileFor('pc', 'medium', settings());
+    const quarter = profileFor('pc', 'medium', settings({ sceneryDetail: 0.25 }));
+    expect(quarter.foliageBudget).toBeLessThan(full.foliageBudget);
+    expect(quarter.foliageBudget).toBe(Math.round(full.foliageBudget * 0.25));
+    // Never to nothing: a budget of 0 would silently delete every prop in the game.
+    expect(profileFor('pc', 'low', settings({ sceneryDetail: 0.25 })).foliageBudget).toBeGreaterThan(0);
+  });
+
+  it('thins and only thins, so a headset cannot be talked back over its ceiling', () => {
+    // The VR clamp is a frame-time promise rather than a preference, and it is applied before
+    // this, so the slider can reduce below it and never above it.
+    const vr = profileFor('vr', 'medium', settings({ sceneryDetail: 1 }));
+    expect(vr.foliageBudget).toBe(VR_FOLIAGE_BUDGET);
+    expect(profileFor('vr', 'medium', settings({ sceneryDetail: 0.5 })).foliageBudget)
+      .toBe(Math.round(VR_FOLIAGE_BUDGET * 0.5));
+  });
+
   it('lets a tethered headset keep what it measured it could afford', () => {
     // Nothing suggests `high` for VR; the governor only climbs into it after seeing 103fps of
     // headroom at medium, which a standalone chipset will not produce.

@@ -199,10 +199,25 @@ shadow maps, from a profile that reads as reasonable. `PerformanceProfile.textur
 a defect waiting for the day the two stop meaning the same thing.**
 
 **`drawDistance` culls nothing.** 120 → 70 changed the frame by zero draw calls and zero triangles.
-Its only effect is `camera.far = max(200, drawDistance * 2.2)`, already past every map's geometry;
-`LevelRenderer` thins props by count (`foliageBudget`, applied **per prop kind**, taking the first
-N in level order) and never by distance. The settings screen offers a "Draw distance" slider for
-it. It is not a performance lever until something implements the culling.
+Its only effect is `camera.far = max(200, drawDistance * 2.2)`, already past every map's geometry
+at the lowest tier; `LevelRenderer` thins props by count (`foliageBudget`, applied **per prop
+kind**, taking the first N in level order) and never by distance. It is a tier constant now with
+no setting behind it.
+
+The slider that used to drive it is **`Settings.sceneryDetail`**, which scales `foliageBudget` —
+the thing that actually moves. Measured on `jungle-world` at medium, per scene pass:
+
+| scenery | draw calls | triangles |
+| --- | --- | --- |
+| 1.0 | 90 | 1,131k |
+| 0.5 | 90 | 886k |
+| 0.25 | 90 | 585k |
+
+Draw calls do not move, and that is correct: the props are instanced, so thinning them puts fewer
+instances through the same call. The saving is vertex work, not batches. It **thins only**, and is
+applied after the platform branches so a headset cannot be talked back over `VR_FOLIAGE_BUDGET` —
+that clamp is a frame-time promise, not a preference. Distance culling was the other candidate and
+was rejected: it would introduce pop-in to a game that has none, for a saving this already gets.
 
 ## Shipping to the Quest
 
