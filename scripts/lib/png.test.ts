@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error -- the packaging scripts are plain ESM JavaScript, deliberately un-typed.
-import { compose, decodePng, encodePng, keyOut, parseHex, resize, trim } from './png.mjs';
+import { compose, decodePng, encodePng, encodePngRGB, keyOut, parseHex, resize, trim } from './png.mjs';
 
 /**
  * The hand-rolled PNG codec, tested because it is hand-rolled.
@@ -96,6 +96,64 @@ describe('decoding and encoding', () => {
     expect(encoded.toString('ascii', 12, 16)).toBe('IHDR');
     // IEND is a 12-byte chunk: a 4-byte length, the 4-byte type, no payload, a 4-byte CRC.
     expect(encoded.subarray(-12).toString('ascii', 4, 8)).toBe('IEND');
+  });
+});
+
+/**
+ * The 24-bit (no-alpha) encoder.
+ *
+ * Meta's asset guidelines ask for "24-bit PNG" for the icon, screenshots and every piece of key
+ * art — a bit-depth term, not a description of "looks opaque". `encodePng` always writes colour
+ * type 6 (RGBA); an opaque RGBA file still fails that literally, so this checks the file this
+ * project actually produces is colour type 2, not merely that it displays the same.
+ */
+describe('the 24-bit encoder Meta asset uploads need', () => {
+  it('declares colour type 2 in IHDR, not 6', () => {
+    const encoded = encodePngRGB(solid(4, 4, [10, 20, 30, 255]));
+    // IHDR's body starts 8 bytes (signature) + 8 bytes (length+type) in; colour type is byte 9.
+    const colorType = encoded[8 + 8 + 9];
+    expect(colorType).toBe(2);
+  });
+
+  it('is smaller than the RGBA encoding of the same pixels, because the fourth byte is gone', () => {
+    const image = solid(64, 64, [10, 20, 30, 255]);
+    expect(encodePngRGB(image).length).toBeLessThan(encodePng(image).length);
+  });
+
+  it('round-trips colour losslessly through decodePng', () => {
+    const original = compose(icon(), { width: 96, height: 96, background: '#1d3a24' });
+    const decoded = decodePng(encodePngRGB(original));
+    expect(decoded.width).toBe(96);
+    expect(decoded.height).toBe(96);
+    let differences = 0;
+    for (let i = 0; i < original.data.length; i += 4) {
+      // Alpha is not compared: it is what this format has no room for, and decodePng fills 255
+      // back in for every pixel regardless of what the RGBA source's alpha actually was.
+      if (
+        original.data[i] !== decoded.data[i] ||
+        original.data[i + 1] !== decoded.data[i + 1] ||
+        original.data[i + 2] !== decoded.data[i + 2]
+      ) {
+        differences++;
+      }
+    }
+    expect(differences).toBe(0);
+  });
+
+  it('writes chunk checksums an independent implementation agrees with', () => {
+    const encoded = encodePngRGB(compose(icon(), { width: 32, height: 32, background: '#1d3a24' }));
+    let pos = 8;
+    const seen: string[] = [];
+    while (pos + 12 <= encoded.length) {
+      const length = encoded.readUInt32BE(pos);
+      const type = encoded.toString('ascii', pos + 4, pos + 8);
+      const body = encoded.subarray(pos + 4, pos + 8 + length);
+      const stored = encoded.readUInt32BE(pos + 8 + length);
+      expect(stored, `${type} checksum`).toBe(crc32(body) >>> 0);
+      seen.push(type);
+      pos += 12 + length;
+    }
+    expect(seen).toEqual(['IHDR', 'IDAT', 'IEND']);
   });
 });
 

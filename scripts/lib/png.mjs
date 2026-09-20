@@ -373,3 +373,54 @@ export function encodePng(image) {
     chunk('IEND', Buffer.alloc(0)),
   ]);
 }
+
+/**
+ * The same image, without an alpha channel — a true 24-bit PNG (colour type 2: one byte each of
+ * R, G and B, no fourth byte).
+ *
+ * `encodePng` always writes colour type 6 (RGBA), because every caller until now wanted
+ * transparency preserved. The Meta Horizon Store's asset guidelines ask for "24-bit PNG" for the
+ * app icon, screenshots and every piece of key art — a term that means exactly this bit depth,
+ * not "no visible transparency". A `compose()`d image is already fully opaque everywhere
+ * (`transparent: false` fills alpha 255), so nothing is lost by dropping the channel; the point
+ * is that the *file itself* is no longer a format an upload checker can flag, rather than hoping
+ * "opaque RGBA" reads as equivalent to "RGB" to whatever validates the upload.
+ *
+ * A caller that hands this a genuinely non-opaque image gets what colour type 2 always gives an
+ * unpremultiplied source: transparent pixels keep whatever colour they were carrying underneath
+ * the alpha, which is exactly the "transparent black becomes a visible fringe" failure `resize`
+ * guards against elsewhere in this file. So this is for icon and key art output, never for a
+ * source image still headed into `compose`, `keyOut` or `resize`.
+ */
+export function encodePngRGB(image) {
+  const { width, height, data } = image;
+  const stride = width * 3;
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * (stride + 1);
+    raw[rowStart] = 0; // filter type 0, same reasoning as encodePng
+    for (let x = 0; x < width; x++) {
+      const s = (y * width + x) * 4;
+      const d = rowStart + 1 + x * 3;
+      raw[d] = data[s];
+      raw[d + 1] = data[s + 1];
+      raw[d + 2] = data[s + 2];
+    }
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 2; // RGB, no alpha — the 24-bit colour type
+  ihdr[10] = 0;
+  ihdr[11] = 0;
+  ihdr[12] = 0;
+
+  return Buffer.concat([
+    SIGNATURE,
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(raw, { level: 9 })),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}

@@ -522,6 +522,49 @@ The hunter's rifle works — on `jungle-world` it lands for the full 55 and clea
 rifle" no longer reproduces; the bot obstacle-avoidance change fixed the wedging. On the two
 sparser maps the hunter simply cannot find people, which is a density problem, not a weapon one.
 
+## The Meta Horizon Store listing
+
+`docs/META_LISTING.md` and `npm run pack:meta:listing` produce the actual submission — copy and
+art — separately from `docs/STORES.md`'s packaging steps, which only get the app *installed*, not
+found or approved.
+
+- **"24-bit PNG" is a bit-depth term, not "looks opaque".** Meta's asset guidelines ask for it on
+  the icon, every screenshot and every piece of key art. An RGBA image with alpha permanently 255
+  everywhere is still 32-bit and fails that literally, so `pack-meta-listing.mjs` writes every
+  image through a new `encodePngRGB` (colour type 2) in `scripts/lib/png.mjs`, not the RGBA
+  `encodePng` the Microsoft Store script uses. Tested by reading the IHDR byte back and by
+  measuring the file is smaller than the RGBA encoding of the same pixels, then mutation tested:
+  changing the colour-type byte back to 6 fails both.
+- **Composing the flat 512×512 icon from the raw `icon-1024.png` under-fills the canvas.** That
+  source already carries its own safe-zone padding, drawn to survive an OS cropping it into a
+  rounded square or a circle — which Meta's flat, uncropped icon slot never does. Handing it
+  straight to `compose()` pads an already-padded glyph, leaving the kangaroo under a third of the
+  canvas. Fixed by keying out the background and trimming to the glyph's own bounds first, the
+  same treatment the cover art already used.
+- **A row layout for the key art broke two different ways depending on aspect ratio.** Giving the
+  text a fixed height share and the kangaroo `flex: 1` for whatever was left squeezed it into a
+  sliver on the square and portrait sizes; giving the image `height: 100%` outright on the wide
+  hero size let it touch the top and bottom edges with no margin. A single flex *column* — text,
+  then kangaroo at `flex: 1` — fixes both, because the image always gets exactly what the text
+  did not use rather than a number guessed per shape. Only the two most extreme ratios (10:3
+  hero, 3:1 mini banner) go side by side instead, with the image given a real fixed box so it
+  still gets margin.
+- **There is no first-person capture, and it is documented as a gap rather than faked.** Meta
+  prefers first-person POV screenshots; there is no headset here and, per this file's own VR
+  section, there never will be. The five required screenshots are the desktop third-person camera
+  every non-VR platform actually uses — genuine gameplay, not a mockup, but not the headset's own
+  view. Likewise the trailer *video* Meta wants (30s–2min MP4/H.264/AAC): `capture:trailer`
+  produces a 12 fps GIF from swiftshader frames, which is real footage in the wrong container and
+  frame rate. Only the static trailer *cover image* is generated. Both gaps are named in
+  `docs/META_LISTING.md` rather than left for a reviewer to discover.
+- **The listing copy's claims are checked against the code, not merely written to sound right**:
+  nine mode files, `KC_MAX_PLAYERS` (16), `proximityGainAt` for voice falloff, `LAUNCH_STORE`
+  empty plus `validateCatalog` refusing any priced item at boot, and the actual field names of
+  `ComfortSettings` — all cited by file, all read by something (per the Settings section above).
+- **The privacy policy, IARC filing and developer account are not build steps.** They need a
+  live URL, a real submission and an account holder, respectively, and `META_LISTING.md` says so
+  rather than inventing placeholder text that would look finished and not be.
+
 ## Leaderboards
 
 A record is filed under **the course it was run on**, not the map's name: `Leaderboard` keys every

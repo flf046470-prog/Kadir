@@ -109,6 +109,31 @@ Horizon Billing is enabled during `bubblewrap init` and needs a Meta Horizon App
 Receipts are verified **server-side** (`packages/server/src/purchases.ts`) — the client never
 decides what it owns.
 
+### The Store listing
+
+The APK above gets an app *installed*; a listing is what gets it found and approved. That is a
+separate job with its own inputs — copy with character limits, art at fixed pixel dimensions and
+a specific bit depth — none of which come from the build.
+
+```bash
+npm run build:client
+npm run pack:meta:listing            # writes packaging/meta-quest/listing/
+npm run pack:meta:listing -- --check # verify sizes without a browser
+```
+
+`docs/META_LISTING.md` has the actual submission text (app name, short and long description,
+category/genre, comfort and controller fields, publisher details) checked character-by-character
+against Meta's published limits, plus what the copy's own claims are backed by in this
+repository. It also states plainly what a repository cannot produce on its own: first-person
+screenshots (no headset exists to capture from), a trailer *video* meeting Meta's format (only a
+GIF is buildable here), and the privacy policy, IARC filing and developer account, which are
+account-holder actions rather than build steps.
+
+"24-bit PNG", in Meta's asset guidelines, is a bit-depth term — no alpha channel — not a
+description of "looks opaque". An opaque RGBA file is still 32-bit and fails that literally, so
+`pack-meta-listing.mjs` writes every image through `encodePngRGB` in `scripts/lib/png.mjs`
+(colour type 2), never the RGBA `encodePng` every other packaging script uses.
+
 ---
 
 ## Steam
