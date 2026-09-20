@@ -254,6 +254,13 @@ Two things cost a deploy each and will again:
   another branch, and one of them became the live one. `describe-service` reports
   `source: {repo}` with **no branch field even when a branch is set**, so it cannot confirm the
   pin; check `list-deployments` and read `meta.branch` instead.
+- **It does not redeploy on push.** Four consecutive pushes were never built; the live service sat
+  on a commit from the previous day while every one of them was green in CI. Nothing reports this
+  — the site is up, it just serves old code, so the only way to catch it is to check
+  `list-deployments` for the commit hash that is actually running. `connect-service-source` with
+  the repo and branch triggers a build and is the way to force one; `redeploy` is not, because it
+  re-runs the last deployment's **existing build**. Verify a deploy landed by asking the live
+  server for something only the new commit has, never by the deploy reporting success.
 
 Verified against the live deployment, not inferred: `/api/health` 200 JSON; `/api/content` lists
 all three levels, 9 modes, 7 animals, 9 gadgets; `/.well-known/assetlinks.json` and a missing

@@ -45,6 +45,15 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
   '.wasm': 'application/wasm',
   '.webmanifest': 'application/manifest+json',
+  // The models. Served as `application/octet-stream` until now, which `GLTFLoader` tolerates —
+  // it sniffs the glTF magic rather than trusting the header — but a CDN, a proxy or a store
+  // packager reading the type gets the wrong answer, and the fallback is what a file the table
+  // has never heard of looks like.
+  '.glb': 'model/gltf-binary',
+  '.gltf': 'model/gltf+json',
+  '.bin': 'application/octet-stream',
+  '.ogg': 'audio/ogg',
+  '.wav': 'audio/wav',
 };
 
 /**
