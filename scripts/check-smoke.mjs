@@ -62,7 +62,31 @@ const errors=[];
 // to be a button a thumb can reach. Landscape alone never proved that.
 for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscape',{width:844,height:390}], ['phone-portrait',{width:390,height:844}]]) {
   const page = await (await browser.newContext({viewport:vp, hasTouch: label!=='desktop'})).newPage();
-  page.on('console', m=>{ if(m.type()==='error') errors.push(`[${label}] ${m.text()}`); });
+  page.on('console', m=>{
+    if(m.type()!=='error') return;
+    // "Failed to load resource: the server responded with a status of 404" and it does not say
+    // which one. That message failed this check for half an hour with nothing to act on, so the
+    // response listener below reports the same failures *with the path* and decides instead.
+    if(/Failed to load resource/.test(m.text())) return;
+    errors.push(`[${label}] ${m.text()}`);
+  });
+  page.on('response', r=>{
+    if(r.status()<400) return;
+    const at = new URL(r.url()).pathname;
+    /**
+     * Chrome asks every origin for `/.well-known/appspecific/com.chrome.devtools.json` when an
+     * automation client is attached — it is the browser looking for DevTools project settings,
+     * not the app asking for anything. No server serves it and 404 is the correct answer, so
+     * failing on it means failing on a correctly behaving server.
+     *
+     * It only became visible when the server stopped answering every missing path with
+     * `index.html`: a 200 of HTML satisfied the browser silently. The feature is behind a flag in
+     * Chromium 141 and on by default in newer builds, which is why this reproduces in CI, where
+     * Playwright installs its own Chromium, and not against an older local one.
+     */
+    if(at.startsWith('/.well-known/appspecific/')) return;
+    errors.push(`[${label}] ${r.status()} ${at}`);
+  });
   page.on('pageerror', e=>errors.push(`[${label}] pageerror: ${e.message}`));
 
   await page.goto(base,{waitUntil:'load'});
