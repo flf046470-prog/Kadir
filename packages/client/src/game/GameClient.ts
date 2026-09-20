@@ -78,6 +78,25 @@ interface RemotePlayer {
 
 const CAMERA_DISTANCE = 5.4;
 const CAMERA_HEIGHT = 1.35;
+/** Peak camera drop for a hard landing — see `applyLandingKick`. Deliberately small: a dramatic
+ *  version of this reads as camera shake, and shake is the one landing cue VR can never get. */
+const LANDING_DIP_HEIGHT = 0.16;
+
+/**
+ * How hard a landing has to be before the camera notices, and how much.
+ *
+ * Pure and exported so the curve is checkable without standing up a `GameClient` (renderer,
+ * simulation, networking and all) the way `sunPositionFor` and `darknessValues` are checkable
+ * without a `Renderer`. `'land'` fires on every hop — this game's whole locomotion is hopping —
+ * so the floor at 5 m/s is what keeps an ordinary hop camera-neutral and reserves the dip for a
+ * landing actually worth reacting to, the same shape `playHaptics` already uses (`magnitude > 12`
+ * for its heavy pulse).
+ */
+export function landingKickFor(magnitude: number): number {
+  const m = Number.isFinite(magnitude) ? magnitude : 0;
+  const impact = Math.max(0, m - 5);
+  return Math.min(1, impact / 11);
+}
 
 /**
  * The client game loop.
@@ -129,6 +148,13 @@ export class GameClient {
   private online = false;
   private cameraYaw = 0;
   private cameraPitch = 0;
+  /**
+   * A brief downward camera dip on a hard landing, 0..1 and decaying. PC/Mobile only — see
+   * `updateCamera`. VR gets the same information through haptics (`playHaptics`'s 'land' case)
+   * instead of a forced camera displacement, which is a comfort hazard the vignette system in
+   * this same method is already careful to avoid.
+   */
+  private landingKick = 0;
   private raycastResult = makeRaycastResult();
   private tmpVec = new THREE.Vector3();
   private tmpVec2 = new THREE.Vector3();
@@ -591,6 +617,7 @@ export class GameClient {
       const isLocal = event.playerId === this.localId;
       this.audio.handleEvent(event, isLocal);
       if (isLocal && event.type === 'portal') this.enterPortal(String(event.data ?? ''));
+      if (isLocal && event.type === 'land') this.applyLandingKick(event.magnitude);
       if (isLocal || event.otherId === this.localId) {
         this.callbacks.onLocalEvent(event);
         this.playHaptics(event, isLocal);
@@ -973,6 +1000,14 @@ export class GameClient {
     this.renderer.setDarkness(this.darkness);
   }
 
+  /**
+   * Arm the landing dip. `Math.max` rather than assignment so two landings inside one decay window
+   * (a stutter-step down stairs) cannot un-trigger a bigger dip that is still playing out.
+   */
+  private applyLandingKick(magnitude: number): void {
+    this.landingKick = Math.max(this.landingKick, landingKickFor(magnitude));
+  }
+
   private updateCamera(dt: number): void {
     const local = this.localPlayer;
     if (!local) return;
@@ -980,6 +1015,10 @@ export class GameClient {
     const px = local.position.x + this.prediction.smoothingOffset.x;
     const py = local.position.y + this.prediction.smoothingOffset.y;
     const pz = local.position.z + this.prediction.smoothingOffset.z;
+
+    // Decayed every frame regardless of platform, so a value armed just before a VR session ends
+    // (or a platform switch mid-session) cannot resurface later as a stale dip.
+    this.landingKick = Math.max(0, this.landingKick - dt * 6);
 
     if (this.input.kind === 'vr') {
       this.renderer.rig.position.set(px, py, pz);
@@ -1018,7 +1057,12 @@ export class GameClient {
     );
     if (this.raycastResult.hit) distance = Math.max(1.2, this.raycastResult.distance - 0.35);
 
-    this.tmpVec.set(px - dirX * distance, headY - dirY * distance + CAMERA_HEIGHT * 0.25, pz - dirZ * distance);
+    // The landing dip: a light drop in camera height, decaying back over the same
+    // handful of frames `landingKick` decays over. Applied to the position only, with `lookAt`
+    // left on the player below, so the dip reads as the ground meeting the camera rather than as
+    // the whole view sliding — a byproduct of leaving `lookAt` alone rather than a second effect.
+    const dip = this.landingKick * LANDING_DIP_HEIGHT;
+    this.tmpVec.set(px - dirX * distance, headY - dirY * distance + CAMERA_HEIGHT * 0.25 - dip, pz - dirZ * distance);
     this.renderer.camera.position.lerp(this.tmpVec, Math.min(1, dt * 16));
     this.renderer.camera.lookAt(px, headY + 0.1, pz);
     this.renderer.rig.position.set(0, 0, 0);

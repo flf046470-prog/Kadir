@@ -529,6 +529,63 @@ change: no geometry, instance count or texture moved, so, as with the water fix,
 table did not need re-measuring — confirmed anyway at `high` tier with post-processing on, no bloom
 or exposure regression.
 
+## Locomotion feel
+
+Asked to make the kangaroo's movement itself more realistic — jumps, landings, acceleration,
+turning, tail balance, animation blending, foot sliding, a landing camera reaction, surface-
+appropriate audio. Read `locomotion.ts`, `Avatar.ts` and the camera/audio wiring in `GameClient.ts`
+before touching anything, per the standing instruction not to rewrite a working system. Most of
+this was already real and already tuned, not a pile of stubs:
+
+- Charge-jump, long-jump, wall-bounce, coyote time and jump buffering all exist and interact
+  correctly (`applyGroundAndAir`, `doJump`, `doWallJump`).
+- `frictionOfGround` already reads each collider's own `friction` (ice 0.35, snow 1.05, sand
+  1.15…) rather than a hard-coded constant — this was previously broken and fixed in an earlier
+  pass; still correct now.
+- Tail balance is a live, meaningfully-tuned stat (`tailBalance: 0.75` in the default config,
+  ±0.01–0.03 per animal inside the fairness band), not a neglected default: it already cuts stagger
+  duration by up to 60% on a hard landing, and `Avatar.ts` already swings the tail as a physical
+  counterweight with a travelling wave down the chain, plus asymmetric squash-on-land/stretch-in-
+  air. Left alone rather than "improved" — nudging a fairness-banded stat without a measured
+  complaint would be tuning by feel on a number the ±3% animal-parity tests exist specifically to
+  pin down.
+- Remote-player turning already interpolates through the short way around the circle
+  (`lerpAngle` in `packages/net/src/interpolation.ts`), so the classic "spins the long way past
+  180°" bug was already handled — checked because it is the single most common cause of a
+  turning complaint, and worth ruling out before inventing a different one.
+- Gait blending (`locomotionBlend`) and stride rate (`strideRate`) already exist specifically to
+  stop the walk/run seam from skating; the actual foot-plant stride length is baked into the
+  `kangaroo.glb` animation clips exported by the Blender pipeline (`tools/blender/build.py`), not
+  generated in this repository, so recalibrating it is a Blender-side change this pass did not
+  attempt rather than a code fix that was skipped.
+
+Two real gaps, both found by reading every material/event branch rather than by guessing, and both
+fixed:
+
+- **`materialPitch` (`AudioSystem.ts`) had no cases for `redEarth`/`redRock`.** Those two materials
+  exist specifically so `outback-station` is not "a pale yellow beach between concrete-grey walls"
+  reusing `sand` and `rock` — see the `SurfaceMaterial` doc comment. The landing/hop sound ignored
+  that split and fell through to the neutral default, so every hop and every landing anywhere on
+  the entire Outback map sounded exactly like landing on jungle dirt, the one thing the renderer
+  side was built to avoid, reintroduced one layer up. Now exported and given its own values
+  (`redRock: 30`, near `rock`'s 40 but softer; `redEarth: -10`, firmer than `sand`'s -15) — tested
+  in `AudioSystem.test.ts` and mutation-tested by deleting the two cases (test failed both ways:
+  Outback no longer distinct from dirt, and no longer in the expected hard/soft family).
+- **Nothing reacted to a hard landing but the haptic pulse.** `playHaptics` already reserves its
+  heavy pulse for `magnitude > 12`; the camera did nothing at all. Added `landingKickFor` (pure,
+  exported from `GameClient.ts` next to `sunPositionFor`/`darknessValues` for the same reason —
+  testable without standing up a renderer) and a small decaying `landingKick` state applied as a
+  camera-height dip, **PC/Mobile only**. VR gets the same information through the haptic pulse
+  that already exists rather than a forced camera displacement: the brief's own comfort rule
+  ("never sacrifice comfort for drama") and this codebase's existing pattern (the comfort vignette
+  reacts to speed/turning/airborne state, never moves the camera itself) both point the same way,
+  so the dip is gated on `this.input.kind !== 'vr'` by living entirely in the branch that already
+  excludes VR. Floored at 5 m/s of impact so it stays silent on an ordinary hop — this game's whole
+  locomotion is hopping, so without a floor every landing would nudge the camera and "landing
+  reaction" would really mean "constant low-grade wobble". Capped at 0.16 m of dip, deliberately
+  small: `LANDING_DIP_HEIGHT`'s own comment says why — a dramatic version of this is camera shake,
+  and shake is the one landing cue VR can never get, so it was never a candidate to begin with.
+
 ## Map density — the number that decides whether it feels like a game
 
 Median distance to the *nearest* other player, six players, sampled once a second from t=10 s, and

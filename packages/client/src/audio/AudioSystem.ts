@@ -629,7 +629,7 @@ export class AudioSystem {
   }
 }
 
-function materialPitch(material?: SurfaceMaterial): number {
+export function materialPitch(material?: SurfaceMaterial): number {
   switch (material) {
     case 'rock':
     case 'stone':
@@ -649,6 +649,15 @@ function materialPitch(material?: SurfaceMaterial): number {
       return 70;
     case 'snow':
       return -45;
+    // Outback's own materials (see the `SurfaceMaterial` doc comment: created specifically so the
+    // map could not borrow `sand` and `rock` and end up "a pale yellow beach between concrete-grey
+    // walls"). Falling through to the 0 default here would undo exactly that on landing: the whole
+    // Outback map — every hop, every landing — would sound identical to plain jungle dirt, the one
+    // thing the renderer side was built to avoid.
+    case 'redRock':
+      return 30; // sandstone: still a hard surface, warmer and less ringing than bare rock.
+    case 'redEarth':
+      return -10; // baked clay: firmer underfoot than loose sand, softer than dirt's default.
     default:
       return 0;
   }
