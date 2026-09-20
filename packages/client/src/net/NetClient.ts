@@ -1,4 +1,4 @@
-import type { InputIntent, PlayerSnapshot, SimEvent, ModeStateView, MatchResult } from '@kc/core';
+import type { EntitySnapshot, InputIntent, PlayerSnapshot, SimEvent, ModeStateView, MatchResult } from '@kc/core';
 import {
   PROTOCOL_VERSION,
   SlotTable,
@@ -11,7 +11,15 @@ import type { ClientHello, ClientMessage, Platform, RosterEntry, ServerMessage }
 
 export interface NetHandlers {
   onWelcome(message: Extract<ServerMessage, { t: 'welcome' }>): void;
-  onSnapshot(tick: number, players: PlayerSnapshot[]): void;
+  /**
+   * `entities` is every live gadget projectile, placed trap and smoke cloud, sent whole rather
+   * than delta-encoded — see `Snapshot.entities` in `@kc/core`. It used to be decoded and dropped
+   * right here: `decodeSnapshot` produces it, nothing forwarded it, and no client code anywhere
+   * read the word "entities" at all, so every gadget in the game fired and hit in total silence
+   * of the eye — a sound and a haptic pulse, nothing that flew, sat on the ground, or hung in the
+   * air. See `GadgetEntities.ts`.
+   */
+  onSnapshot(tick: number, players: PlayerSnapshot[], entities: EntitySnapshot[]): void;
   onPlayerJoined(entry: RosterEntry): void;
   onPlayerLeft(playerId: string): void;
   onEvents(events: SimEvent[]): void;
@@ -169,7 +177,7 @@ export class NetClient {
     try {
       const decoded = decodeSnapshot(data, this.slots, this.baseline);
       for (const player of decoded.players) this.baseline.set(player.id, player);
-      this.handlers.onSnapshot(decoded.tick, decoded.players);
+      this.handlers.onSnapshot(decoded.tick, decoded.players, decoded.entities);
     } catch {
       // A corrupt frame is dropped; the next full snapshot re-syncs the baseline.
     }

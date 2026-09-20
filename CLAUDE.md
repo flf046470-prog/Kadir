@@ -652,6 +652,55 @@ the bed **stops**. Every map's primary zone used to end at 60–66 m while the l
 of a glacier one. Primary zones are 72 m now and `levels.test.ts` samples the whole disc, at three
 heights, for holes.
 
+## Gadgets were invisible
+
+Every gadget in the game — a freeze-gun bolt, the hunter's rifle round, a thrown smoke bomb, a
+placed snare — fired, flew, hit and, in the trap's case, sat on the ground for up to 90 seconds,
+completely unseen. `Snapshot.entities` (`@kc/core`) has always carried this: id, kind
+(`projectile`/`placed`/`cloud`), position, radius, sent **whole every tick** rather than
+delta-encoded, and its own doc comment already says why — "a missed trap is a player standing on
+something they cannot see". `AudioSystem.gadgetFire`'s own comment already claims a gadget is
+"picked from the gadget's `visual` rather than its id, which is the same hint **the renderer**
+chooses a mesh from." No renderer anywhere used `.visual` for a mesh. Both comments described an
+architecture that was half built.
+
+The actual break was one line before it ever reached `GameClient`: `decodeSnapshot` produces
+`entities` correctly (encode/decode round-trips were already covered in `packages/net/src/net.test.ts`),
+but `NetClient.handleBinary` forwarded only `decoded.tick` and `decoded.players` to
+`onSnapshot` — `entities` was decoded and dropped on the floor. Grepping the entire client for the
+word "entities", case-insensitive, returned **zero matches**. Firing a gadget already produced a
+sound (`gadgetUse` → `AudioSystem.gadgetFire`) and being hit by one already produced a sound and a
+haptic pulse (`gadgetHit`) — those are ordinary `SimEvent`s and were already covered by the Events
+section's guard — but nothing between those two moments ever moved through the air, sat on the
+ground, or hung as a cloud, because the entity itself never reached the renderer. Exactly the same
+failure shape as the five dropped events above, just invisible to `event-coverage.test.ts`: entities
+are not `SimEvent`s, so that guard has nothing to scan for them.
+
+`GadgetEntities.ts` (`GadgetEntityView`) is a fixed 64-slot pool of unlit spheres — capped to match
+`MAX_ENTITIES` in `snapshot-codec.ts`, so the pool is never itself the reason something goes
+unrendered — scaled per instance and flattened into a disc for a trap lying flush with the ground.
+Styled from `kind` and the gadget's own `visual` tag, the exact pairing `AudioSystem.gadgetFire`'s
+comment already promised, so a gadget added to the catalog is visible the moment it is audible with
+no second table to keep in step. `NetClient`'s `onSnapshot` now forwards `entities`; `GameClient`
+draws them the same online/solo split `updateAvatars` already uses for players — the decoded
+snapshot list online, `this.sim.snapshot().entities` directly in solo practice, since there is no
+socket to round-trip through. Steady-state cost when nothing is in flight is zero draw calls: an
+invisible `THREE.Mesh` issues none.
+
+Caught by grepping for a bug rather than by a failing test, because nothing was failing —
+`gadgets.test.ts`'s 40 tests all pass today and were passing before this fix, since every one of
+them checks the *simulation's* entity list, never whether a client ever saw it. Verified in a real
+browser rather than trusted from the type-checker: practice mode, fire the default freeze gun
+(`KeyF`), screenshot every ~150–300 ms — a small cyan sphere appears at the muzzle the frame after
+firing and is gone within about a second, matching the freeze gun's own 1.6 s projectile lifetime.
+Removing `NetClient`'s forwarded `entities` argument is itself a compile error (`onSnapshot`'s
+third parameter is required, not optional) — a rare case where TypeScript is the regression test
+for a wiring bug, checked by actually deleting the argument and watching `tsc` reject it before
+restoring. The pool's own book-keeping (hide leftovers when the list shrinks, never scale a shared
+geometry to zero) is unit- and mutation-tested in `GadgetEntities.test.ts` without a GL context, the
+same split `LevelRenderer.water.test.ts` already uses for the half of a shader-driven feature that
+has a right answer before a renderer ever compiles it.
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by

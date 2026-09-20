@@ -15,6 +15,7 @@ import {
   zoneAt,
 } from '@kc/core';
 import type {
+  EntitySnapshot,
   InputIntent,
   LevelDef,
   MatchResult,
@@ -32,6 +33,7 @@ import { VoiceChat } from '../audio/VoiceChat.js';
 import { NetClient } from '../net/NetClient.js';
 import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
+import { GadgetEntityView } from '../render/GadgetEntities.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
@@ -136,6 +138,14 @@ export class GameClient {
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
+  /**
+   * Every live gadget projectile, placed trap and smoke cloud, as of the latest snapshot. Online
+   * only — solo practice reads `this.sim.snapshot().entities` directly each frame instead, the
+   * same split `updateAvatars` already draws between online remotes (`interpolation.sample`) and
+   * solo ones (`sim.players.get`).
+   */
+  private remoteEntities: EntitySnapshot[] = [];
+  private gadgetEntities = new GadgetEntityView();
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
@@ -198,6 +208,9 @@ export class GameClient {
     this.levelRenderer = new LevelRenderer(this.level, this.levelRendererProfile, this.assets);
     this.renderer.scene.add(this.levelRenderer.group);
     this.renderer.applyLevel(this.level);
+    // Added once, unlike `levelRenderer.group`: gadget entities are match state, not level
+    // geometry, so they survive a level rebuild between rounds rather than being torn down with it.
+    this.renderer.scene.add(this.gadgetEntities.group);
 
     this.sim = new Simulation({ level: this.level, modeId: this.modeId });
     this.audio.applySettings(this.settings);
@@ -211,7 +224,7 @@ export class GameClient {
 
     this.net = new NetClient({
       onWelcome: (message) => this.handleWelcome(message),
-      onSnapshot: (tick, players) => this.handleSnapshot(tick, players),
+      onSnapshot: (tick, players, entities) => this.handleSnapshot(tick, players, entities),
       onPlayerJoined: (entry) => this.addRemote(entry),
       onPlayerLeft: (playerId) => this.removeRemote(playerId),
       onEvents: (events) => this.handleEvents(events),
@@ -598,7 +611,7 @@ export class GameClient {
     this.callbacks.onRoomState(message.roomCode, message.isPrivate, this.lobby);
   }
 
-  private handleSnapshot(tick: number, players: PlayerSnapshot[]): void {
+  private handleSnapshot(tick: number, players: PlayerSnapshot[], entities: EntitySnapshot[]): void {
     this.stats.tick = tick;
     const remotes: PlayerSnapshot[] = [];
     for (const snapshot of players) {
@@ -610,6 +623,9 @@ export class GameClient {
       }
     }
     this.interpolation.push(tick, remotes);
+    // Sent whole rather than delta-encoded (see `Snapshot.entities`), so this frame's list simply
+    // replaces the last one — there is nothing to merge the way a partial player update needs.
+    this.remoteEntities = entities;
   }
 
   private handleEvents(events: SimEvent[]): void {
@@ -842,6 +858,7 @@ export class GameClient {
     }
 
     this.updateAvatars(dt);
+    this.updateGadgetEntities();
     this.updateCamera(dt);
     this.updateZone(dt);
     this.updateMood();
@@ -943,6 +960,16 @@ export class GameClient {
 
     // The listener is the local player's head, the same point `updateListener` places it at.
     this.voice.updatePositions(voicePositions, local ? { x: local.position.x, y: local.position.y + 1.6, z: local.position.z } : undefined);
+  }
+
+  /**
+   * Every live gadget projectile, placed trap and smoke cloud. Same online/solo split as
+   * `updateAvatars`: online reads the latest decoded snapshot, solo reads the local simulation
+   * directly rather than round-tripping through a socket that does not exist.
+   */
+  private updateGadgetEntities(): void {
+    const entities = this.online ? this.remoteEntities : this.sim.snapshot().entities;
+    this.gadgetEntities.update(entities);
   }
 
   /**
@@ -1119,6 +1146,7 @@ export class GameClient {
     this.vignette?.dispose();
     this.vignette = null;
     this.levelRenderer.dispose();
+    this.gadgetEntities.dispose();
     this.audio.dispose();
     this.voice.dispose();
   }
