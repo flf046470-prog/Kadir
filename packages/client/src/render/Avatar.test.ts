@@ -171,6 +171,55 @@ describe('body plans are a look, never an advantage', () => {
 });
 
 /**
+ * What a VR player can see of themselves.
+ *
+ * `setFirstPerson` used to be `group.visible = false` at the call site — hiding the *whole*
+ * avatar, including the hands and the role ring, which live in the same group as the body. A
+ * headset tracks a head and two hands and draws no other model of them anywhere (`VRInput` adds
+ * three.js's controller/grip/hand objects to the rig as empty groups with nothing attached), so
+ * that left a VR player with no visible hands at all in a game whose locomotion is climbing with
+ * your arms and whose combat is throwing punches — and took the role ring, the only role
+ * indicator a headset can see since the HUD is DOM, with it.
+ */
+describe('what a VR player sees of themselves', () => {
+  it('hides the body but keeps the hands and the role ring', () => {
+    const avatar = build('kangaroo');
+    avatar.setFirstPerson(true);
+    avatar.group.updateMatrixWorld(true);
+
+    expect(avatar.body.visible).toBe(false);
+    for (const hand of avatar.hands) expect(hand.visible).toBe(true);
+
+    const ring = avatar.group.children.find(
+      (child) => (child as THREE.Mesh).isMesh && (child as THREE.Mesh).geometry.type === 'RingGeometry',
+    );
+    expect(ring, 'the role ring should still be in the group').toBeDefined();
+    expect(ring?.visible).toBe(true);
+    avatar.dispose();
+  });
+
+  it('shows the body again outside VR', () => {
+    const avatar = build('kangaroo');
+    avatar.setFirstPerson(true);
+    avatar.setFirstPerson(false);
+    expect(avatar.body.visible).toBe(true);
+    avatar.dispose();
+  });
+
+  it('leaves an authored model hidden the same way, since it hangs off `body`', () => {
+    // `attachModel` parents the loaded scene to `body` — hiding `body` has to keep hiding it
+    // rather than needing a second code path once art replaces the procedural mesh.
+    const avatar = build('kangaroo');
+    const modelRoot = new THREE.Group();
+    avatar.attachModel({ scene: modelRoot, clips: [] });
+    avatar.setFirstPerson(true);
+    expect(avatar.body.visible).toBe(false);
+    expect(modelRoot.parent).toBe(avatar.body);
+    avatar.dispose();
+  });
+});
+
+/**
  * GPU objects an avatar holds.
  *
  * Measured across four practice rounds, live WebGL textures climbed by three every round and

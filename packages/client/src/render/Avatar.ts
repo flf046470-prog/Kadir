@@ -409,6 +409,29 @@ export class Avatar {
    * Safe to call before a model has loaded and safe to call twice: the model path re-applies it
    * on attach, because the authored body arrives seconds after the procedural one it replaces.
    */
+  /**
+   * Show only the parts of yourself that are really where they appear to be.
+   *
+   * This used to be `group.visible = false` at the call site, with a comment saying it hid the
+   * head "so it never blocks the view". It hid the group, and the group is also where the hands
+   * and the role ring live — so a headset rendered **neither**. Nothing else in the client draws
+   * a hand: `VRInput` adds three.js's controller, grip and hand objects to the rig, and those are
+   * empty groups with no model factory behind them. So the game whose VR locomotion is climbing
+   * with your arms and whose combat is throwing punches showed the player no arms at all, and the
+   * role ring — the only role indicator a headset can see, since the HUD is DOM — went with them.
+   *
+   * The body stays hidden, and that part was right: the head sits at the camera, and a torso and
+   * tail posed from a sliding capsule are a guess about a body nobody is tracking. The hands are
+   * not a guess — `update` puts them exactly where the tracked poses say — and the ring is a flat
+   * disc at y=0.03 that cannot block anything.
+   *
+   * Hiding `body` rather than its meshes also survives `attachModel`, which parents the authored
+   * model to `body`.
+   */
+  setFirstPerson(firstPerson: boolean): void {
+    this.body.visible = !firstPerson;
+  }
+
   setLegless(legless: boolean): void {
     if (this.legless === legless) return;
     this.legless = legless;

@@ -219,6 +219,9 @@ export class AudioSystem {
       case 'status':
         this.statusCue(at, String(event.data ?? ''), isLocalPlayer);
         break;
+      case 'roleChange':
+        this.roleCue(at, String(event.data ?? ''), isLocalPlayer);
+        break;
       case 'roundState':
         // Phase changes arrive through the mode state every tick and need no cue. The two that do
         // are Conversion Duel's: a catch that starts a fistfight, and the bell that ends it level.
@@ -275,6 +278,67 @@ export class AudioSystem {
    * game having broken. Being frozen yourself drops a low pair; hearing it happen to someone else
    * is pitched up and stays quiet, because in a six-player room it happens often.
    */
+  /**
+   * Being told what you now are.
+   *
+   * This had no case at all, and it is the one fact a tag game is played on. Its only consumer
+   * was the HUD's toast, which is a DOM element — not composited into an immersive WebXR session
+   * — so in a headset nothing whatever announced it. Measured with six bots over 90 s on
+   * `jungle-world`: six silent role changes at the start of every round in every mode, and in
+   * Conversion Duel **24 of 24 silent**, including being beaten in a fight and converted to the
+   * other species, which is the whole premise of that mode.
+   *
+   * Local only. Six players are assigned at once when a round starts, so sounding every one of
+   * them would replace silence with a chord — and a remote player's role is already carried by
+   * their ring, which you can see.
+   *
+   * The split is the same one the colourblind palette makes, for the same reason: becoming the
+   * threat and becoming the prey are the two most urgent states in the game, and they must not
+   * arrive as the same noise.
+   */
+  private roleCue(at: { x: number; y: number; z: number }, role: string, isLocalPlayer: boolean): void {
+    if (!isLocalPlayer) return;
+
+    // Conversion Duel reports `converted:<species>` rather than a bare role: you lost the bout
+    // and changed species. A thud and a falling figure — it is the one role change that is a
+    // defeat rather than an assignment.
+    if (role.startsWith('converted:')) {
+      this.impact(at, 0.7, 170);
+      this.chime(at, 300, 3);
+      return;
+    }
+
+    switch (role) {
+      case 'chaser':
+      case 'infected':
+      case 'hunter':
+        // You are the thing to run from. Low and hard, so it is not mistaken for a reward.
+        this.impact(at, 0.8, 150);
+        this.chime(at, 240, 3);
+        break;
+      case 'runner':
+      case 'survivor':
+        // You are being hunted. Bright and quick: this is a starting pistol, not a fanfare.
+        this.chime(at, 620, 2);
+        break;
+      case 'fighter':
+        // Stepping into the ring. `roundState: 'bout'` rings the bell for the fight itself; this
+        // is the moment you learn one of the two fighters is you.
+        this.impact(at, 0.5, 260);
+        this.chime(at, 460, 2);
+        break;
+      case 'down':
+      case 'spectator':
+        // Out of play. Falling and quiet — nothing about this needs to be loud.
+        this.chime(at, 180, 1);
+        break;
+      default:
+        // `idle` at a round reset, and anything a new mode invents. Silent on purpose: the
+        // warm-up is not news, and a cue nobody designed is worse than none.
+        break;
+    }
+  }
+
   private statusCue(at: { x: number; y: number; z: number }, kind: string, isLocalPlayer: boolean): void {
     if (kind === 'frozen') {
       this.chime(at, isLocalPlayer ? 190 : 620, 2);

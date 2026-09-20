@@ -408,6 +408,30 @@ bell (`data: 'bout'`), so the fistfight that mode is built on started in silence
 The HUD's `FROZEN 2.4s` pill is polled from `PlayerState.gadgets`, not driven by the `status`
 event — so a visible indicator existing is not evidence that the event has a consumer.
 
+**The HUD is not a channel a headset can see, and the coverage guard did not know that.**
+`event-coverage.test.ts` asked "does anything mention this type" — and the HUD's own toast
+counts as a mention, so `roleChange` passed the guard while reaching **only** the HUD: no case in
+`AudioSystem.handleEvent`, none in `playHaptics`. Measured with six bots over 90 s on
+`jungle-world`: 6 silent role assignments at every round start in every mode, and in Conversion
+Duel **24 of 24 silent**, including being beaten in a fight and converted to the other species —
+the mode's entire premise. The guard now has a second check: every event the HUD's own switch
+announces must also have a sound or a haptic case, found by walking each switch's braces rather
+than grepping for the type name (grepping the call site `this.playHaptics(event, isLocal)` for
+`playHaptics(` reports zero cases and looks exactly like an empty switch).
+
+**`setFirstPerson` (the local-avatar-in-VR flag) was `group.visible = false`.** The comment said
+"hide the head so it never blocks the view"; the code hid the whole group, which is also where
+the tracked hands and the role ring live. No VR-specific hand model exists elsewhere — `VRInput`
+adds three.js's controller/grip/hand objects to the rig as empty groups — so a headset player saw
+no hands at all in a game whose locomotion is climbing with your arms, and lost the one role
+indicator a headset can see (the HUD is DOM) along with them. It now hides `body` only; the hands
+and the ring are not a guess about an untracked limb the way legs are, so there was never a reason
+to hide them.
+
+`roleChange` now gets a role-shaped cue in both channels — a low hard tone/pulse for becoming the
+threat, bright and quick for becoming the prey, a thud for a Conversion Duel loss — local player
+only, since six roles assigned at once would otherwise replace silence with a chord.
+
 ## Measurement hazards
 
 These silently invalidated real measurements in this repo. Check them before believing a number.

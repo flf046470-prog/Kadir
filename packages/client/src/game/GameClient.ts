@@ -672,6 +672,19 @@ export class GameClient {
         // and the human its `otherId` — and both are about to be swung at.
         if (event.data === 'bout') feedback('tag', 'both', 1);
         break;
+      case 'roleChange': {
+        // What you now are. The HUD's toast says it in words, and a toast is a DOM element that
+        // an immersive session never shows, so without this a headset was told nothing at all.
+        if (!isLocal) break;
+        const role = String(event.data ?? '');
+        const threat = role === 'chaser' || role === 'infected' || role === 'hunter';
+        // Becoming the threat gets the heavier pulse of the two, for the same reason the tag it
+        // usually follows does: it is the change that demands you do something differently.
+        if (threat) feedback('tag', 'both', 1);
+        else if (role === 'runner' || role === 'survivor' || role === 'fighter') feedback('grab', 'both', 1);
+        else if (role.startsWith('converted:')) feedback('tagged', 'both', 1);
+        break;
+      }
       default:
         break;
     }
@@ -867,8 +880,10 @@ export class GameClient {
       snapshot.z += this.prediction.smoothingOffset.z;
       this.localAvatar.update(snapshot, dt, cameraPosition);
       this.localAvatar.setRole(local.role, this.settings.colorblindSafe);
-      // In VR the player *is* the avatar; hide the head so it never blocks the view.
-      this.localAvatar.group.visible = this.input.kind !== 'vr';
+      // In VR the player *is* the avatar, so the body is hidden — but only the body. Hiding the
+      // whole group took the tracked hands and the role ring with it, and in a headset those are
+      // the only two things about yourself you can see at all.
+      this.localAvatar.setFirstPerson(this.input.kind === 'vr');
     }
 
     const voicePositions = new Map<string, { x: number; y: number; z: number }>();
