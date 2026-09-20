@@ -265,6 +265,24 @@ The storefront being empty is correct, not a regression: `LAUNCH_STORE` is `[]` 
 `validateCatalog` refuses any priced item at boot, which is the free-game rule enforced rather
 than remembered.
 
+**Every deployment ships with no art, and this is not obvious from anywhere.**
+`.gitignore` excludes `packages/client/public/models/` wholesale, so all 7 animal meshes and 46
+prop meshes are absent from a fresh checkout — which is what CI runs and what the Docker image is
+built from. Measured against the live server: `/models/kangaroo.glb`, `/models/fox.glb` and
+`/models/props/tree-1.glb` all 404. Nothing breaks, because `loadGeometry` returns null and the
+renderer falls back to procedural geometry, so the game *runs* and looks like boxes. A local
+`docker build` does include the art (Docker reads `.dockerignore`, not `.gitignore`), so the
+machine you test on disagrees with the machine that ships.
+
+The ignore's stated reason no longer holds: it says the click-through packs cannot be committed
+"so none are", and all six entries in `assets/packs.json` are now `manual: false` and CC0 or
+CC-BY-4.0. `npm run assets:fetch` can install them unattended, so the fix is to run it where the
+image is built — costed against Meta's startup budget before it lands.
+
+`check:smoke` exempts `/models/` 404s **only when the build has no art at all**, which is a
+property of the whole build. With art installed a mistyped model URL still fails, and keying the
+rule per-file instead would have made those two indistinguishable forever.
+
 **`ClientMessage`'s discriminator is `t`, not `type`, and the join message is `hello`** — with
 `protocol` (`PROTOCOL_VERSION`, currently 2), `name`, `animalId`, `cosmetics`, `platform`,
 `crossPlay` and `token` all required. A guessed `{type:'join'}` connects, is ignored, and sends

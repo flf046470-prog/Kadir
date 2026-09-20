@@ -20,6 +20,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
 let chromium;
@@ -34,6 +35,10 @@ try {
 // The real server, not a static file host: the name screen creates a session through /api, so
 // a static-only host leaves the app stuck on the first screen with nothing logged.
 const PORT = 8871;
+const PUBLIC_DIR = path.resolve(process.env.KC_SMOKE_PUBLIC_DIR ?? 'dist/client');
+/** Whether this build carries any art at all. See the 404 rule in the response listener below. */
+const ART_INSTALLED = existsSync(path.join(PUBLIC_DIR, 'models'))
+  && readdirSync(path.join(PUBLIC_DIR, 'models'), { recursive: true }).some(f => String(f).endsWith('.glb'));
 const server = spawn(process.execPath, ['dist/server/main.js'], {
   // KC_SMOKE_PUBLIC_DIR lets the release check point this at an *unpacked release zip* rather
   // than the build directory, so what gets driven in the browser is the artifact that ships.
@@ -42,7 +47,7 @@ const server = spawn(process.execPath, ['dist/server/main.js'], {
     PORT: String(PORT),
     HOST: '127.0.0.1',
     KC_DATA_DIR: '/tmp/kc-smoke',
-    KC_PUBLIC_DIR: path.resolve(process.env.KC_SMOKE_PUBLIC_DIR ?? 'dist/client'),
+    KC_PUBLIC_DIR: PUBLIC_DIR,
   },
   stdio: ['ignore','pipe','pipe'],
 });
@@ -85,6 +90,18 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
      * Playwright installs its own Chromium, and not against an older local one.
      */
     if(at.startsWith('/.well-known/appspecific/')) return;
+    /**
+     * The art is deliberately not in the repository — `packages/client/public/models/` is
+     * gitignored, so a fresh checkout has no `.glb` files at all and the game renders
+     * procedurally instead. A build with no art cannot serve a model, and saying so hundreds of
+     * times is not a finding.
+     *
+     * Keyed off whether the build has *any* art rather than off each file, so the two cases stay
+     * apart: "no art installed" is a property of the whole build, while a mistyped model URL in a
+     * build that does have art is a bug and still fails here. Per-file it would be one rule for
+     * both, and a typo would never be caught again.
+     */
+    if(!ART_INSTALLED && at.startsWith('/models/')) return;
     errors.push(`[${label}] ${r.status()} ${at}`);
   });
   page.on('pageerror', e=>errors.push(`[${label}] pageerror: ${e.message}`));
