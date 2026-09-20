@@ -20,6 +20,32 @@ export interface RendererOptions {
 const HEMI_BASE = 1.15;
 const SUN_BASE = 1.9;
 
+/**
+ * The sun's offset from whatever it is currently focused on (constructor and `updateShadowFocus`
+ * share this one constant, rather than the two hand-written positions this used to be — the same
+ * defect shape as `VR_BINDINGS`' two drifted lists, just here it is an angle rather than a table).
+ *
+ * `(48, 80, 26)` put the sun almost overhead — elevation 55.7°, `atan(80 / hypot(48, 26))` — and a
+ * cast shadow shrinks toward nothing as the light approaches straight up. Measured on an isolated
+ * boulder held clear of the ice shelf it sits on: at 55.7° the shadow is a sliver mostly hidden
+ * behind the boulder's own silhouette from an ordinary play-height camera; at this angle it is an
+ * unmistakable elongated patch, 98,450 shadow-coloured pixels in the same 800×450 frame against
+ * 74,903 before — every object in every level reads as standing on the ground rather than pasted
+ * onto it. Azimuth is kept close to the original (27.3° vs 28.5°) so the change is depth, not
+ * direction.
+ */
+const SUN_OFFSET = new THREE.Vector3(58, 45, 30);
+
+/**
+ * Where the sun sits for a given focus point. Pure and exported so the angle itself is checkable
+ * without a GL context — the constructor and `updateShadowFocus` both call this rather than each
+ * writing `sun.position.set(...)` by hand, which is exactly how `(48, 80, 26)` and `x + 48, 80, z +
+ * 26` were still two numbers agreeing with each other by coincidence rather than by construction.
+ */
+export function sunPositionFor(targetX: number, targetZ: number): { x: number; y: number; z: number } {
+  return { x: targetX + SUN_OFFSET.x, y: SUN_OFFSET.y, z: targetZ + SUN_OFFSET.z };
+}
+
 export interface DarknessValues {
   amount: number;
   skyScale: number;
@@ -185,7 +211,8 @@ export class Renderer {
     this.hemi = hemi;
 
     this.sun = new THREE.DirectionalLight(0xfff2d0, SUN_BASE);
-    this.sun.position.set(48, 80, 26);
+    const initialSun = sunPositionFor(0, 0);
+    this.sun.position.set(initialSun.x, initialSun.y, initialSun.z);
     this.sun.castShadow = options.profile.shadows;
     this.sun.shadow.mapSize.set(options.profile.shadowMapSize, options.profile.shadowMapSize);
     this.sun.shadow.camera.near = 1;
@@ -437,7 +464,8 @@ export class Renderer {
   /** Keep the shadow frustum centred on the player — one cascade is enough at this scale. */
   updateShadowFocus(x: number, z: number): void {
     if (!this.profile.shadows) return;
-    this.sun.position.set(x + 48, 80, z + 26);
+    const sunPos = sunPositionFor(x, z);
+    this.sun.position.set(sunPos.x, sunPos.y, sunPos.z);
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
   }

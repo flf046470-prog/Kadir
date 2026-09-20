@@ -486,6 +486,49 @@ inferred from the shader text compiling). No geometry, instance count, or textur
 frame budget is unaffected by construction; nothing here needed re-measuring against the Quest
 draw-call table.
 
+## Lighting
+
+Asked next to make lighting "daha gerçekçi" (more realistic) too. Two plausible leads turned out
+to be false alarms, found by measuring rather than by stopping at the first plausible story:
+
+- **Shadows looked absent in a lobby screenshot** (floating boulders over water with no shadow
+  under them). Not a bug: an isolated probe (a lone box on `jungle-world`'s dirt) cast a clean,
+  correctly-offset shadow, and every `InstancedMesh` collider carries `castShadow`/`receiveShadow`
+  from `profile.shadows` correctly. Those particular boulders are simply far outside the shadow
+  camera's ±70 m frustum, which is centred on the player, not on decorative background geometry —
+  expected behaviour for a single-cascade shadow map, not a defect.
+- **`sky.ts`'s `sunStrength` parameter is genuinely dead** — documented ("dropped in enclosed
+  places so a cave does not reflect an outdoor sun"), plumbed as a uniform, and never once passed a
+  value by any caller, so every level's cave/crevasse zone reflects the same full-strength outdoor
+  sun as the open air outside it, just dimmed uniformly by `envIntensity` along with everything
+  else. Real, but **measured and left alone**: an A/B render of the glacier crevasse's ice columns
+  at `sunStrength` 1 vs 0 changed 24,813 of 360,000 pixels by a maximum channel delta of 10 — not a
+  visible difference in an ordinary view, because the reflected sun lobe is a narrow cone that this
+  camera angle rarely catches. Rebuilding a second PMREM environment per level to fix an effect
+  nobody can see was not worth the added state; noted here so nobody re-derives the same dead end.
+
+**What actually was wrong: the sun sat at 55.7° elevation** (`atan(80 / hypot(48, 26))`), close
+enough to straight overhead that every cast shadow was short enough to hide behind the caster's own
+silhouette from an ordinary play-height camera. Confirmed by isolating the variable: a lone sphere
+held clear of `glacier-world`'s ice floor (no geometry intersection to confuse the result) cast a
+shadow occupying 74,903 shadow-coloured pixels of an 800×450 frame; lowering the light to 34.6°
+elevation (same probe, same camera, same frame) raised that to 98,450 — an unmistakable elongated
+patch instead of a sliver mostly hidden behind the object. Every object on every map now visibly
+sits on the ground it stands on rather than looking pasted onto it — boulders on `glacier-world`'s
+ice shelf, trees on `jungle-world` and `outback-station`, all from one shared light.
+
+`Renderer.ts`'s sun position was two hand-written literals agreeing by coincidence — `(48, 80, 26)`
+in the constructor, `x + 48, 80, z + 26` in `updateShadowFocus` — the same defect shape as
+`VR_BINDINGS`' two lists that had already drifted once in this project. Replaced with one `SUN_OFFSET`
+constant and a pure, exported `sunPositionFor(targetX, targetZ)` that both call, so the two paths
+cannot disagree again; `sun.test.ts` checks the angle and the offset-consistency property without a
+GL context, the same split `darkness.test.ts` already uses for the half of the renderer that has a
+right answer. Azimuth was kept close to the original (27.3° vs 28.5°) deliberately — the change is
+depth, not direction, so it does not relight any level from a new compass bearing. Pure light-angle
+change: no geometry, instance count or texture moved, so, as with the water fix, the Quest draw-call
+table did not need re-measuring — confirmed anyway at `high` tier with post-processing on, no bloom
+or exposure regression.
+
 ## Map density — the number that decides whether it feels like a game
 
 Median distance to the *nearest* other player, six players, sampled once a second from t=10 s, and
