@@ -265,19 +265,36 @@ The storefront being empty is correct, not a regression: `LAUNCH_STORE` is `[]` 
 `validateCatalog` refuses any priced item at boot, which is the free-game rule enforced rather
 than remembered.
 
-**Every deployment ships with no art, and this is not obvious from anywhere.**
-`.gitignore` excludes `packages/client/public/models/` wholesale, so all 7 animal meshes and 46
-prop meshes are absent from a fresh checkout — which is what CI runs and what the Docker image is
-built from. Measured against the live server: `/models/kangaroo.glb`, `/models/fox.glb` and
-`/models/props/tree-1.glb` all 404. Nothing breaks, because `loadGeometry` returns null and the
-renderer falls back to procedural geometry, so the game *runs* and looks like boxes. A local
-`docker build` does include the art (Docker reads `.dockerignore`, not `.gitignore`), so the
-machine you test on disagrees with the machine that ships.
+**Every deployment shipped with no art, and nothing said so.** `.gitignore` excluded
+`packages/client/public/models/` wholesale, so all 7 animal meshes and 46 prop meshes were absent
+from a fresh checkout — which is what CI runs and what the Docker image is built from. Measured
+against the live server: `/models/kangaroo.glb`, `/models/fox.glb` and `/models/props/tree-1.glb`
+all 404. Nothing breaks, because `loadGeometry` returns null and the renderer falls back to
+procedural geometry, so the game *ran* and looked like boxes. A local `docker build` **does**
+include the art, because Docker reads `.dockerignore` rather than `.gitignore` — so the machine you
+test on disagreed with the machine that ships, which is why it survived this long.
 
-The ignore's stated reason no longer holds: it says the click-through packs cannot be committed
-"so none are", and all six entries in `assets/packs.json` are now `manual: false` and CC0 or
-CC-BY-4.0. `npm run assets:fetch` can install them unattended, so the fix is to run it where the
-image is built — costed against Meta's startup budget before it lands.
+**Two pipelines write to that one directory, and only one of them can be committed.** Ours —
+`tools/blender/{build,props,portal}.py` — generate every animal and every prop from `animals.json`
+and `assets/meshy/`, both tracked; that is deterministic output of tracked sources and ours to
+redistribute. Theirs — `npm run assets:fetch` from `assets/packs.json` — is **five `source:
+manual` packs out of six**: Quaternius and Kenney are click-through downloads, so no build machine
+can fetch them and they are not ours to commit. Only the Khronos Fox is a direct URL.
+
+Ours are tracked now; only the names nothing but a pack can produce stay ignored. The six animals
+a pack would install collide with ours by filename and cannot be separated in `.gitignore` —
+installing those packs overwrites tracked files, and `git status` saying so is the point.
+
+Provenance was checked rather than assumed: the seven animals on disk are exactly
+`animals.json`'s list including `human.glb`, which `packs.json` never mentions, and the pack-only
+names (`bear.glb`, `deer.glb`, `fox-quaternius.glb`, `anim/`, `audio/`) are absent. The packs have
+never been installed here.
+
+**The error that nearly went in:** a first pass reported all six packs as automatic, because the
+probe asked `p.get('manual', False)` for a key that does not exist — the field is `source`. Every
+pack answered `False` for the same reason, and that is the tell this file already warns about:
+identical results from different inputs. It was wrong in CLAUDE.md and in a commit message before
+a second look caught it.
 
 `check:smoke` exempts `/models/` 404s **only when the build has no art at all**, which is a
 property of the whole build. With art installed a mistyped model URL still fails, and keying the

@@ -17,9 +17,36 @@ coverage
 data/**/*.json
 !data/.gitkeep
 
-# Art packs are installed by `npm run assets:fetch` from assets/packs.json.
-# Generated output: the manual (click-through) packs cannot be committed at all, so none are.
-packages/client/public/models/
+# `packages/client/public/models/` holds output from two different pipelines that write to the
+# same directory, and only one of them can be committed.
+#
+#   ours    — `tools/blender/{build,props,portal}.py` generate every animal and every prop from
+#             `animals.json` and `assets/meshy/`, both tracked. Deterministic output of tracked
+#             sources, and ours to redistribute.
+#   theirs  — `npm run assets:fetch` installs from `assets/packs.json`. Five of its six packs are
+#             `source: manual`: Quaternius and Kenney are click-through downloads, so a build
+#             machine cannot fetch them and they are not ours to put in the repo either.
+#
+# This used to ignore the whole directory, which kept *both* out — so a fresh checkout had no art
+# at all. CI has none, the Docker image is built from a checkout so it has none, and the live
+# deployment served procedural boxes while a local `docker build` shipped the real thing, because
+# Docker reads this file's sibling rather than this file. Measured: /models/kangaroo.glb 404 in
+# production.
+#
+# So: ours are tracked, and only the names that nothing but a pack can produce stay ignored. The
+# six animals a pack would install collide with ours by filename and cannot be separated here —
+# installing those packs overwrites tracked files, and `git status` saying so is the point.
+packages/client/public/models/bear.glb
+packages/client/public/models/deer.glb
+packages/client/public/models/fox-quaternius.glb
+packages/client/public/models/anim/
+packages/client/public/models/audio/
+packages/client/public/models/props/bush.glb
+packages/client/public/models/props/grass.glb
+packages/client/public/models/props/rock.glb
+packages/client/public/models/props/rock-kenney.glb
+packages/client/public/models/props/tree.glb
+packages/client/public/models/props/tree-kenney.glb
 
 # Store packaging. There are two Android targets now — packaging/meta-quest (Horizon Store) and
 # packaging/android-phone (Google Play) — and they generate byte-for-byte the same *kinds* of
