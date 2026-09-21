@@ -875,6 +875,30 @@ cloud grows and stepping its size is as visible as stepping its position.
 `GameClient.remoteEntities` is gone rather than left holding a stale copy nothing reads — the same
 call this file's physics section makes about `wallPush` and `anchorMaterial`.
 
+**Verifying this in a browser cost four failed probes, and the lesson is worth more than the
+fix.** Counting the entity's own draw calls (`SphereGeometry(1, 12, 8)` = **504 indices**,
+confirmed against three.js rather than derived on paper) read **zero** while firing. Every
+tempting conclusion from that was wrong:
+
+- The first probe fired during the countdown, which freezes players — this file's own Measurement
+  hazards section says so, and it still caught me.
+- The second fired in **practice mode**, where the HUD gadget bar is *empty*: measured
+  `slots: []`. So `KeyF` had nothing to fire, and 0 was the honest answer to a question about
+  nothing. **This also corrects the Gadgets-were-invisible section above**, which claims that fix
+  was verified by firing the default freeze gun in practice mode — practice mode on
+  `jungle-world` grants no gadget, so whatever that probe showed, it was not a freeze-gun bolt.
+- An A/B against the previous commit's build settled the only question that actually mattered:
+  the pre-change build reads **0 too**, so the zero is not a regression this change introduced.
+
+What finally answered it was dropping the browser entirely and speaking the real protocol over a
+raw socket (`{t:'hello', protocol: PROTOCOL_VERSION, …}`, `encodeIntent` with `Buttons.UseGadget`,
+`decodeSnapshot` on the way back). Two clients, round running: the server granted
+`freeze_gun`/`smoke_bomb`/`steel_vest` with 3/3/1 charges, the charge count dropped 4 → 3 on
+firing, and the decoded snapshots carried **max 1 entity** while the bolt was alive. Server
+produces it, the wire carries it, the client's decoder surfaces it — end to end, with numbers, and
+no frustum, no keypress delivery and no 1.6 s projectile lifetime in the way. **When a browser
+probe reports zero, prove the thing you are counting exists before believing the count.**
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by
