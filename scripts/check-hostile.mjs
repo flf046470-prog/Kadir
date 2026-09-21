@@ -24,8 +24,16 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 
+// Imported rather than written down. This was `const PROTOCOL = 2` for exactly as long as the
+// protocol was 2: the version bump to 3 left the number here behind, the victim's hello was
+// refused with `4001 protocol`, and a check whose whole subject is hostile input reported
+// seventeen security failures for one stale literal. It is the same defect this project has
+// already had twice — `VR_BINDINGS`' two lists, `Renderer.ts`'s two sun positions — and the same
+// fix: one source, every caller reads it. Importing a TS source constant is why this script runs
+// under `tsx` rather than plain `node`.
+import { PROTOCOL_VERSION } from '@kc/net';
+
 const PORT = 8873;
-const PROTOCOL = 2;
 const base = `http://127.0.0.1:${PORT}`;
 const wsBase = `ws://127.0.0.1:${PORT}`;
 
@@ -105,7 +113,7 @@ function connect(label) {
 function hello(name, extra = {}) {
   return JSON.stringify({
     t: 'hello',
-    protocol: PROTOCOL,
+    protocol: PROTOCOL_VERSION,
     name,
     animalId: 'kangaroo',
     cosmetics: {},
@@ -147,8 +155,29 @@ await sleep(1200);
 const welcome = victim.json.find((m) => m.t === 'welcome');
 const roomCode = welcome?.roomCode;
 console.log(`victim: open=${victim.open} messages=${victim.json.map((m) => m.t).join(',')} room=${roomCode ?? 'unknown'}`);
+// The victim is the instrument, not a subject. Every attack below is scored as "did the victim
+// keep receiving snapshots", so a victim that never joined scores all of them as failures — and
+// fourteen identical `victim +0 snapshots` lines bury the one fact that matters, which is that
+// nothing was measured at all. Stop here and name the cause instead of reporting the wreckage.
+//
+// `victim.open` above is not this check: the WebSocket handshake succeeds and the server closes
+// the socket *afterwards* if it dislikes the hello, so a refused client looks perfectly healthy
+// at the point the connection is made. A `welcome` is the first evidence the victim is really
+// in a room, which is the only state this check can measure anything from.
 if (!roomCode) {
-  failures.push('could not discover the victim room code; the attacker would not share a room');
+  const refusal = victim.json.find((m) => m.t === 'error');
+  console.log('');
+  console.log('the victim never joined a room, so no attack below would be measuring anything:');
+  console.log(`  victim socket : ${victim.open ? 'open' : `closed(${victim.closed ?? 'never opened'})`}`);
+  console.log(`  hello sent    : protocol ${PROTOCOL_VERSION}`);
+  if (refusal) console.log(`  server replied: ${refusal.code} — ${refusal.message}`);
+  console.log('');
+  console.log('check:hostile — 1 failure:');
+  console.log('  - the victim could not join, so the room was never put under attack');
+  console.log('--- server log ---\n' + serverLog.join(''));
+  server.kill();
+  await sleep(200);
+  process.exit(1);
 }
 // The victim asked for a private room with the create sentinel — the same thing the client's
 // "Create with your own rules" button sends. A public room back means the sentinel was not

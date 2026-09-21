@@ -10,7 +10,11 @@ what you would guess, and defects that were found by measuring rather than by re
 - **No placeholders.** A system that does not work is not finished, and a control that is
   advertised to the player and read by nothing is a bug, not a stub.
 - **Run `npm run verify` before every commit** (lint + asset/pack checks + typecheck + tests +
-  all three builds). It must exit 0.
+  all three builds + `check:hostile`). It must exit 0. CI does **not** call `verify` — it runs the
+  same commands as separate steps so each failure names itself — so anything CI runs that `verify`
+  does not is a hole in the only gate this file asks for. `check:hostile` was such a hole and cost
+  a red CI; the browser checks cannot close theirs, because they need a Playwright download this
+  container must never run.
 - **Platform split is absolute.** Gameplay lives once in `@kc/core`. A platform supplies intent in
   and reads state out; a gameplay rule must never be written three times.
 - **VR is OpenXR-compatible (WebXR) and hand/physics-driven.** The stick is an accessibility
@@ -1020,6 +1024,44 @@ because a board is only trustworthy if none of them can forget. `levelVersion(id
 built level's own `version` rather than declaring it a second time on the registry entry, and
 returns **0** for an unknown id so a nonexistent map's times cannot land on a real map's board —
 `buildLevel`'s fallback would otherwise stamp them with the jungle's version.
+
+## A stale literal made the hostile check report seventeen security failures
+
+Bumping `PROTOCOL_VERSION` 2 → 3 turned `check:hostile` red with **seventeen failures** — every
+attack it runs, including prototype pollution, flooding and claiming another player's id. Not one
+of them was real. The probe's own `const PROTOCOL = 2` was never bumped, so its **victim** was
+refused with `4001 protocol` before a single attack was sent, and all fourteen attacks were then
+scored against a client that had never joined a room. `browser` and `postgres` were green on the
+same commit, which is what said the protocol change itself was sound: `check:smoke` drives the
+real built client against the real built server over a real socket.
+
+Two independent defects, mutation-tested one at a time:
+
+- **The version was written down twice.** The same shape as `VR_BINDINGS`' two lists and
+  `Renderer.ts`'s two sun positions, both of which this file already records as having drifted —
+  and the same fix: `scripts/check-hostile.mjs` imports `PROTOCOL_VERSION` from `@kc/net`. That
+  import is why `check:hostile` runs under **`tsx`** rather than plain `node`: `@kc/net` has
+  `main: ./src/index.ts`, so `node` cannot load it. (Measured: `tsx` runs a `.mjs` with top-level
+  await fine — the `ERR_REQUIRE_ASYNC_MODULE` this file's probes have hit before is a different
+  path.) Mutation: pinning `protocol: 2` back reproduces the refusal exactly.
+- **The probe measured a corpse and reported it as a security result.** The victim is the
+  *instrument* — every attack is scored as "did the bystander keep receiving snapshots" — so a
+  victim that never joined scores every attack as a failure, and fourteen identical
+  `victim +0 snapshots` lines bury the one fact that mattered. It now stops before the first
+  attack and prints the cause (`closed(4001 protocol)`, `server replied: protocol — Server speaks
+  protocol 3`) as one failure. Mutation: removing the guard while leaving the stale literal
+  reproduces the original 17-line cascade exactly.
+
+**`socket.open` is not evidence a client joined.** The WebSocket handshake succeeds and the server
+closes the socket *afterwards* if it dislikes the `hello`, so a refused client looks perfectly
+healthy at the moment of connection — which is why the old `if (!victim.open) exit` guard sat
+directly above this bug and passed. The `welcome` message is the first real evidence.
+
+The general rule, and the reason this is worth the space: **a probe whose instrument is dead must
+say so and stop, not score every measurement as a failure.** Seventeen red lines for one stale
+literal is a check people learn to skim, which is worse than no check — and this file's own
+Measurement hazards section already gives the tell, identical results across supposedly different
+inputs, which fourteen byte-identical failure lines are about as loudly as it can be given.
 
 ## How to find defects here
 
