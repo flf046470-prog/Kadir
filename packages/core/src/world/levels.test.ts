@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import type { Collider } from '../physics/types.js';
 import type { Vec3 } from '../math/vec3.js';
+import { Rand } from '../math/rand.js';
+import { LevelBuilder } from './builder.js';
 import { buildLevel, listLevels } from './registry.js';
 import { buildOutbackWorld } from './outback.js';
 import { zoneAt } from './zone.js';
@@ -235,5 +237,74 @@ describe('how far a map spreads its players', () => {
         ).toBeLessThan(leash);
       }
     }
+  });
+});
+
+
+/**
+ * A ramp has to arrive at the height it was asked for.
+ *
+ * `LevelBuilder.ramp()` used to add its minimum step thickness *upward*, about a centre of
+ * `y / 2`, so any step whose top fell below 0.6 m rose above the height the ramp asked for. A
+ * negative `y` lost the `Math.max` outright: the half-height pinned to 0.3 while the centre
+ * stayed at `y / 2`, so the descent came out halved. Measured on the glacier's crevasse ramp,
+ * which asks for -8: it bottomed out at **-3.70**, leaving a 4.3 m drop at the end of the only
+ * way down. Crevasse occupancy was 9 %; it is 15 % now that the ramp is walkable.
+ *
+ * The jungle's two ramps had been authored against that bug — they said -8 over floors at -4,
+ * and -8 halved is exactly what made them land right. They ask for -4 now.
+ *
+ * Tested on the builder rather than by scanning built levels: post-hoc, a ramp step is not
+ * distinguishable from any other narrow box, and a heuristic that guesses wrong reports a map's
+ * unrelated geometry as a broken ramp. This asks the one question that has a right answer.
+ */
+describe('LevelBuilder.ramp', () => {
+  function tops(y0: number, y1: number): { top: number; bottom: number }[] {
+    const b = new LevelBuilder(new Rand(1));
+    const before = b.colliders.length;
+    b.ramp(0, 0, 4, 12, y0, y1, 0, 'jungle');
+    return b.colliders
+      .slice(before)
+      .filter((c): c is Extract<Collider, { kind: 'box' }> => c.kind === 'box')
+      .map((c) => ({ top: c.center.y + c.half.y, bottom: c.center.y - c.half.y }))
+      .sort((a, b2) => a.top - b2.top);
+  }
+
+  const MIN_STEP_THICKNESS = 0.6;
+
+  it.each([
+    ['uphill from the ground', 0, 6],
+    ['downhill to the ground', 6, 0],
+    ['downhill between two heights', 10, 6],
+    ['downhill below the ground', 0, -8],
+    ['a shallow climb, every step under the minimum thickness', 0, 1],
+  ])('puts every step top exactly where asked: %s', (_label, y0, y1) => {
+    const steps = tops(y0, y1);
+    const lo = Math.min(y0, y1);
+    const hi = Math.max(y0, y1);
+    // The interpolation samples step centres, so tops land strictly inside the range.
+    expect(Math.min(...steps.map((s) => s.top))).toBeGreaterThanOrEqual(lo - 1e-9);
+    expect(Math.max(...steps.map((s) => s.top))).toBeLessThanOrEqual(hi + 1e-9);
+    // The deepest and highest steps reach within one step of each end, so the ramp spans its run.
+    const rise = (hi - lo) / steps.length;
+    expect(Math.min(...steps.map((s) => s.top))).toBeLessThanOrEqual(lo + rise + 1e-9);
+    expect(Math.max(...steps.map((s) => s.top))).toBeGreaterThanOrEqual(hi - rise - 1e-9);
+  });
+
+  it('never makes a step thinner than the solver can stop', () => {
+    // A box with no thickness is a plane a capsule tunnels through at speed.
+    for (const [y0, y1] of [[0, 1], [0, -8], [6, 0], [10, 6]] as const) {
+      for (const s of tops(y0, y1)) {
+        expect(s.top - s.bottom).toBeGreaterThanOrEqual(MIN_STEP_THICKNESS - 1e-9);
+      }
+    }
+  });
+
+  it('gives a step its thickness downward, which is what the bug got backwards', () => {
+    // Mutation guard: `max(0.3, y/2)` about a centre of `y/2` pushed a low step's top up instead.
+    const shallow = tops(0, 1);
+    const highest = shallow[shallow.length - 1];
+    expect(highest?.top).toBeLessThanOrEqual(1 + 1e-9);
+    expect(shallow[0]?.bottom).toBeLessThan(0);
   });
 });

@@ -49,7 +49,10 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   return b.build({
     id: 'glacier-world',
     name: 'Glacier World',
-    version: 2,
+    // 3: the crevasse ramp reaches the crevasse floor. Its -8 was always right — the floor is at
+    // exactly -8 — but `ramp()` bottomed the descent out at -3.7, leaving a 4.3 m drop at the end
+    // of a ramp. Measured: crevasse occupancy 9 % -> 15 % once it is walkable.
+    version: 3,
     seed,
     killPlaneY: -40,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and

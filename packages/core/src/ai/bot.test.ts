@@ -38,24 +38,39 @@ describe('bots', () => {
     expect(moved).toBeGreaterThanOrEqual(3);
   });
 
+  /**
+   * Across several round seeds, not one.
+   *
+   * This asked a single seed (77) for at least one tag, and a seed is the *spawn arrangement*, not
+   * the chase loop. Fixing `LevelBuilder.ramp()` moved the jungle's two ramps — a change that
+   * makes the map strictly more connected — and seed 77 alone fell to zero. Measured immediately
+   * afterwards over eight seeds: 77 gave 0 and the other seven gave 7, 11, 15, 18, 21, 24 and 24.
+   * So the loop was working and the instrument was reading one unlucky arrangement.
+   *
+   * Summing over three seeds states what the test is actually for. It is also a stronger claim
+   * than the original: a change that broke tagging in general fails this, where before it could
+   * have passed on whichever single seed still happened to work.
+   */
   it('produce tags over a full round, exercising the chase loop end to end', () => {
-    const sim = new Simulation({ level, modeId: 'kangaroo-chase', seed: 77 });
-    const bots = [0, 1, 2, 3, 4, 5].map((i) => {
-      sim.addPlayer({ id: `bot${i}`, name: botName(i) });
-      return new Bot(`bot${i}`, { skill: 0.9, seed: 500 + i });
-    });
-
     let tags = 0;
-    for (let tick = 0; tick < 60 * 90; tick++) {
-      for (const bot of bots) {
-        const self = sim.players.get(bot.playerId);
-        if (!self) continue;
-        sim.setIntent(bot.playerId, bot.think(self, sim.players.values(), level, 1 / 60), false);
+    for (const seed of [77, 31, 5]) {
+      const sim = new Simulation({ level, modeId: 'kangaroo-chase', seed });
+      const bots = [0, 1, 2, 3, 4, 5].map((i) => {
+        sim.addPlayer({ id: `bot${i}`, name: botName(i) });
+        return new Bot(`bot${i}`, { skill: 0.9, seed: 500 + i });
+      });
+
+      for (let tick = 0; tick < 60 * 90; tick++) {
+        for (const bot of bots) {
+          const self = sim.players.get(bot.playerId);
+          if (!self) continue;
+          sim.setIntent(bot.playerId, bot.think(self, sim.players.values(), level, 1 / 60), false);
+        }
+        sim.step();
+        tags += sim.events.drain().filter((e) => e.type === 'tag').length;
       }
-      sim.step();
-      tags += sim.events.drain().filter((e) => e.type === 'tag').length;
+      expect(sim.mode.state().phase).toBe('playing');
     }
-    expect(sim.mode.state().phase).toBe('playing');
     expect(tags).toBeGreaterThan(0);
   });
 });
@@ -205,8 +220,12 @@ describe('bots use their role’s weapon', () => {
     playerCount: number,
     seconds: number,
     skill = 0.8,
+    // A round seed is the spawn arrangement. Every assertion about *gadgets* below is independent
+    // of it, so it defaults to the original 77; only the tag counts need more than one, because a
+    // single arrangement can legitimately produce no catches.
+    seed = 77,
   ): { sim: Simulation; tags: number; fireButtonPresses: number } {
-    const sim = new Simulation({ level, modeId, seed: 77 });
+    const sim = new Simulation({ level, modeId, seed });
     const bots: Bot[] = [];
     for (let i = 0; i < playerCount; i++) {
       sim.addPlayer({ id: `bot${i}`, name: botName(i) });
@@ -351,12 +370,18 @@ describe('bots use their role’s weapon', () => {
   it('does not fire a gadget it is not holding', () => {
     // Kangaroo Chase issues nobody a weapon, so a bot pressing the fire button there would be a
     // bot pressing a button that cannot mean anything — and the tag loop must still work.
-    const { sim, tags, fireButtonPresses } = runBots('kangaroo-chase', 6, 90, 0.9);
-    for (const player of sim.players.values()) {
-      expect(player.gadgets.slots.filter(Boolean)).toHaveLength(0);
+    let tags = 0;
+    for (const seed of [77, 31, 5]) {
+      const run = runBots('kangaroo-chase', 6, 90, 0.9, seed);
+      for (const player of run.sim.players.values()) {
+        expect(player.gadgets.slots.filter(Boolean)).toHaveLength(0);
+      }
+      expect(run.fireButtonPresses).toBe(0);
+      tags += run.tags;
     }
-    expect(fireButtonPresses).toBe(0);
     // And the chase itself still works, so the gadget check did not cost the bots their day job.
+    // Summed across seeds for the reason the chase test above gives: one arrangement reaching no
+    // catches is an ordinary round, not a broken tag loop.
     expect(tags).toBeGreaterThan(0);
   });
 

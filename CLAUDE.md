@@ -46,8 +46,9 @@ what you would guess, and defects that were found by measuring rather than by re
 - `level.playRadius` is **only a bot-steering hint**. Nothing in physics or the simulation reads
   it, so it contains nobody — build real geometry if you want a boundary.
 - Falling below `killPlaneY` sets `player.alive = false` and the sim respawns. This is normal.
-- `LevelBuilder.ramp()` **cannot descend**: it centres steps at `y/2` with half-height
-  `max(0.3, y/2)`, so a downward ramp ends up buried inside the floor. Hand-step it instead.
+- `LevelBuilder.ramp()` descends correctly now — see "A ramp that only went half way down" below.
+  The old note here ("cannot descend … ends up buried inside the floor. Hand-step it instead")
+  was a wrong diagnosis of a real bug, and it sent two maps down a workaround they did not need.
 - The renderer colours geometry **by `SurfaceMaterial`**, not by preset name — a new look needs a
   new material (this is why `redEarth`/`redRock` exist alongside `rock`).
 - `hand.punchCooldown` is set by `combat.ts` when a punch *resolves*, never by `locomotion.ts`. A
@@ -1137,6 +1138,90 @@ exist, and not before.
 **Do not "fix" the 404 by setting `KC_ASSETLINKS` from whatever is in `packaging/`.** That was the
 obvious move and it is wrong for a reason that only shows up months later, when the app cannot be
 updated because its identity was chosen by a leftover test build.
+
+## A ramp that only went half way down
+
+`LevelBuilder.ramp()` gave each step a minimum thickness by taking `max(0.3, y / 2)` as its
+half-height about a centre of `y / 2`. That adds the thickness **upward**, so any step whose top
+fell below 0.6 m rose above the height the ramp asked for — and a *negative* `y` lost the `max`
+outright: the half-height pinned to 0.3 while the centre stayed at `y / 2`, so the descent came
+out **halved**.
+
+Measured on a 12 m probe ramp, worst error per case:
+
+| ramp | before | after |
+| --- | --- | --- |
+| uphill from the ground (0 → 6) | 0.00 m | 0.00 m |
+| downhill between two heights (10 → 6) | 0.00 m | 0.00 m |
+| downhill to the ground (6 → 0) | +0.15 m — a lip at the bottom of a slope down | 0.00 m |
+| shallow climb (0 → 1) | +0.28 m on 6 of 10 steps | 0.00 m |
+| below the ground (0 → −8) | **halved**, bottoming out at −3.70 | 0.00 m |
+
+**The old note in this file was a wrong diagnosis of a real bug**, and that is the expensive part.
+It said ramps "cannot descend" and "end up buried inside the floor", so the advice was to hand-step
+them. Direction was never the variable: a descent between two heights is exact. *Altitude* is —
+how close to the floor a step lands — which is why it showed up on descents, since those are the
+ramps that reach ground level.
+
+The minimum thickness goes downward now (`MIN_STEP_THICKNESS`), so a step's top is always exactly
+the height asked for and its skirt is buried instead. For every step at or above that thickness the
+geometry is bit-for-bit unchanged, which is why `outback-station` moved by **0 colliders**.
+
+**Two maps had been authored against the bug, and they needed opposite fixes.** Both were caught by
+diffing every collider of all three maps before and after, not by reading:
+
+- `glacier-world`'s crevasse ramp asked for −8 and its floor *is* at −8. It bottomed out at −3.70,
+  leaving a **4.3 m drop at the end of the only way down**. The fix alone repairs it: measured
+  crevasse occupancy **9 % → 15 %**.
+- `jungle-world`'s cave and canyon ramps asked for −8 over floors at **−4** — and −8 halved is
+  −3.7, which is what made them land right. The number in the level was tuned against the builder's
+  arithmetic. Fixing the builder alone would have buried their lower halves and left the walkable
+  part covering the same 4 m in half the run, twice as steep as the map has ever played. Both ask
+  for −4 now.
+
+Both maps' `version` is bumped (jungle 1 → 2, glacier 2 → 3) per the Leaderboards rule.
+
+Behaviour re-measured after, six bots, 90 s: **0 kill-plane crossings on all three maps**, jungle
+`canyon 49 % / cave 43 % / jungle 7 %`, glacier `shelf 60 % / seracs 24 % / crevasse 15 %`, outback
+unchanged.
+
+**The guard is on the builder, not on the built maps.** A first attempt scanned every level for
+"the lowest box in a zone" and called it a ramp's deepest step — which reported `outback-station`'s
+cave as broken, a map this change does not touch at all and which contains no `ramp()` call.
+Post-hoc, a ramp step is not distinguishable from any other narrow box. `levels.test.ts` asks the
+builder the question that has a right answer, and is mutation-tested: restoring `max(0.3, y * 0.5)`
+fails exactly the below-ground and shallow-climb cases.
+
+**Two bot tests then failed, and the seed was the instrument, not the map.** Both hardcoded
+`seed: 77` and asked for at least one tag in 90 s. A round seed is the *spawn arrangement*.
+Measured over eight seeds right after the geometry change: 77 gave **0** and the other seven gave
+7, 11, 15, 18, 21, 24 and 24. Tagging was fine; one arrangement was unlucky. They sum over three
+seeds now, which is a stronger claim than the original made — a change that broke tagging in
+general fails it, where before it could pass on whichever single seed still happened to work.
+
+## Gait clips are sine-driven, so "the speed a clip was authored for" is not a real number
+
+`Avatar.strideRate(speed)` is `clamp(speed / 4.6, 0.55, 1.8)` — **one constant for every animal and
+both gaits**, while `tools/blender/characters.py` generates each clip from that animal's own body
+plan at a fixed swing angle (walk 22°, run 38°). Those cannot all be authored for the same speed,
+so foot slip is real and varies per animal.
+
+**Measured and left alone, because the measurement would not hold still.** Authored ground speed
+was estimated two independent ways from the real glTF via three.js FK — the mean over a stance
+window, and the instantaneous central difference at the lowest-foot sample. They disagreed by
+**17–77 %**, and the window figure moved with the window size. The reason is in `characters.py`'s
+own comment: the gaits are *sine-driven rather than hand-posed*, so the foot traces a smooth loop
+with **no constant-velocity stance phase** at all. There is no single speed a clip is authored for,
+which is precisely what the two estimators were disagreeing about.
+
+Same call as `sky.ts`'s `sunStrength`: a real defect whose magnitude could not be measured
+honestly, so no number was changed. Fixing it properly means deriving the rate per clip at load
+time, which needs exactly the robust stance measurement that does not exist for these clips —
+more likely it means authoring gaits with a real stance phase, which is a Blender-side change.
+
+**three.js strips dots from glTF node names** — `foot.L` is `footL`, `tail.1` is `tail1`. Matching
+the glTF spelling finds nothing and reports it identically for every animal, which looks like a
+result rather than a miss. It cost a full probe run here.
 
 ## How to find defects here
 

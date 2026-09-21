@@ -12,6 +12,16 @@ export interface SurfacePreset {
   material: SurfaceMaterial;
 }
 
+/**
+ * Thinnest a ramp step may be, in metres.
+ *
+ * A step is a box, and a box with no thickness is a plane the capsule solver can tunnel through
+ * at speed. The number is the one the old `max(0.3, …)` half-height implied; what changed is the
+ * direction it is applied in — downward, so it can never push a step's walking surface above the
+ * height the ramp asked for.
+ */
+const MIN_STEP_THICKNESS = 0.6;
+
 /** Named surface presets keep level authoring readable and consistent. */
 export const SURFACES = {
   dirt: { friction: 1, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'dirt' },
@@ -205,18 +215,39 @@ export class LevelBuilder {
     this.grip(vec3(x, y + 0.22, z), vec3(0, 1, 0), 'ledge');
   }
 
-  /** Straight ramp between two heights. */
+  /**
+   * Straight ramp between two heights, up or down.
+   *
+   * Approximated with stacked steps: keeps the solver on boxes (fast, stable) and reads well with
+   * the stylised art direction. Each step is a pillar standing on the ground with its **top** at
+   * the interpolated height, which is the only surface a player ever touches.
+   *
+   * That top used to be wrong for any low step. The half-height was `max(0.3, y / 2)` about a
+   * centre of `y / 2`, so a minimum thickness was added *upward* — and below `y = 0.6` the step
+   * rose above the height it was supposed to sit at. Measured on a 12 m ramp: a shallow 0 → 1
+   * climb put six of its ten steps up to **0.28 m** too high, and any ramp that reaches the
+   * ground ends in a **0.15 m lip** — a step up at the bottom of a slope down.
+   *
+   * This is not the "ramps cannot descend" that this repository's notes have claimed for a while.
+   * A descent between two heights (10 → 6) is exact, measured at 0.00 m error on every step. The
+   * defect was never about direction; it was about how close to the floor a step lands, which is
+   * why it showed up on descents — those are the ramps that end at ground level.
+   *
+   * The minimum thickness goes downward now, so a step can never be thinner than
+   * `MIN_STEP_THICKNESS` and its top is always exactly `y`. For every step at or above that
+   * thickness the geometry is bit-for-bit what it was, which is what keeps the three shipped maps
+   * unchanged except where they were already wrong.
+   */
   ramp(x: number, z: number, width: number, length: number, y0: number, y1: number, yaw: number, zone = 'jungle'): void {
-    // Approximated with stacked steps: keeps the solver on boxes (fast, stable) and reads well
-    // with the stylised art direction.
     const steps = Math.max(3, Math.round(length / 1.2));
     for (let i = 0; i < steps; i++) {
       const t = (i + 0.5) / steps;
-      const y = y0 + (y1 - y0) * t;
+      const top = y0 + (y1 - y0) * t;
+      const bottom = Math.min(0, top - MIN_STEP_THICKNESS);
       const dist = (t - 0.5) * length;
       this.box(
-        vec3(x + Math.sin(yaw) * dist, y * 0.5, z + Math.cos(yaw) * dist),
-        vec3(width * 0.5, Math.max(0.3, y * 0.5), (length / steps) * 0.62),
+        vec3(x + Math.sin(yaw) * dist, (top + bottom) * 0.5, z + Math.cos(yaw) * dist),
+        vec3(width * 0.5, (top - bottom) * 0.5, (length / steps) * 0.62),
         'rock',
         yaw,
         zone,

@@ -49,7 +49,10 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   return b.build({
     id: 'jungle-world',
     name: 'Jungle World',
-    version: 1,
+    // 2: the cave and canyon ramps reach their own floors. `ramp()` stopped inflating low steps
+    // upward, and both ramps now ask for the -4 those floors actually sit at instead of the -8
+    // that only looked right while the builder was halving it.
+    version: 2,
     seed,
     killPlaneY: -35,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -72,9 +75,18 @@ function buildTerrain(b: LevelBuilder): void {
   b.box(vec3(84, -6, 6), vec3(30, 2, 40), 'rock', 0, 'canyon');
   // Cave floor (lower, wet).
   b.box(vec3(-78, -6, 0), vec3(28, 2, 30), 'wetRock', 0, 'cave');
-  // Ramps connecting the three districts.
-  b.ramp(-46, 0, 12, 22, 0, -8, Math.PI / 2, 'cave');
-  b.ramp(62, 6, 14, 26, 0, -8, Math.PI / 2, 'canyon');
+  // Ramps connecting the three districts. Each ends at its district's floor: the canyon and cave
+  // floors above are boxes centred at y -6 with a half-height of 2, so both walking surfaces are
+  // at **-4**, and that is what a ramp down to them has to ask for.
+  //
+  // Both said -8 until now, and looked right anyway, because `LevelBuilder.ramp()` was halving
+  // every descent: its step tops landed at `y/2 + 0.3`, so -8 drew a ramp bottoming out at -3.7,
+  // a third of a metre above the -4 floor. The number in the level was tuned against the bug
+  // rather than against the geometry. With `ramp()` fixed, -8 would drive the lower half of each
+  // ramp underneath its own floor — walkable only down to -4, so the same drop covered in half
+  // the run, twice as steep as the map has ever played.
+  b.ramp(-46, 0, 12, 22, 0, -4, Math.PI / 2, 'cave');
+  b.ramp(62, 6, 14, 26, 0, -4, Math.PI / 2, 'canyon');
 }
 
 /**
