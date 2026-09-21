@@ -414,6 +414,92 @@ describe('the punch button on PC and mobile', () => {
     expect(fistHeightAtFullReach(-0.7)).toBeLessThan(fistHeightAtFullReach(0));
   });
 
+  /**
+   * A swing that misses used to be silent in every channel.
+   *
+   * `combat.ts` emits `punchHit` only when a punch *connects*. Measured toe to toe, holding the
+   * button for 20 s: **87 swings thrown, 3 landed** — so 84 of 87 produced no sound, no pulse and
+   * nothing on the HUD. On a button platform that makes a whiff indistinguishable from a button
+   * that is not bound, and `GameClient.playHaptics` had carried a `case 'punch':` label for an
+   * event nothing in the game ever emitted.
+   */
+  describe('announces the swing itself, not only the ones that land', () => {
+    it('emits one punch event per throw, naming the fist', () => {
+      const { player, ctx, intent } = standing();
+      ctx.events.drain();
+      intent.buttons = Buttons.PunchRight;
+      ctx.tick++;
+      stepPlayer(player, intent, ctx, DT);
+      const events = ctx.events.drain().filter((e) => e.type === 'punch');
+      expect(events).toHaveLength(1);
+      expect(events[0]?.playerId).toBe('p');
+      expect(events[0]?.data).toBe('right');
+    });
+
+    it('throws at the throw cadence, not once per tick', () => {
+      // PUNCH_EXTEND + PUNCH_RETRACT is 0.22 s, so a second of holding is about 4-5 swings. A
+      // per-tick emit would be 60. This is the same `ready()` gate that already makes mashing
+      // pointless, which is why the cue cannot outrun the animation it belongs to.
+      const { player, ctx, intent } = standing();
+      ctx.events.drain();
+      intent.buttons = Buttons.PunchRight;
+      run(player, ctx, intent, 60);
+      const thrown = ctx.events.drain().filter((e) => e.type === 'punch').length;
+      expect(thrown).toBeGreaterThan(2);
+      expect(thrown).toBeLessThan(8);
+    });
+
+    it('stays silent while the player is only hopping', () => {
+      /**
+       * The regression this exists for. The obvious place to emit was the moment hand speed
+       * crosses `DEFAULT_COMBAT.punchSpeed` in `resolvePunches` — and that is not a punch:
+       * measured over 60 s of boxing with the punch buttons masked off entirely, a player's
+       * procedurally-placed hands cross that threshold **1056 times**, purely from hopping.
+       * Masking the buttons changed the count by zero, which is what proved the crossings had
+       * nothing to do with punching. A cue there would be a seventeen-a-second buzz.
+       */
+      const { player, ctx, intent } = standing();
+      ctx.events.drain();
+      let fastHandTicks = 0;
+      for (let i = 0; i < 180; i++) {
+        intent.buttons = i % 30 === 0 ? Buttons.Jump : 0;
+        ctx.tick++;
+        stepPlayer(player, intent, ctx, DT);
+        for (const hand of player.hands) {
+          const speed = Math.hypot(
+            hand.velocity.x - player.velocity.x,
+            hand.velocity.y - player.velocity.y,
+            hand.velocity.z - player.velocity.z,
+          );
+          if (speed >= DEFAULT_COMBAT.punchSpeed) fastHandTicks++;
+        }
+      }
+      const types = typesOf(ctx);
+      expect(types).toContain('jump');
+      // The hands really do outrun the punch threshold while hopping — otherwise this test would
+      // pass for the wrong reason, proving only that the probe never provoked the case.
+      expect(fastHandTicks).toBeGreaterThan(0);
+      expect(types).not.toContain('punch');
+    });
+
+    it('stays silent for a VR player, whose arm is the punch', () => {
+      // `startPunchThrows` returns early on tracked hands, so there is no button press to
+      // announce. A headset player already knows they swung: they swung.
+      const { player, ctx, intent } = standing();
+      ctx.events.drain();
+      intent.hands = [createHandIntent(), createHandIntent()];
+      for (const hand of intent.hands) {
+        hand.tracked = true;
+        hand.pos.x = 0.3;
+        hand.pos.y = 1;
+        hand.pos.z = 0.2;
+      }
+      intent.buttons = Buttons.PunchRight;
+      run(player, ctx, intent, 30);
+      expect(typesOf(ctx)).not.toContain('punch');
+    });
+  });
+
   it('leaves a VR player’s tracked hands alone', () => {
     /**
      * A headset punches by moving its arm. Synthesising a thrust on top of that would let a VR

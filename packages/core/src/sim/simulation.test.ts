@@ -250,3 +250,66 @@ describe('Boxing mode', () => {
     expect(intent.buttons & Buttons.PunchRight).toBeTruthy();
   });
 });
+
+/**
+ * A punch has to be thrown on purpose.
+ *
+ * `punchHit` fires only when a punch *connects*, so a swing that missed used to reach the player
+ * through no channel at all — measured toe to toe over 20 s, 87 swings thrown and 3 landed. The
+ * fix emits `punch` where a throw is deliberately started, in `startPunchThrows`.
+ *
+ * The tempting alternative was `resolvePunches`, at the moment hand speed crosses
+ * `DEFAULT_COMBAT.punchSpeed` — and that is not a punch. Measured over 60 s of boxing with the
+ * punch buttons masked off entirely, a player's procedurally-placed hands cross that threshold
+ * **1056 times**, purely from hopping; masking the buttons changed the count by zero, which is
+ * what proved the crossings had nothing to do with punching. A cue there is a seventeen-a-second
+ * buzz for a player who never pressed anything.
+ *
+ * This runs the whole `Simulation.step`, not just `stepPlayer`, because that is the only level at
+ * which both candidate sites actually execute — a guard in `locomotion.test.ts` alone cannot see
+ * an emit added to `resolvePunches` and would pass while the buzz shipped.
+ */
+describe('the punch cue', () => {
+  it('stays silent for a player who is only hopping in a combat mode', () => {
+    const sim = new Simulation({ level, modeId: 'boxing', seed: 5 });
+    sim.addPlayer({ id: 'hopper' });
+    sim.addPlayer({ id: 'bystander' });
+    runTicks(sim, TICK_RATE * 6);
+    sim.events.drain();
+
+    const hop = createIntent();
+    const still = createIntent();
+    const seen: string[] = [];
+    for (let i = 0; i < TICK_RATE * 6; i++) {
+      hop.buttons = i % 30 === 0 ? Buttons.Jump : 0;
+      sim.setIntent('hopper', hop);
+      sim.setIntent('bystander', still);
+      sim.step();
+      for (const event of sim.events.drain()) seen.push(event.type);
+    }
+
+    // Without this the test could pass by never making anyone hop at all.
+    expect(seen).toContain('jump');
+    expect(seen).toContain('land');
+    expect(seen).not.toContain('punch');
+  });
+
+  it('fires once a punch button is actually held', () => {
+    const sim = new Simulation({ level, modeId: 'boxing', seed: 5 });
+    sim.addPlayer({ id: 'boxer' });
+    runTicks(sim, TICK_RATE * 6);
+    sim.events.drain();
+
+    const punching = createIntent();
+    punching.buttons = Buttons.PunchRight;
+    let thrown = 0;
+    for (let i = 0; i < TICK_RATE; i++) {
+      sim.setIntent('boxer', punching);
+      sim.step();
+      for (const event of sim.events.drain()) if (event.type === 'punch') thrown++;
+    }
+    // A throw takes 0.22 s, so a second of holding is a handful of swings — never one per tick.
+    expect(thrown).toBeGreaterThan(2);
+    expect(thrown).toBeLessThan(8);
+  });
+});

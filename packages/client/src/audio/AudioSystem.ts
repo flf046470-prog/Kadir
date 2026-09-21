@@ -184,6 +184,12 @@ export class AudioSystem {
       case 'tag':
         this.tag(at, isLocalPlayer);
         break;
+      case 'punch':
+        // The swing itself, whether or not it lands. Quieter than `climbLaunch`'s 0.5 so a flurry
+        // of misses never drowns out the `impact` of one that connects — the hit is the
+        // information, the swing is only confirmation that the button did something.
+        this.whoosh(at, 0.35);
+        break;
       case 'punchHit':
         this.impact(at, Math.min(1, event.magnitude / 20), event.data === 'head' ? 180 : 120);
         break;

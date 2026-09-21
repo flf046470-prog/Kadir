@@ -59,7 +59,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   const grabLeft = hasButton(intent.buttons, Buttons.GrabLeft);
   const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
 
-  startPunchThrows(player, intent, frozen);
+  startPunchThrows(player, intent, frozen, ctx);
   updateHandPoses(player, intent, dt, grabLeft, grabRight);
 
   const handsAnchored = updateHandGrips(player, ctx);
@@ -144,7 +144,12 @@ const GRAB_REACH = 0.55;
  * three platforms was impossible on the button meant for it and an accident on the climbing
  * button. VR Boxing and the Conversion Duel bouts are built entirely on punching.
  */
-function startPunchThrows(player: PlayerState, intent: InputIntent, frozen: boolean): void {
+function startPunchThrows(
+  player: PlayerState,
+  intent: InputIntent,
+  frozen: boolean,
+  ctx: LocomotionContext,
+): void {
   // A VR player's hands are tracked, and their real motion already carries the punch; adding a
   // synthetic thrust on top would let a headset player punch with a button *and* their arm.
   if (intent.hands !== null || frozen) return;
@@ -156,11 +161,36 @@ function startPunchThrows(player: PlayerState, intent: InputIntent, frozen: bool
   // the combat cooldown has also expired, so holding the button throws at the weapon's own cadence
   // instead of once per press. Mashing cannot beat it, which is the point.
   const ready = (hand: HandState): boolean => hand.punchThrow <= 0 && hand.punchCooldown <= 0;
+  /**
+   * Start a throw — and say that one started.
+   *
+   * `punchHit` only fires when a punch *connects*, so before this every swing that missed was
+   * silent in every channel: no sound, no pulse, nothing on the HUD. On a button platform that
+   * makes a whiff indistinguishable from an unbound button, which is the same "reads as the game
+   * having stopped responding" failure as the dropped gadget events.
+   *
+   * It is emitted here rather than from `combat.ts` because this is the only place in the game
+   * where a punch is *deliberately started*. The obvious alternative — the moment hand speed
+   * crosses `punchSpeed` in `resolvePunches` — is not a punch at all: measured over 60 s of
+   * boxing, a player's procedurally-placed hands cross that threshold **1056 times** with the
+   * punch buttons masked off entirely, i.e. from ordinary hopping. A cue there would be a
+   * seventeen-a-second buzz. `ready()` already rate-limits this one to a throw's own cadence.
+   *
+   * `hand.world` is last tick's pose (hands are posed later in `stepPlayer`), which is correct
+   * here: at the start of a throw the fist is still at the chest, and that is where the swing
+   * should be heard from.
+   */
+  const throwWith = (hand: HandState, side: number): void => {
+    hand.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+    ctx.events.emit('punch', player.id, hand.world, ctx.tick, 0, {
+      data: side === LEFT ? 'left' : 'right',
+    });
+  };
   for (let i = 0; i < 2; i++) {
     if (!wants[i]) continue;
     const own = player.hands[i] as HandState;
     if (ready(own)) {
-      own.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+      throwWith(own, i);
       continue;
     }
     /**
@@ -181,7 +211,7 @@ function startPunchThrows(player: PlayerState, intent: InputIntent, frozen: bool
      */
     if (own.punchThrow > 0) continue;
     const other = player.hands[1 - i] as HandState;
-    if (!wants[1 - i] && ready(other)) other.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+    if (!wants[1 - i] && ready(other)) throwWith(other, 1 - i);
   }
 }
 

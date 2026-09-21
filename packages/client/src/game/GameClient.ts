@@ -680,6 +680,12 @@ export class GameClient {
         feedback('release');
         break;
       case 'punch':
+        // A swing, not a connect. It carries no damage to scale by — `magnitude` is 0 — so it
+        // had to leave the fall-through it used to share with `punchHit`, where `magnitude / 6`
+        // would have made every throw a zero-strength pulse, which is silence with extra steps.
+        // Fixed and deliberately below a hit's, and sent to the fist that actually threw it.
+        feedback('punch', event.data === 'left' ? 'left' : 'right', 0.45);
+        break;
       case 'punchHit':
         feedback('punch', 'both', Math.min(1, event.magnitude / 6));
         break;

@@ -1063,6 +1063,58 @@ literal is a check people learn to skim, which is worse than no check — and th
 Measurement hazards section already gives the tell, identical results across supposedly different
 inputs, which fourteen byte-identical failure lines are about as loudly as it can be given.
 
+## A punch that missed was silent in every channel
+
+`SimEventType` declares 23 events. Enumerating every `.emit(` call site in `@kc/core` — they are
+all string literals, so the list is exhaustive — **20 are emitted. `punch`, `chat` and `voice`
+are not.** `chat` and `voice` are inert type members with no producer and no consumer; `punch`
+had a live consumer waiting for it, `case 'punch':` sharing a fall-through with `punchHit` in
+`GameClient.playHaptics`, for an event nothing in the game ever emitted.
+
+`combat.ts` emits `punchHit` only when a punch *connects*. So a swing that missed produced no
+sound, no pulse and nothing on the HUD. Measured toe to toe, holding the button for 20 s:
+**87 swings thrown, 3 landed — 84 of 87 silent.** On a button platform a whiff is then
+indistinguishable from a button that is not bound, which is the same "reads as the game having
+stopped responding" failure as the dropped gadget events. It is emitted in `startPunchThrows` now,
+`AudioSystem` gained a `whoosh` case, and the haptic case started firing after two years of
+being unreachable.
+
+**The obvious emit site is wrong, and only measuring showed it.** The natural place is
+`resolvePunches`, at the moment hand speed crosses `DEFAULT_COMBAT.punchSpeed` — that is, after
+all, the game's own definition of a punch. Measured over 60 s of boxing: a player's
+procedurally-placed hands cross that threshold **1056 times**, and **masking the punch buttons
+off entirely changed the count by zero** — 1056 either way, this file's own "identical results
+from different inputs" tell, here proving the crossings are ordinary hopping. A cue there is a
+seventeen-a-second buzz for a player who pressed nothing. `startPunchThrows` is the only place a
+punch is *deliberately started*, and its existing `ready()` gate already rate-limits it to the
+throw's own cadence: measured 4.30/s while holding, and **mashing the button every other tick
+gives exactly the same 4.30/s**, which is the documented "mashing cannot beat it" rule holding for
+the cue too.
+
+Two smaller things the measurement settled:
+
+- **VR gets no `punch` event, deliberately.** `startPunchThrows` returns early on tracked hands —
+  a headset player's arm *is* the punch, so there is no button press to announce and they already
+  know they swung. Same reasoning this file already applies to the landing camera dip and to
+  crouch-by-ducking.
+- **`punch` had to leave the fall-through it shared with `punchHit`.** That case scales by
+  `event.magnitude / 6`, and a throw carries no damage to scale by, so every swing would have been
+  a zero-strength pulse — silence with extra steps. It is a fixed 0.45 now, below a hit's, and
+  sent to the fist that actually threw it (`data` carries `'left'`/`'right'`) rather than to both.
+
+**Ruled out by measuring, so nobody re-derives it:** those 1056 threshold crossings do *not* let a
+hopping player punch someone by accident. Two players standing adjacent for 20 s, one hopping,
+punch button never pressed: 0 `punchHit`, victim health 100.0 → 100.0. Two capsules touching are
+0.70 m apart against a 0.42 m `punchRadius`, so the hands never reach. The geometry protects it.
+
+**The guard for this lives in `simulation.test.ts`, not `locomotion.test.ts`, and that is the
+point.** A hopping-stays-silent test at the locomotion level runs `stepPlayer` only — it cannot
+see an emit added to `resolvePunches` and passes happily while the buzz ships. Confirmed by
+mutation: putting the emit back at the speed threshold left every locomotion test green and failed
+the simulation-level one with `expected 56 to be less than 8`. Three mutations, each applied and
+reverted on its own: removing the emit (2 tests fail), emitting per held tick instead of per throw
+(the cadence test fails), and emitting at the speed threshold (the hopping guard fails).
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:
