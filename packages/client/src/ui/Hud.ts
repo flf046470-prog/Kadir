@@ -224,6 +224,10 @@ export class Hud {
         makeButton('HOP', 'jump', true),
         makeButton('PUNCH', 'punch'),
         makeButton('EMOTE', 'emote'),
+        // The one button PC and gamepad both have (Ctrl / face button 1) that mobile never did —
+        // no touch path reached `Buttons.Crouch` at all, so the crouch speed cap, stealth and the
+        // crouch jump boost (`locomotion.ts`) were unreachable on a whole platform.
+        makeButton('CROUCH', 'crouch'),
       ),
       // Second cluster, top-right: the equipment controls. Kept apart from the movement pad so a
       // thumb reaching for HOP mid-chase cannot fire a freeze gun by accident.

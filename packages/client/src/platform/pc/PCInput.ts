@@ -57,6 +57,15 @@ export class PCInput implements PlatformInput {
   private grabLatch = new HoldOrToggle();
   private dragging = false;
   private dragDistance = 0;
+  /**
+   * Cached from `sample()`'s `settings` each tick for `onMouseMove` to read, which only gets the
+   * raw `MouseEvent`. Mouse-look — pointer-locked *and* the no-pointer-lock drag fallback, so both
+   * of the mouse's own look paths — hardcoded its own multiplier and never read either setting;
+   * only the optional gamepad-look path (`readGamepad`) did. On the platform most PC players use a
+   * mouse rather than a pad, "Look sensitivity" and "Invert Y" did nothing for most of them.
+   */
+  private lookSensitivity = 1;
+  private invertY = false;
 
   constructor(canvas: HTMLElement) {
     this.canvas = canvas;
@@ -127,6 +136,9 @@ export class PCInput implements PlatformInput {
   }
 
   sample(out: InputIntent, dt: number, settings: Settings): void {
+    this.lookSensitivity = settings.controls.lookSensitivity;
+    this.invertY = settings.controls.invertY;
+
     let moveX = 0;
     let moveZ = 0;
     if (this.keys.has('KeyW') || this.keys.has('ArrowUp')) moveZ += 1;
@@ -238,10 +250,11 @@ export class PCInput implements PlatformInput {
   };
 
   private onMouseMove = (event: MouseEvent): void => {
-    const sensitivity = 0.0022;
+    const sensitivity = 0.0022 * this.lookSensitivity;
+    const dy = event.movementY * sensitivity * (this.invertY ? -1 : 1);
     if (this.pointerLocked) {
       this.yaw -= event.movementX * sensitivity;
-      this.pitch = clamp(this.pitch - event.movementY * sensitivity, -1.45, 1.45);
+      this.pitch = clamp(this.pitch - dy, -1.45, 1.45);
       return;
     }
     // Without pointer lock the mouse cannot be recentred, so a bare mouse-move would let you
@@ -249,7 +262,7 @@ export class PCInput implements PlatformInput {
     // is driven by held-button movement instead.
     if (!this.dragging) return;
     this.yaw -= event.movementX * sensitivity;
-    this.pitch = clamp(this.pitch - event.movementY * sensitivity, -1.45, 1.45);
+    this.pitch = clamp(this.pitch - dy, -1.45, 1.45);
 
     // A drag is a look, not an attack. Past a few pixels the held button stops counting as a
     // punch or a grab, so turning around does not swing at whoever is in front of you — while a

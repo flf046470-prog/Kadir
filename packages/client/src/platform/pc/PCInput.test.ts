@@ -55,10 +55,14 @@ function fakeDom(options: { lockThrows?: boolean } = {}) {
   };
 }
 
-function look(input: PCInput): { yaw: number; pitch: number; buttons: number } {
+function look(input: PCInput, settings = DEFAULT_SETTINGS): { yaw: number; pitch: number; buttons: number } {
   const out = createIntent();
-  input.sample(out, 1 / 60, DEFAULT_SETTINGS);
+  input.sample(out, 1 / 60, settings);
   return { yaw: out.lookYaw, pitch: out.lookPitch, buttons: out.buttons };
+}
+
+function withLook(lookSensitivity: number, invertY = false) {
+  return { ...DEFAULT_SETTINGS, controls: { ...DEFAULT_SETTINGS.controls, lookSensitivity, invertY } };
 }
 
 describe('mouse look without pointer lock', () => {
@@ -138,6 +142,47 @@ describe('mouse look without pointer lock', () => {
     dom.fire('mousedown', { button: 0, target: { tagName: 'INPUT' } });
     dom.fire('mousemove', { movementX: 50, movementY: 0 });
     expect(look(input).yaw).toBe(0);
+  });
+
+  /**
+   * Mouse-look hardcoded its own sensitivity constant and never read `controls.lookSensitivity`
+   * or `.invertY` at all — only the optional gamepad-look path did. On the platform most players
+   * use a mouse, not a pad, so both sliders in the Settings menu did nothing for them, locked or
+   * dragging alike (the fix is one shared `sensitivity`/`dy` computation for both branches).
+   */
+  it('scales drag-look by controls.lookSensitivity instead of a fixed constant', () => {
+    look(input, withLook(0.5)); // cache the low sensitivity before dragging
+    dom.fire('mousedown', { button: 0, target: null });
+    dom.fire('mousemove', { movementX: 100, movementY: 0 });
+    const afterLow = look(input, withLook(0.5)).yaw;
+    dom.fire('mouseup', { button: 0 });
+
+    look(input, withLook(2)); // cache the high sensitivity before the second drag
+    dom.fire('mousedown', { button: 0, target: null });
+    dom.fire('mousemove', { movementX: 100, movementY: 0 });
+    const afterHigh = look(input, withLook(2)).yaw;
+
+    const deltaLow = Math.abs(afterLow);
+    const deltaHigh = Math.abs(afterHigh - afterLow);
+    expect(deltaHigh).toBeGreaterThan(deltaLow * 3);
+  });
+
+  it('flips drag-look pitch when invertY is on, without touching yaw', () => {
+    look(input, withLook(1, false));
+    dom.fire('mousedown', { button: 0, target: null });
+    dom.fire('mousemove', { movementX: 20, movementY: 40 });
+    const normal = look(input, withLook(1, false));
+    dom.fire('mouseup', { button: 0 });
+
+    look(input, withLook(1, true));
+    dom.fire('mousedown', { button: 0, target: null });
+    dom.fire('mousemove', { movementX: 20, movementY: 40 });
+    const inverted = look(input, withLook(1, true));
+
+    expect(normal.pitch).not.toBe(0);
+    expect(Math.sign(inverted.pitch - normal.pitch)).toBe(-Math.sign(normal.pitch));
+    // Same movementX, same sensitivity, both drags — yaw must not react to invertY at all.
+    expect(inverted.yaw - normal.yaw).toBeCloseTo(normal.yaw, 5);
   });
 
   /**

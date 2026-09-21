@@ -23,6 +23,13 @@ export interface MobileButtonState {
   shop: boolean;
   /** Push-to-talk. Held, not toggled — a toggle is how a phone ends up broadcasting a bus. */
   talk: boolean;
+  /**
+   * PC has a key and a gamepad button for this; VR gets it for free from ducking your head. Mobile
+   * had neither — no button, no hint, no way to reach `Buttons.Crouch` at all — so stealth, the
+   * crouch speed cap and the crouch jump boost (`locomotion.ts`) were PC/VR-only in a cross-play
+   * game.
+   */
+  crouch: boolean;
 }
 
 /**
@@ -40,10 +47,14 @@ export class MobileInput implements PlatformInput {
     { action: 'Move', hint: 'Left stick' },
     { action: 'Look', hint: 'Swipe right side' },
     { action: 'Hop (hold to charge)', hint: 'Jump button' },
+    { action: 'Crouch', hint: 'Crouch button' },
     { action: 'Grab / climb', hint: 'Grab button' },
+    { action: 'Punch', hint: 'Punch button' },
     { action: 'Emote', hint: 'Emote button' },
     { action: 'Use gadget', hint: 'Gadget button' },
-    { action: 'Next gadget', hint: 'Tap the gadget name' },
+    // The button is labelled NEXT; it used to say "tap the gadget name", which nothing ever
+    // wired up — a stale hint pointing at a gesture the game never read.
+    { action: 'Next gadget', hint: 'Next button' },
     { action: 'Shop / board', hint: 'Shop button' },
     { action: 'Talk', hint: 'Hold the mic button' },
   ];
@@ -57,6 +68,7 @@ export class MobileInput implements PlatformInput {
     cycle: false,
     shop: false,
     talk: false,
+    crouch: false,
   };
 
   /**
@@ -79,6 +91,14 @@ export class MobileInput implements PlatformInput {
   private surface: HTMLElement;
   private attached = false;
   private stickRadius = 55;
+  /**
+   * Cached from `sample()`'s `settings` each tick for `onPointerMove` to read, which only gets the
+   * raw `PointerEvent` — the same reason `VRInput` caches `hapticScale`/`armsOnly` from its own
+   * `sample()`. Without this, swipe-look hardcoded its own multiplier and ignored both settings
+   * entirely: `Settings` menu sliders a mobile player could drag with zero effect on their camera.
+   */
+  private lookSensitivity = 1;
+  private invertY = false;
 
   /** Notified when the joystick moves so the UI can draw it. */
   onStickChange: ((stick: { active: boolean; originX: number; originY: number; x: number; y: number }) => void) | null = null;
@@ -125,6 +145,8 @@ export class MobileInput implements PlatformInput {
 
   sample(out: InputIntent, _dt: number, settings: Settings): void {
     this.stickRadius = settings.controls.joystickSize * 0.5;
+    this.lookSensitivity = settings.controls.lookSensitivity;
+    this.invertY = settings.controls.invertY;
 
     out.moveX = this.stick ? clamp(this.stick.x / this.stickRadius, -1, 1) : 0;
     out.moveZ = this.stick ? clamp(-this.stick.y / this.stickRadius, -1, 1) : 0;
@@ -144,6 +166,7 @@ export class MobileInput implements PlatformInput {
     if (this.held('cycle')) buttons |= Buttons.CycleGadget;
     if (this.held('shop')) buttons |= Buttons.Shop;
     if (this.held('talk')) buttons |= Buttons.Talk;
+    if (this.held('crouch')) buttons |= Buttons.Crouch;
     // Sprint is automatic on touch: holding the stick at full deflection sprints, so the player
     // never has to find a second button while running for their life.
     if (Math.hypot(out.moveX, out.moveZ) > 0.92) buttons |= Buttons.Sprint;
@@ -177,9 +200,10 @@ export class MobileInput implements PlatformInput {
       return;
     }
     if (event.pointerId === this.lookPointer) {
-      const sensitivity = 0.0055 * 1;
+      const sensitivity = 0.0055 * this.lookSensitivity;
       this.yaw -= (event.clientX - this.lastLookX) * sensitivity;
-      this.pitch = clamp(this.pitch - (event.clientY - this.lastLookY) * sensitivity, -1.35, 1.35);
+      const dy = (event.clientY - this.lastLookY) * sensitivity * (this.invertY ? -1 : 1);
+      this.pitch = clamp(this.pitch - dy, -1.35, 1.35);
       this.lastLookX = event.clientX;
       this.lastLookY = event.clientY;
     }

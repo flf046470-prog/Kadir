@@ -781,6 +781,54 @@ function with zero coverage, unlike the level-grip data above which is genuinely
   leaving the first-spawn case correctly fixed — confirming the flag actually gates what it claims
   to on each path independently, not just in combination.
 
+## Mobile had no crouch, and "Look sensitivity" only worked with a gamepad
+
+Audited the mobile platform specifically, since VR and PC had both had a full pass this session
+and mobile had not. Grab/climb, hand semantics, gamepad-style one-button-one-action mapping and the
+thumb cluster's own layout were all already correct — no double-bound touch button, no PunchLeft-
+shaped gap. Three real problems, all in the same family as the settings/controls bugs already
+catalogued above: something declared and even reachable in one narrow path, silently missing or
+inert everywhere else it was supposed to work.
+
+- **Mobile had no way to crouch at all.** `MobileButtonState` had no `crouch` field, `sample()`
+  never produced `Buttons.Crouch`, and no button existed in the touch cluster or the tutorial. PC
+  has a key and a gamepad button for it; VR gets it for free from ducking your head below 1.15 m;
+  mobile had nothing. Not cosmetic — `locomotion.ts` ties crouch to a real 0.55× speed cap, a
+  smaller capsule, sprint being disabled, and a 1.08× jump boost — so stealth and crouch-jumping
+  were PC/VR-only in a cross-play game. The "every button produced and read" guard
+  (`intent.test.ts`) didn't catch it because it only asks whether *some* platform produces a
+  button, not whether every platform does — exactly the blind spot its own text-scan approach has
+  everywhere else. Added a `CROUCH` button to the touch cluster; it slotted into the existing 2- and
+  3-column grid layouts with zero CSS changes (verified — screenshotted in a real mobile-emulated
+  browser, sitting cleanly below GRAB).
+- **`controls.lookSensitivity` and `.invertY` only worked through an optional input path on each
+  platform.** PC's gamepad-look (`readGamepad`) and VR both read them correctly. PC's *mouse*-look
+  — `onMouseMove`, both the pointer-locked branch and the no-pointer-lock drag fallback, i.e. the
+  way essentially every PC player actually looks around — hardcoded `sensitivity = 0.0022` and
+  never touched either setting. Mobile's swipe-look hardcoded `0.0055 * 1`, where the bare `* 1` is
+  the shape of a `(settings.controls.invertY ? -1 : 1)` ternary with the branch itself deleted. So
+  the two sliders shown to every platform in one unconditional Controls section did nothing unless
+  you happened to be a PC player with a gamepad plugged in. Both `MobileInput` and `PCInput` now
+  cache `lookSensitivity`/`invertY` from `sample()`'s `settings` each tick — the same reason
+  `VRInput` already caches `hapticScale`/`armsOnly` — for their pointer-event handlers to read,
+  which only ever see the raw DOM event and never `settings` directly. Mutation-tested on both
+  platforms independently (reverting either the sensitivity multiplier or the invert branch
+  reproduces the dead-slider behaviour and fails the new tests).
+- **A stale tutorial hint.** "Next gadget: Tap the gadget name" described a gesture nothing ever
+  wired up — the real, working control is the separate NEXT button. Reworded to name the actual
+  button, the same way every sibling hint does (`'Grab button'`, `'Shop button'`), rather than
+  inventing the tap gesture the hint had always promised. Also added a "Punch" row, present on PC
+  and VR's hint lists but silently missing from mobile's despite the button being fully wired.
+
+`Settings.controls.joystickSize` was checked too and is **not** part of this bug: its own math
+(`stickRadius = joystickSize * 0.5`) genuinely drives the deadzone and normalisation `MobileInput`
+uses for `moveX`/`moveZ`. What it does *not* drive is the drawn ring's own diameter — `.kc-stick`
+in `styles.ts` is a fixed 110px CSS rule, so the visual joystick and the functional one only agree
+at the setting's default. Measured, real, and left alone this pass: fixing it needs the HUD to
+observe a live settings change mid-match, which the joystick radius clamp itself never needed,
+and the payoff is cosmetic rather than a control that does nothing — noted here so it is not
+mistaken for the same class of bug as the other three.
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by
