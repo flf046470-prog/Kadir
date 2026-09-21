@@ -1115,6 +1115,29 @@ the simulation-level one with `expected 56 to be less than 8`. Three mutations, 
 reverted on its own: removing the emit (2 tests fail), emitting per held tick instead of per throw
 (the cadence test fails), and emitting at the speed threshold (the hopping guard fails).
 
+## Release identity is one irreversible decision, and it is not made yet
+
+`pack:quest`/`pack:phone` derive `packageId` by **reversing `--domain`** (`packageIdForHost`), so
+the domain chosen for the site decides the Android app's permanent identity — and CLAUDE.md's
+Quest section already records that `packageId` and the signing key can never change afterwards.
+The packaging is parameterised correctly; what is unsettled is the input.
+
+Measured on disk: the artefacts in `packaging/` say **`com.example.kangaroo_chase`**, left over
+from a build run with a placeholder domain. `com.example.` is a reserved example namespace and
+both Meta and Google Play reject it. The generated Railway host would produce a *valid* id that is
+a *bad permanent* one, because it names a hosting provider's throwaway subdomain.
+
+So `/.well-known/assetlinks.json` 404ing on the live deployment is currently **correct**, not a
+gap to close in a hurry. The only statements that exist are for that placeholder package, signed
+by keystores that are gitignored and live in an ephemeral container. Publishing them would verify
+nothing and would have to be undone. `KC_ASSETLINKS` gets the merged JSON array — the file-path
+form cannot work on a container host — once a real domain, package id and safely-stored keystore
+exist, and not before.
+
+**Do not "fix" the 404 by setting `KC_ASSETLINKS` from whatever is in `packaging/`.** That was the
+obvious move and it is wrong for a reason that only shows up months later, when the app cannot be
+updated because its identity was chosen by a leftover test build.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

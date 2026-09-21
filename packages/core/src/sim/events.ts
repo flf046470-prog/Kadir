@@ -27,9 +27,18 @@ export type SimEventType =
   | 'gadgetUse'
   | 'gadgetHit'
   | 'gadgetExpire'
-  | 'status'
-  | 'chat'
-  | 'voice';
+  | 'status';
+// `chat` and `voice` were members here and were never emitted by anything, in either direction:
+// no `.emit()` call site in this package named them, and no consumer existed in any of the three
+// switches that turn an event into something a player perceives. Both already have a working home
+// that is not this queue — chat travels as its own `ClientChat`/`ServerChat` message so it can be
+// rate-limited and moderated, and mic loudness rides `InputIntent.voice` into `PlayerState`,
+// because a moving mouth is gameplay-visible state every client must agree on at the same tick
+// rather than a one-off notification. Their `case 'chat'`/`case 'voice'` labels in `NetClient` and
+// `gateway.ts` are switches over the *message* discriminator `t`, which happens to use the same
+// two words — which is exactly why a grep for them reported consumers that were not consumers.
+// Removed rather than left declared: unlike `Buttons`' bit 5, an event type is a JSON string and
+// not a position, so nothing decodes differently for the gap.
 
 export interface SimEvent {
   type: SimEventType;
