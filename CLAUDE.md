@@ -729,6 +729,58 @@ or negative value reaches `THREE.MathUtils.degToRad` in `updateTurn` and poisons
 permanently, freezing the camera's yaw for the rest of the session. Both fields now have sliders in
 the Comfort (VR) section — verified rendering in a real browser, values and labels intact.
 
+## A respawn used to teleport the body without telling the hands
+
+Grabbing is real, collision-based physics (`updateHandGrips`/`updateClimb` both call
+`world.closestSurface`, gated by `isGrabbable`), not a velocity trick — there is no separate
+movable-object system in this game beyond gadgets (`PhysicsWorld` says so outright: *"Dynamic
+entities (players) are handled separately"*), and there is no distinct ledge-grab mechanic despite
+`LevelDef.grips`/`GripKind` (`branch`/`ledge`/`vine`/`rock`/`root`) being authored into every map:
+`grips` is written by every level builder and read only by a test's level-stats count. Branch,
+ledge, vine and rock climb identically, keyed purely on `SurfaceFlags.Climbable` — the promised
+highlighting and per-grip feel do not exist. Left alone rather than built out: inventing that
+system was not asked for, and this pass exists to find what is broken, not to add scope.
+
+Two things were broken, found while writing the first test `applyPalmPush` ever had (the "shove a
+wall with an open hand" mechanic `VRInput`'s own control hints advertise — a real, live-effect
+function with zero coverage, unlike the level-grip data above which is genuinely inert):
+
+- **`MovementConfig.wallPush`** was declared, defaulted (6.5) and exposed as a live "Wall shove"
+  slider in the solo-practice tuning panel (`tuning.ts` → `TuningStore.ts`) — read by nothing. The
+  doc comment claimed it covered "shoving off a wall with a hand (VR) or wall-jumping
+  (PC/Mobile)", but both of those already had their own fields (`handPushForce` for
+  `applyPalmPush`, `wallJumpForce`/`wallJumpHorizontal` for `doWallJump`) fully wired and correct.
+  `wallPush` was leftover from before those existed — a slider a tester could drag with no effect
+  whatever, the tuning-panel equivalent of the settings the Settings section already documents,
+  except the tuning module has no coverage guard for it. Deleted rather than wired up, since the
+  behaviour it claimed already exists correctly under two better-named fields.
+  `HandState.anchorMaterial` was the same shape at a smaller scale — set once per grab, read by
+  nothing, since the `grab` event already carries `material` for anyone who needs it (`AudioSystem`
+  reads it from there). Deleted too.
+
+- **The real one, caught by the new test rather than guessed at**: `HandState.world`/`prevWorld`
+  default to the world origin and were left untouched by `respawnPlayer`. The tick a hand's pose is
+  first computed — at spawn, and again the tick right after *every* respawn, which "is normal" and
+  constant per this file's own Measurement hazards section — read as `(new position − stale
+  position) / dt` across the teleport. Measured with the actual respawn path (`respawnPlayer` to a
+  point 40+ m away): **3,047–3,267 m/s** of pure phantom hand velocity, from a player who pressed
+  nothing. That trivially clears `resolvePunches`' 3.4 m/s punch-speed threshold (it exceeded it by
+  three orders of magnitude) and `applyPalmPush`'s launch trigger — a full-power phantom punch on
+  anyone standing near the new spawn point, or a random launch off any geometry within palm range
+  of it, on every respawn, attributable to nothing the player did. `applyHandCorrection` already
+  had an "anti-teleport" clamp (`maxHandCorrection`) for exactly this class of problem on the
+  anchored-hand path; the palm-push and punch paths had no equivalent.
+
+  `HandState.posed` (false by default) is the fix: `updateHandPoses` snaps `prevWorld` to the
+  freshly computed `world` on the tick `posed` is false, so that tick's velocity reads as exactly
+  zero instead of a teleport delta, then sets it true. `respawnPlayer` resets it to false on both
+  hands, so the guard re-arms on every single respawn, not only the player's first spawn — one
+  flag, one snap site, both call sites. Mutation-tested each half independently: removing the
+  `updateHandPoses` snap reproduced the 3,000+ m/s spike on both the first-ever tick and the
+  post-respawn tick; removing only the `respawnPlayer` reset reproduced it on respawn alone while
+  leaving the first-spawn case correctly fixed — confirming the flag actually gates what it claims
+  to on each path independently, not just in combination.
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by

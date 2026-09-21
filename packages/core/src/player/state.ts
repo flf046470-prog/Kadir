@@ -34,7 +34,16 @@ export interface HandState {
   anchored: boolean;
   anchor: Vec3;
   anchorCollider: number;
-  anchorMaterial: SurfaceMaterial;
+  /**
+   * False exactly once: on the tick this hand's pose is first ever computed, and again on the
+   * tick right after a respawn. `updateHandPoses` uses it to snap `prevWorld` to the freshly
+   * computed `world` instead of leaving it at a stale or default position — without this, that
+   * tick's velocity is `(world - prevWorld) / dt` across a teleport (spawn from the origin, or a
+   * respawn to a new point), hundreds of m/s, easily clearing `resolvePunches`' 3.4 m/s threshold
+   * and `applyPalmPush`'s launch-off-a-wall trigger. A phantom full-power punch or launch on
+   * every single respawn — which, per this game's own falling-and-respawning design, is routine.
+   */
+  posed: boolean;
   /** Seconds until this hand may register another punch. */
   punchCooldown: number;
   /**
@@ -57,7 +66,7 @@ export function createHandState(): HandState {
     anchored: false,
     anchor: vec3(),
     anchorCollider: -1,
-    anchorMaterial: 'dirt',
+    posed: false,
     punchCooldown: 0,
     punchThrow: 0,
   };
@@ -275,6 +284,10 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
     hand.anchored = false;
     hand.anchorCollider = -1;
     hand.punchCooldown = 0;
+    // The body just teleported to `position`; without this, the next tick's hand pose jumps
+    // there too while `prevWorld` is still back at the old position, and the resulting velocity
+    // is a phantom punch or wall-launch waiting to happen. See HandState.posed.
+    hand.posed = false;
   }
 }
 

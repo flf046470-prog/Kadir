@@ -23,8 +23,6 @@ export interface MovementConfig {
   jumpForce: number;
   /** 0..1 — how much of `acceleration` applies while airborne. */
   airControl: number;
-  /** Impulse gained by shoving off a wall with a hand (VR) or wall-jumping (PC/Mobile). */
-  wallPush: number;
   /** Global multiplier on surface friction values. */
   surfaceFriction: number;
 
@@ -90,7 +88,6 @@ export const DEFAULT_MOVEMENT: MovementConfig = {
   pushForce: 1.0,
   jumpForce: 8.2,
   airControl: 0.42,
-  wallPush: 6.5,
   surfaceFriction: 1,
 
   sprintMultiplier: 1.35,

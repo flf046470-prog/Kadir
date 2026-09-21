@@ -122,14 +122,6 @@ export const TUNABLES = [
     step: 1,
   },
   {
-    field: 'wallPush',
-    label: 'Wall shove',
-    effect: 'Impulse from shoving off a wall.',
-    min: 1,
-    max: 16,
-    step: 0.5,
-  },
-  {
     field: 'climbLaunchForce',
     label: 'Climb launch',
     effect: 'Impulse when you let go of a grip and launch.',

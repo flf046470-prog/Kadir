@@ -7,11 +7,12 @@ import { SimEventQueue } from '../sim/events.js';
 import type { SimEventType } from '../sim/events.js';
 import { createIntent, createHandIntent, Buttons } from '../input/intent.js';
 import type { InputIntent } from '../input/intent.js';
-import { createPlayerState } from './state.js';
+import { createPlayerState, respawnPlayer } from './state.js';
 import type { HandState, PlayerState } from './state.js';
 import { stepPlayer } from './locomotion.js';
 import type { LocomotionContext } from './locomotion.js';
 import { DEFAULT_MOVEMENT } from './config.js';
+import { DEFAULT_COMBAT } from './combat.js';
 
 const DT = 1 / 60;
 
@@ -254,6 +255,28 @@ describe('VR hand physics', () => {
     expect(player.velocity.y).toBeGreaterThan(speedWhileHeld - 1);
   });
 
+  it('shoves the body away from a surface with an open-palm push, without ever gripping', () => {
+    // applyPalmPush had no test at all before this: it is the "shove off a wall with an open
+    // hand" mechanic VRInput's own control hints advertise, reachable only by moving a tracked,
+    // ungripped hand fast into geometry — exactly the case none of the anchor/pull/release tests
+    // above exercise, since they all hold grip at 1.
+    const player = createPlayerState({ id: 'v5', position: vec3(5.0, 3, 0) });
+    const intent = vrIntent({ x: 0, y: 1.4, z: 0.3 }, 0); // grip 0: an open palm, never a grab
+    intent.lookYaw = Math.PI / 2; // facing +x, toward the wall face at x = 5.4
+    run(player, ctx, intent, 10); // let the hand settle before measuring
+    expect(player.hands[1].anchored).toBe(false);
+
+    const vxBefore = player.velocity.x;
+    for (let i = 0; i < 10; i++) {
+      ctx.tick++;
+      const hand = intent.hands?.[1];
+      if (hand) hand.pos.z += 0.05; // thrust the open hand further into the wall each tick
+      stepPlayer(player, intent, ctx, DT);
+    }
+    expect(player.hands[1].anchored).toBe(false); // an open palm never grips, however hard it hits
+    expect(player.velocity.x).toBeLessThan(vxBefore); // pushed back, away from the surface
+  });
+
   it('does not let a hand grab a NoGrip surface', () => {
     const smooth = new PhysicsWorld([
       { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(30, 2, 30), yaw: 0, surface: { ...DEFAULT_SURFACE } },
@@ -462,5 +485,67 @@ describe('the punch button on PC and mobile', () => {
     // Still extending. The other fist must wait its turn rather than join in.
     run(player, ctx, intent, 1);
     expect(left.punchThrow, 'the second fist joined a throw already in flight').toBe(0);
+  });
+});
+
+/**
+ * `HandState.world`/`prevWorld` default to the world origin and were left untouched by a
+ * respawn, so the tick a hand's pose is first computed — at spawn, and again the tick right
+ * after every respawn, since falling and respawning is normal and constant in this game — used
+ * to read as `(new position − stale position) / dt`: hundreds of metres per second from nothing
+ * but a teleport, with no player input at all. That trivially cleared `resolvePunches`' 3.4 m/s
+ * punch threshold and `applyPalmPush`'s launch-off-a-wall trigger. `HandState.posed` snaps
+ * `prevWorld` to the freshly computed `world` on that one tick instead, and `respawnPlayer`
+ * clears it so the guard re-arms on every respawn, not only the first spawn.
+ */
+describe('hand velocity does not spike across a teleport', () => {
+  it('reads as stationary on the very first tick a hand is ever posed, far from the origin', () => {
+    const world = testWorld();
+    const ctx = makeContext(world);
+    const player = createPlayerState({ id: 'h1', position: vec3(40, 10, -30) });
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    stepPlayer(player, intent, ctx, DT);
+    for (const hand of player.hands) {
+      expect(Math.hypot(hand.velocity.x, hand.velocity.y, hand.velocity.z)).toBeLessThan(1);
+    }
+  });
+
+  it('reads as stationary on the tick right after a respawn teleports the body away', () => {
+    const world = testWorld();
+    const ctx = makeContext(world);
+    const player = createPlayerState({ id: 'h2', position: vec3(0, 0.5, 0) });
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    run(player, ctx, intent, 10); // settle normally, so `posed` is already true on both hands
+
+    respawnPlayer(player, vec3(-40, 12, 35), ctx.tick); // a real respawn: far away, instantly
+    ctx.tick++;
+    stepPlayer(player, intent, ctx, DT);
+    for (const hand of player.hands) {
+      expect(Math.hypot(hand.velocity.x, hand.velocity.y, hand.velocity.z)).toBeLessThan(1);
+    }
+  });
+
+  it('never reads a post-respawn tick as a punch', () => {
+    // The concrete failure mode: a phantom full-power hit on anyone standing near the new spawn
+    // point, through no action of the respawning player at all.
+    const world = testWorld();
+    const ctx = makeContext(world);
+    const player = createPlayerState({ id: 'h3', position: vec3(0, 0.5, 0) });
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    run(player, ctx, intent, 10);
+
+    respawnPlayer(player, vec3(-40, 12, 35), ctx.tick);
+    ctx.tick++;
+    stepPlayer(player, intent, ctx, DT);
+    const hand = player.hands[0] as HandState;
+    const relativeSpeed = Math.hypot(
+      hand.velocity.x - player.velocity.x,
+      hand.velocity.y - player.velocity.y,
+      hand.velocity.z - player.velocity.z,
+    );
+    expect(relativeSpeed).toBeLessThan(DEFAULT_COMBAT.punchSpeed);
   });
 });

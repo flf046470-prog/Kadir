@@ -254,6 +254,16 @@ function updateHandPoses(
 
     if (frozen) hand.gripHeld = false;
 
+    // First pose ever, or the first one after a respawn: `world` just jumped (from the origin
+    // default, or across a teleport to a new spawn point) while `prevWorld` is still wherever it
+    // was before. Snapping it here makes this tick's velocity exactly zero instead of a
+    // multi-hundred-m/s spike that would clear resolvePunches' punch threshold and trigger
+    // applyPalmPush from nothing but the jump itself.
+    if (!hand.posed) {
+      v3copy(hand.prevWorld, hand.world);
+      hand.posed = true;
+    }
+
     if (dt > 0) {
       v3set(
         hand.velocity,
@@ -301,7 +311,6 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
         hand.anchored = true;
         v3copy(hand.anchor, _surface.point);
         hand.anchorCollider = _surface.colliderIndex;
-        hand.anchorMaterial = _surface.surface.material;
         ctx.events.emit('grab', player.id, hand.anchor, ctx.tick, 1, {
           material: _surface.surface.material,
           data: i === LEFT ? 'left' : 'right',

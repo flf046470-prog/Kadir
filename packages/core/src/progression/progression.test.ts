@@ -68,7 +68,7 @@ describe('animal fairness', () => {
     const config = applyFeelProfile(DEFAULT_MOVEMENT, { maxSpeed: FEEL_BAND });
     expect(config.radius).toBe(DEFAULT_MOVEMENT.radius);
     expect(config.standHeight).toBe(DEFAULT_MOVEMENT.standHeight);
-    expect(config.wallPush).toBe(DEFAULT_MOVEMENT.wallPush);
+    expect(config.wallJumpForce).toBe(DEFAULT_MOVEMENT.wallJumpForce);
   });
 
   it('ships seven launch animals and keeps the roadmap roster valid', () => {
