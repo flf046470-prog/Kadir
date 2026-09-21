@@ -330,16 +330,13 @@ export class VRInput implements PlatformInput {
 
       hand.grip.getWorldPosition(WORLD);
       toBodyLocal(HAND_LOCAL, WORLD, this.renderer.rig.position, bodyYaw);
+      // Position only. Hand *velocity* is never sent: both the server and this client's own
+      // prediction derive it from consecutive positions in `locomotion.ts`, which is exactly what
+      // makes a punch unspoofable. Sending it too cost 46 % of each hand's wire payload for a
+      // number nobody read — see `HandIntent`.
       intentHand.pos.x = HAND_LOCAL.x;
       intentHand.pos.y = HAND_LOCAL.y;
       intentHand.pos.z = HAND_LOCAL.z;
-
-      // Velocity is sent for client-side prediction only; the server derives its own from
-      // consecutive positions, so inflating this field buys a cheater nothing.
-      toBodyLocalDirection(HAND_LOCAL, hand.velocity, bodyYaw);
-      intentHand.vel.x = HAND_LOCAL.x;
-      intentHand.vel.y = HAND_LOCAL.y;
-      intentHand.vel.z = HAND_LOCAL.z;
 
       if (intentHand.grip > grabThresholdFor(settings.comfort.grabSensitivity)) {
         buttons |= i === 0 ? Buttons.GrabLeft : Buttons.GrabRight;
@@ -429,8 +426,3 @@ export function toBodyLocal(out: THREE.Vector3, world: THREE.Vector3, origin: TH
   out.set(dx * cos - dz * sin, world.y - origin.y, dx * sin + dz * cos);
 }
 
-export function toBodyLocalDirection(out: THREE.Vector3, direction: THREE.Vector3, yaw: number): void {
-  const cos = Math.cos(yaw);
-  const sin = Math.sin(yaw);
-  out.set(direction.x * cos - direction.z * sin, direction.y, direction.x * sin + direction.z * cos);
-}

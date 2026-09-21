@@ -39,22 +39,47 @@ describe('intent codec', () => {
     intent.hands = [createHandIntent(), createHandIntent()];
     intent.hands[0].tracked = true;
     intent.hands[0].pos = { x: -0.3, y: 1.2, z: 0.35 };
-    intent.hands[0].vel = { x: 2.5, y: -1, z: 4 };
     intent.hands[0].grip = 0.8;
     intent.hands[1].tracked = true;
     intent.hands[1].pos = { x: 0.3, y: 1.25, z: 0.4 };
     intent.hands[1].grip = 1;
 
     const bytes = encodeIntent(intent);
-    expect(bytes.length).toBe(42); // 16 + 13 bytes per tracked hand
+    // 16 + 7 bytes per tracked hand: 3 × i16 of position and one grip byte. It was 13 before the
+    // per-hand velocity came out — 6 B nothing read, 46 % of each hand's payload.
+    expect(bytes.length).toBe(30);
 
     const out = createIntent();
     decodeIntent(bytes, out);
     expect(out.hands?.[0].pos.y).toBeCloseTo(1.2, 3);
-    expect(out.hands?.[0].vel.z).toBeCloseTo(4, 1);
+    expect(out.hands?.[0].pos.z).toBeCloseTo(0.35, 3);
     expect(out.hands?.[0].grip).toBeCloseTo(0.8, 2);
 
     expect(out.hands?.[1].tracked).toBe(true);
+  });
+
+  /**
+   * Hand speed is the server's arithmetic, never the client's claim.
+   *
+   * `combat.ts` resolves a punch from hand velocity, and `locomotion.ts` derives that velocity
+   * from consecutive positions. The intent frame used to carry a `vel` the client filled in
+   * itself — sanitised, so it looked vetted, and sitting in the same struct as `pos`. Nothing read
+   * it, but anything that ever did would have handed every modified client a 20 m/s punch on
+   * demand against a 3.4 m/s threshold. The frame has no field for it now, so there is nothing to
+   * wire up by mistake: this pins that the only hand data on the wire is position and grip.
+   */
+  it('gives a client no way to declare how fast its hand is moving', () => {
+    const intent = createIntent();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.hands[0].tracked = true;
+    intent.hands[0].pos = { x: 0.2, y: 1.1, z: 0.3 };
+    intent.hands[0].grip = 0.5;
+
+    const out = createIntent();
+    decodeIntent(encodeIntent(intent), out);
+    const hand = out.hands?.[0] as Record<string, unknown> | undefined;
+    expect(hand).toBeDefined();
+    expect(Object.keys(hand ?? {}).toSorted()).toEqual(['grip', 'pos', 'tracked']);
   });
 
   it('survives a hostile frame without throwing on the happy path', () => {

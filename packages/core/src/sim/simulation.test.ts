@@ -226,9 +226,11 @@ describe('Boxing mode', () => {
 
     // Drive A's right hand into B at punch speed, the way the VR platform layer would.
     const intent = createIntent();
+    // No velocity is sent — the punch comes from `hand.pos` moving between ticks below, which is
+    // the only way hand speed is ever established. See `HandIntent`.
     intent.hands = [
-      { tracked: false, pos: { x: 0, y: 0, z: 0 }, vel: { x: 0, y: 0, z: 0 }, grip: 0 },
-      { tracked: true, pos: { x: 0.2, y: 1.1, z: 0.1 }, vel: { x: 0, y: 0, z: 0 }, grip: 0 },
+      { tracked: false, pos: { x: 0, y: 0, z: 0 }, grip: 0 },
+      { tracked: true, pos: { x: 0.2, y: 1.1, z: 0.1 }, grip: 0 },
     ];
     const health = b.health;
     for (let i = 0; i < 8; i++) {

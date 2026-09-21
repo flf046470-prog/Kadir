@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { toBodyLocal, toBodyLocalDirection } from './VRInput.js';
+import { toBodyLocal } from './VRInput.js';
 
 /**
  * The simulation's local -> world mapping, copied from `player/locomotion.ts`.
@@ -41,11 +41,4 @@ describe('VR body-local transform', () => {
     expect(out.z).toBeCloseTo(0, 6);
   });
 
-  it('transforms directions without the origin offset', () => {
-    const out = new THREE.Vector3();
-    toBodyLocalDirection(out, new THREE.Vector3(0, 0, 4), 0);
-    expect(out.z).toBeCloseTo(4, 6);
-    toBodyLocalDirection(out, new THREE.Vector3(4, 0, 0), Math.PI / 2);
-    expect(out.z).toBeCloseTo(4, 6);
-  });
 });

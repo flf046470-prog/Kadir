@@ -1,5 +1,13 @@
-/** Wire protocol version. Server rejects clients that do not match. */
-export const PROTOCOL_VERSION = 2;
+/**
+ * Wire protocol version. Server rejects clients that do not match.
+ *
+ * 3: the intent frame's per-hand velocity (3 × i16) was removed — nothing read it, and a fixed
+ * binary layout cannot leave a hole the way `Buttons`' removed bit 5 could. The client and the
+ * server ship from one image (`KC_PUBLIC_DIR` serves `dist/client`), so they cannot drift; a
+ * stale cached PWA client gets `gateway.ts`'s clean "Server speaks protocol N" refusal rather
+ * than misparsing every frame, which is the whole point of checking a version at all.
+ */
+export const PROTOCOL_VERSION = 3;
 
 /**
  * `roomCode` value that asks the server to *create* a private room rather than join one.

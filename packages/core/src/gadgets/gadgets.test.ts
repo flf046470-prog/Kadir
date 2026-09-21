@@ -483,7 +483,6 @@ describe('status effects reach movement', () => {
       hand.tracked = true;
       hand.grip = 1;
       hand.pos = vec3(0, 1.3, 0.6);
-      hand.vel = vec3(0, 0, -6);
     }
 
     for (let i = 0; i < 60; i++) {

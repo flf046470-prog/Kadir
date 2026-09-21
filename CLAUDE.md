@@ -323,7 +323,7 @@ property of the whole build. With art installed a mistyped model URL still fails
 rule per-file instead would have made those two indistinguishable forever.
 
 **`ClientMessage`'s discriminator is `t`, not `type`, and the join message is `hello`** — with
-`protocol` (`PROTOCOL_VERSION`, currently 2), `name`, `animalId`, `cosmetics`, `platform`,
+`protocol` (`PROTOCOL_VERSION`, currently 3), `name`, `animalId`, `cosmetics`, `platform`,
 `crossPlay` and `token` all required. A guessed `{type:'join'}` connects, is ignored, and sends
 nothing back for as long as you care to wait, which looks exactly like a broken server.
 
@@ -898,6 +898,64 @@ firing, and the decoded snapshots carried **max 1 entity** while the bolt was al
 produces it, the wire carries it, the client's decoder surfaces it — end to end, with numbers, and
 no frustum, no keypress delivery and no 1.6 s projectile lifetime in the way. **When a browser
 probe reports zero, prove the thing you are counting exists before believing the count.**
+
+## The wire carried a hand velocity nothing read
+
+Audited the trust boundary next, because "never trust the client" is one of this file's hard
+rules and `check:hostile` says in its own header that it does **not** test it: its pass condition
+is that a bystander keeps receiving snapshots, not that the attacker is rejected. So the question
+"can a modified client gain an advantage" had never been asked.
+
+`sanitizeIntent` turned out to be thorough — axes clamped, angles wrapped, pitch and head height
+bounded, buttons masked to `BUTTON_MASK`, voice clamped, hand positions clamped into a human
+reach envelope. And the security property `VRInput`'s comment claimed is real: hand speed is
+derived in `locomotion.ts` from consecutive world positions, so `combat.ts` resolves a punch from
+the server's own arithmetic. `simulation.test.ts` had been demonstrating this the whole time
+without saying so — its punch test sets `vel` to zeros and drives the hit by moving `hand.pos`
+between ticks.
+
+Which is exactly the problem. **`HandIntent.vel` was produced by `VRInput`, copied by
+`copyIntent`, clamped by `sanitizeIntent`, quantised onto the wire and dequantised off it — and
+read by no gameplay code on either side.** Grepping every package for `.vel` outside tests
+returns only those five: producer, copier, clamp, encoder, decoder. Nothing consumes it. The
+comment justifying it said "sent for client-side prediction only", and that is not true either:
+the client's prediction replays the same `Simulation`, which derives velocity the same way.
+
+Measured with the real codec:
+
+| frame | before | after |
+| --- | --- | --- |
+| PC/Mobile (no hands) | 16 B | 16 B |
+| VR, one hand tracked | 29 B | 23 B |
+| VR, both hands | 42 B | **30 B** |
+| marginal cost of one tracked hand | 13 B | 7 B |
+
+So 6 B per hand — **46 % of a tracked hand's payload**, and 864 B/s (29 %) of a VR player's
+entire upstream at 72 Hz, 13.5 KB/s inbound for a full 16-player VR room — decoded, clamped and
+thrown away. It was also a loaded gun: a client-controlled number sitting in the same struct as
+`pos`, *sanitised* so it reads as vetted, next to a combat resolver that punches on "hand
+velocity". `sanitizeIntent` clamped it to 20 m/s against `DEFAULT_COMBAT.punchSpeed` of 3.4, so
+anything that ever read it would have handed every modified client a six-times-threshold punch on
+demand — and the only warning was a comment in a *client* file.
+
+Removed. That changes the fixed-layout binary frame, so **`PROTOCOL_VERSION` is 3**. Unlike
+`Buttons.Interact`, whose removed bit could be left as a hole in a mask so recorded intents still
+decode, a binary frame has no gap old and new readers both agree on — which is what a version
+number is for. The client and server ship from one image (`KC_PUBLIC_DIR` serves `dist/client`),
+so they cannot drift; a stale cached PWA client gets `gateway.ts`'s clean "Server speaks protocol
+N" refusal instead of misparsing every frame.
+
+The type checker found all eight call sites on its own, which is the same property the gadget
+section notes: for a wiring change, `tsc` is the regression test. `HandIntent`'s doc comment now
+carries the reason it must stay gone, at the field rather than in a client file, and
+`net.test.ts` pins it by asserting the decoded hand has exactly `tracked`/`pos`/`grip` — mutation
+tested by putting `vel` back (`expected [ 'grip', 'pos', 'tracked', 'vel' ] to deeply equal
+[ 'grip', 'pos', 'tracked' ]`). Verified end to end on a real socket at protocol 3: two clients,
+round `playing`, a both-hands intent measured at 30 B on the wire, the freeze gun still firing
+and the server still producing its entity.
+
+`toBodyLocalDirection` went with it — removing the velocity left it exported and called only by
+its own test, which is the same "exists to be tested" shape as `wallPush` and `anchorMaterial`.
 
 ## Hunt
 

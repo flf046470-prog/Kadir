@@ -50,18 +50,28 @@ export function hasButton(mask: ButtonMask, button: number): boolean {
   return (mask & button) !== 0;
 }
 
-/** Tracked hand, expressed in body-local space (origin at the player's feet, +Z = facing). */
+/**
+ * Tracked hand, expressed in body-local space (origin at the player's feet, +Z = facing).
+ *
+ * There is deliberately **no velocity here**. `locomotion.ts` derives each hand's velocity from
+ * consecutive world positions, which is what makes hand speed unspoofable: a punch lands on the
+ * server's own arithmetic rather than on a number the client chose. A `vel` field used to ride
+ * along anyway — produced, copied, clamped, quantised onto the wire and dequantised off it, and
+ * read by no gameplay code on either side. Measured, it was 6 B per tracked hand: 46 % of a
+ * hand's wire payload and 29 % of a VR player's entire upstream at 72 Hz. Do not reintroduce it:
+ * a client-controlled velocity sitting beside `pos` is a 20 m/s punch waiting for someone to
+ * wire it up, and `DEFAULT_COMBAT.punchSpeed` is 3.4.
+ */
 export interface HandIntent {
   /** False when the hand is untracked (controller asleep, hand out of view, non-VR platform). */
   tracked: boolean;
   pos: Vec3;
-  vel: Vec3;
   /** 0..1 grip analogue; the sim treats >= gripThreshold as "holding". */
   grip: number;
 }
 
 export function createHandIntent(): HandIntent {
-  return { tracked: false, pos: vec3(), vel: vec3(), grip: 0 };
+  return { tracked: false, pos: vec3(), grip: 0 };
 }
 
 export interface InputIntent {
@@ -122,9 +132,6 @@ export function copyIntent(out: InputIntent, src: InputIntent): InputIntent {
       d.pos.x = s.pos.x;
       d.pos.y = s.pos.y;
       d.pos.z = s.pos.z;
-      d.vel.x = s.vel.x;
-      d.vel.y = s.vel.y;
-      d.vel.z = s.vel.z;
     }
   } else {
     out.hands = null;
@@ -154,7 +161,6 @@ export function sanitizeIntent(intent: InputIntent, maxHandReach = 1.2): InputIn
     for (const hand of intent.hands) {
       hand.grip = Number.isFinite(hand.grip) ? Math.max(0, Math.min(1, hand.grip)) : 0;
       clampVec(hand.pos, maxHandReach, 2.6);
-      clampVec(hand.vel, 20, 20);
       if (!Number.isFinite(hand.pos.x + hand.pos.y + hand.pos.z)) hand.tracked = false;
     }
   }

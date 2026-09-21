@@ -208,8 +208,8 @@ describe('cross-platform play', () => {
     // A VR intent carries hands; PC and mobile intents do not. Both must simulate.
     const vrIntent = createIntent();
     vrIntent.hands = [
-      { tracked: true, pos: { x: -0.3, y: 1.2, z: 0.4 }, vel: { x: 0, y: 0, z: 0 }, grip: 0 },
-      { tracked: true, pos: { x: 0.3, y: 1.2, z: 0.4 }, vel: { x: 0, y: 0, z: 0 }, grip: 0 },
+      { tracked: true, pos: { x: -0.3, y: 1.2, z: 0.4 }, grip: 0 },
+      { tracked: true, pos: { x: 0.3, y: 1.2, z: 0.4 }, grip: 0 },
     ];
     const flatIntent = createIntent();
     flatIntent.moveZ = 1;

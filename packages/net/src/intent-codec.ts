@@ -1,11 +1,17 @@
 import type { InputIntent } from '@kc/core';
 import { createHandIntent } from '@kc/core';
 import { ByteReader, ByteWriter, dequantize, quantize } from './binary.js';
-import { ANGLE_SCALE, HAND_SCALE, MsgType, VEL_SCALE } from './constants.js';
+import { ANGLE_SCALE, HAND_SCALE, MsgType } from './constants.js';
 
 /**
- * Intent frame: ~13 bytes without hands, ~29 with both hands tracked.
- * At 60 Hz that is roughly 0.8–1.8 KB/s upstream per player.
+ * Intent frame: 16 bytes without hands, 23 with one hand tracked, 30 with both.
+ *
+ * Each tracked hand is 3 × i16 of position plus one grip byte. It used to carry three more i16s
+ * of velocity, which no gameplay code on either side ever read — measured at 46 % of a hand's
+ * payload and 29 % of a VR player's upstream at 72 Hz, decoded and discarded. `HandIntent`'s own
+ * comment says why it must stay gone. Removing it changed this fixed-layout frame, which is what
+ * `PROTOCOL_VERSION` is for: unlike `Buttons.Interact`, whose removed bit could be left as a hole
+ * in a mask, a binary frame has no way to leave a gap that old and new readers both agree on.
  */
 export function encodeIntent(intent: InputIntent): Uint8Array {
   const w = new ByteWriter(32);
@@ -36,9 +42,6 @@ export function encodeIntent(intent: InputIntent): Uint8Array {
       w.i16(quantize(hand.pos.x, HAND_SCALE));
       w.i16(quantize(hand.pos.y, HAND_SCALE));
       w.i16(quantize(hand.pos.z, HAND_SCALE));
-      w.i16(quantize(hand.vel.x, VEL_SCALE));
-      w.i16(quantize(hand.vel.y, VEL_SCALE));
-      w.i16(quantize(hand.vel.z, VEL_SCALE));
       w.u8(Math.round(hand.grip * 255));
     }
   }
@@ -76,9 +79,6 @@ export function decodeIntent(data: Uint8Array, out: InputIntent): InputIntent {
     hand.pos.x = dequantize(r.i16(), HAND_SCALE);
     hand.pos.y = dequantize(r.i16(), HAND_SCALE);
     hand.pos.z = dequantize(r.i16(), HAND_SCALE);
-    hand.vel.x = dequantize(r.i16(), VEL_SCALE);
-    hand.vel.y = dequantize(r.i16(), VEL_SCALE);
-    hand.vel.z = dequantize(r.i16(), VEL_SCALE);
     hand.grip = r.u8() / 255;
   }
   return out;
