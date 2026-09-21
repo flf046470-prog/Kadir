@@ -3,7 +3,7 @@ import { Buttons, createHandIntent } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import type { PlatformInput } from '../Platform.js';
 import type { Renderer } from '../../render/Renderer.js';
-import { handScaleFrom, hapticFor, pinchStrength } from './comfort.js';
+import { grabThresholdFor, handScaleFrom, hapticFor, pinchStrength } from './comfort.js';
 import type { HapticEvent } from './comfort.js';
 
 interface HandTracker {
@@ -341,7 +341,7 @@ export class VRInput implements PlatformInput {
       intentHand.vel.y = HAND_LOCAL.y;
       intentHand.vel.z = HAND_LOCAL.z;
 
-      if (intentHand.grip > settings.comfort.sensitivity * 0.4) {
+      if (intentHand.grip > grabThresholdFor(settings.comfort.grabSensitivity)) {
         buttons |= i === 0 ? Buttons.GrabLeft : Buttons.GrabRight;
       }
     }

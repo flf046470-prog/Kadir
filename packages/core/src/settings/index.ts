@@ -75,7 +75,13 @@ export interface ComfortSettings {
   heightCalibration: number;
   seated: boolean;
   handedness: Handedness;
-  sensitivity: number;
+  /**
+   * How little grip a hand-tracked pinch or a controller trigger needs before it registers as a
+   * grab, 0.2 (needs a firm squeeze) to 3 (barely a touch). See `grabThresholdFor` in
+   * `platform/vr/comfort.ts` for the mapping — higher must mean easier, which the original
+   * `sensitivity * 0.4` wiring got backwards.
+   */
+  grabSensitivity: number;
   vrLocomotion: VrLocomotion;
 }
 
@@ -141,7 +147,7 @@ export const DEFAULT_SETTINGS: Settings = {
     heightCalibration: 0,
     seated: false,
     handedness: 'right',
-    sensitivity: 1,
+    grabSensitivity: 1,
     vrLocomotion: 'arms',
   },
   controls: {
@@ -190,8 +196,11 @@ export function mergeSettings(stored: unknown): Settings {
   base.audio.micThreshold = clamp01(base.audio.micThreshold);
   if (typeof base.audio.micDeviceId !== 'string') base.audio.micDeviceId = '';
   base.comfort.snapAngleDegrees = clamp(base.comfort.snapAngleDegrees, 15, 90);
+  // Unclamped, a corrupt or hand-edited store could hand VRInput a NaN or negative turn rate —
+  // degToRad(NaN) poisons turnOffset permanently, freezing the camera's yaw for the whole session.
+  base.comfort.smoothTurnSpeed = clamp(base.comfort.smoothTurnSpeed, 60, 240);
   base.comfort.vignette = clamp01(base.comfort.vignette);
-  base.comfort.sensitivity = clamp(base.comfort.sensitivity, 0.2, 3);
+  base.comfort.grabSensitivity = clamp(base.comfort.grabSensitivity, 0.2, 3);
   base.comfort.heightCalibration = clamp(base.comfort.heightCalibration, 0, 2.4);
   // comfort is merged with Object.assign, so a stored value reaches here unchecked. An
   // unrecognised mode would silently disable hand locomotion, so it falls back to the default.

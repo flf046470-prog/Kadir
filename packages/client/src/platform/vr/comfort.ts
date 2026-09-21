@@ -44,6 +44,27 @@ export function pinchStrength(thumbTip: JointPos, indexTip: JointPos, handScale 
   return (PINCH_OPEN_M - d) / (PINCH_OPEN_M - PINCH_CLOSED_M);
 }
 
+/** The trigger/pinch threshold at the default `grabSensitivity` of 1 — unchanged from before this existed. */
+const GRAB_THRESHOLD_BASE = 0.4;
+const GRAB_THRESHOLD_MIN = 0.12;
+const GRAB_THRESHOLD_MAX = 0.6;
+
+/**
+ * How much grip (0..1, from `pinchStrength` or a controller trigger) is needed to start a grab,
+ * from the player's `comfort.grabSensitivity`.
+ *
+ * `Settings.comfort` shipped this as `sensitivity`, read only as `settings.comfort.sensitivity *
+ * 0.4` — so turning the number *up* raised the threshold and made a grab *harder* to trigger,
+ * backwards from what "sensitivity" means to anyone reading it. It also had no slider anywhere in
+ * the Settings menu, so nobody could have discovered the inversion by using it. Division rather
+ * than multiplication fixes the direction; clamping keeps the result inside grip's own 0..1 range
+ * at the extremes so a low setting never makes grabbing outright impossible.
+ */
+export function grabThresholdFor(sensitivity: number): number {
+  const s = Number.isFinite(sensitivity) && sensitivity > 0 ? sensitivity : 1;
+  return Math.min(GRAB_THRESHOLD_MAX, Math.max(GRAB_THRESHOLD_MIN, GRAB_THRESHOLD_BASE / s));
+}
+
 /** Adult wrist-to-middle-metacarpal length, the reference `pinchStrength` scales against. */
 const REFERENCE_PALM_M = 0.09;
 

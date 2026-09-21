@@ -1,8 +1,51 @@
 import { describe, expect, it } from 'vitest';
 
-import { approach, handScaleFrom, hapticFor, pinchStrength, vignetteIntensity } from './comfort.js';
+import {
+  approach,
+  grabThresholdFor,
+  handScaleFrom,
+  hapticFor,
+  pinchStrength,
+  vignetteIntensity,
+} from './comfort.js';
 
 const at = (x: number, y = 0, z = 0) => ({ x, y, z });
+
+/**
+ * `grabSensitivity` shipped as `sensitivity`, read only as `grip > sensitivity * 0.4` — so turning
+ * the number up raised the threshold and made a grab *harder*, the opposite of what "sensitivity"
+ * means, and there was no slider anywhere to notice it with. `grabThresholdFor` replaces the
+ * multiply with a clamped inverse: higher input, lower threshold, easier grab.
+ */
+describe('grabThresholdFor', () => {
+  it('matches the original default threshold when sensitivity is untouched', () => {
+    expect(grabThresholdFor(1)).toBeCloseTo(0.4, 5);
+  });
+
+  it('lowers the threshold as sensitivity rises, not raises it', () => {
+    const low = grabThresholdFor(0.5);
+    const high = grabThresholdFor(2);
+    expect(high).toBeLessThan(low);
+  });
+
+  it('never demands more grip than the input signal can ever report', () => {
+    // grip is 0..1 (max of trigger value and pinch strength); a threshold above that would make
+    // the lowest sensitivity setting silently disable grabbing rather than merely stiffen it.
+    for (const s of [0.2, 0.5, 1, 2, 3]) {
+      expect(grabThresholdFor(s)).toBeLessThan(1);
+    }
+  });
+
+  it('never lets a high sensitivity make an accidental brush of the fingers count as a grab', () => {
+    expect(grabThresholdFor(3)).toBeGreaterThan(0);
+  });
+
+  it('falls back to the default rather than a zero or negative threshold on bad input', () => {
+    expect(grabThresholdFor(0)).toBeCloseTo(0.4, 5);
+    expect(grabThresholdFor(-2)).toBeCloseTo(0.4, 5);
+    expect(grabThresholdFor(Number.NaN)).toBeCloseTo(0.4, 5);
+  });
+});
 
 describe('pinch detection', () => {
   it('reads a closed pinch as a full grip', () => {

@@ -1164,6 +1164,9 @@ export class Shell {
       slider('Snap angle', s.comfort.snapAngleDegrees, 15, 90, 5, (v) => {
         s.comfort.snapAngleDegrees = v;
       }),
+      slider('Smooth turn speed (deg/s, off while snap turn is on)', s.comfort.smoothTurnSpeed, 60, 240, 10, (v) => {
+        s.comfort.smoothTurnSpeed = v;
+      }),
       slider('Comfort vignette', s.comfort.vignette, 0, 1, 0.05, (v) => {
         s.comfort.vignette = v;
       }),
@@ -1175,6 +1178,9 @@ export class Shell {
       }),
       select('Handedness', s.comfort.handedness, ['right', 'left'], (v) => {
         s.comfort.handedness = v as Settings['comfort']['handedness'];
+      }),
+      slider('Grab sensitivity (higher = lighter squeeze grabs)', s.comfort.grabSensitivity, 0.2, 3, 0.1, (v) => {
+        s.comfort.grabSensitivity = v;
       }),
 
       el('h3', {}, 'Controls'),

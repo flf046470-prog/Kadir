@@ -701,6 +701,34 @@ geometry to zero) is unit- and mutation-tested in `GadgetEntities.test.ts` witho
 same split `LevelRenderer.water.test.ts` already uses for the half of a shader-driven feature that
 has a right answer before a renderer ever compiles it.
 
+## Two VR comfort settings had no slider, and one of them was inverted
+
+`ComfortSettings.smoothTurnSpeed` and `.sensitivity` were declared, defaulted, merged from storage
+and (for `sensitivity`) clamped — every ceremony a working setting performs — and read in
+`VRInput.ts`. The Settings coverage guard (see the Settings section above) passed on both, because
+it only asks "is this read by something other than `settings/index.ts`", and both were. Neither had
+a slider anywhere in `Shell.ts`'s Comfort (VR) section, so no player could ever change either one —
+a variant of "advertised and read by nothing" this codebase's guards do not catch, because the
+control was never advertised in the first place. `smoothTurnSpeed` sat permanently at its default
+120°/s; anyone who turned off snap turn to use smooth turning got exactly one speed, forever, with
+no way to tune the very comfort trade-off the whole section exists for.
+
+`sensitivity` was worse than unreachable: its only read was `intentHand.grip > settings.comfort
+.sensitivity * 0.4`, so turning the number *up* raised the grab threshold and made a grab *harder*
+to trigger — backwards from what "sensitivity" means to anyone who might have read the field name,
+and unfalsifiable by playing, since there was no slider to try it with. Renamed to
+`grabSensitivity` and rewired through a new pure `grabThresholdFor(sensitivity)` in `comfort.ts`
+(`GRAB_THRESHOLD_BASE / s`, clamped to `[0.12, 0.6]` so grip's own 0..1 range can never make a low
+setting disable grabbing outright, and so the untouched default still reproduces the original 0.4
+threshold exactly — no behaviour change for the 100 % of sessions that never had a way to touch
+this). Mutation-tested by flipping the division back to a multiplication: the new
+`comfort.test.ts` cases caught it (`expected 0.6 to be less than 0.2`). Also gave
+`mergeSettings` a clamp for `smoothTurnSpeed` (60–240), which had none — every other numeric
+comfort field is clamped against a corrupt or hand-edited store, and this one wasn't: a stored NaN
+or negative value reaches `THREE.MathUtils.degToRad` in `updateTurn` and poisons `turnOffset`
+permanently, freezing the camera's yaw for the rest of the session. Both fields now have sliders in
+the Comfort (VR) section — verified rendering in a real browser, values and labels intact.
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by
