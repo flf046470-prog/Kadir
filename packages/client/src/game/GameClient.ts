@@ -138,13 +138,6 @@ export class GameClient {
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
-  /**
-   * Every live gadget projectile, placed trap and smoke cloud, as of the latest snapshot. Online
-   * only — solo practice reads `this.sim.snapshot().entities` directly each frame instead, the
-   * same split `updateAvatars` already draws between online remotes (`interpolation.sample`) and
-   * solo ones (`sim.players.get`).
-   */
-  private remoteEntities: EntitySnapshot[] = [];
   private gadgetEntities = new GadgetEntityView();
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
@@ -622,10 +615,11 @@ export class GameClient {
         remotes.push(snapshot);
       }
     }
-    this.interpolation.push(tick, remotes);
-    // Sent whole rather than delta-encoded (see `Snapshot.entities`), so this frame's list simply
-    // replaces the last one — there is nothing to merge the way a partial player update needs.
-    this.remoteEntities = entities;
+    // Entities ride the same buffer as the players, so both are resolved against one render time.
+    // They used to be assigned straight from this newest snapshot while players came from the
+    // interpolation buffer's deliberate 100 ms of delay, which drew a projectile that far ahead of
+    // the world it was flying through — measured at 6.00 m for the hunter's 60 m/s rifle round.
+    this.interpolation.push(tick, remotes, entities);
   }
 
   private handleEvents(events: SimEvent[]): void {
@@ -964,11 +958,12 @@ export class GameClient {
 
   /**
    * Every live gadget projectile, placed trap and smoke cloud. Same online/solo split as
-   * `updateAvatars`: online reads the latest decoded snapshot, solo reads the local simulation
+   * `updateAvatars`: online samples the interpolation buffer — the same call and the same render
+   * time the remote avatars beside them are drawn at — and solo reads the local simulation
    * directly rather than round-tripping through a socket that does not exist.
    */
   private updateGadgetEntities(): void {
-    const entities = this.online ? this.remoteEntities : this.sim.snapshot().entities;
+    const entities = this.online ? this.interpolation.sampleEntities() : this.sim.snapshot().entities;
     this.gadgetEntities.update(entities);
   }
 

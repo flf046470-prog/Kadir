@@ -829,6 +829,52 @@ observe a live settings change mid-match, which the joystick radius clamp itself
 and the payoff is cosmetic rather than a control that does nothing — noted here so it is not
 mistaken for the same class of bug as the other three.
 
+## Projectiles were drawn in a different time frame from the players they hit
+
+Auditing the netcode after the entity-rendering fix above. Prediction and reconciliation are
+sound: `PredictionBuffer` records every intent, rewinds the local player to the authoritative
+snapshot, replays the unacknowledged ones through the *same* `Simulation` the server ran, and the
+`smoothingOffset` it computes is genuinely consumed — by the local avatar's snapshot and by the
+camera, not merely calculated. `lerpSnapshot` interpolates position, velocity, yaw (wraparound-safe
+via `lerpAngle`), pitch, head height and both hand positions, with extrapolation capped so a
+guessed position never becomes a ghost tag. None of that needed touching.
+
+What was wrong sat one line away from the gadget-visibility fix. `InterpolationBuffer` renders
+remote players **`delayMs` (100 ms) in the past** on purpose, so there are always two snapshots to
+interpolate between. Gadget entities skipped it entirely — `handleSnapshot` did
+`this.remoteEntities = entities` straight from the newest snapshot, and `updateGadgetEntities` drew
+that list. So the two halves of the same world were rendered at two different instants. Measured
+against the real catalog speeds:
+
+| gadget | speed | drawn ahead of the world |
+| --- | --- | --- |
+| hunter rifle round | 60 m/s | **6.00 m** |
+| freeze-gun bolt | 26 m/s | 2.60 m |
+| hunter net | 20 m/s | 2.00 m |
+| thrown smoke bomb | 12 m/s | 1.20 m |
+
+A player capsule is 0.35 m in radius, so the rifle round was drawn something like seventeen
+player-widths past its victim: it visibly passed through and well beyond them before they reacted,
+and the reaction was not late — the *round* was early. The second symptom was plain stutter, since
+nothing interpolated it at all: at 20 Hz snapshots against a 72 Hz headset each entity held still
+for ~3.6 frames and then jumped up to 3 m in one.
+
+Entities ride the same buffer now (`push(tick, players, entities)`, `sampleEntities()`), resolved
+through one shared private `pair(now)` helper that both samplers call, so the player list and the
+entity list cannot be resolved against different instants again — the same "one source, two
+callers" shape as `SUN_OFFSET`/`sunPositionFor` and `grabThresholdFor`. `EntitySnapshot` carries no
+velocity, so there is nothing to dead-reckon from and nothing that wants it: the delay buffer
+exists precisely so extrapolation is unnecessary. Two edges that are easy to get wrong and are
+pinned by tests: an entity in only the **newer** snapshot has just spawned and is drawn at its
+spawn point rather than lerped from a position it never occupied (lerping from a default would
+throw it halfway across the map on its first frame), and one in only the **older** has expired and
+is dropped rather than left frozen in the air for a frame — a projectile that stops dead reads
+worse than one that is simply gone. `radius` is interpolated along with position, because a smoke
+cloud grows and stepping its size is as visible as stepping its position.
+
+`GameClient.remoteEntities` is gone rather than left holding a stale copy nothing reads — the same
+call this file's physics section makes about `wallPush` and `anchorMaterial`.
+
 ## Hunt
 
 The hunter's rifle works — on `jungle-world` it lands for the full 55 and clears five survivors by

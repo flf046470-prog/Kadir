@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation, buildJungleWorld, createIntent, createHandIntent, Buttons, snapshotPlayer } from '@kc/core';
-import type { PlayerSnapshot, PlayerState } from '@kc/core';
+import type { EntitySnapshot, PlayerSnapshot, PlayerState } from '@kc/core';
 import { decodeIntent, encodeIntent } from './intent-codec.js';
 import { SlotTable, decodeSnapshot, encodeSnapshot } from './snapshot-codec.js';
 import { InterpolationBuffer } from './interpolation.js';
@@ -207,15 +207,15 @@ describe('interpolation', () => {
 
   it('renders remote players in the past, between two snapshots', () => {
     const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
-    buffer.push(1, [snap('a', 0)], 1000);
-    buffer.push(2, [snap('a', 10)], 1100);
+    buffer.push(1, [snap('a', 0)], [], 1000);
+    buffer.push(2, [snap('a', 10)], [], 1100);
     const sample = buffer.sample('a', 1150);
     expect(sample?.x).toBeCloseTo(5, 1);
   });
 
   it('extrapolates briefly, then freezes instead of guessing', () => {
     const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
-    buffer.push(1, [snap('a', 0)], 1000);
+    buffer.push(1, [snap('a', 0)], [], 1000);
     const short = buffer.sample('a', 1200);
     expect(short?.x).toBeCloseTo(1, 1);
     const long = buffer.sample('a', 5000);
@@ -225,6 +225,64 @@ describe('interpolation', () => {
   it('returns null for unknown players', () => {
     const buffer = new InterpolationBuffer();
     expect(buffer.sample('nobody')).toBeNull();
+  });
+
+  /**
+   * Gadget entities used to be assigned straight from the newest snapshot while players came from
+   * this buffer's deliberate 100 ms of delay, so a projectile was drawn that far ahead of the
+   * world it was flying through. Measured against the real catalog speeds: **6.00 m** for the
+   * hunter's 60 m/s rifle round, 2.60 m for a freeze-gun bolt, 1.20 m for a thrown smoke bomb —
+   * against a 0.35 m player radius, so the round passed visibly through and beyond its victim
+   * before the victim reacted. They ride the same buffer and the same render time now.
+   */
+  describe('gadget entities', () => {
+    function ent(id: number, x: number, radius = 0.45): EntitySnapshot {
+      return { id, gadgetId: 'freeze_gun', ownerId: 'a', kind: 'projectile', x, y: 0, z: 0, radius };
+    }
+
+    it('samples entities at the same render time as the players beside them', () => {
+      const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
+      // A player and a projectile both travelling 0 → 10 over the same two snapshots.
+      buffer.push(1, [snap('a', 0)], [ent(1, 0)], 1000);
+      buffer.push(2, [snap('a', 10)], [ent(1, 10)], 1100);
+
+      const player = buffer.sample('a', 1150);
+      const [entity] = buffer.sampleEntities(1150);
+      expect(entity?.x).toBeCloseTo(player?.x ?? -1, 6);
+    });
+
+    it('interpolates between snapshots rather than stepping once per network tick', () => {
+      const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
+      buffer.push(1, [], [ent(1, 0)], 1000);
+      buffer.push(2, [], [ent(1, 10)], 1100);
+      expect(buffer.sampleEntities(1150)[0]?.x).toBeCloseTo(5, 1);
+    });
+
+    it('grows a smoke cloud smoothly instead of stepping its radius', () => {
+      const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
+      buffer.push(1, [], [ent(1, 0, 1)], 1000);
+      buffer.push(2, [], [ent(1, 0, 3)], 1100);
+      expect(buffer.sampleEntities(1150)[0]?.radius).toBeCloseTo(2, 1);
+    });
+
+    it('shows a just-spawned entity at its spawn point, not lerped from nowhere', () => {
+      const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
+      buffer.push(1, [], [], 1000);
+      buffer.push(2, [], [ent(7, 40)], 1100);
+      // Lerping from a default of 0 would draw it halfway across the map on its first frame.
+      expect(buffer.sampleEntities(1150)[0]?.x).toBe(40);
+    });
+
+    it('drops an expired entity rather than leaving it frozen in the air', () => {
+      const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250 });
+      buffer.push(1, [], [ent(1, 5)], 1000);
+      buffer.push(2, [], [], 1100);
+      expect(buffer.sampleEntities(1150)).toEqual([]);
+    });
+
+    it('has nothing to show before any snapshot has arrived', () => {
+      expect(new InterpolationBuffer().sampleEntities()).toEqual([]);
+    });
   });
 });
 
