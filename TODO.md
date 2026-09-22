@@ -3,7 +3,7 @@
 Status of every phase in `ROADMAP.md`. A phase is only ticked when it is implemented **and**
 covered by a passing check.
 
-`npm run verify` = lint + asset/pack gates + typecheck + **1002 tests** + all three builds +
+`npm run verify` = lint + asset/pack gates + typecheck + **1047 tests** + all three builds +
 `check:hostile`. CI runs the same commands as separate steps, plus a `postgres` job against a real
 database and a `browser` job (`check:smoke`, `check:pwa`) against a real Chromium.
 
@@ -30,8 +30,9 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
       head/body hit split, KO + respawn; button-driven on PC/Mobile
 - [x] **9 · Parkour Race** — ordered checkpoints, lap timing, personal + world best
 - [x] **10 · Lobby** — menu, mode select, portals, practice-with-bots, results screen
-- [x] **11 · Animals** — **7 meshes on disk**, generated from `animals.json` by the Blender
-      pipeline and tracked; 9 more as ready data, ±3 % feel clamp enforced by test
+- [x] **11 · Animals** — **16 meshes on disk**, generated from `animals.json` by the Blender
+      pipeline and tracked; every one a distinct shape, enforced by hashing POSITION+NORMAL out of
+      the shipped `.glb`s; ±3 % feel clamp and a standing-height fairness bound enforced by test
 - [x] **12 · Cosmetics** — 9 slots, 20 launch items, socket-based rendering, equip validation
 - [x] **13 · Store** — everything free; catalog validator refuses any price at boot,
       server-verified purchase machinery retained and tested
@@ -44,7 +45,7 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
 - [x] **19 · Events & seasons** — season track (both tiers free), event windows
 - [x] **20 · Optimisation** — instanced level + props, quality tiers, adaptive frame governor
       with a headset floor, `sceneryDetail`, snapshot deltas, rest-state velocity snapping
-- [x] **21 · QA** — 1002 automated tests; browser smoke test on desktop and mobile viewports;
+- [x] **21 · QA** — 1047 automated tests; browser smoke test on desktop and mobile viewports;
       PWA check; hostile-client check against a real server over a real socket
 - [x] **22 · Release preparation** — builds, PWA manifest + service worker, CI, licence-gated
       art pipeline, Meta Quest (Bubblewrap), Steam (Electron) and Microsoft Store packaging,
@@ -61,7 +62,7 @@ These were Milestone B items in `ROADMAP.md` and are done:
   plus player-authored house rules on top of the registry.
 - **Gadgets: 9** — freeze gun, smoke bomb, steel vest/helmet, bear trap, tripwire alarm, field
   kit, hunter rifle, hunter net; entities rendered, audible and felt.
-- **Art: 7 animals + 47 props**, tracked, generated from tracked sources.
+- **Art: 16 animals + 47 props**, tracked, generated from tracked sources.
 - **Procedural PBR, ACES tone mapping, IBL sky, post-processing, music, animated water.**
 
 ## Known gaps (honest list)
@@ -106,7 +107,7 @@ These were Milestone B items in `ROADMAP.md` and are done:
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
 - **Moderation** has the model, rate limiting and a report log, but no review tooling.
 - **Level geometry has no terrain primitive** — `LevelBuilder` offers box/cylinder/sphere/ramp
-  only, and `ramp()` cannot descend. Heightmap terrain is a new primitive, not a tuning job.
+  only. Heightmap terrain is a new primitive, not a tuning job.
 - **`LevelDef.grips`/`GripKind`** (`branch`/`ledge`/`vine`/`rock`/`root`) are authored into every
   map and read only by a test's level-stats count. All five climb identically, keyed on
   `SurfaceFlags.Climbable`; the promised per-grip feel and highlighting do not exist.

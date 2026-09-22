@@ -1320,6 +1320,68 @@ that the art changed. Check `POSITION` before believing a model moved. It also s
 claim elsewhere that the pipeline is "deterministic output of tracked sources" — deterministic
 enough to justify committing the output, not deterministic enough to reproduce a byte.
 
+## The roster is sixteen, and two renderers had invented different defaults
+
+Registering the nine roadmap animals turned up the same defect shape three times: **a field whose
+declared vocabulary is wider than the vocabulary anything actually reads**, with a silent fallback
+hiding the gap.
+
+- **`AnimalVisual.build` was optional, and the two renderers chose different fallbacks.**
+  `Avatar.ts` did `PLANS[visual.build ?? 'upright']`; `characters.py` did
+  `PLANS.get(plan_name, build_quadruped)` with no `quadruped` key at all. Wolf, fox and tiger were
+  the only three that omitted the field — so they walked on four legs when their `.glb` loaded and
+  stood up on two when it did not. Measured on the shipped art: HEAD's `wolf.glb` carries
+  `frontpaw.L/R`+`backpaw.L/R` and no arms. Neither default was wrong on its own; having two was.
+  `build` is **required** now, `'quadruped'` is in the union, both tables have an explicit row, and
+  the generator raises on an unknown plan.
+- **`characters.py` built three of the five tails `AnimalVisual` declares.** Its if/elif chain
+  ended in a bare `else`, so `thin` and `fin` both silently became `thick`, and `ears: 'fin'`
+  silently became no ears. `_trait(spec, field, handled)` now refuses any value it has no branch
+  for, which is the only way the declared vocabulary and the built one stay the same size.
+- **My own first fix made it worse and a test passed anyway.** Writing a shape guard that compared
+  the declared `ears/tail/snout/build` strings, I then added `build: 'upright'` to wolf, fox and
+  tiger *to satisfy it* — standing all three up on their hind legs. The guard went green. **A guard
+  on the data can only ever see what the data says.**
+
+So the real guard is `packages/client/src/render/animal-geometry.test.ts`, which hashes
+**POSITION+NORMAL out of every shipped `.glb`** and refuses two animals with the same hash. Not the
+whole file: `assets:build` is deterministic in the geometry and not in the bytes (this file's
+Blender section measures `WEIGHTS_0`/`INDICES` moving on every rebuild), so a file hash would fail
+on every rebuild and teach everyone to ignore it. Measured after the fix: **16 models, 16 distinct
+shapes.** Mutation-tested in two independent halves, each applied and reverted on its own:
+collapsing every tail to `stub` reproduces `wolf = fox` — the original documented clone — and
+pointing `PLANS["quadruped"]` at `build_upright` fails the limb check with
+`wolf declares quadruped: expected false to be true` while the *hash* test stays green, which is
+why the limb check is a separate assertion rather than left to the hash.
+
+`animals.shape.test.ts` (the trait-string version) is kept as the cheap check that names a
+colliding pair before anything is built, with its own doc saying why it is not sufficient alone.
+
+**Two of the sixteen were gitignored.** `bear.glb` and `deer.glb` sat in `.gitignore` as pack-only
+names — true while they were roadmap data, false the moment our own pipeline generated them. They
+would have been absent from CI and from the Docker image: the "every deployment shipped with no
+art" failure in this file's Quest section, at one ninth the size and correspondingly harder to
+notice. The geometry guard catches it (it reads every model an animal claims), which is the first
+time one of these guards has caught a **packaging** regression rather than a content one.
+
+Three roster-wide numbers moved and each broke a test that had hard-coded the old one:
+
+- **`Avatar.test.ts`'s height-fairness bound** (no animal a different standing height by more than
+  a hand) failed at **0.758 against 0.75**. Real, not a stale literal: `animalScaleFor` now applies
+  `visual.scale`, and the roadmap nine had been written with scales up to 1.12 against a shipped
+  roster of 0.90–1.06. **The data was fixed, not the bound** — a smaller silhouette is harder to
+  spot on maps whose whole subject is being seen, which is an advantage however it arrived. Pulled
+  back into the shipped band (lion 1.08→1.04, bear 1.12→1.06, panda 1.05→1.02, deer 1.04→1.00,
+  koala 0.93→0.94, shark 1.06→1.00, dragon 1.10→1.04): spread **0.653**.
+- **Two progression tests used `'dragon'` as a stand-in for "an id that does not exist".** It
+  exists now, so they stopped asking whether an unknown id is refused and started asking whether a
+  *known* one is. They use a `no_such_animal` sentinel now — the same lesson as the map section's
+  "identify things by rank or role, never by a measurement of the current map", applied to content.
+- **The compact-profile bound was seven bytes from failing.** `ownedAnimals` is 131 bytes at
+  sixteen free animals and the serialised profile measured 1193 against a `< 1200` limit. A test
+  that close to its bound breaks on the next animal and says nothing useful when it does; raised to
+  2000, which states the property (a profile is a small value, not a document).
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

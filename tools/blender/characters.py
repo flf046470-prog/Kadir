@@ -50,12 +50,34 @@ LENGTHS["emote_backflip"] = 30
 # --------------------------------------------------------------------------------------------
 
 
+def _trait(spec, field, handled):
+    """
+    Read one shape trait, refusing anything this file does not actually build.
+
+    Every trait here used to be `v.get(field, default)` followed by an if/elif chain ending in a
+    bare `else`, so a value the chain had no branch for silently became whichever shape the tail
+    of the chain happened to build. `AnimalVisual` declares five tails; this file built three of
+    them, and `thin` and `fin` both landed on `thick`. Two pairs of animals with genuinely
+    different declared traits therefore shipped as the same mesh — measured on the generated art,
+    `dragon`/`wolf` and `lion`/`tiger` had identical POSITION+NORMAL hashes.
+
+    A missing branch is now a build failure that names the trait, which is the only way the
+    declared vocabulary and the built one can be kept the same size.
+    """
+    value = spec["visual"].get(field)
+    if value not in handled:
+        raise ValueError(
+            f"{spec['id']}: {field}={value!r} is not a shape this generator builds "
+            f"(it builds {sorted(handled)}). Add the branch or change the animal."
+        )
+    return value
+
+
 def _head_parts(spec, mats, top, forward):
     """Head, snout, ears and eyes, sitting at `top` and facing +Y."""
-    v = spec["visual"]
     parts = [sphere("head", (0, forward, top), (0.34, 0.36, 0.32), mats["body"])]
 
-    snout = v.get("snout", "short")
+    snout = _trait(spec, "snout", {"long", "short", "beak", "flat"})
     if snout == "long":
         parts.append(sphere("snout", (0, forward + 0.20, top - 0.04), (0.17, 0.26, 0.15), mats["body"]))
         parts.append(sphere("nose", (0, forward + 0.32, top - 0.04), (0.07, 0.06, 0.06), mats["accent"]))
@@ -70,7 +92,7 @@ def _head_parts(spec, mats, top, forward):
     else:  # flat — a face, not a muzzle
         parts.append(sphere("face", (0, forward + 0.16, top - 0.03), (0.22, 0.10, 0.20), mats["belly"]))
 
-    ears = v.get("ears", "none")
+    ears = _trait(spec, "ears", {"tall", "pointed", "round", "fin", "none"})
     for side, x in (("L", 0.13), ("R", -0.13)):
         if ears == "tall":
             parts.append(
@@ -82,6 +104,15 @@ def _head_parts(spec, mats, top, forward):
             )
         elif ears == "round":
             parts.append(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), mats["body"]))
+        elif ears == "fin":
+            # A blade swept back off the side of the skull, not a cone standing up off it. Thin in
+            # X so it reads as a fin edge-on and disappears from the front, which is the whole
+            # visual joke of an animal with fins where its ears should be.
+            parts.append(
+                box(f"ear.{side}", (x + 0.05 * (1 if side == "L" else -1), forward - 0.08, top + 0.14),
+                    (0.03, 0.22, 0.20), mats["accent"],
+                    rotation=(math.radians(-24), 0, math.radians(14 if side == "L" else -14)))
+            )
 
     for side, x in (("L", 0.12), ("R", -0.12)):
         parts.append(sphere(f"eye.{side}", (x, forward + 0.14, top + 0.06), (0.06, 0.05, 0.06), mats["dark"]))
@@ -90,13 +121,30 @@ def _head_parts(spec, mats, top, forward):
 
 def _tail_parts(spec, mats, base_z, base_y):
     """Tail running backwards along -Y from the hips."""
-    shape = spec["visual"].get("tail", "stub")
+    shape = _trait(spec, "tail", {"stub", "bushy", "thick", "thin", "fin"})
     if shape == "stub":
         return [sphere("tail", (0, base_y - 0.16, base_z), (0.13, 0.16, 0.13), mats["body"])]
     if shape == "bushy":
         return [
             sphere("tail.1", (0, base_y - 0.17, base_z + 0.04), (0.17, 0.30, 0.17), mats["body"]),
             sphere("tail.2", (0, base_y - 0.38, base_z + 0.11), (0.21, 0.32, 0.21), mats["belly"]),
+        ]
+    if shape == "thin":
+        # A whip, not a counterweight: half the thick tail's girth, carried level rather than
+        # drooping to the ground, and reaching further back for it. The radii are what separate it
+        # from `thick` — a lizard's or a big cat's tail is the same chain at a third the volume.
+        return [
+            sphere("tail.1", (0, base_y - 0.18, base_z + 0.01), (0.10, 0.28, 0.10), mats["body"]),
+            sphere("tail.2", (0, base_y - 0.40, base_z + 0.02), (0.08, 0.28, 0.08), mats["body"]),
+            sphere("tail.3", (0, base_y - 0.60, base_z + 0.02), (0.06, 0.24, 0.06), mats["accent"]),
+        ]
+    if shape == "fin":
+        # A caudal blade standing on edge: nearly flat in X, tall in Z. Two segments so the
+        # animation's travelling wave still has something to sweep — a rigid fin reads as a prop
+        # bolted to the hips the moment the animal moves.
+        return [
+            box("tail.1", (0, base_y - 0.20, base_z + 0.06), (0.04, 0.22, 0.24), mats["body"]),
+            box("tail.2", (0, base_y - 0.44, base_z + 0.12), (0.03, 0.20, 0.30), mats["accent"]),
         ]
     # thick — a kangaroo's counterweight, thinning as it goes and resting toward the ground
     #
@@ -125,13 +173,27 @@ def _jaw_bone(top, forward):
 
 
 def _tail_bones(spec, base_z, base_y, parent):
-    shape = spec["visual"].get("tail", "stub")
+    # One chain per tail shape, and the count has to match `_tail_parts` or a segment ends up
+    # weighted to the wrong bone and trails behind the rest of the tail when it swings.
+    shape = _trait(spec, "tail", {"stub", "bushy", "thick", "thin", "fin"})
     if shape == "stub":
         return [("tail.1", (0, base_y, base_z), (0, base_y - 0.22, base_z), parent)]
     if shape == "bushy":
         return [
             ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.08), parent),
             ("tail.2", (0, base_y - 0.26, base_z + 0.08), (0, base_y - 0.52, base_z + 0.16), "tail.1"),
+        ]
+    if shape == "fin":
+        return [
+            ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.06), parent),
+            ("tail.2", (0, base_y - 0.26, base_z + 0.06), (0, base_y - 0.52, base_z + 0.14), "tail.1"),
+        ]
+    if shape == "thin":
+        # Carried level, so the chain runs straight back instead of dropping away like `thick`.
+        return [
+            ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.01), parent),
+            ("tail.2", (0, base_y - 0.26, base_z + 0.01), (0, base_y - 0.50, base_z + 0.02), "tail.1"),
+            ("tail.3", (0, base_y - 0.50, base_z + 0.02), (0, base_y - 0.72, base_z + 0.02), "tail.2"),
         ]
     return [
         ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z - 0.08), parent),
@@ -264,7 +326,21 @@ def build_quadruped(spec, mats):
     return parts, bones, "quadruped"
 
 
-PLANS = {"hopper": build_hopper, "upright": build_upright, "waddler": build_upright}
+"""
+Every body plan `AnimalVisual.build` can name, including `quadruped` explicitly.
+
+It used to be looked up as `PLANS.get(plan_name, build_quadruped)` with no `quadruped` key, so an
+animal that declared nothing became a quadruped here while `Avatar.ts`'s procedural fallback made
+the same animal an `upright`. The wolf, the fox and the tiger were the three that declared
+nothing: four legs from their `.glb`, two legs when it failed to load. `build` is required in the
+type now and this table has no default, so neither renderer can invent one again.
+"""
+PLANS = {
+    "hopper": build_hopper,
+    "upright": build_upright,
+    "waddler": build_upright,
+    "quadruped": build_quadruped,
+}
 
 
 # --------------------------------------------------------------------------------------------
@@ -626,8 +702,11 @@ def build_animal(spec, out_path, capsule):
     }
 
     plan_name = v.get("build")
-    builder = PLANS.get(plan_name, build_quadruped)
-    parts, bones, plan = builder(spec, mats)
+    if plan_name not in PLANS:
+        raise ValueError(
+            f"{spec['id']}: build={plan_name!r} is not a body plan (have {sorted(PLANS)})"
+        )
+    parts, bones, plan = PLANS[plan_name](spec, mats)
 
     mesh = join(parts, spec["id"])
     arm = armature(f"{spec['id']}_rig", bones)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LAUNCH_ANIMALS, FUTURE_ANIMALS, getAnimal, listAnimals, registerAnimals } from '../content/animals.js';
+import { LAUNCH_ANIMALS, getAnimal, listAnimals, registerAnimals } from '../content/animals.js';
 import { LAUNCH_COSMETICS, getCosmetic, listCosmetics } from '../content/cosmetics.js';
 import { LAUNCH_STORE, PRICE_POINTS, registerStoreItems, validateCatalog } from '../content/store.js';
 import { DAILY_REWARDS } from '../content/rewards.js';
@@ -71,10 +71,20 @@ describe('animal fairness', () => {
     expect(config.wallJumpForce).toBe(DEFAULT_MOVEMENT.wallJumpForce);
   });
 
-  it('ships seven launch animals and keeps the roadmap roster valid', () => {
-    expect(LAUNCH_ANIMALS.map((a) => a.id)).toEqual(['kangaroo', 'human', 'wolf', 'fox', 'tiger', 'frog', 'penguin']);
-    expect(FUTURE_ANIMALS.length).toBeGreaterThanOrEqual(9);
-    for (const animal of FUTURE_ANIMALS) expect(Object.keys(animal.feel)).toHaveLength(0);
+  it('ships the whole roster free, with the nine roadmap animals now on it', () => {
+    // This used to assert seven launch animals and a separate `FUTURE_ANIMALS` array that was
+    // never registered, so nine valid animals sat in the file and could not be picked. They are
+    // on the roster now, which makes the old "roadmap stays valid data" claim into the stronger
+    // one: every animal a player can actually choose is free and costs nothing.
+    const ids = LAUNCH_ANIMALS.map((a) => a.id);
+    expect(ids).toContain('kangaroo');
+    expect(ids).toContain('human');
+    expect(ids.length).toBeGreaterThanOrEqual(16);
+    expect(new Set(ids).size, 'duplicate animal id').toBe(ids.length);
+    for (const animal of LAUNCH_ANIMALS) {
+      expect(animal.priceCents, animal.id).toBe(0);
+      expect(animal.unlock, animal.id).toBe('free');
+    }
   });
 
   it('keeps both sides of the hunt free to play', () => {
@@ -192,7 +202,11 @@ describe('inventory equip validation', () => {
 
   it('refuses content that does not exist at all', () => {
     const profile = createProfile('p1', 'Roo');
-    expect(equipAnimal(profile, 'dragon').error).toBe('unknown');
+    // A sentinel, not a real-looking name. This assertion used to say `'dragon'`, which was a
+    // roadmap animal at the time and is a shipped one now — so the test stopped asking "is an
+    // unknown id refused" and started asking "is a *known* id refused", and failed. Naming a
+    // specific absent id measures the current roster; the roster is content and will keep moving.
+    expect(equipAnimal(profile, 'no_such_animal').error).toBe('unknown');
   });
 
   it('refuses a cosmetic in the wrong slot', () => {
@@ -404,14 +418,22 @@ describe('save system', () => {
     expect(profile.playerId).toBe('p1');
     expect(profile.ownedAnimals).toContain('kangaroo');
 
-    const hostile = migrateProfile({ coins: 'lots', ownedAnimals: 'wolf', equipped: { animalId: 'dragon' } }, 'p1');
+    // `no_such_animal` for the same reason as the equip test above: the point is an id the
+    // profile does not own, and a real animal id makes that depend on what shipped this week.
+    const hostile = migrateProfile({ coins: 'lots', ownedAnimals: 'wolf', equipped: { animalId: 'no_such_animal' } }, 'p1');
     expect(hostile.coins).toBe(0);
     expect(hostile.equipped.animalId).toBe('kangaroo'); // not owned → reset
   });
 
   it('serialises to compact JSON', () => {
     const json = serializeProfile(createProfile('p1', 'Roo'));
-    expect(json.length).toBeLessThan(1200);
+    // A profile is a small value that rides in a cookie-sized store and a save slot, not a
+    // document. The bound grows with the free roster — `ownedAnimals` alone is 131 bytes at
+    // sixteen animals — so it was measured at 1193 against a 1200 limit, which is a test seven
+    // bytes from failing on the next animal and telling nobody anything useful when it does.
+    // Raised to state the actual property: a profile stays in the low kilobytes, not that it
+    // stays exactly where it happened to be on the day it was written.
+    expect(json.length).toBeLessThan(2000);
     expect(getCosmetic('hat_leaf')).toBeDefined();
   });
 });

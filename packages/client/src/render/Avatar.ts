@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { AnimalDef, CosmeticDef, PlayerSnapshot } from '@kc/core';
+import type { AnimalDef, AnimalVisual, CosmeticDef, PlayerSnapshot } from '@kc/core';
 import { EMOTE_CLIPS, SnapFlags, emoteClip, getAnimal, getCosmetic } from '@kc/core';
 import { AssetLibrary } from './AssetLibrary.js';
 import type { LoadedModel } from './AssetLibrary.js';
@@ -180,7 +180,7 @@ interface BodyPlan {
  */
 const TAIL_JOINT_REST = [0.34, 0.16, 0.08];
 
-const PLANS: Record<'hopper' | 'upright' | 'waddler', BodyPlan> = {
+const PLANS: Record<AnimalVisual['build'], BodyPlan> = {
   /**
    * The kangaroo. Everything here is chosen so the silhouette reads at distance: the mass sits
    * low and back over enormous haunches, the spine leans out over the toes, and the tail runs
@@ -236,6 +236,38 @@ const PLANS: Record<'hopper' | 'upright' | 'waddler', BodyPlan> = {
     crouchBend: 0.3,
     tailLift: 0.05,
     tailCarry: 0.35,
+  },
+  /**
+   * The wolf, the fox and the tiger: a horizontal spine carried low.
+   *
+   * **This rig has two legs, so this row is an approximation and says so.** `BodyPlan` describes
+   * one pair of legs and one pair of arms; a real four-legged body is `tools/blender/characters.py`'s
+   * `build_quadruped`, and that is what every one of these animals actually renders as, because
+   * all three carry a `model`. This row is what the *fallback* draws when the `.glb` does not
+   * load — a deep lean, a low hip and forelimbs reaching for the ground, which reads as an animal
+   * on all fours rather than a person.
+   *
+   * It exists at all because the entry was missing while `build` was optional, so this lookup
+   * fell back to `upright` while the mesh pipeline fell back to `quadruped` — the same animal
+   * standing up or dropping to four legs depending on whether a file loaded. A named row and a
+   * required `build` are what stop the two ends inventing different defaults.
+   */
+  quadruped: {
+    hipHeight: 0.52,
+    // Nearly horizontal: this one number is most of what separates a dog from a person.
+    lean: 1.15,
+    thigh: { length: 0.26, radius: 0.1, angle: -0.35 },
+    shin: { length: 0.26, radius: 0.08, angle: 0.55 },
+    foot: { length: 0.2, width: 0.13, height: 0.08 },
+    stance: 0.17,
+    torso: { length: 0.52, radius: 0.21 },
+    // The neck lifts the head back up out of a spine that is already pointing at the floor.
+    neck: { length: 0.22, angle: 0.5 },
+    // Forelimbs reach down and forward to the ground instead of hanging at the sides.
+    arm: { length: 0.34, radius: 0.075, angle: 0.95, drop: 0.16 },
+    crouchBend: 0.4,
+    tailLift: 0.18,
+    tailCarry: 0.42,
   },
 };
 
@@ -685,7 +717,11 @@ export class Avatar {
     const accentMat = this.mat(visual.accent);
     const bellyMat = this.mat(visual.belly);
 
-    const plan = PLANS[visual.build ?? 'upright'] ?? PLANS.upright;
+    // `?? PLANS.upright` stays as a runtime guard only: `build` is required by the type, but an
+    // animal can arrive from a CDN JSON or a future editor, and an unknown plan must draw
+    // *something* rather than throw inside the render loop. It is no longer a default the data is
+    // allowed to rely on — see the `quadruped` row above for what having two of those cost.
+    const plan = PLANS[visual.build] ?? PLANS.upright;
     this.plan = plan;
 
     // Hips carry everything. Placing the joint explicitly is what lets the legs fold underneath
