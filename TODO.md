@@ -101,6 +101,14 @@ These were Milestone B items in `ROADMAP.md` and are done:
 - **Store shells**: Meta Quest, Steam and Microsoft Store are set up. **Capacitor (Play / App
   Store) is not.** Receipt verification is real for Meta, Steam and Google Play; the Play verifier
   still needs a service-account token provider wired to a deployment.
+- **Steam needs no origin; Meta cannot not need one.** The Steam package bundles the client *and*
+  the authoritative server and serves them over localhost — measured end to end with no internet:
+  16 animals from `/api/content`, every `.glb` off local disk, two socket clients in one room at
+  20.0 snapshots/s. The Meta package is a Bubblewrap TWA and `pack:quest` refuses to render
+  without `--domain`, because a TWA *is* an app that loads a URL.
+- **Electron cannot host WebXR.** `enable_vr=false` is compiled into the Electron binary, so the
+  Steam window is flat-only and "Play in VR" hands off to Chrome/Edge against the same local
+  server. A Steam *VR* listing has to say so.
 - **Voice chat** is a mesh — fine to `KC_MAX_PLAYERS` (16), needs an SFU beyond that. Proximity
   falloff is applied client-side and is therefore **not enforceable**; saying otherwise would be
   a lie about a cheat. Enforcing it means putting the server in the audio path.

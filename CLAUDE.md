@@ -1382,6 +1382,46 @@ Three roster-wide numbers moved and each broke a test that had hard-coded the ol
   that close to its bound breaks on the next animal and says nothing useful when it does; raised to
   2000, which states the property (a profile is a small value, not a document).
 
+## Steam needs no origin; Meta cannot not need one
+
+Asked to target Steam and Meta and "forget the web" (`Steam meta uyumlu yap web boşver`). The two
+packages sit on opposite sides of that question and only one of them has a choice.
+
+**The Steam package is already a complete offline game, and this was measured rather than
+assumed.** `pack:steam` produces `dist/steam-app` (13.8 MB: client 13.5 MB, server 295 kB, shell
+3 kB) and `main.cjs` spawns the bundled server with `KC_PUBLIC_DIR` pointed at the bundled client,
+served over **localhost, not `file://`**. Running that server directly — the same command line the
+shell uses — and probing it:
+
+- `/api/health` 200, `/api/content` 200 listing **16 animals, 3 levels, 9 modes, 9 gadgets**
+- `/models/wolf.glb`, `/models/dragon.glb`, `/models/bear.glb`, `/models/deer.glb` all 200
+  `model/gltf-binary` off local disk
+- two real socket clients at `PROTOCOL_VERSION` 3 (one on `dragon`, one on `bear`) both joined,
+  each saw **2 players**, and each received **240 snapshots in 12 s — exactly 20.0/s** against the
+  configured 20 Hz
+
+No internet, no origin, no DNS. So for Steam "forget the web" is already the shipped design.
+
+**Electron cannot host a WebXR session, and that is a compile-time property of the binary.**
+Electron sets `checkout_webxr` false in its DEPS, leaving `enable_vr=false` in its Chromium, so
+`navigator.xr` never exposes an immersive device whatever runtime is installed — no flag fixes it.
+`packages/shell/src/openxr.ts` is the consequence: the Electron window is flat play, and "Play in
+VR" hands off to Chrome/Edge in app mode against the same local server, where SteamVR's OpenXR
+runtime drives WebXR. **A Steam VR listing therefore promises something the launcher cannot do
+directly**, and the store page has to be honest about it or the reviews will be.
+
+**The Meta package is a TWA, and a TWA is by construction an app that loads a URL.**
+`pack:quest` refuses to render without one — *"`--domain` is required to render the Bubblewrap
+config (the TWA is bound to one origin)"*. There is no "forget the web" here: the only ways off an
+origin are a locally-bundled Android WebView app (Capacitor, which `TODO.md` lists as not set up)
+or a native rewrite, and **whether a plain Android WebView can enter `immersive-vr` on a Quest at
+all is the question that decides if the first is even viable** — the TWA path works precisely
+because it runs in the headset's own browser engine. Do not start that migration without answering
+it first.
+
+So the domain and the hosting are **not optional for Meta** and never were, and they are **not
+required for Steam at all**. Anyone planning spend should know which of those two lines they are on.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:
