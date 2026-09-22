@@ -316,8 +316,9 @@ test on disagreed with the machine that ships, which is why it survived this lon
 
 **Two pipelines write to that one directory, and only one of them can be committed.** Ours —
 `tools/blender/{build,props,portal}.py` — generate every animal and every prop from `animals.json`
-and `assets/meshy/`, both tracked; that is deterministic output of tracked sources and ours to
-redistribute. Theirs — `npm run assets:fetch` from `assets/packs.json` — is **five `source:
+and `assets/meshy/`, both tracked; that is output of tracked sources and ours to redistribute.
+(Deterministic in the geometry, **not** byte-for-byte — see "Blender *is* here" below before
+reading a rebuild's `git status` as a change to the art.) Theirs — `npm run assets:fetch` from `assets/packs.json` — is **five `source:
 manual` packs out of six**: Quaternius and Kenney are click-through downloads, so no build machine
 can fetch them and they are not ours to commit. Only the Khronos Fox is a direct URL.
 
@@ -1238,9 +1239,8 @@ result rather than a miss. It cost a full probe run here.
 
 ## The wolf was a recoloured fox
 
-Asked for character work. Blender is not installed here, so generating the nine roadmap animals is
-blocked the same way a headset is — but the seven that exist were worth measuring, and one of them
-was not really there.
+Asked for character work. The seven animals that exist were worth measuring, and one of them was
+not really there.
 
 Reading each `.glb` directly: every animal has its own geometry buffer, so none is a straight copy.
 That was the first answer and it was too coarse. **`fox.glb` and `wolf.glb` have byte-identical
@@ -1278,6 +1278,47 @@ three ways: no scale, scale on `body`, scale on `group` — each fails a differe
 health or attack", but on maps whose whole subject is being seen a much smaller silhouette is
 harder to spot, which is an advantage however it arrived. The band holds the whole shipped roster
 untouched — asserted per animal, so the clamp can never quietly retune one.
+
+## Blender *is* here, and `which blender` is the wrong question
+
+**Correcting a claim this file carried for one commit: "Blender is not installed here" is false.**
+It came from running `which blender`, which looks for the GUI application. This project never uses
+that. `build.py`'s own header says so in its third paragraph — *"Blender runs as a Python module
+(`pip install bpy`), so there is no Blender application to install and no GUI"* — and the module is
+present and working: **bpy 5.0.1**, verified by actually creating a mesh rather than by importing
+it, and then by running `npm run assets:build` to completion (7 models, exit 0).
+
+So the animal and prop pipelines both run in this container. Generating the nine roadmap animals is
+**not** blocked the way a headset is. It is ordinary work: entries in the animal data, then the
+pipeline.
+
+The lesson is the one this file keeps relearning in new clothes: a negative result from a probe
+that was never measuring the right thing looks exactly like a real limit. `which blender` returns
+nothing whether Blender is absent *or* installed as a library, and only one of those is a blocker.
+
+**Meshy is for environment props, not animals.** `tools/meshy/props.json` is 16 entries — rock,
+boulder, log, stump, bush, fern, crystal, banner, canyon spire — and no animal. `characters.py`
+builds every animal procedurally from the body plan in `animals.json`, which is exactly why fox and
+wolf came out identical above: same declared `ears`/`tail`/`snout`, same generated shape. A Meshy
+key buys new scenery; it does not buy a new animal.
+
+`scripts/meshy-generate.mjs` handles its credential correctly and should stay that way: read from
+`process.env.MESHY_API_KEY`, never written anywhere, with the error message telling the caller to
+export it for one shell. Per this file's Secrets rule, a key that reaches a chat transcript is
+burned and has to be rotated — supply it as an environment variable on the environment instead.
+
+**`assets:build` is deterministic in the geometry and not in the bytes.** A rebuild with no source
+change rewrites 6 of the 7 models at *identical file sizes*. Measured: the glTF JSON chunk is
+byte-identical, `POSITION` differs by **0.000e+0** across 8,448 values, and only **6 of 273
+bufferViews** move — all of them `WEIGHTS_0` and `INDICES`. The cause is in the build's own log:
+*"There are more than 4 joint vertex influences. The 4 with highest weight will be used"*, so which
+four win a tie, and the order triangles come out in, are not stable.
+
+Nothing visible changes. What it means in practice: **running `assets:build` and committing the
+result adds ~1.7 MB of meaningless binary diff**, and `git status` after a rebuild is not evidence
+that the art changed. Check `POSITION` before believing a model moved. It also softens this file's
+claim elsewhere that the pipeline is "deterministic output of tracked sources" — deterministic
+enough to justify committing the output, not deterministic enough to reproduce a byte.
 
 ## How to find defects here
 
