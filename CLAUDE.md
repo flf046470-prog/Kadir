@@ -257,6 +257,19 @@ one. A path cannot start with `[`, so the two do not collide.
 
 ### The live deployment
 
+**It is down, and only the account holder can bring it back.** Railway's trial expired on
+**2026-09-22 at 00:04 UTC**; the last deployment (`61a7fe1`) went to `REMOVED` at that timestamp
+and `https://game-server-production-d3a6.up.railway.app/api/health` answers
+`404 {"status":"error","code":404,"message":"Application not found"}`. Any write through the
+Railway MCP returns *"Your trial has expired. Please select a plan to continue using Railway."*,
+so `connect-service-source` cannot trigger a build and nothing here can restart it. The project,
+the service and their ids below still exist — this is a billing state, not a deleted project.
+
+Everything in this section describes how that deployment worked and is still accurate for when it
+comes back. **Do not spend a probe on the URL before checking that a plan is active**: a dead
+origin and a stale deploy look nothing alike, but a 404 will be read as the latter by anyone who
+remembers the "it does not redeploy on push" note below.
+
 Railway project `kangaroo-chase` (workspace `flf046470-prog's Projects`): a `Postgres` service and
 `game-server`, built from this branch's `Dockerfile`, at
 `https://game-server-production-d3a6.up.railway.app`. It is the client the TWA will load *and* the

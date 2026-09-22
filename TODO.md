@@ -115,6 +115,11 @@ These were Milestone B items in `ROADMAP.md` and are done:
 
 ## Deployment
 
+**Currently offline.** Railway's trial expired on 2026-09-22 at 00:04 UTC, the `game-server`
+deployment was `REMOVED`, and the origin now 404s with `Application not found`. Bringing it back
+needs a Railway plan selected by the account holder; nothing in this repository can do it. The
+project and service still exist, so it is a billing state rather than a lost deployment.
+
 Railway project `kangaroo-chase`, service `game-server`, built from this branch's `Dockerfile`.
 One deployment serves both the client (`KC_PUBLIC_DIR` → `dist/client`) and the rooms.
 
