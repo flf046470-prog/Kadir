@@ -1422,6 +1422,63 @@ it first.
 So the domain and the hosting are **not optional for Meta** and never were, and they are **not
 required for Steam at all**. Anyone planning spend should know which of those two lines they are on.
 
+## A penguin's hat sat at chest height
+
+Before adding accessories, the question is whether the existing ones land — and on the nine new
+animals they had never been looked at. They do not land, and it was true of the original seven too.
+
+Cosmetic sockets are built from the **procedural** rig. `attachModel` hid the procedural meshes and
+left the sockets alone, with a comment saying their positions were "still the right place to hang a
+hat". Measured against the real art — each animal's procedural hat socket versus its own `.glb`
+bounding box:
+
+| | penguin | panda | fox | bear | wolf | human | lion |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| socket − model top | −0.400 | −0.385 | −0.370 | −0.335 | −0.280 | **+0.030** | **+0.005** |
+
+A penguin's hat forty centimetres below the top of the penguin; a human's and a lion's floating
+clear above their own model.
+
+**The cause is `PLANS` and `characters.py` being two independent implementations of one body plan,
+in two languages** — this file's recurring "two lists that drift" defect across a language
+boundary, where neither `tsc` nor any test could see it. The waddlers are worst because that is
+where the two disagree most: `PLANS.waddler` drops the hip to 0.29 m and shortens the legs, while
+`build_upright(wide=True)` keeps a normal upright's bone heights and only *widens* the body. So the
+procedural penguin is **1.167 m** tall and `penguin.glb` is **1.540 m** — the same animal, 32 %
+apart, one of them invisible.
+
+`moveSocketsOntoModel` re-parents each socket onto the loaded model's own bone (`head`, `spine`,
+`tail1`), so a socket follows the body that is actually on screen. Two things it does not do
+naively:
+
+- **The hat socket's `+0.2` is not carried over.** It was tuned against the procedural skull, and
+  `characters.py` puts the head *bone* at 1.16–1.20 with the head *sphere* centre at 1.30–1.38, so
+  the same number lands a hat inside the head. The crown comes from the model's own bounding box
+  instead, converted into whatever local frame the head bone is in — which matters because the
+  quadruped rigs carry the head forward on a rotated neck (`wolf.glb`'s head bone is at
+  `(0, 1.18, −0.48)`), so a hand-written local offset would have to know its own body plan.
+- **A missing bone leaves that socket on the procedural rig**, because an art pack may ship an
+  incomplete skeleton and the failure mode has to be "slightly wrong" rather than "on the floor at
+  the model origin".
+
+**`updateMatrixWorld` was the wrong call and cost a real 0.03 m.** It only walks *down*, so it
+composes against whatever the ancestors last held — and `attachModel`'s own doc says it can be
+called on an avatar already in a scene and already being updated every frame. `updateWorldMatrix
+(true, true)` walks up as well. A 3 cm error reads as a tuning question rather than the bug it is,
+which is exactly why it nearly survived.
+
+Tested without a GL context against a stand-in rig carrying the bone names the pipeline writes —
+the same split `LevelRenderer.water.test.ts` and `GadgetEntities.test.ts` use. Mutation-tested in
+two independent halves: removing the re-parenting reproduces **0.417 m** on a penguin and
+**0.304 m** on a wolf, which is an independent rediscovery of the −0.400 / −0.280 measured on the
+real art; disabling only the crown placement leaves 0.244 m and 0.330 m.
+
+**`visual.scale` is respected and the test had to be corrected to say so.** A first version
+asserted the hat lands at the stub's own 1.66 and failed at 1.5604 — which is 1.66 × 0.94, the
+penguin's `visual.scale` applied by `bodyScale`. The code was right: the hat belongs on the crown
+of the body as drawn, and asserting the unscaled number would have asserted that a hat ignores how
+big the animal is.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

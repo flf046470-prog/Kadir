@@ -429,14 +429,14 @@ export class Avatar {
    */
   attachModel(loaded: LoadedModel): void {
     if (this.modelRoot) return; // already upgraded; a second call would stack two bodies
-    // Hide rather than delete: `dispose()` walks `materials` and `geometries`, and the cosmetic
-    // sockets are empty groups whose *positions* are still the right place to hang a hat.
+    // Hide rather than delete: `dispose()` walks `materials` and `geometries`.
     this.body.traverse((node) => {
       if ((node as THREE.Mesh).isMesh) node.visible = false;
     });
 
     this.modelRoot = loaded.scene;
     this.body.add(loaded.scene);
+    this.moveSocketsOntoModel(loaded.scene);
 
     if (loaded.clips.length > 0) {
       this.mixer = new THREE.AnimationMixer(loaded.scene);
@@ -461,9 +461,86 @@ export class Avatar {
 
     this.modelJaw = loaded.scene.getObjectByName('jaw') ?? null;
     this.applyLegless();
+
     // Captured before a single frame runs, so it is the rig's pose rather than one the mixer has
     // already blended part-way into a clip.
     this.modelJawRest = this.modelJaw ? this.modelJaw.quaternion.clone() : null;
+  }
+
+  /**
+   * Hang the cosmetic sockets on the loaded model's own bones.
+   *
+   * The sockets are built from the procedural rig, and the comment that used to sit in
+   * `attachModel` claimed their positions were "still the right place to hang a hat" once the
+   * model replaced the body. **Measured, they are not.** The procedural body plan in `PLANS` and
+   * the bone coordinates in `tools/blender/characters.py` are two independent implementations of
+   * the same body plan in two languages — this file's recurring "two lists that drift" defect,
+   * across a language boundary this time — and nothing ever asserted they agree. Comparing the
+   * procedural hat socket against each model's own bounding box:
+   *
+   *   penguin −0.400 m   panda −0.385 m   fox −0.370 m   bear −0.335 m   wolf −0.280 m
+   *
+   * i.e. a penguin's hat sat forty centimetres below the top of the penguin, at about chest
+   * height, and a human's and a lion's sat *above* their model entirely. The waddlers are worst
+   * because the two rigs disagree most there: `PLANS.waddler` drops the hip to 0.29 m and
+   * shortens the legs, while `build_upright(wide=True)` keeps a normal upright's bone heights and
+   * only widens the body — so the procedural penguin is 1.167 m tall and `penguin.glb` is 1.540 m.
+   *
+   * A socket has to follow the body that is actually on screen, so when a model arrives each
+   * socket moves onto the matching bone and keeps its local offset. Bones are matched by name
+   * because that name is already a contract: `CLIP_NAMES`' doc says the Blender pipeline writes
+   * exactly these, and `modelJaw` above already looks one up the same way.
+   *
+   * The `head` socket is **not** carried over as a local offset. Its procedural `+0.2` was tuned
+   * against the procedural skull, and the generated skull is somewhere else — `characters.py`
+   * puts the head *bone* at z 1.16–1.20 and the head *sphere* centre at 1.30–1.38, so the same
+   * number lands a hat inside the head. It is placed from the model's own bounding box instead,
+   * which is what "on the crown" actually means and needs no second table to keep in step. The
+   * other three keep their local offsets, which are relative to a joint rather than to a skull.
+   */
+  private moveSocketsOntoModel(scene: THREE.Object3D): void {
+    // three.js strips dots from glTF node names, so `tail.1` arrives as `tail1` — documented in
+    // CLAUDE.md, and it has cost a whole probe run before.
+    const bone = (...names: string[]): THREE.Object3D | null => {
+      for (const name of names) {
+        const found = scene.getObjectByName(name);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    const head = bone('head');
+    const targets: Record<string, THREE.Object3D | null> = {
+      head,
+      face: head,
+      back: bone('spine', 'hips'),
+      tail: bone('tail1', 'tail.1', 'tail', 'hips'),
+    };
+
+    // `updateWorldMatrix(true, true)` walks *up* as well as down. `updateMatrixWorld` only walks
+    // down, so it composes against whatever the ancestors last held — and this can be called on
+    // an avatar that is already in a scene and already being updated every frame, per the note on
+    // `attachModel`. A stale ancestor put the crown 0.03 m out on a scaled body, which is small
+    // enough to read as a tuning question rather than the bug it is.
+    scene.updateWorldMatrix(true, true);
+    const crown = new THREE.Box3().setFromObject(scene).max.y;
+
+    for (const [slot, target] of Object.entries(targets)) {
+      const socket = this.sockets[slot];
+      if (!socket || !target) continue; // no bone of that name: leave it on the procedural rig
+      const offset = socket.position.clone();
+      target.add(socket);
+      socket.position.copy(offset);
+      if (slot === 'head' && Number.isFinite(crown)) {
+        // Put the hat on the crown, in whatever local frame the head bone happens to be in — the
+        // quadruped rigs carry the head on a rotated neck, so a hand-written local offset would
+        // have to know which body plan it was on.
+        target.updateMatrixWorld(true);
+        socket.position.copy(
+          target.worldToLocal(new THREE.Vector3().setFromMatrixPosition(target.matrixWorld).setY(crown)),
+        );
+      }
+    }
   }
 
   /**
