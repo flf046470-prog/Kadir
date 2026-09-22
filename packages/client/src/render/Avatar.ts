@@ -250,10 +250,41 @@ const PLANS: Record<'hopper' | 'upright' | 'waddler', BodyPlan> = {
  * a two-joint leg per side and a segmented tail. That is what lets one class render a kangaroo
  * and a person from the same code and have both look like themselves.
  */
+/**
+ * How far `AnimalVisual.scale` may stretch an avatar, either way.
+ *
+ * Size is not on the cosmetic-only list's "never speed, jump, health or attack", but on maps whose
+ * whole subject is being seen, a much smaller silhouette is harder to spot — which is an advantage
+ * however it got there. The shipped roster spans 0.90 (frog) to 1.06 (tiger), so this band holds
+ * everything that exists while refusing a hand-edited 0.3.
+ */
+const MIN_ANIMAL_SCALE = 0.85;
+const MAX_ANIMAL_SCALE = 1.15;
+
+export function animalScaleFor(scale: number | undefined): number {
+  if (!Number.isFinite(scale) || scale === undefined) return 1;
+  return Math.min(MAX_ANIMAL_SCALE, Math.max(MIN_ANIMAL_SCALE, scale));
+}
+
 export class Avatar {
   readonly group = new THREE.Group();
   readonly head = new THREE.Group();
   readonly body = new THREE.Group();
+  /**
+   * Carries `AnimalVisual.scale`, and nothing else ever writes to it.
+   *
+   * It exists because `body.scale` is rewritten every frame — `applySquash` sets all three axes
+   * absolutely and the breath loop sets `x`/`z` back to 1 — so an animal's size assigned there is
+   * gone on the next tick. A parent multiplies instead of competing, which also keeps the rule at
+   * one site rather than being multiplied into both writes and drifting the way this project's
+   * sun position and VR bindings both did.
+   *
+   * It wraps `body` alone, not `group`. The hands are siblings because in VR they track real
+   * controllers and must stay where the controller is; the role ring is a sibling because its
+   * radius encodes *role* — 1.5x chaser, 1.25x fighter — and is the colourblind-safe channel, so
+   * a big animal must not read as a more urgent one. The name sprite is UI.
+   */
+  private readonly bodyScale = new THREE.Group();
   readonly hands: [THREE.Group, THREE.Group];
 
   private animal: AnimalDef;
@@ -761,7 +792,9 @@ export class Avatar {
     this.sockets.tail = new THREE.Group();
     (this.tailJoints[0] ?? this.hips).add(this.sockets.tail);
 
-    this.group.add(this.body);
+    this.bodyScale.scale.setScalar(animalScaleFor(this.animal.visual.scale));
+    this.bodyScale.add(this.body);
+    this.group.add(this.bodyScale);
 
     const ringGeo = this.geo(new THREE.RingGeometry(0.42, 0.56, 18));
     const ringMat = this.mat(0xffffff, { transparent: true, opacity: 0.0, side: THREE.DoubleSide });

@@ -1236,6 +1236,49 @@ more likely it means authoring gaits with a real stance phase, which is a Blende
 the glTF spelling finds nothing and reports it identically for every animal, which looks like a
 result rather than a miss. It cost a full probe run here.
 
+## The wolf was a recoloured fox
+
+Asked for character work. Blender is not installed here, so generating the nine roadmap animals is
+blocked the same way a headset is — but the seven that exist were worth measuring, and one of them
+was not really there.
+
+Reading each `.glb` directly: every animal has its own geometry buffer, so none is a straight copy.
+That was the first answer and it was too coarse. **`fox.glb` and `wolf.glb` have byte-identical
+`POSITION` and `NORMAL` data — maximum absolute difference 0.0000 across 8,448 values.** Only the
+material colours differ (orange vs grey-blue). The cause is in the data rather than the pipeline:
+`animals.json` gives both `ears: pointed, tail: bushy, snout: long`, so `characters.py` builds one
+shape twice. Tiger declares `round`/`thick`/`short` and really is a different mesh.
+
+| | fox | wolf | tiger |
+| --- | --- | --- | --- |
+| vertices | 2816 | 2816 | 3416 |
+| bones | 21 | 21 | 22 |
+| bbox | 0.52×1.58×1.81 | 0.52×1.58×1.81 | 0.52×1.55×1.87 |
+| `visual.scale` | 0.95 | 1.02 | 1.06 |
+
+So the only two things that were ever going to separate a fox from a wolf are colour and
+`visual.scale` — **and `visual.scale` was read by nothing.** Declared in `AnimalVisual`, documented
+("Overall scale multiplier. Hitboxes are NOT affected — fairness"), given seven distinct values
+from 0.90 to 1.06, and never applied: `Avatar.build()` reads `visual.body`, `.accent`, `.belly` and
+`.build` and stops there. Every animal in the game rendered at exactly the same size. No guard
+covers it — the Settings coverage test scans `Settings`, not `AnimalVisual`.
+
+**It cannot go on `body`, which is the trap.** `body.scale` is rewritten every frame: `applySquash`
+sets all three axes absolutely and the breath loop puts `x`/`z` back to 1. A size assigned there is
+gone on the next tick — mutation-tested, and it fails the *first* test rather than the squash one,
+because the test harness runs 120 frames before measuring anything.
+
+It goes on a `bodyScale` group wrapping `body` alone. Not `group`: the hands are siblings because
+in VR they track real controllers, and the role ring is a sibling because its radius encodes
+**role** — chaser 1.5×, fighter 1.25× — and is the colourblind-safe channel, so a big animal
+reading as a more urgent role would be a worse bug than the one being fixed. Mutation-tested all
+three ways: no scale, scale on `body`, scale on `group` — each fails a different test.
+
+`animalScaleFor` clamps to 0.85–1.15. Size is not on the cosmetic-only list's "never speed, jump,
+health or attack", but on maps whose whole subject is being seen a much smaller silhouette is
+harder to spot, which is an advantage however it arrived. The band holds the whole shipped roster
+untouched — asserted per animal, so the clamp can never quietly retune one.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

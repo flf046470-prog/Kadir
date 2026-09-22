@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { LAUNCH_ANIMALS, SnapFlags, listAnimals, registerAnimals } from '@kc/core';
 import type { PlayerSnapshot } from '@kc/core';
-import { Avatar } from './Avatar.js';
+import { Avatar, animalScaleFor } from './Avatar.js';
 
 /**
  * The procedural skeleton, checked as geometry.
@@ -25,9 +25,8 @@ import { Avatar } from './Avatar.js';
  * Posing matters: `update` is what places the hands, and a freshly constructed avatar still has
  * them at the origin. Measuring before that would be measuring a state no player ever sees.
  */
-function build(id: string): Avatar {
-  const avatar = new Avatar(id, false);
-  const snapshot = {
+function standing(id = 'kangaroo'): PlayerSnapshot {
+  return {
     id,
     x: 0,
     y: 0,
@@ -41,6 +40,11 @@ function build(id: string): Avatar {
     voice: 0,
     hands: null,
   } as unknown as PlayerSnapshot;
+}
+
+function build(id: string): Avatar {
+  const avatar = new Avatar(id, false);
+  const snapshot = standing(id);
   const eye = new THREE.Vector3(0, 1.5, 4);
   // A few frames, because the joints ease towards their pose rather than snapping to it.
   for (let i = 0; i < 120; i++) avatar.update(snapshot, 1 / 60, eye);
@@ -347,5 +351,76 @@ describe('an avatar frees what it allocated', () => {
     });
     expect(sprites.length).toBe(1);
     avatar.dispose();
+  });
+});
+
+/**
+ * `AnimalVisual.scale` was declared, documented and read by nothing.
+ *
+ * Seven animals ship distinct values (frog 0.90 … tiger 1.06) under a doc comment that promises
+ * "Overall scale multiplier. Hitboxes are NOT affected — fairness". `build()` reads `visual.body`,
+ * `.accent`, `.belly` and `.build`, and never `.scale`, so every animal rendered at exactly the
+ * same size. That is this codebase's usual declared-and-never-read shape, and here it had a
+ * measurable consequence: `fox.glb` and `wolf.glb` carry **byte-identical POSITION and NORMAL
+ * data** — max absolute difference 0.0000 across 8,448 values — because `animals.json` gives them
+ * the same `ears`/`tail`/`snout`, so the Blender pipeline builds one shape twice. Colour and
+ * `scale` are the only two things that were ever going to tell them apart, and only one of them
+ * was wired. A player picking Wolf over Fox got a recoloured fox.
+ */
+describe('an animal’s visual scale', () => {
+  /** World scale of the rendered body, which is what a viewer actually sees. */
+  function bodyScaleOf(avatar: Avatar): number {
+    avatar.group.updateMatrixWorld(true);
+    return avatar.body.getWorldScale(new THREE.Vector3()).x;
+  }
+
+  it('reaches the rendered body', () => {
+    const animals = listAnimals();
+    const small = animals.reduce((a, b) => (a.visual.scale <= b.visual.scale ? a : b));
+    const large = animals.reduce((a, b) => (a.visual.scale >= b.visual.scale ? a : b));
+    // Identified by rank, never by a literal copied from today's roster.
+    expect(large.visual.scale).toBeGreaterThan(small.visual.scale);
+    expect(bodyScaleOf(build(large.id))).toBeGreaterThan(bodyScaleOf(build(small.id)));
+  });
+
+  it('survives the per-frame squash, which is why it is not set on `body` itself', () => {
+    // `applySquash` writes all three axes of `body.scale` absolutely and the breath loop resets
+    // x and z to 1, so an animal size assigned there is gone on the next tick. This is the
+    // regression that the wrapper group exists to prevent.
+    const animals = listAnimals();
+    const large = animals.reduce((a, b) => (a.visual.scale >= b.visual.scale ? a : b));
+    const avatar = build(large.id);
+    const before = bodyScaleOf(avatar);
+    const eye = new THREE.Vector3(0, 1.5, 4);
+    for (let i = 0; i < 30; i++) avatar.update(standing(large.id), 1 / 60, eye);
+    expect(bodyScaleOf(avatar)).toBeCloseTo(before, 5);
+  });
+
+  it('leaves the role ring alone, because ring size means role and not animal', () => {
+    // Chaser 1.5x, fighter 1.25x, runner 1x — and it is the colourblind-safe channel, so a big
+    // animal reading as a more urgent role would be worse than the bug this fixes.
+    const animals = listAnimals();
+    const small = animals.reduce((a, b) => (a.visual.scale <= b.visual.scale ? a : b));
+    const large = animals.reduce((a, b) => (a.visual.scale >= b.visual.scale ? a : b));
+    const ringOf = (id: string): number => {
+      const avatar = build(id);
+      avatar.group.updateMatrixWorld(true);
+      const ring = avatar.group.children.find((c) => c instanceof THREE.Mesh && c.rotation.x < -1);
+      return ring ? ring.getWorldScale(new THREE.Vector3()).x : Number.NaN;
+    };
+    expect(ringOf(large.id)).toBeCloseTo(ringOf(small.id), 5);
+  });
+
+  it('clamps a value no shipped animal has', () => {
+    // Size is not on the cosmetic-only list, but a much smaller silhouette is harder to spot on
+    // maps whose whole subject is being seen, so the band refuses a hand-edited extreme.
+    expect(animalScaleFor(0.3)).toBeGreaterThan(0.3);
+    expect(animalScaleFor(4)).toBeLessThan(4);
+    expect(animalScaleFor(Number.NaN)).toBe(1);
+    expect(animalScaleFor(undefined)).toBe(1);
+    // Every shipped animal passes through untouched — the clamp must not be retuning the roster.
+    for (const animal of listAnimals()) {
+      expect(animalScaleFor(animal.visual.scale)).toBe(animal.visual.scale);
+    }
   });
 });
