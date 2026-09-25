@@ -22,6 +22,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import net from 'node:net';
 import path from 'node:path';
 
 // Imported rather than written down. This was `const PROTOCOL = 2` for exactly as long as the
@@ -33,7 +34,25 @@ import path from 'node:path';
 // under `tsx` rather than plain `node`.
 import { PROTOCOL_VERSION } from '@kc/net';
 
-const PORT = 8873;
+/**
+ * A free port and a private data directory, never a fixed pair.
+ *
+ * This used to bind 8873 and write to /tmp/kc-hostile. Two `npm run verify`s at once — two
+ * worktrees, or CI's matrix — then started two servers on one port: the second failed to bind and
+ * every attack was scored against the *other* run's room, which is exactly the dead-instrument
+ * failure this file's own guard exists to name. `KC_HOSTILE_PORT` still pins it for debugging.
+ */
+const freePort = () =>
+  new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.unref();
+    probe.on('error', reject);
+    probe.listen(0, '127.0.0.1', () => {
+      const { port } = probe.address();
+      probe.close(() => resolve(port));
+    });
+  });
+const PORT = Number(process.env.KC_HOSTILE_PORT) || (await freePort());
 const base = `http://127.0.0.1:${PORT}`;
 const wsBase = `ws://127.0.0.1:${PORT}`;
 
@@ -42,7 +61,7 @@ const server = spawn(process.execPath, ['dist/server/main.js'], {
     ...process.env,
     PORT: String(PORT),
     HOST: '127.0.0.1',
-    KC_DATA_DIR: '/tmp/kc-hostile',
+    KC_DATA_DIR: `/tmp/kc-hostile-${process.pid}`,
     KC_PUBLIC_DIR: path.resolve('dist/client'),
   },
   stdio: ['ignore', 'pipe', 'pipe'],
