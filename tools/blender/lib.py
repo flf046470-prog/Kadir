@@ -105,7 +105,7 @@ def box(name, center, size, mat, rotation=(0.0, 0.0, 0.0)):
     return ob
 
 
-def sphere(name, center, size, mat, segments=10, rings=6):
+def sphere(name, center, size, mat, segments=10, rings=6, rotation=(0.0, 0.0, 0.0)):
     """
     A low-polygon UV sphere, scaled per axis so one call covers heads, bellies and berries.
 
@@ -116,6 +116,10 @@ def sphere(name, center, size, mat, segments=10, rings=6):
     ob = bpy.context.active_object
     ob.name = name
     ob.scale = (size[0], size[1], size[2])
+    # Optional so every existing call keeps its geometry bit-for-bit. A limb or a tail segment
+    # running along a diagonal needs its long axis along that diagonal: an axis-aligned ellipsoid
+    # laid on a slope reads as a flat disc, and a chain of them reads as loose lumps.
+    ob.rotation_euler = Euler(rotation, "XYZ")
     _finish(ob, mat)
     return ob
 
@@ -236,6 +240,45 @@ def skin(mesh_obj, arm_obj) -> None:
         raise RuntimeError(f"{mesh_obj.name} did not receive an armature modifier")
 
 
+PIN_PREFIX = "pin:"
+
+
+def pin(ob, bone_name: str):
+    """
+    Mark a part, before `join`, as riding one bone rigidly.
+
+    Stored as a vertex group named `pin:<bone>`, which survives joining (groups merge by name) and
+    automatic weighting (which only writes groups named after bones). `apply_pins` turns it into
+    a full weight on that bone afterwards.
+    """
+    group = ob.vertex_groups.new(name=PIN_PREFIX + bone_name)
+    group.add([v.index for v in ob.data.vertices], 1.0, "REPLACE")
+    return ob
+
+
+def apply_pins(mesh_obj) -> int:
+    """Give every pinned vertex a single full weight on its bone, and drop the pin groups."""
+    moved = 0
+    for pin_group in [g for g in mesh_obj.vertex_groups if g.name.startswith(PIN_PREFIX)]:
+        bone_name = pin_group.name[len(PIN_PREFIX):]
+        target = mesh_obj.vertex_groups.get(bone_name) or mesh_obj.vertex_groups.new(name=bone_name)
+        members = [v.index for v in mesh_obj.data.vertices if any(g.group == pin_group.index for g in v.groups)]
+        for vi in members:
+            for g in list(mesh_obj.data.vertices[vi].groups):
+                if g.group not in (target.index, pin_group.index):
+                    mesh_obj.vertex_groups[g.group].remove([vi])
+        target.add(members, 1.0, "REPLACE")
+        mesh_obj.vertex_groups.remove(pin_group)
+        moved += len(members)
+    return moved
+
+
+def unweighted_vertices(mesh_obj) -> int:
+    """Vertices with no bone weight at all — each one is bound to the exporter's `neutral_bone`."""
+    bone_groups = {g.index for g in mesh_obj.vertex_groups if not g.name.startswith(PIN_PREFIX)}
+    return sum(1 for v in mesh_obj.data.vertices if not any(g.group in bone_groups and g.weight > 1e-4 for g in v.groups))
+
+
 # --------------------------------------------------------------------------------------------
 # Animation
 # --------------------------------------------------------------------------------------------
@@ -273,7 +316,14 @@ class Clip:
         pb.rotation_quaternion = Euler([math.radians(a) for a in rot_deg], "XYZ").to_quaternion()
         pb.keyframe_insert("rotation_quaternion", frame=frame)
         if loc is not None:
-            pb.location = Vector(loc)
+            # `loc` is an armature-space offset — x right, y forward, z up — because that is how
+            # every call site writes it: `loc=(0, 0, rise)` means "up". A pose bone's location is
+            # in the bone's *own* rest frame, though, and the root bone points up, so its local Z
+            # is horizontal. Measured through the real clips before this conversion: the hips
+            # moved 0.000 m up through the whole run cycle and slid 0.19 m backwards at mid-hop.
+            # Every bounce, crouch, sit and backflip rise in the game was a slide along the floor.
+            rest = self.arm.data.bones[bone].matrix_local.to_3x3()
+            pb.location = rest.inverted() @ Vector(loc)
             pb.keyframe_insert("location", frame=frame)
 
     def cycle(self, bone: str, keys) -> None:

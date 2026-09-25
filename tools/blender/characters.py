@@ -123,27 +123,27 @@ def _head_parts(spec, mats, top, forward):
     ears = _trait(spec, "ears", {"tall", "pointed", "round", "fin", "none"})
     for side, x in (("L", 0.13), ("R", -0.13)):
         if ears == "tall":
-            parts.append(
-                cone(f"ear.{side}", (x, forward - 0.04, top + 0.26), 0.06, 0.02, 0.30, mats["body"], vertices=6)
-            )
+            parts.append(lib.pin(
+                cone(f"ear.{side}", (x, forward - 0.04, top + 0.26), 0.06, 0.02, 0.30, mats["body"], vertices=6), "head"
+            ))
         elif ears == "pointed":
-            parts.append(
-                cone(f"ear.{side}", (x, forward - 0.02, top + 0.19), 0.07, 0.01, 0.18, mats["body"], vertices=5)
-            )
+            parts.append(lib.pin(
+                cone(f"ear.{side}", (x, forward - 0.02, top + 0.19), 0.07, 0.01, 0.18, mats["body"], vertices=5), "head"
+            ))
         elif ears == "round":
-            parts.append(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), mats["body"]))
+            parts.append(lib.pin(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), mats["body"]), "head"))
         elif ears == "fin":
             # A blade swept back off the side of the skull, not a cone standing up off it. Thin in
             # X so it reads as a fin edge-on and disappears from the front, which is the whole
             # visual joke of an animal with fins where its ears should be.
-            parts.append(
+            parts.append(lib.pin(
                 box(f"ear.{side}", (x + 0.05 * (1 if side == "L" else -1), forward - 0.08, top + 0.14),
                     (0.03, 0.22, 0.20), mats["accent"],
-                    rotation=(math.radians(-24), 0, math.radians(14 if side == "L" else -14)))
-            )
+                    rotation=(math.radians(-24), 0, math.radians(14 if side == "L" else -14))), "head"
+            ))
 
     for side, x in (("L", 0.12), ("R", -0.12)):
-        parts.append(sphere(f"eye.{side}", (x, forward + 0.14, top + 0.06), (0.06, 0.05, 0.06), mats["dark"]))
+        parts.append(lib.pin(sphere(f"eye.{side}", (x, forward + 0.14, top + 0.06), (0.06, 0.05, 0.06), mats["dark"]), "head"))
     return parts
 
 
@@ -235,41 +235,131 @@ def _tail_bones(spec, base_z, base_y, parent):
 # --------------------------------------------------------------------------------------------
 
 
-def build_hopper(spec, mats):
-    """Kangaroo and frog: heavy hind legs, short arms, tail out behind."""
-    parts = [
-        sphere("hips", (0, -0.02, 0.82), (0.42, 0.44, 0.40), mats["body"]),
-        sphere("chest", (0, 0.02, 1.10), (0.40, 0.38, 0.38), mats["body"]),
-        sphere("belly", (0, 0.14, 0.95), (0.30, 0.22, 0.34), mats["belly"]),
-    ]
-    parts += _head_parts(spec, mats, 1.34, 0.04)
-    parts += _tail_parts(spec, mats, 0.78, -0.02)
+def _limb(name, a, b, width, depth, mat):
+    """
+    A box running from joint `a` to joint `b` in the sagittal plane (x fixed, y forward, z up).
 
-    for side, x in (("L", 0.16), ("R", -0.16)):
-        parts.append(box(f"thigh.{side}", (x, -0.04, 0.66), (0.20, 0.26, 0.36), mats["body"]))
-        parts.append(box(f"shin.{side}", (x, 0.00, 0.30), (0.15, 0.16, 0.42), mats["body"]))
-        parts.append(box(f"foot.{side}", (x, 0.14, 0.05), (0.16, 0.44, 0.10), mats["accent"]))
-        parts.append(box(f"arm.{side}", (x + 0.08 * (1 if side == "L" else -1), 0.10, 1.06), (0.10, 0.10, 0.28), mats["body"]))
+    Limbs used to be axis-aligned boxes, which is why every hind leg stood dead vertical: there
+    is no way to draw a Z-folded leg out of boxes that can only point straight down. This builds
+    the box along the segment between two joints, so the rig and the mesh are described by the
+    same two points and cannot disagree about where a knee is.
+    """
+    ay, az = a[1], a[2]
+    by, bz = b[1], b[2]
+    dy, dz = ay - by, az - bz
+    length = math.hypot(dy, dz)
+    # Rotating +Z by `angle` about X gives (0, -sin, cos); solve for the direction b -> a.
+    angle = math.atan2(-dy, dz)
+    centre = (a[0], (ay + by) / 2, (az + bz) / 2)
+    return box(name, centre, (width, depth, length + width * 0.5), mat, rotation=(angle, 0, 0))
+
+
+def _segment(name, a, b, width, depth, mat, overlap=1.3):
+    """
+    An ellipsoid laid along the segment from `a` to `b` (sagittal plane), for muscle and tail.
+
+    `overlap` lengthens it past both joints so a chain of them bends without opening a seam — the
+    tail's own history: segments that met with two centimetres to spare came apart the moment the
+    hop swung them, and read as a kangaroo followed by three loose lumps.
+    """
+    ay, az = a[1], a[2]
+    by, bz = b[1], b[2]
+    dy, dz = ay - by, az - bz
+    length = math.hypot(dy, dz) * overlap
+    angle = math.atan2(-dy, dz)
+    centre = (a[0], (ay + by) / 2, (az + bz) / 2)
+    return sphere(name, centre, (width, depth, length), mat, rotation=(angle, 0, 0))
+
+
+def _kangaroo_tail(spec, mats, rump):
+    """
+    The heavy tail a kangaroo rests on, as parts and bones together.
+
+    Only for `thick` tails on hoppers. The generic thick tail drooped about twenty centimetres and
+    stopped in mid-air, which is a wolf's tail on a kangaroo; a real one runs down to the ground
+    and takes weight when standing — the third leg of the tripod, and half of the silhouette.
+    """
+    x, y, z = rump
+    joints = [(x, y, z), (x, y - 0.26, z - 0.20), (x, y - 0.50, z - 0.42), (x, y - 0.74, z - 0.58)]
+    sizes = [(0.24, 0.36, 0.24), (0.19, 0.34, 0.18), (0.14, 0.32, 0.13), (0.10, 0.26, 0.09)]
+    parts, bones = [], []
+    for i in range(3):
+        width = sizes[i][0]
+        colour = mats["accent"] if i == 2 else mats["body"]
+        parts.append(_segment(f"tail.{i + 1}", joints[i], joints[i + 1], width, width * 0.95, colour, overlap=1.55))
+        bones.append((f"tail.{i + 1}", joints[i], joints[i + 1], "hips" if i == 0 else f"tail.{i}"))
+    # The tip, where the tail meets the ground.
+    parts.append(sphere("tail.tip", joints[3], (0.10, 0.14, 0.09), mats["accent"]))
+    return parts, bones
+
+
+def build_hopper(spec, mats):
+    """
+    Kangaroo, frog and raptor: a body leaning out over Z-folded hind legs, the tail behind.
+
+    The shape is the one the procedural avatar's `PLANS.hopper` already describes and the
+    generated model never had: haunches low and back, the thigh running forward-down to a knee
+    under the belly, the shin running back-down to a raised hock, a long foot forward along the
+    ground, the torso leaning out over the toes, small forearms held in front of the chest. The
+    first version stacked the body vertically on two straight boxes, and in real gameplay frames
+    the player's kangaroo read as a robot on stilts from behind — the single most-seen object in
+    the game.
+    """
+    hip_y, hip_z = -0.12, 0.74
+    # One long leaning torso over a heavy rump, rather than a stack of balls: in the first render
+    # the back read as a caterpillar of four separate lumps.
+    parts = [
+        sphere("hips", (0, -0.10, 0.74), (0.46, 0.52, 0.46), mats["body"]),
+        _segment("torso", (0, -0.06, 0.74), (0, 0.18, 1.12), 0.40, 0.40, mats["body"], overlap=1.35),
+        _segment("belly", (0, 0.06, 0.74), (0, 0.22, 1.02), 0.26, 0.22, mats["belly"], overlap=1.2),
+        _segment("neck", (0, 0.14, 1.06), (0, 0.24, 1.26), 0.20, 0.22, mats["body"], overlap=1.4),
+    ]
+    parts += _head_parts(spec, mats, 1.32, 0.26)
+
+    kangaroo_tail = spec["visual"].get("tail") == "thick"
+    if kangaroo_tail:
+        tail_parts, tail_bone_list = _kangaroo_tail(spec, mats, (0, -0.30, 0.66))
+        parts += tail_parts
+    else:
+        parts += _tail_parts(spec, mats, 0.72, -0.26)
+
+    for side, x in (("L", 0.17), ("R", -0.17)):
+        hip = (x, hip_y, hip_z)
+        knee = (x, 0.14, 0.46)
+        hock = (x, -0.16, 0.12)
+        toe = (x, 0.34, 0.045)
+        # The haunch: the widest mass of a kangaroo, sitting over the top of the thigh.
+        parts.append(sphere(f"haunch.{side}", (x * 0.9, 0.0, 0.62), (0.22, 0.42, 0.38), mats["body"]))
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.20, 0.26, mats["body"], overlap=1.35))
+        parts.append(_limb(f"shin.{side}", knee, hock, 0.12, 0.12, mats["body"]))
+        parts.append(box(f"foot.{side}", (x, (hock[1] + toe[1]) / 2, 0.045), (0.14, toe[1] - hock[1] + 0.06, 0.09), mats["accent"]))
+        shoulder = (x * 0.6, 0.22, 1.06)
+        paw = (x * 0.7, 0.38, 0.84)
+        parts.append(_limb(f"arm.{side}", shoulder, paw, 0.08, 0.08, mats["body"]))
+        parts.append(sphere(f"paw.{side}", paw, (0.09, 0.09, 0.08), mats["accent"]))
 
     bones = [
         ("root", (0, 0, 0.0), (0, 0, 0.12), None),
-        ("hips", (0, 0, 0.80), (0, 0, 0.98), "root"),
-        ("spine", (0, 0, 0.98), (0, 0, 1.16), "hips"),
-        ("head", (0, 0, 1.16), (0, 0.02, 1.42), "spine"),
+        ("hips", (0, hip_y, hip_z), (0, 0.02, 0.90), "root"),
+        ("spine", (0, 0.02, 0.90), (0, 0.20, 1.10), "hips"),
+        ("head", (0, 0.20, 1.12), (0, 0.30, 1.42), "spine"),
     ]
-    bones += _jaw_bone(1.34, 0.04)
-    bones += _tail_bones(spec, 0.80, -0.02, "hips")
-    for side, x in (("L", 0.16), ("R", -0.16)):
+    bones += _jaw_bone(1.32, 0.26)
+    if kangaroo_tail:
+        bones += tail_bone_list
+    else:
+        bones += _tail_bones(spec, 0.72, -0.26, "hips")
+    for side, x in (("L", 0.17), ("R", -0.17)):
         bones += [
-            (f"thigh.{side}", (x, -0.04, 0.82), (x, -0.02, 0.50), "hips"),
-            (f"shin.{side}", (x, -0.02, 0.50), (x, 0.02, 0.12), f"thigh.{side}"),
-            (f"foot.{side}", (x, 0.02, 0.10), (x, 0.30, 0.06), f"shin.{side}"),
-            (f"arm.{side}", (x * 0.55, 0.06, 1.16), (x * 0.75, 0.14, 0.94), "spine"),
+            (f"thigh.{side}", (x, hip_y, hip_z), (x, 0.14, 0.46), "hips"),
+            (f"shin.{side}", (x, 0.14, 0.46), (x, -0.16, 0.12), f"thigh.{side}"),
+            (f"foot.{side}", (x, -0.16, 0.10), (x, 0.34, 0.04), f"shin.{side}"),
+            (f"arm.{side}", (x * 0.6, 0.22, 1.06), (x * 0.7, 0.38, 0.84), "spine"),
         ]
-    # The chest sphere is centred on (0, 0.02, 1.10) and 0.38 deep (a diameter — see
-    # `_head_sockets`), so its back surface is at y = -0.17. A backpack hangs there, not in the air.
-    sockets = _head_sockets(1.34, 0.04)
-    sockets["socket_back"] = ("spine", (0, -0.17, 1.10))
+    # The back of the leaning chest, where a pack rests: the chest sphere is centred on
+    # (0, 0.14, 1.01) and 0.38 deep (a diameter), so its back surface is near y = -0.05.
+    sockets = _head_sockets(1.32, 0.26)
+    sockets["socket_back"] = ("spine", (0, -0.05, 1.02))
     return parts, bones, "hopper", sockets
 
 
@@ -453,7 +543,10 @@ def animate(arm, plan, tail_bones):
                 lkeys.append((f, (-lift * max(0.0, math.sin(t * math.tau + 1.2)), 0, 0)))
             clip.cycle(upper, ukeys)
             clip.cycle(lower, lkeys)
-        clip.cycle("spine", [(f, (lean, 0, 0)) for f in steps])
+        # Negative is forward on these rigs. It was `+lean`, and measured through the real clips
+        # every animal's run leaned *back* — the kangaroo's head 0.225 m behind where it idles —
+        # which reads as braking, not running. A runner leans into the run.
+        clip.cycle("spine", [(f, (-lean, 0, 0)) for f in steps])
         if waddling:
             # A waddle is a roll, not a stride.
             #
@@ -551,16 +644,18 @@ def animate(arm, plan, tail_bones):
 
     # Hit: a recoil that is legible from across the map, which is where tags happen.
     hit = Clip(arm, "hit", LENGTHS["hit"])
+    # A recoil throws the head *back*. These were negative, which on these rigs is forward, so a
+    # tagged animal nodded into the hit (head +0.07 m forward at the peak) instead of reeling.
     hit.key("spine", 1, (0, 0, 0))
-    hit.key("spine", 3, (-24, 0, 8))
-    hit.key("spine", 9, (8, 0, -3))
+    hit.key("spine", 3, (24, 0, 8))
+    hit.key("spine", 9, (-8, 0, -3))
     hit.key("spine", LENGTHS["hit"], (0, 0, 0))
     for bone in arms:
         hit.key(bone, 1, (0, 0, 0))
         hit.key(bone, 3, (-34, 0, 0))
         hit.key(bone, LENGTHS["hit"], (0, 0, 0))
     hit.key("head", 1, (0, 0, 0))
-    hit.key("head", 3, (-28, 0, 12))
+    hit.key("head", 3, (28, 0, 12))
     hit.key("head", LENGTHS["hit"], (0, 0, 0))
 
     _emotes(arm, legs, arms, tail_bones)
@@ -750,6 +845,16 @@ def build_animal(spec, out_path, capsule):
     mesh = join(parts, spec["id"])
     arm = armature(f"{spec['id']}_rig", bones)
     skin(mesh, arm)
+    # Ears and eyes are small detached islands that heat-diffusion weighting silently skips:
+    # measured, every animal's 440 eye vertices and every round-eared animal's 104 ear vertices
+    # came out unweighted, bound to the exporter's `neutral_bone`, and stayed put while the head
+    # moved. They are pinned to the head in `_head_parts` and resolved here.
+    lib.apply_pins(mesh)
+    # Anything else auto-weighting dropped would ride `neutral_bone` and stay behind in every clip.
+    # Refused here rather than shipped: `animal-motion.test.ts` checks the files, this stops the build.
+    left = lib.unweighted_vertices(mesh)
+    if left:
+        raise AssertionError(f"{spec['id']}: {left} vertices have no bone weight")
 
     # Sockets go on before a single clip is keyed. `bone_socket` places each one in world space
     # against the bone's *current* pose, and once `animate` has run that is whatever frame of the

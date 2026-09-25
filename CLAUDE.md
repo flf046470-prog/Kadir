@@ -1534,6 +1534,46 @@ of the barrel at 1.13 m. Mutation-tested on both sides: three generator mutation
 radius-not-diameter, sockets after animate) each fail the test named for them; two client
 mutations (ignore authored nodes, drop the orientation fix) each fail theirs.
 
+## The rig never bounced, and the kangaroo was a robot on stilts
+
+Found by **looking at real gameplay frames** (swiftshader, practice round) and then measuring every
+clip through three.js's own `AnimationMixer` — no test had ever played a clip.
+
+- **The player's kangaroo was a vertical stack of balls on two straight boxes.** `build_hopper`
+  used axis-aligned boxes for every limb, and an axis-aligned box can only point straight down,
+  so there was no way to draw the Z-folded leg `PLANS.hopper` already describes for the fallback.
+  Rebuilt with `_limb`/`_segment` (a box or ellipsoid laid along the segment between two joints —
+  the rig and the mesh are described by the same two points) and `_kangaroo_tail` (four joints
+  down to the ground: the third leg of the tripod). Frog and raptor share the plan and were
+  checked in renders too. `lib.sphere` takes an optional rotation; every existing call keeps its
+  geometry (wolf still 1404 triangles).
+- **`Clip.key(loc=…)` wrote into the bone's own frame.** The root bone points up, so its local Z is
+  horizontal: through the whole run the hips rose **0.000 m** and slid **0.19 m backwards** at
+  mid-hop. Every bounce, jump crouch, sit, sleep and backflip rise in the game was a slide along the
+  floor. `loc` is now an armature-space offset converted through the bone's rest matrix, which is
+  what all twenty call sites already assumed. After: the kangaroo rises 0.192 m mid-hop, drifts 0.
+- **Positive spine pitch is backwards on these rigs.** The run keyed `+lean` (kangaroo head 0.225 m
+  behind idle — braking, not running) and the hit keyed `−24` (head 0.07 m *into* the blow). Both
+  flipped. Emote poses were not re-audited for this; do that before trusting a new one.
+- **Eyes and round ears were bound to nothing.** Heat-diffusion weighting skips small detached
+  islands and the exporter binds them to `neutral_bone`: 440 eye vertices on every animal, plus the
+  ears of every round-eared one, stayed put while the head moved. `lib.pin(part, bone)` marks a
+  part before `join` (a `pin:<bone>` vertex group survives joining and auto-weighting),
+  `apply_pins` resolves it, and `build_animal` **refuses to export** a model with any unweighted
+  vertex — which is how the ears were found, one rebuild after the eyes.
+
+`animal-motion.test.ts` plays the real clips: no vertex on `neutral_bone`, hips rise and do not
+slide in the run, the head leans into the run and reels back from a hit, the kangaroo's tail
+reaches the ground. Mutation-tested in one rebuild with all three bugs restored: each test fails
+with its own message and reproduces the original numbers (rise 0, lean −0.2247, eyes 440).
+
+**Viewing a model**: `.viewer.html` (untracked, in `.git/info/exclude`) plus a static server and
+Playwright renders any `.glb` with any clip at any time from any yaw. A render caught the loose
+tail lumps, the caterpillar back, the backwards lean and the floating eyes before any number did.
+
+**Still weak**: the upright and waddler bodies are the same stick-leg construction the hopper had,
+and the waddler plan gives **bear and panda penguin flippers** for arms — visible in a wave emote.
+
 Still open from the same probe:
 
 - **17 visual cosmetics are 9 distinct meshes.** `buildCosmetic` reads `visual.shape` for hats only;
