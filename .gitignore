@@ -100,3 +100,7 @@ packaging/**/*.pfx
 # `npm run assets:spec`, so a committed copy could only ever be a stale second source of truth.
 __pycache__/
 tools/blender/animals.json
+
+# Agent worktrees are separate checkouts of this repository. `git add -A` from the root picked
+# two of them up as embedded-repository gitlinks once; they must never enter the index.
+.claude/worktrees/
