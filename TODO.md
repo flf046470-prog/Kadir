@@ -3,7 +3,7 @@
 Status of every phase in `ROADMAP.md`. A phase is only ticked when it is implemented **and**
 covered by a passing check.
 
-`npm run verify` = lint + asset/pack gates + typecheck + **1051 tests** + all three builds +
+`npm run verify` = lint + asset/pack gates + typecheck + **1058 tests** + all three builds +
 `check:hostile`. CI runs the same commands as separate steps, plus a `postgres` job against a real
 database and a `browser` job (`check:smoke`, `check:pwa`) against a real Chromium.
 
@@ -45,7 +45,7 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
 - [x] **19 · Events & seasons** — season track (both tiers free), event windows
 - [x] **20 · Optimisation** — instanced level + props, quality tiers, adaptive frame governor
       with a headset floor, `sceneryDetail`, snapshot deltas, rest-state velocity snapping
-- [x] **21 · QA** — 1051 automated tests; browser smoke test on desktop and mobile viewports;
+- [x] **21 · QA** — 1058 automated tests; browser smoke test on desktop and mobile viewports;
       PWA check; hostile-client check against a real server over a real socket
 - [x] **22 · Release preparation** — builds, PWA manifest + service worker, CI, licence-gated
       art pipeline, Meta Quest (Bubblewrap), Steam (Electron) and Microsoft Store packaging,

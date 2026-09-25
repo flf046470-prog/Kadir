@@ -22,8 +22,14 @@ Clip names are the contract with the renderer: idle, walk, run, jump, hit, and t
 
 import math
 
+import bpy
+
 import lib
 from lib import Clip, armature, box, cone, join, material, skin, sphere
+
+
+def bpy_update() -> None:
+    bpy.context.view_layer.update()
 
 """
 The emotes, in the order the game numbers them.
@@ -71,6 +77,28 @@ def _trait(spec, field, handled):
             f"(it builds {sorted(handled)}). Add the branch or change the animal."
         )
     return value
+
+
+def _head_sockets(top, forward):
+    """
+    Where a hat and a pair of glasses go, derived from the numbers that build the head.
+
+    Written next to `_head_parts` and from the same `top`/`forward` on purpose. The client used to
+    guess these from its own procedural rig, which is a second implementation of the same body plan
+    in another language — measured, a penguin's hat sat forty centimetres below the top of the
+    penguin. Then it guessed from the model's bounding box, which is the tip of a kangaroo's
+    thirty-centimetre ears rather than its skull. Only this file knows where the skull is.
+
+    The head is `sphere("head", (0, forward, top), (0.34, 0.36, 0.32))`, and `lib.sphere`'s size
+    is a full **diameter** — it scales a radius-0.5 sphere. So the crown is `top + 0.16` and the
+    front of the face is `forward + 0.18`. A first version read those as radii and was caught by
+    measurement rather than review: it put a human's hat socket at 1.70 m on a model whose top
+    vertex is at 1.54 — sixteen centimetres of air — which `animal-geometry.test.ts` now refuses.
+    """
+    return {
+        "socket_head": ("head", (0, forward, top + 0.16)),
+        "socket_face": ("head", (0, forward + 0.18, top + 0.05)),
+    }
 
 
 def _head_parts(spec, mats, top, forward):
@@ -238,7 +266,11 @@ def build_hopper(spec, mats):
             (f"foot.{side}", (x, 0.02, 0.10), (x, 0.30, 0.06), f"shin.{side}"),
             (f"arm.{side}", (x * 0.55, 0.06, 1.16), (x * 0.75, 0.14, 0.94), "spine"),
         ]
-    return parts, bones, "hopper"
+    # The chest sphere is centred on (0, 0.02, 1.10) and 0.38 deep (a diameter — see
+    # `_head_sockets`), so its back surface is at y = -0.17. A backpack hangs there, not in the air.
+    sockets = _head_sockets(1.34, 0.04)
+    sockets["socket_back"] = ("spine", (0, -0.17, 1.10))
+    return parts, bones, "hopper", sockets
 
 
 def build_upright(spec, mats):
@@ -284,7 +316,10 @@ def build_upright(spec, mats):
             (f"foot.{side}", (x, 0, 0.08), (x, 0.24, 0.04), f"shin.{side}"),
             (f"arm.{side}", (x * 1.2, 0, 1.22), (x * 2.0, 0, 0.90), "spine"),
         ]
-    return parts, bones, "waddler" if wide else "upright"
+    # Chest centred on (0, 0, 1.14) and 0.32 deep: the back surface is y = -0.16.
+    sockets = _head_sockets(1.38, 0.02)
+    sockets["socket_back"] = ("spine", (0, -0.16, 1.12))
+    return parts, bones, "waddler" if wide else "upright", sockets
 
 
 def build_quadruped(spec, mats):
@@ -323,7 +358,11 @@ def build_quadruped(spec, mats):
                 (f"{tag}lower.{side}", (x, y, 0.50), (x, y, 0.12), f"{tag}upper.{side}"),
                 (f"{tag}paw.{side}", (x, y, 0.10), (x, y + 0.20, 0.05), f"{tag}lower.{side}"),
             ]
-    return parts, bones, "quadruped"
+    # On four legs the back is the *top* of the barrel — centred at z 0.94 and 0.38 tall — so a
+    # pack rides on it at z 1.13 rather than hanging off the rump.
+    sockets = _head_sockets(1.30, 0.58)
+    sockets["socket_back"] = ("spine", (0, -0.06, 1.13))
+    return parts, bones, "quadruped", sockets
 
 
 """
@@ -706,11 +745,18 @@ def build_animal(spec, out_path, capsule):
         raise ValueError(
             f"{spec['id']}: build={plan_name!r} is not a body plan (have {sorted(PLANS)})"
         )
-    parts, bones, plan = PLANS[plan_name](spec, mats)
+    parts, bones, plan, sockets = PLANS[plan_name](spec, mats)
 
     mesh = join(parts, spec["id"])
     arm = armature(f"{spec['id']}_rig", bones)
     skin(mesh, arm)
+
+    # Sockets go on before a single clip is keyed. `bone_socket` places each one in world space
+    # against the bone's *current* pose, and once `animate` has run that is whatever frame of the
+    # last clip happens to be active — measured, it put a human's hat socket 0.24 m behind the
+    # skull and swayed a penguin's sideways by 9 cm, both from a victory pose frozen into rest.
+    for name, (bone, world_pos) in sockets.items():
+        lib.bone_socket(arm, bone, name, world_pos)
 
     tail_bones = [b[0] for b in bones if b[0].startswith("tail")]
     animate(arm, plan, tail_bones)
@@ -725,6 +771,22 @@ def build_animal(spec, out_path, capsule):
         raise AssertionError(f"{spec['id']}: {height:.2f}m tall against a {target}m capsule")
     if abs(lowest) > 0.10:
         raise AssertionError(f"{spec['id']}: feet at z={lowest:.2f}, expected the origin")
+
+    # Face the glTF convention: the front of an asset faces +Z.
+    #
+    # Every builder above works facing Blender +Y, and the exporter maps +Y to glTF −Z. So every
+    # animal shipped facing backwards. Measured by loading the real files through three.js's own
+    # GLTFLoader and attaching them to an Avatar, in body space where gameplay forward is +Z: the
+    # wolf's snout at z −0.63 and its tail reaching +1.03, the kangaroo's snout at −0.09 and its tail
+    # at +0.71. Every animal ran tail first. Nothing caught it because nothing asked which way the
+    # nose points — the geometry tests hash positions, and a turned-round mesh hashes the same.
+    #
+    # Fixed here, not by rotating models on load: an art pack authored to the spec already faces
+    # +Z, and a client-side flip would turn every correct model round to fix ours. Rotating the
+    # armature object turns the skinned mesh and the sockets with it (both are its children), and
+    # leaves every clip untouched, because clips are keyed in bone-local space.
+    arm.rotation_euler = (0.0, 0.0, math.pi)
+    bpy_update()
 
     tris = lib.triangle_count(mesh)
     # Normals stay: they have to follow the bones on a skinned mesh. UVs go — nothing here

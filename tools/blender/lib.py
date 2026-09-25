@@ -32,7 +32,7 @@ import math
 import os
 
 import bpy
-from mathutils import Euler, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 # --------------------------------------------------------------------------------------------
 # Scene
@@ -200,6 +200,29 @@ def armature(name, bones):
 
     bpy.ops.object.mode_set(mode="OBJECT")
     return arm_obj
+
+
+def bone_socket(arm_obj, bone_name: str, name: str, world_pos) -> "bpy.types.Object":
+    """
+    An empty parented to a bone, placed at a world position, exported as a named glTF node.
+
+    This is how a model tells the renderer where a hat goes. It rides the bone, so a hat follows
+    the head through every clip, and it is placed in *world* space after parenting, because a
+    bone-parented object's local frame starts at the bone's tail and points along the bone — a
+    literal offset would mean something different on every body plan.
+    """
+    if bone_name not in arm_obj.data.bones:
+        raise KeyError(f"socket {name!r} names bone {bone_name!r}, which this rig does not have")
+    empty = bpy.data.objects.new(name, None)
+    bpy.context.scene.collection.objects.link(empty)
+    empty.empty_display_size = 0.05
+    empty.parent = arm_obj
+    empty.parent_type = "BONE"
+    empty.parent_bone = bone_name
+    bpy.context.view_layer.update()
+    empty.matrix_world = Matrix.Translation(Vector(world_pos))
+    bpy.context.view_layer.update()
+    return empty
 
 
 def skin(mesh_obj, arm_obj) -> None:

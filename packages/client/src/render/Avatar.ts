@@ -15,6 +15,18 @@ export const CLIP_NAMES = ['idle', 'walk', 'run', 'jump', 'hit', ...EMOTE_CLIPS]
 export type ClipName = (typeof CLIP_NAMES)[number];
 
 /**
+ * The socket node names `tools/blender/characters.py` writes into every generated animal.
+ *
+ * A model can rename any of them through `AnimalModelRef.sockets`; anything it leaves out falls
+ * back to these, and a model with none of them falls back to its bones.
+ */
+export const DEFAULT_MODEL_SOCKETS: Readonly<Record<string, string>> = {
+  head: 'socket_head',
+  face: 'socket_face',
+  back: 'socket_back',
+};
+
+/**
  * The jaw hinge, in the jaw bone's own space.
  *
  * `tools/blender/characters.py` builds the jaw as a bone running from under the head out along the
@@ -491,12 +503,23 @@ export class Avatar {
    * because that name is already a contract: `CLIP_NAMES`' doc says the Blender pipeline writes
    * exactly these, and `modelJaw` above already looks one up the same way.
    *
-   * The `head` socket is **not** carried over as a local offset. Its procedural `+0.2` was tuned
-   * against the procedural skull, and the generated skull is somewhere else — `characters.py`
-   * puts the head *bone* at z 1.16–1.20 and the head *sphere* centre at 1.30–1.38, so the same
-   * number lands a hat inside the head. It is placed from the model's own bounding box instead,
-   * which is what "on the crown" actually means and needs no second table to keep in step. The
-   * other three keep their local offsets, which are relative to a joint rather than to a skull.
+   * **Named socket nodes win, and only the generator can place them.** `characters.py` exports
+   * `socket_head` / `socket_face` / `socket_back`, derived from the same numbers that build the
+   * head and torso, so there is one source for "where is the skull". The bounding box used before
+   * was the tip of a kangaroo's thirty-centimetre ears, not its crown. A model can rename them
+   * through `AnimalModelRef.sockets`, the field that existed for exactly this and was read by
+   * nothing until now.
+   *
+   * The bone fallback stays for an art pack that ships no socket nodes: the socket rides the
+   * matching bone and the hat goes on the bounding-box top — right for most heads, wrong for tall
+   * ears, and a pack that minds can ship sockets.
+   *
+   * **Orientation comes from the body, not the bone.** A quadruped's head bone points forward
+   * along the neck, so a hat parented to it with no correction tilts ~60° onto the animal's nose.
+   * Each head/face/back socket is rotated once, at rest, so its world frame matches the body's —
+   * upright, facing forward — and from then on it turns with the bone it rides, which is what lets
+   * a hat follow the head through an emote. The tail socket keeps the bone frame: a tail cosmetic
+   * is meant to run along the tail.
    */
   private moveSocketsOntoModel(scene: THREE.Object3D): void {
     // three.js strips dots from glTF node names, so `tail.1` arrives as `tail1` — documented in
@@ -508,14 +531,18 @@ export class Avatar {
       }
       return null;
     };
+    const named: Record<string, string> = { ...DEFAULT_MODEL_SOCKETS, ...this.animal.model?.sockets };
+    const authored = (slot: string): THREE.Object3D | null => AssetLibrary.findSocket(scene, named[slot]);
 
     const head = bone('head');
-    const targets: Record<string, THREE.Object3D | null> = {
-      head,
-      face: head,
-      back: bone('spine', 'hips'),
-      tail: bone('tail1', 'tail.1', 'tail', 'hips'),
-    };
+    const targets: Record<string, { node: THREE.Object3D | null; authored: boolean }> = {};
+    for (const slot of ['head', 'face', 'back'] as const) {
+      const node = authored(slot);
+      targets[slot] = node
+        ? { node, authored: true }
+        : { node: slot === 'back' ? bone('spine', 'hips') : head, authored: false };
+    }
+    targets.tail = { node: authored('tail') ?? bone('tail1', 'tail.1', 'tail', 'hips'), authored: false };
 
     // `updateWorldMatrix(true, true)` walks *up* as well as down. `updateMatrixWorld` only walks
     // down, so it composes against whatever the ancestors last held — and this can be called on
@@ -524,21 +551,25 @@ export class Avatar {
     // enough to read as a tuning question rather than the bug it is.
     scene.updateWorldMatrix(true, true);
     const crown = new THREE.Box3().setFromObject(scene).max.y;
+    const bodyRotation = this.body.getWorldQuaternion(new THREE.Quaternion());
 
-    for (const [slot, target] of Object.entries(targets)) {
+    for (const [slot, { node: target, authored: isAuthored }] of Object.entries(targets)) {
       const socket = this.sockets[slot];
-      if (!socket || !target) continue; // no bone of that name: leave it on the procedural rig
+      if (!socket || !target) continue; // nothing to ride: leave it on the procedural rig
       const offset = socket.position.clone();
       target.add(socket);
-      socket.position.copy(offset);
-      if (slot === 'head' && Number.isFinite(crown)) {
-        // Put the hat on the crown, in whatever local frame the head bone happens to be in — the
-        // quadruped rigs carry the head on a rotated neck, so a hand-written local offset would
-        // have to know which body plan it was on.
-        target.updateMatrixWorld(true);
+      target.updateWorldMatrix(true, false);
+      if (isAuthored) {
+        socket.position.set(0, 0, 0);
+      } else if (slot === 'head' && Number.isFinite(crown)) {
         socket.position.copy(
           target.worldToLocal(new THREE.Vector3().setFromMatrixPosition(target.matrixWorld).setY(crown)),
         );
+      } else {
+        socket.position.copy(offset);
+      }
+      if (slot !== 'tail') {
+        socket.quaternion.copy(target.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bodyRotation));
       }
     }
   }

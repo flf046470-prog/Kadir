@@ -1479,6 +1479,70 @@ penguin's `visual.scale` applied by `bodyScale`. The code was right: the hat bel
 of the body as drawn, and asserting the unscaled number would have asserted that a hat ignores how
 big the animal is.
 
+## Every generated animal ran backwards
+
+Measured by loading the real files through three.js's own `GLTFLoader`, attaching them to an
+`Avatar`, and reading bones in body space, where gameplay forward is +Z (`locomotion.ts`:
+`_forward = (sin yaw, 0, cos yaw)`; `body.rotation.y = yaw`):
+
+| model | hips z | head z | snout (`jaw`) z | mesh z range |
+| --- | --- | --- | --- | --- |
+| wolf | +0.34 | −0.48 | **−0.63** | tail reaches **+1.03** |
+| kangaroo | 0.00 | 0.00 | **−0.09** | tail reaches **+0.71** |
+
+Every builder works facing Blender +Y; the exporter maps +Y to glTF −Z; the glTF convention is that
+an asset's front faces +Z. So all sixteen animals ran tail first. **Nothing caught it because
+nothing asked which way the nose points** — `animal-geometry.test.ts` hashes positions, and a
+turned-round mesh hashes the same.
+
+Fixed in the generator, not by a flip on load: an art pack authored to the spec already faces +Z,
+and a client-side rotation would turn every correct model round to fix ours. `build_animal` rotates
+the armature object π about Z; the skinned mesh and the sockets are its children, and clips are
+keyed bone-locally, so nothing else moves. After: wolf snout **+0.63**, rump −0.34.
+
+`animal-orientation.test.ts` loads every shipped `.glb` through `GLTFLoader` — node transforms
+included, as the game sees them — and checks the snout is ahead of the rump. Mutation-tested by
+removing the rotation and rebuilding: it names all sixteen, wolf at the original −0.63.
+
+**`bpy` does not survive a container reset.** `npm run assets:build` needs `pip install bpy==5.0.1`
+(~300 MB) in every fresh container. `ModuleNotFoundError: No module named 'bpy'` means that, not a
+broken pipeline.
+
+### Sockets come from the generator
+
+The hat socket from `579c255` sat on the kangaroo's **ear tips**: it used the model's bounding-box
+top, which on a hopper is 30 cm of ear above the skull, and on a quadruped the head bone points
+forward, so a hat parented to it tilted ~60° onto the nose.
+
+`characters.py` now exports `socket_head` / `socket_face` / `socket_back` (`lib.bone_socket`),
+computed from the same `top`/`forward` numbers that build the head and torso — one source. The
+client prefers them (`DEFAULT_MODEL_SOCKETS`, renamable per animal through `AnimalModelRef.sockets`,
+which was declared and read by nothing until now, as was `AssetLibrary.findSocket`), falls back to
+the bone for art packs without them, and orients head/face/back sockets from the **body** once at
+rest so a hat stays upright on a forward-pointing bone and still follows the head through an emote.
+
+Two mistakes on the way, both caught by measurement and both now guarded:
+
+- **`lib.sphere`'s size is a diameter** — it scales a radius-0.5 sphere. Reading it as a radius put a
+  human's hat socket at 1.70 m on a model whose top vertex is 1.54 m.
+- **A bone-parented object is placed against the bone's current pose.** Placing the sockets after
+  `animate()` froze the last clip's frame into rest: a human's hat socket 0.24 m behind the skull,
+  a penguin's glasses 9 cm off the midline. They go on before any clip is keyed.
+
+After: kangaroo hat at 1.50 m under 1.75 m ear tips, human at 1.54 m (its top), wolf's pack on top
+of the barrel at 1.13 m. Mutation-tested on both sides: three generator mutations (no rotation,
+radius-not-diameter, sockets after animate) each fail the test named for them; two client
+mutations (ignore authored nodes, drop the orientation fix) each fail theirs.
+
+Still open from the same probe:
+
+- **17 visual cosmetics are 9 distinct meshes.** `buildCosmetic` reads `visual.shape` for hats only;
+  both masks, both glasses, both packs, both tails and both gloves are one mesh per pair, and both
+  effects plus both trails are the *same* torus. **Gloves also leak**: they are added to the hand
+  objects while `setCosmetics` removes an empty group, so unequipping leaves them on (`2/2` hand
+  children instead of `1/1`) and three swaps stack them to `5/5`. Every equip in the shell calls
+  `setCosmetics`, so it grows in the menu too.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

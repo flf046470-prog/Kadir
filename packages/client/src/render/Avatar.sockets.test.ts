@@ -1,4 +1,5 @@
 import { LAUNCH_ANIMALS, SnapFlags, registerAnimals } from '@kc/core';
+import type { AnimalDef } from '@kc/core';
 import type { PlayerSnapshot } from '@kc/core';
 import * as THREE from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -174,6 +175,77 @@ describe('cosmetic sockets once an authored model arrives', () => {
     scene.updateMatrixWorld(true);
     const crown = new THREE.Box3().setFromObject(scene).max.y;
     expect(worldY(sockets(avatar).head)).toBeCloseTo(crown, 2);
+    avatar.dispose();
+  });
+});
+
+describe('authored socket nodes', () => {
+  /**
+   * A rig like the generated ones: the head bone points forward along the neck, the way the
+   * quadrupeds' does, and a `socket_head` node sits on the crown under it.
+   */
+  function authoredModel(socketName = 'socket_head'): { model: LoadedModel; socket: THREE.Object3D } {
+    const scene = new THREE.Object3D();
+    const neck = new THREE.Object3D();
+    neck.name = 'spine';
+    neck.position.set(0, 1.0, 0.2);
+    neck.rotation.x = -1.1; // bone +Y leaning forward, as a quadruped's head bone does
+    scene.add(neck);
+    const head = new THREE.Object3D();
+    head.name = 'head';
+    head.position.y = 0.4;
+    neck.add(head);
+    const socket = new THREE.Object3D();
+    socket.name = socketName;
+    socket.position.set(0, 0.12, -0.05);
+    head.add(socket);
+    const skull = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.4));
+    head.add(skull);
+    return { model: { scene, clips: [] }, socket };
+  }
+
+  it('hangs the hat on the socket node the generator wrote, not on the bounding-box top', () => {
+    const avatar = posed('wolf');
+    const { model, socket } = authoredModel();
+    avatar.attachModel(model);
+    avatar.group.updateWorldMatrix(true, true);
+    const want = socket.getWorldPosition(new THREE.Vector3());
+    const got = sockets(avatar).head.getWorldPosition(new THREE.Vector3());
+    expect(got.distanceTo(want)).toBeLessThan(1e-6);
+    // And that is genuinely not the bounding-box answer, or this test would pass on the fallback.
+    const top = new THREE.Box3().setFromObject(model.scene).max.y;
+    expect(Math.abs(got.y - top)).toBeGreaterThan(0.05);
+    avatar.dispose();
+  });
+
+  it('keeps a hat upright on a bone that points forward', () => {
+    // Without the correction the hat inherits the head bone's ~60° forward lean.
+    const avatar = posed('wolf');
+    const { model } = authoredModel();
+    avatar.attachModel(model);
+    avatar.group.updateWorldMatrix(true, true);
+    const body = (avatar as unknown as { body: THREE.Object3D }).body;
+    const hat = sockets(avatar).head.getWorldQuaternion(new THREE.Quaternion());
+    const upright = body.getWorldQuaternion(new THREE.Quaternion());
+    expect(hat.angleTo(upright)).toBeLessThan(1e-4);
+    avatar.dispose();
+  });
+
+  it('follows a rename declared on the animal', () => {
+    // `AnimalModelRef.sockets` was declared, documented and read by nothing; this is its reader.
+    const base = LAUNCH_ANIMALS.find((a) => a.id === 'wolf')!;
+    const renamed: AnimalDef = {
+      ...base,
+      id: 'wolf_renamed_sockets',
+      model: { ...base.model!, sockets: { head: 'HatMount' } },
+    };
+    registerAnimals([renamed]);
+    const avatar = posed('wolf_renamed_sockets');
+    const { model, socket } = authoredModel('HatMount');
+    avatar.attachModel(model);
+    avatar.group.updateWorldMatrix(true, true);
+    const got = sockets(avatar).head.getWorldPosition(new THREE.Vector3());
+    expect(got.distanceTo(socket.getWorldPosition(new THREE.Vector3()))).toBeLessThan(1e-6);
     avatar.dispose();
   });
 });
