@@ -1,0 +1,428 @@
+{
+  "files": {
+    "rock-4.glb": {
+      "taskId": "01a09eea-a147-7332-a559-59999b915426",
+      "prompt": "a single weathered boulder, irregular angular faces, mossy patches on top, grey-brown stone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:57:26.354Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "rock-1.glb": {
+      "taskId": "01a09eea-a110-7485-8919-c8a1c0e0935d",
+      "prompt": "a single weathered boulder, irregular angular faces, mossy patches on top, grey-brown stone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:57:26.894Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "rock-3.glb": {
+      "taskId": "01a09eea-a10d-7641-ae72-d36e3efc86ef",
+      "prompt": "a single weathered boulder, irregular angular faces, mossy patches on top, grey-brown stone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:57:36.097Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "rock-2.glb": {
+      "taskId": "01a09eea-a0f4-7544-ba3b-9fcc5bb66317",
+      "prompt": "a single weathered boulder, irregular angular faces, mossy patches on top, grey-brown stone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:57:36.716Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "boulder-tall-1.glb": {
+      "taskId": "01a09eeb-c423-73ec-93d2-82e66567065f",
+      "prompt": "a tall standing stone, narrow at the base and wide at the top, cracked angular faces, flat landable top, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1400,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:58:29.216Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "boulder-tall-2.glb": {
+      "taskId": "01a09eeb-c63c-750b-8a13-d4ac34f918c5",
+      "prompt": "a tall standing stone, narrow at the base and wide at the top, cracked angular faces, flat landable top, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1400,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:58:29.679Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "log-1.glb": {
+      "taskId": "01a09eeb-ea2f-74c3-a97b-a2e683ddb8b7",
+      "prompt": "a fallen hollow tree log lying horizontally, rough bark, cracked open end showing pale inner wood, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:58:49.320Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "log-2.glb": {
+      "taskId": "01a09eeb-ec9a-71fe-b016-ab9ec70a3b5f",
+      "prompt": "a fallen hollow tree log lying horizontally, rough bark, cracked open end showing pale inner wood, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:58:49.542Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "log-3.glb": {
+      "taskId": "01a09eec-b9b0-70c2-b152-7e01ac36ec20",
+      "prompt": "a fallen hollow tree log lying horizontally, rough bark, cracked open end showing pale inner wood, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1200,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:59:30.087Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "stump-1.glb": {
+      "taskId": "01a09eec-bb7c-732a-af98-7cc147129fc5",
+      "prompt": "a wide tree stump cut flat on top, thick roots spreading at the bottom, rough bark sides, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:59:32.511Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "stump-2.glb": {
+      "taskId": "01a09eed-0835-720d-afb3-4cee72b80f25",
+      "prompt": "a wide tree stump cut flat on top, thick roots spreading at the bottom, rough bark sides, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T07:59:50.072Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "bush-1.glb": {
+      "taskId": "01a09eed-0916-7599-9e37-e7dd4513a06c",
+      "prompt": "a round leafy jungle bush, dense broad tropical leaves, layered foliage, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:00:23.214Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "bush-3.glb": {
+      "taskId": "01a09eed-b0fa-7191-9194-16f84aad4b94",
+      "prompt": "a round leafy jungle bush, dense broad tropical leaves, layered foliage, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:01:03.314Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "fern-1.glb": {
+      "taskId": "01a09eee-76fd-76b4-b3fe-9c4e25cd662b",
+      "prompt": "a tropical fern, long arching fronds spreading from a low center, broad segmented leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:01:26.889Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "bush-2.glb": {
+      "taskId": "01a09eed-a77d-7391-84f9-52f750a8da5c",
+      "prompt": "a round leafy jungle bush, dense broad tropical leaves, layered foliage, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:01:31.455Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "bush-4.glb": {
+      "taskId": "01a09eed-f588-719c-9950-b9cb7c95044f",
+      "prompt": "a round leafy jungle bush, dense broad tropical leaves, layered foliage, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:01:51.567Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "fern-2.glb": {
+      "taskId": "01a09eef-13a1-7470-b96d-af5f30bc9a63",
+      "prompt": "a tropical fern, long arching fronds spreading from a low center, broad segmented leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:02:13.973Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "fern-3.glb": {
+      "taskId": "01a09eef-6fb6-7424-8cba-dfc29ebceb3e",
+      "prompt": "a tropical fern, long arching fronds spreading from a low center, broad segmented leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:02:27.538Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "flower-1.glb": {
+      "taskId": "01a09eef-818f-7309-8f6c-38e30643324c",
+      "prompt": "a cluster of tropical flowers on short stems, wide petals, a few large leaves at the base, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:02:34.779Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "flower-2.glb": {
+      "taskId": "01a09eef-d022-74db-9bb7-5975ff636163",
+      "prompt": "a cluster of tropical flowers on short stems, wide petals, a few large leaves at the base, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:02:52.169Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "flower-3.glb": {
+      "taskId": "01a09ef0-27a7-706e-a8ca-737eadd1b954",
+      "prompt": "a cluster of tropical flowers on short stems, wide petals, a few large leaves at the base, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:03:14.537Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "mushroom-1.glb": {
+      "taskId": "01a09ef0-5ca0-75b7-b4e3-265cd8e3f9b4",
+      "prompt": "a cluster of three chunky jungle mushrooms of different heights, round domed caps, thick short stems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:03:40.836Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "mushroom-2.glb": {
+      "taskId": "01a09ef0-78ec-7389-a944-727cb1cad8c9",
+      "prompt": "a cluster of three chunky jungle mushrooms of different heights, round domed caps, thick short stems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:03:45.414Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "mushroom-3.glb": {
+      "taskId": "01a09ef0-bcd6-7683-b16d-1a3e4cde3bd8",
+      "prompt": "a cluster of three chunky jungle mushrooms of different heights, round domed caps, thick short stems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 700,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:04:02.782Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "tree-1.glb": {
+      "taskId": "01a09ef1-1437-7631-9392-12ef1595f365",
+      "prompt": "a tall tropical jungle tree, thick straight trunk, broad canopy of large flat leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 2000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:04:18.015Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "tree-2.glb": {
+      "taskId": "01a09ef1-7af3-73f0-bdc3-18ac87e4193d",
+      "prompt": "a tall tropical jungle tree, thick straight trunk, broad canopy of large flat leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 2000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:04:41.468Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "tree-3.glb": {
+      "taskId": "01a09ef1-8cd6-75f9-ad9e-67fa40417238",
+      "prompt": "a tall tropical jungle tree, thick straight trunk, broad canopy of large flat leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 2000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:04:45.969Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "tree-4.glb": {
+      "taskId": "01a09ef1-d0ae-72e3-ad45-6029d56d172d",
+      "prompt": "a tall tropical jungle tree, thick straight trunk, broad canopy of large flat leaves, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 2000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:05:03.402Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "vine-1.glb": {
+      "taskId": "01a09ef2-0c2e-7371-a1c7-3071ae00e55a",
+      "prompt": "a hanging jungle vine, long vertical rope-like stem with broad leaves along its length, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 800,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:05:11.122Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "vine-2.glb": {
+      "taskId": "01a09ef2-67cd-74a1-b69a-beb0f0db7a73",
+      "prompt": "a hanging jungle vine, long vertical rope-like stem with broad leaves along its length, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 800,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:05:42.051Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "vine-3.glb": {
+      "taskId": "01a09ef2-7966-764f-b3f1-d2794c183626",
+      "prompt": "a hanging jungle vine, long vertical rope-like stem with broad leaves along its length, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 800,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:05:46.590Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "stalagmite-2.glb": {
+      "taskId": "01a09ef2-dba0-7243-9d81-c48859967274",
+      "prompt": "a pointed cave stalagmite rising from the floor, tapering ribbed cone, damp limestone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:06:01.685Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "stalagmite-1.glb": {
+      "taskId": "01a09ef2-bd78-7645-8802-f5a953529b75",
+      "prompt": "a pointed cave stalagmite rising from the floor, tapering ribbed cone, damp limestone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:06:06.405Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "stalagmite-3.glb": {
+      "taskId": "01a09ef3-5473-76d9-a360-dbcf16da1811",
+      "prompt": "a pointed cave stalagmite rising from the floor, tapering ribbed cone, damp limestone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:06:42.690Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "crystal-1.glb": {
+      "taskId": "01a09ef3-663a-7359-b30e-d8d2c7447c03",
+      "prompt": "a cluster of angular crystal shards growing at different angles from a rocky base, faceted gems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:07:00.226Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "crystal-2.glb": {
+      "taskId": "01a09ef3-a126-70ad-b734-bbed9b25f340",
+      "prompt": "a cluster of angular crystal shards growing at different angles from a rocky base, faceted gems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:07:12.394Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "crystal-3.glb": {
+      "taskId": "01a09ef3-b397-72c3-8036-9336032646ef",
+      "prompt": "a cluster of angular crystal shards growing at different angles from a rocky base, faceted gems, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:07:17.284Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "canyon-spire-1.glb": {
+      "taskId": "01a09ef4-4151-764a-87a8-aaca8365e467",
+      "prompt": "a tall layered sandstone canyon spire, horizontal strata bands, flat wide landable top, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1600,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:07:47.394Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "canyon-spire-2.glb": {
+      "taskId": "01a09ef4-85d2-7489-9ffe-0f4c2694d32c",
+      "prompt": "a tall layered sandstone canyon spire, horizontal strata bands, flat wide landable top, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1600,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:08:00.798Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "canyon-spire-3.glb": {
+      "taskId": "01a09ef4-b55a-7129-abaf-b7423db7d537",
+      "prompt": "a tall layered sandstone canyon spire, horizontal strata bands, flat wide landable top, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1600,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:08:12.976Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "ledge-1.glb": {
+      "taskId": "01a09ef4-c873-7220-adb9-ff83bee92863",
+      "prompt": "a rectangular rock ledge slab with a flat top surface and rough broken sides, layered sandstone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:08:20.394Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "ledge-2.glb": {
+      "taskId": "01a09ef5-3e12-73c6-a972-f71f66edf1ce",
+      "prompt": "a rectangular rock ledge slab with a flat top surface and rough broken sides, layered sandstone, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 1000,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:08:48.170Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "platform-1.glb": {
+      "taskId": "01a09ef5-7271-7465-b164-a029060d323b",
+      "prompt": "a simple square wooden plank platform, four thick planks side by side with visible grain, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:09:14.001Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "platform-2.glb": {
+      "taskId": "01a09ef5-a1fe-7153-b194-484bbc887bf2",
+      "prompt": "a simple square wooden plank platform, four thick planks side by side with visible grain, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 900,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:09:14.051Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "banner-1.glb": {
+      "taskId": "01a09ef5-bef8-73fe-b453-2d078f92ca20",
+      "prompt": "a tall festival banner on a wooden pole, plain rectangular cloth hanging vertically, no writing, rope ties, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 800,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:09:24.265Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "banner-2.glb": {
+      "taskId": "01a09ef6-2b79-74de-adfe-c4b5162facca",
+      "prompt": "a tall festival banner on a wooden pole, plain rectangular cloth hanging vertically, no writing, rope ties, stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+      "negativePrompt": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+      "targetPolycount": 800,
+      "credits": 20,
+      "generatedAt": "2026-09-14T08:09:59.155Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/kangaroo.glb": {
+      "taskId": "01a0ddb4-f25f-73db-a2c3-2b43e709f01b",
+      "prompt": "an adult eastern grey kangaroo standing on its hind legs, body leaning slightly forward, tail extended backwards behind it, full body, anatomically accurate, powerful muscular thighs and haunches, very long narrow hind feet flat on the ground, thick muscular tail tapering gradually to a point, slender chest, short forearms with small five-fingered paws held slightly away from the body, slender neck, long narrow muzzle, large upright pointed ears, lean athletic build, clean game-ready model, single animal, no base, no ground plane, no pedestal",
+      "negative": "multiple animals, joey, baby, base, pedestal, ground, text, cartoon, chibi, big head, short legs, fat",
+      "created": "2026-09-26T12:33:40.184Z",
+      "source": "Meshy AI text-to-3d preview (art_style realistic, target 12000 tris, symmetry on)",
+      "credits": 20,
+      "licence": "Generated with the project owner's Meshy API account; Meshy terms assign generated assets to the account holder (free tier: CC BY 4.0).",
+      "use": "Hero kangaroo body, rigged onto the hopper skeleton by tools/blender/characters.py SOURCE_MESHES"
+    }
+  }
+}

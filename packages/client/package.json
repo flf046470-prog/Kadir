@@ -1,0 +1,18 @@
+{
+  "name": "@kc/client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "three.js / WebXR client with PC, Mobile and VR platform layers",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "preview": "vite preview --config vite.config.ts"
+  }
+}
