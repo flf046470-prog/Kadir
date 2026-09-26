@@ -1301,7 +1301,7 @@ The lesson is the one this file keeps relearning in new clothes: a negative resu
 that was never measuring the right thing looks exactly like a real limit. `which blender` returns
 nothing whether Blender is absent *or* installed as a library, and only one of those is a blocker.
 
-**Meshy is for environment props, not animals.** `tools/meshy/props.json` is 16 entries — rock,
+**Meshy was for environment props; the kangaroo is now the exception** (see "The hero kangaroo is a sculpted mesh"). `tools/meshy/props.json` is 16 entries — rock,
 boulder, log, stump, bush, fern, crystal, banner, canyon spire — and no animal. `characters.py`
 builds every animal procedurally from the body plan in `animals.json`, which is exactly why fox and
 wolf came out identical above: same declared `ears`/`tail`/`snout`, same generated shape. A Meshy
@@ -1736,6 +1736,40 @@ no drop anywhere (`levels.test.ts`, mutation: removing `enclose` from the glacie
   Measured: a glacier racer that sat in the crevasse for 90 s is on the seracs by t = 40 s.
 - Still weak: a bot rarely climbs the outback's scree (1.3 m risers, 57°). It roams rather than
   wedges, which is what the navigation test asks, but it is not a good racer there.
+
+## The hero kangaroo is a sculpted mesh
+
+The procedural kangaroo read as a figurine of stacked ellipsoids from behind — the view a flat-screen
+player sees all game. `assets/meshy/animals/kangaroo.glb` (Meshy text-to-3d preview, 20 credits,
+provenance in `assets/meshy/provenance.json`, picked from three candidates by rendering front/side/back)
+is rigged onto the **same hopper skeleton** by `characters.SOURCE_MESHES`: `_import_source` merges
+Meshy's UV-seam splits (1,200 islands → 1 surface; heat weighting cannot skin the unmerged file),
+faces it +Y, scales to 1.75 m and decimates to 3,900 tris (`TRIANGLE_BUDGET` 4,000); joint positions
+were read off gridded orthographic renders of the normalised mesh; `_paint_source` colours regions
+from the animal palette. Bone names are unchanged, so every clip and socket still works. A fourth
+tail bone was needed: the mesh's tail runs 0.4 m along the ground and one bone made it a stick
+(`animal-motion` tripod test caught it). Other animals are still procedural; any of them can take a
+source mesh the same way.
+
+Third-person camera: it sat at head height looking level, half the frame sky. It now orbits
+`CAMERA_ELEVATION` (0.24 rad) above the player's pitch, looks `CAMERA_LOOK_AHEAD` ahead (more at
+speed) and widens FOV up to +7° with speed — flat screens only; VR never touches the camera.
+
+## The hero kangaroo is a sculpted mesh
+
+The procedural kangaroo read as a figurine of stacked ellipsoids from behind — the view a flat-screen
+player sees all game. `assets/meshy/animals/kangaroo.glb` (Meshy text-to-3d preview, 20 credits,
+provenance in `assets/meshy/provenance.json`, picked from three candidates by rendering front/side/back)
+is rigged onto the **same hopper skeleton** by `characters.SOURCE_MESHES`: `_import_source` merges
+Meshy's UV-seam splits (1,200 islands → 1 surface; heat weighting cannot skin the unmerged file),
+faces it +Y, scales to 1.75 m and decimates to 3,900 tris (`TRIANGLE_BUDGET` 4,000); joint positions
+were read off gridded orthographic renders of the normalised mesh; `_paint_source` colours regions
+from the animal palette. Bone names are unchanged, so every clip and socket still works. A fourth
+tail bone was needed: the tail runs 0.4 m along the ground and one bone made it a stick.
+
+Third-person camera: it sat at head height looking level, half the frame sky. It now orbits
+`CAMERA_ELEVATION` (0.24 rad) above the player's pitch, looks ahead (more at speed) and widens FOV
+up to +7° with speed — flat screens only; VR never touches the camera.
 
 ## How to find defects here
 

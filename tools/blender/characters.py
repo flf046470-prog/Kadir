@@ -21,8 +21,11 @@ Clip names are the contract with the renderer: idle, walk, run, jump, hit, and t
 """
 
 import math
+import os
 
 import bpy
+import bmesh  # after bpy: the module only exists once Blender has initialised
+from mathutils import Matrix, Vector
 
 import lib
 from lib import Clip, armature, box, cone, join, material, skin, sphere, wedge
@@ -662,6 +665,170 @@ the same animal an `upright`. The wolf, the fox and the tiger were the three tha
 nothing: four legs from their `.glb`, two legs when it failed to load. `build` is required in the
 type now and this table has no default, so neither renderer can invent one again.
 """
+# --------------------------------------------------------------------------------------------
+# Source meshes: a sculpted body on the same skeleton
+# --------------------------------------------------------------------------------------------
+
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+# Joint positions measured on each source mesh after `_import_source` has normalised it (facing
+# +Y, feet on z = 0, 1.75 m to the ear tips, centred on x), read off gridded orthographic side
+# and front renders. They are art data, like the prompt that made the mesh: the skeleton, the
+# bone names and therefore every clip are the hopper plan's own, so a sculpted kangaroo moves
+# exactly as the primitive one did and every socket the client looks for still exists.
+SOURCE_MESHES = {
+    "kangaroo": {
+        "path": os.path.join(REPO, "assets", "meshy", "animals", "kangaroo.glb"),
+        "plan": "hopper",
+        "height": 1.75,
+        "triangles": 3900,
+        "hip": (0.13, -0.10, 0.78),
+        "knee": (0.13, 0.12, 0.52),
+        "hock": (0.13, -0.04, 0.10),
+        "toe": (0.17, 0.46, 0.02),
+        "spine": ((0, -0.10, 0.74), (0, 0.0, 0.92), (0, 0.26, 1.30)),
+        "head": ((0, 0.31, 1.32), (0, 0.42, 1.62)),
+        "jaw": ((0, 0.47, 1.47), (0, 0.66, 1.43)),
+        "shoulder": (0.12, 0.28, 1.15),
+        "paw": (0.07, 0.37, 0.87),
+        # Down from the rump, then back along the ground: two bones for the part lying on it, or one
+        # 0.4 m bone carries the whole ground run and the tail can only swing it as a stick.
+        "tail": ((0, -0.17, 0.56), (0, -0.16, 0.30), (0, -0.22, 0.07), (0, -0.44, 0.03), (0, -0.64, 0.02)),
+        "eyes": ((0.055, 0.53, 1.53), (-0.055, 0.53, 1.53)),
+        "nose": (0, 0.665, 1.455),
+        "crown": (0, 0.44, 1.60),
+        "face": (0, 0.56, 1.53),
+        "back": (0, -0.13, 1.08),
+    },
+}
+
+
+def _import_source(src):
+    """
+    The source mesh, cleaned and normalised into builder space.
+
+    Meshy's files arrive split along every UV seam — measured, ~1,200 islands and 10,000
+    non-manifold edges per kangaroo — which automatic weighting reads as a thousand loose pieces.
+    Merged by distance they are one closed surface. Then it is turned to face +Y like every other
+    builder, stood on z = 0 at the body plan's height, and decimated to the character budget:
+    the 12,500 triangles Meshy returns are three times what sixteen animals on a Quest can afford.
+    """
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=src["path"])
+    new = [o for o in bpy.data.objects if o not in before]
+    meshes = [o for o in new if o.type == "MESH"]
+    if len(meshes) != 1:
+        raise AssertionError(f"{src['path']}: expected one mesh, found {len(meshes)}")
+    ob = meshes[0]
+    world = ob.matrix_world.copy()
+    ob.parent = None
+    ob.matrix_world = Matrix.Identity(4)
+    ob.data.transform(world)
+    for o in new:
+        if o is not ob:
+            bpy.data.objects.remove(o, do_unlink=True)
+
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(ob.data)
+    bm.free()
+    while ob.data.uv_layers:
+        ob.data.uv_layers.remove(ob.data.uv_layers[0])
+    ob.data.materials.clear()
+
+    ob.data.transform(Matrix.Rotation(math.pi, 4, "Z"))
+    zs = [v.co.z for v in ob.data.vertices]
+    ob.data.transform(Matrix.Scale(src["height"] / (max(zs) - min(zs)), 4))
+    xs = [v.co.x for v in ob.data.vertices]
+    ob.data.transform(Matrix.Translation((-(max(xs) + min(xs)) / 2, 0, -min(v.co.z for v in ob.data.vertices))))
+
+    bpy.context.view_layer.objects.active = ob
+    decimate = ob.modifiers.new("decimate", "DECIMATE")
+    decimate.ratio = min(1.0, src["triangles"] / max(1, len(ob.data.polygons)))
+    decimate.use_symmetry = True
+    decimate.symmetry_axis = "X"
+    bpy.ops.object.modifier_apply(modifier=decimate.name)
+    return ob
+
+
+def _paint_source(ob, src, mats):
+    """
+    Colour by region from the animal's own palette: cream chest and belly, dark eyes and nose,
+    accent paws, feet and tail tip. The mesh arrives with no material at all, and the game's art
+    is flat palette colour rather than textures, so the regions are geometry, not an image.
+    """
+    for key in ("body", "belly", "accent", "dark"):
+        ob.data.materials.append(mats[key])
+    body, belly, accent, dark = 0, 1, 2, 3
+    eyes = [Vector(e) for e in src["eyes"]]
+    nose = Vector(src["nose"])
+    paw = Vector(src["paw"])
+    shoulder = Vector(src["shoulder"])
+
+    def near_arm(c, reach):
+        # Distance from the forearm segment on this side: the arms lie against the chest, and a
+        # rule written for "front of the torso" paints them cream along with it.
+        m = Vector((abs(c.x), c.y, c.z))
+        axis = paw - shoulder
+        t = max(0.0, min(1.0, (m - shoulder).dot(axis) / axis.length_squared))
+        return (m - (shoulder + axis * t)).length < reach
+
+    for poly in ob.data.polygons:
+        c, n = poly.center, poly.normal
+        index = body
+        # Where the torso's front surface is at this height: the back leans forward as it rises.
+        front = 0.10 + (c.z - 0.9) * 0.57
+        if any((c - e).length < 0.028 for e in eyes) or (c - nose).length < 0.035:
+            index = dark
+        elif c.z < 0.045 and c.y > -0.12:
+            index = accent  # soles and toes
+        elif c.y < -0.48 and c.z < 0.1:
+            index = accent  # tail tip
+        elif (Vector((abs(c.x), c.y, c.z)) - paw).length < 0.06:
+            index = accent  # paws
+        elif 0.6 < c.z < 1.36 and c.y > front and n.y > 0.45 and abs(c.x) < 0.12 and not near_arm(c, 0.05):
+            index = belly  # chest and belly, between the arms
+        poly.material_index = index
+
+
+def build_from_source(spec, mats, src):
+    """A source mesh on the body plan's skeleton, with sockets at its own measured landmarks."""
+    ob = _import_source(src)
+    _paint_source(ob, src, mats)
+    hx, hy, hz = src["hip"]
+    kx, ky, kz = src["knee"]
+    ax, ay, az = src["hock"]
+    tx, ty, tz = src["toe"]
+    (h0, h1, s1) = src["spine"]
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", h0, h1, "root"),
+        ("spine", h1, s1, "hips"),
+        ("head", src["head"][0], src["head"][1], "spine"),
+        ("jaw", src["jaw"][0], src["jaw"][1], "head"),
+    ]
+    tail = src["tail"]
+    for i in range(len(tail) - 1):
+        bones.append((f"tail.{i + 1}", tail[i], tail[i + 1], "hips" if i == 0 else f"tail.{i}"))
+    sx, sy, sz = src["shoulder"]
+    px, py, pz = src["paw"]
+    for side, sign in (("L", 1), ("R", -1)):
+        bones += [
+            (f"thigh.{side}", (hx * sign, hy, hz), (kx * sign, ky, kz), "hips"),
+            (f"shin.{side}", (kx * sign, ky, kz), (ax * sign, ay, az), f"thigh.{side}"),
+            (f"foot.{side}", (ax * sign, ay, az), (tx * sign, ty, tz), f"shin.{side}"),
+            (f"arm.{side}", (sx * sign, sy, sz), (px * sign, py, pz), "spine"),
+        ]
+    sockets = {
+        "socket_head": ("head", src["crown"]),
+        "socket_face": ("head", src["face"]),
+        "socket_back": ("spine", src["back"]),
+    }
+    sockets.update(_hand_sockets("arm", lambda x: (x, py, pz), px))
+    return [ob], bones, src["plan"], sockets
+
+
 PLANS = {
     "hopper": build_hopper,
     "upright": build_upright,
@@ -1064,20 +1231,26 @@ def build_animal(spec, out_path, capsule):
         raise ValueError(
             f"{spec['id']}: build={plan_name!r} is not a body plan (have {sorted(PLANS)})"
         )
-    parts, bones, plan, sockets = PLANS[plan_name](spec, mats)
+    source = SOURCE_MESHES.get(spec["id"])
+    if source and os.path.exists(source["path"]):
+        if source["plan"] != plan_name:
+            raise ValueError(f"{spec['id']}: source mesh is rigged as {source['plan']}, spec says {plan_name}")
+        parts, bones, plan, sockets = build_from_source(spec, mats, source)
+    else:
+        parts, bones, plan, sockets = PLANS[plan_name](spec, mats)
 
-    # A part drawn wholly inside other parts is invisible, and worse than invisible: see
-    # `lib.hidden_parts`. Refused before it can reach the weighting step it destabilises.
-    hidden = lib.hidden_parts(parts)
-    if hidden:
-        raise AssertionError(f"{spec['id']}: parts hidden inside other parts: {hidden}")
-    # And the opposite: a part touching nothing floats. Measured on the art as it shipped, this
-    # was every upright and waddler animal's arms, all four paws of every quadruped, the shark's
-    # tail fin and — once the arms were fixed — every waddler's tail. None of it looked wrong in
-    # the numbers; all of it looked wrong in a render.
-    loose = lib.detached_parts(parts)
-    if loose:
-        raise AssertionError(f"{spec['id']}: parts touching nothing: {loose}")
+        # A part drawn wholly inside other parts is invisible, and worse than invisible: see
+        # `lib.hidden_parts`. Refused before it can reach the weighting step it destabilises.
+        hidden = lib.hidden_parts(parts)
+        if hidden:
+            raise AssertionError(f"{spec['id']}: parts hidden inside other parts: {hidden}")
+        # And the opposite: a part touching nothing floats. Measured on the art as it shipped, this
+        # was every upright and waddler animal's arms, all four paws of every quadruped, the shark's
+        # tail fin and — once the arms were fixed — every waddler's tail. None of it looked wrong in
+        # the numbers; all of it looked wrong in a render.
+        loose = lib.detached_parts(parts)
+        if loose:
+            raise AssertionError(f"{spec['id']}: parts touching nothing: {loose}")
 
     mesh, arm = skin_parts(parts, bones, spec["id"])
     # Anything else auto-weighting dropped would ride `neutral_bone` and stay behind in every clip.

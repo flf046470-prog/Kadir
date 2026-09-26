@@ -80,6 +80,19 @@ interface RemotePlayer {
 
 const CAMERA_DISTANCE = 5.4;
 const CAMERA_HEIGHT = 1.35;
+/**
+ * How far above the player's own pitch the flat-screen camera orbits, and how far ahead of the
+ * kangaroo it looks. It used to sit at head height looking level: in every captured gameplay
+ * frame the horizon cut the screen in half, the top half was sky, the ground a player was about
+ * to land on was out of shot, and the kangaroo stood in the middle of the view it was blocking.
+ * Raised and aimed ahead, the kangaroo sits in the lower third and the route is on screen.
+ */
+const CAMERA_ELEVATION = 0.24;
+const CAMERA_LOOK_AHEAD = 1.7;
+/** Extra look-ahead and field of view at speed, so a sprint reads as one. Flat screens only. */
+const CAMERA_SPEED_LOOK_AHEAD = 0.12;
+const CAMERA_BASE_FOV = 72;
+const CAMERA_SPEED_FOV = 7;
 /** Peak camera drop for a hard landing — see `applyLandingKick`. Deliberately small: a dramatic
  *  version of this reads as camera shake, and shake is the one landing cue VR can never get. */
 const LANDING_DIP_HEIGHT = 0.16;
@@ -151,6 +164,8 @@ export class GameClient {
   private online = false;
   private cameraYaw = 0;
   private cameraPitch = 0;
+  /** Horizontal speed, smoothed for the camera's look-ahead and field of view. */
+  private cameraSpeed = 0;
   /**
    * A brief downward camera dip on a hard landing, 0..1 and decaying. PC/Mobile only — see
    * `updateCamera`. VR gets the same information through haptics (`playHaptics`'s 'land' case)
@@ -1070,10 +1085,11 @@ export class GameClient {
     this.cameraPitch += (local.pitch - this.cameraPitch) * Math.min(1, dt * 14);
 
     const headY = py + local.height * 0.85;
-    const cosPitch = Math.cos(this.cameraPitch);
+    const orbitPitch = this.cameraPitch - CAMERA_ELEVATION;
+    const cosPitch = Math.cos(orbitPitch);
     const dirX = Math.sin(this.cameraYaw) * cosPitch;
     const dirZ = Math.cos(this.cameraYaw) * cosPitch;
-    const dirY = Math.sin(this.cameraPitch);
+    const dirY = Math.sin(orbitPitch);
 
     let distance = CAMERA_DISTANCE;
     // Keep the camera out of walls: cast backwards from the head and pull in on a hit.
@@ -1092,7 +1108,22 @@ export class GameClient {
     const dip = this.landingKick * LANDING_DIP_HEIGHT;
     this.tmpVec.set(px - dirX * distance, headY - dirY * distance + CAMERA_HEIGHT * 0.25 - dip, pz - dirZ * distance);
     this.renderer.camera.position.lerp(this.tmpVec, Math.min(1, dt * 16));
-    this.renderer.camera.lookAt(px, headY + 0.1, pz);
+    // Look ahead of the kangaroo along its facing, further at speed, and follow the player's own
+    // pitch so looking up still looks up.
+    const speed = Math.hypot(local.velocity.x, local.velocity.z);
+    this.cameraSpeed += (speed - this.cameraSpeed) * Math.min(1, dt * 3);
+    const ahead = CAMERA_LOOK_AHEAD + Math.min(1.5, this.cameraSpeed * CAMERA_SPEED_LOOK_AHEAD);
+    const aimCos = Math.cos(this.cameraPitch);
+    this.renderer.camera.lookAt(
+      px + Math.sin(this.cameraYaw) * aimCos * ahead,
+      headY + 0.1 + Math.sin(this.cameraPitch) * ahead,
+      pz + Math.cos(this.cameraYaw) * aimCos * ahead,
+    );
+    const fov = CAMERA_BASE_FOV + CAMERA_SPEED_FOV * Math.min(1, Math.max(0, (this.cameraSpeed - 4) / 8));
+    if (Math.abs(this.renderer.camera.fov - fov) > 0.05) {
+      this.renderer.camera.fov = fov;
+      this.renderer.camera.updateProjectionMatrix();
+    }
     this.renderer.rig.position.set(0, 0, 0);
 
     this.audio.updateListener(

@@ -413,6 +413,16 @@
       "credits": 20,
       "generatedAt": "2026-09-14T08:09:59.155Z",
       "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/kangaroo.glb": {
+      "taskId": "01a0ddb4-f25f-73db-a2c3-2b43e709f01b",
+      "prompt": "an adult eastern grey kangaroo standing on its hind legs, body leaning slightly forward, tail extended backwards behind it, full body, anatomically accurate, powerful muscular thighs and haunches, very long narrow hind feet flat on the ground, thick muscular tail tapering gradually to a point, slender chest, short forearms with small five-fingered paws held slightly away from the body, slender neck, long narrow muzzle, large upright pointed ears, lean athletic build, clean game-ready model, single animal, no base, no ground plane, no pedestal",
+      "negative": "multiple animals, joey, baby, base, pedestal, ground, text, cartoon, chibi, big head, short legs, fat",
+      "created": "2026-09-26T12:33:40.184Z",
+      "source": "Meshy AI text-to-3d preview (art_style realistic, target 12000 tris, symmetry on)",
+      "credits": 20,
+      "licence": "Generated with the project owner's Meshy API account; Meshy terms assign generated assets to the account holder (free tier: CC BY 4.0).",
+      "use": "Hero kangaroo body, rigged onto the hopper skeleton by tools/blender/characters.py SOURCE_MESHES"
     }
   }
 }
