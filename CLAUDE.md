@@ -1772,6 +1772,30 @@ pitch ±5 %, pitched down and louder with impact speed), the tag, and five 20 s 
 - Measured in the built game (jungle practice, 8 s hopping): 12 files fetched 200, 2 recorded beds
   and 21 recorded landings started.
 
+## Every Meshy prop shipped with holes, and boulders were grey balls
+
+**A Meshy file is not one surface.** Every UV island is its own set of vertices, so a rock arrives
+as ~400 patches that only look joined. `props.py`'s `_clean_loose` (separate by loose parts, drop
+anything under 8 % of the biggest) read those patches as floating specks and deleted them.
+Measured per source file: banner **34 %** of its faces, tree-1 23 %, ledges 16–17 %, logs 8–12 %,
+every rock 7–8 %, mushroom-2 21 %. The banners had lost their finial, crossbar caps and tassels;
+the decimator then collapsed each patch on its own, so a rock cut to 320 triangles came apart
+into shards (seen in a render, not a number). `_weld` merges the seam copies first: every rock,
+log, ledge and banner is **one piece**, nothing is dropped, and the prop set went 2.0 MB → 996 KB
+because vertices are shared. `keep_fraction` is 2 % now — welded vine leaves are real separate
+pieces at 3.4–12 % of the vine, and 8 % would delete half of them.
+
+**Boulders:** 190 rock sphere colliders (144 on the glacier) were drawn as smooth icosahedra, and
+169 of them *also* had a rock prop drawn through them by `LevelBuilder.rocks`. With models,
+`upgradeRockSpheres` draws each as `rockball-N` (the same Meshy rock at 320 triangles, built by
+`props.py`'s `LOW_VARIANTS`), stretched by `fillUnitCube` to the collider's own extents so its top
+is the sphere's top — a player stands on what they see — and the co-located rock prop is skipped.
+Without models (no `AssetLibrary`) nothing changes: the ball stays and the prop is what reads as a
+rock. `LevelRenderer.rocks.test.ts` pins all three halves, each mutation-tested.
+
+An `IcosahedronGeometry` clones as an `IcosahedronGeometry`, so a test stub built from one is
+counted as the ball it replaces. Build stubs as plain `BufferGeometry`, as `GLTFLoader` returns.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

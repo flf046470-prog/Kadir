@@ -32,6 +32,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
 import bpy  # noqa: E402
+import bmesh  # noqa: E402 — after bpy, which it needs loaded
 from mathutils import Vector  # noqa: E402
 
 import lib  # noqa: E402
@@ -75,6 +76,7 @@ PALETTES = {
 # The player is 1.5 m. Every number here is chosen against that.
 SIZES = {
     "rock": 2.0,
+    "rockball": 2.0,
     "boulder-tall": 3.0,
     "log": 4.0,
     "stump": 1.4,
@@ -95,15 +97,42 @@ SIZES = {
 # Props whose top surface is meant to be stood on. Their upper colour is not applied by height,
 # because a landable top painted like moss hides the one thing a player needs to read: that it is
 # flat and they can land on it.
+# Extra low-poly builds of a prop, named separately: `rock` also becomes `rockball`, which the
+# renderer draws for rock sphere colliders in place of a smooth ball.
+LOW_VARIANTS = {"rock": ("rockball", 320)}
+
 FLAT_TOPPED = {"boulder-tall", "canyon-spire", "ledge", "platform"}
 
 
-def _clean_loose(obj, keep_fraction=0.08):
+def _weld(obj):
+    """
+    Merge the vertices Meshy splits along its UV seams.
+
+    A Meshy file is not one surface: every UV island is its own set of vertices, so a rock arrives
+    as ~400 disconnected patches that only *look* joined. Two things downstream read that as
+    real: `_clean_loose` saw hundreds of "loose fragments" and deleted the small ones — measured,
+    7–8 % of every rock's faces, 12 % of a log's, 23 % of tree-1's and 34 % of a banner's, all
+    holes in the shipped art — and the decimator collapsed each patch on its own, so a rock cut to
+    320 triangles came apart into shards. Welded, every rock, log, ledge and banner is one piece.
+
+    The seam copies sit at exactly the same position, so the distance only has to beat float noise.
+    """
+    bm = bmesh.new()
+    bm.from_mesh(obj.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(obj.data)
+    bm.free()
+    obj.data.update()
+
+
+def _clean_loose(obj, keep_fraction=0.02):
     """
     Drop disconnected fragments far smaller than the main body.
 
     Threshold is relative, not absolute: a speck beside a six-metre tree and a speck beside a
-    half-metre flower are different sizes and the same mistake.
+    half-metre flower are different sizes and the same mistake. 2 %, measured on welded meshes:
+    a vine's leaves are real separate pieces at 3.4–12 % of the vine, and 8 % deleted half of
+    them; nothing in the current set is below 3 %.
     """
     bpy.ops.object.select_all(action="DESELECT")
     obj.select_set(True)
@@ -244,6 +273,7 @@ def build_prop(src, name, palette_name, target_tris):
         bpy.ops.object.join()
     obj = bpy.context.view_layer.objects.active or meshes[0]
 
+    _weld(obj)
     obj = _clean_loose(obj)
     _place(obj, SIZES[name.rsplit("-", 1)[0]])
     tris = _budget(obj, target_tris)
@@ -288,6 +318,14 @@ def main() -> int:
             continue
         rows.append(row)
         print(f"ok   {row['name']:20s} {row['triangles']:5d} tris  {row['bytes'] / 1024:6.1f} KB")
+        if base in LOW_VARIANTS:
+            # The same rock again at a fraction of the triangles, for the renderer to draw every
+            # boulder *collider* with: glacier-world alone has 144 of them, and at the prop budget
+            # that would be 167k triangles of Quest frame spent on rocks.
+            low_base, low_tris = LOW_VARIANTS[base]
+            low = build_prop(os.path.join(CACHE, file), f"{low_base}-{name.rsplit('-', 1)[1]}", palette_of[base], low_tris)
+            rows.append(low)
+            print(f"ok   {low['name']:20s} {low['triangles']:5d} tris  {low['bytes'] / 1024:6.1f} KB")
 
     if rows:
         total = sum(r["bytes"] for r in rows)

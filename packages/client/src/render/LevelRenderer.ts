@@ -134,6 +134,8 @@ export class LevelRenderer {
 
   /** Instanced meshes built from procedural geometry, replaced if authored models arrive. */
   private proceduralProps: THREE.InstancedMesh[] = [];
+  /** Rock sphere colliders drawn as smooth balls until the rock models arrive. */
+  private rockSpheres: { mesh: THREE.InstancedMesh; colliders: Collider[]; seeds: number[] }[] = [];
   private disposed = false;
 
   constructor(
@@ -146,7 +148,10 @@ export class LevelRenderer {
     this.buildProps();
     this.buildCheckpoints();
     this.buildPortals();
-    if (this.assets) void this.upgradeProps(this.assets);
+    if (this.assets) {
+      void this.upgradeProps(this.assets);
+      void this.upgradeRockSpheres(this.assets);
+    }
   }
 
   /**
@@ -315,7 +320,13 @@ export class LevelRenderer {
 
   private propsByKind(): Map<string, PropInstance[]> {
     const byKind = new Map<string, PropInstance[]>();
+    // `LevelBuilder.rocks` puts a rock prop on every boulder collider it makes, which drew each
+    // boulder twice — a ball and a rock through it. With models to load, the collider is drawn as
+    // a rock itself (`upgradeRockSpheres`), fitted to what a player collides with, so the prop
+    // on top of it is skipped: 130 of the glacier's 144 boulders, ~900 triangles each.
+    const boulders = this.assets ? rockSphereSites(this.level) : null;
     for (const prop of this.level.props) {
+      if (boulders && prop.kind === 'rock' && boulders.has(siteKey(prop.position.x, prop.position.z))) continue;
       const list = byKind.get(prop.kind) ?? [];
       list.push(prop);
       byKind.set(prop.kind, list);
@@ -378,7 +389,76 @@ export class LevelRenderer {
       mesh.instanceMatrix.needsUpdate = true;
       this.group.add(mesh);
       this.instanced.push(mesh);
+      if (kind === 'sphere' && ROCK_BALL_MATERIALS.has(material)) {
+        this.rockSpheres.push({
+          mesh,
+          colliders: list.map((entry) => entry.collider),
+          seeds: list.map((entry) => entry.index),
+        });
+      }
     }
+  }
+
+  /**
+   * Rock sphere colliders, drawn as rocks.
+   *
+   * Every boulder the level builders scatter is a physics sphere, and it used to be drawn as one:
+   * a smooth grey ball, 190 of them across the three maps (144 on the glacier alone), sitting
+   * beside Meshy-sculpted rock props and reading as a different game. `rockball-N` is the same
+   * four rocks at 320 triangles instead of ~1,150 — full-detail rocks at every sphere would have
+   * cost 167k triangles on the glacier, against a Quest scene that measures 410k in total.
+   *
+   * Each model is normalised to fill the unit cube, so the rock's top is the sphere's top and a
+   * player standing on one is standing on what they see. It keeps the collider's own surface
+   * material (textured, triplanar) rather than the prop's baked moss, so an outback boulder stays
+   * the outback's rock. Yaw comes from the collider index, so every client draws the same rock.
+   */
+  private async upgradeRockSpheres(assets: AssetLibrary): Promise<void> {
+    if (this.rockSpheres.length === 0) return;
+    const loaded = await Promise.all(
+      Array.from({ length: ROCK_BALL_VARIANTS }, (_, i) => assets.loadGeometry(`/models/props/rockball-${i + 1}.glb`)),
+    );
+    const variants = loaded.filter((g): g is THREE.BufferGeometry => g !== null).map(fillUnitCube);
+    if (variants.length === 0) return;
+    if (this.disposed) {
+      for (const geometry of variants) geometry.dispose();
+      return;
+    }
+    this.disposables.push(...variants);
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    for (const { mesh, colliders, seeds } of this.rockSpheres) {
+      const perVariant: number[][] = variants.map(() => []);
+      colliders.forEach((_, i) => (perVariant[(seeds[i] as number) % variants.length] as number[]).push(i));
+      for (let v = 0; v < variants.length; v++) {
+        const members = perVariant[v] as number[];
+        if (members.length === 0) continue;
+        const rocks = new THREE.InstancedMesh(variants[v] as THREE.BufferGeometry, mesh.material, members.length);
+        rocks.castShadow = mesh.castShadow;
+        rocks.receiveShadow = true;
+        members.forEach((c, i) => {
+          const collider = colliders[c] as Collider;
+          if (collider.kind !== 'sphere') return;
+          const seed = seeds[c] as number;
+          position.set(collider.center.x, collider.center.y, collider.center.z);
+          quaternion.setFromAxisAngle(UP, ((seed * 2.399963) % (Math.PI * 2)));
+          scale.setScalar(collider.radius);
+          rocks.setMatrixAt(i, matrix.compose(position, quaternion, scale));
+        });
+        rocks.instanceMatrix.needsUpdate = true;
+        this.group.add(rocks);
+        this.instanced.push(rocks);
+      }
+      // The ball goes only once the rocks are in, so a slow download never blinks boulders out.
+      mesh.removeFromParent();
+      mesh.dispose();
+      this.instanced = this.instanced.filter((m) => m !== mesh);
+    }
+    this.rockSpheres = [];
   }
 
   /** Decorative props: instanced, budgeted by quality tier, sorted so nearby ones survive culling. */
@@ -699,6 +779,44 @@ function propColor(kind: string, tint: number): number {
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+/** Surfaces whose sphere colliders are boulders, and are drawn with `rockball-N`. */
+const ROCK_BALL_MATERIALS = new Set<SurfaceMaterial>(['rock', 'redRock']);
+const ROCK_BALL_VARIANTS = 4;
+
+function siteKey(x: number, z: number): string {
+  return `${x.toFixed(3)},${z.toFixed(3)}`;
+}
+
+/** Where the level has a boulder collider, keyed by its ground position. */
+function rockSphereSites(level: LevelDef): Set<string> {
+  const sites = new Set<string>();
+  for (const collider of level.colliders) {
+    if (collider.kind === 'sphere' && ROCK_BALL_MATERIALS.has(collider.surface.material)) {
+      sites.add(siteKey(collider.center.x, collider.center.z));
+    }
+  }
+  return sites;
+}
+
+/**
+ * A copy of `source` centred on the origin and stretched to fill [-1, 1] on every axis, so that
+ * scaling it by a sphere collider's radius makes its extremes the sphere's. Vertex colours are
+ * dropped: the collider's material colours it.
+ */
+export function fillUnitCube(source: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geometry = source.clone();
+  geometry.deleteAttribute('color');
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox as THREE.Box3;
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  geometry.translate(-centre.x, -centre.y, -centre.z);
+  geometry.scale(2 / Math.max(size.x, 1e-6), 2 / Math.max(size.y, 1e-6), 2 / Math.max(size.z, 1e-6));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
 
 /**
  * The matrix a collider is drawn with, for the unit box/sphere/cylinder geometry this renderer
