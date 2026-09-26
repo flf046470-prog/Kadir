@@ -78,6 +78,12 @@ export interface ZoneDef {
   ambience: 'jungle' | 'cave' | 'canyon' | 'waterfall' | 'village' | 'lobby';
   /** 0..1 fog/darkness hint for the client. */
   darkness: number;
+  /**
+   * The way out of a zone you can be *down in* — a crevasse, a gorge — as a foot and a top: walk to
+   * the foot, then up to the top. Bots read it; a bot steers straight at what it wants, and in a pit
+   * that is a wall. See `Bot.routeOut`.
+   */
+  exits?: { foot: Vec3; top: Vec3 }[];
 }
 
 export type PropKind =

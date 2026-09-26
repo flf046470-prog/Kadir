@@ -1707,8 +1707,35 @@ Measured with six bots, `kangaroo-chase`, 90 s, twelve seeds, HEAD against the f
 0–29 on the outback; t ≈ 1.3). The bridges changed nothing measurable, for the same reason as the
 branches.
 
-**Bots fall through the kill plane** about seven times a round on the jungle, on HEAD as much as
-after — this file said 0 earlier. Open; not caused by this change.
+## The world had edges you could walk off, and the bots had learned to use them
+
+Six bots, three seeds, 90 s: **19 / 26 / 10 falls** to the kill plane (jungle / glacier / outback).
+Now **0 / 0 / 0**, and an exact probe — a player capsule lowered off every side of every box — finds
+no drop anywhere (`levels.test.ts`, mutation: removing `enclose` from the glacier reports 434).
+
+- **`LevelBuilder.enclose(killPlaneY, surface)`** walls every edge that drops to the kill plane with
+  a no-grip cliff, measured from a 1 m grid of multi-layer columns rather than hand-placed. Call it
+  last. Cliffs carry zone `edge`; their height is `CLIFF_CLEARANCE` (6 m) over the highest thing
+  within 8 cells, so nothing standing near an edge can hop over. **A ray that starts inside a
+  solid** (distance 0) is the same mass as the solid above it — merge it, never skip it; skipping
+  dropped a cave's back wall out of its column and grew a cliff in the middle of the room.
+- Two holes were geometry, not edges: the outback's gorge bed stopped 1.5 m short of its west wall
+  (an 88 m slot to the kill plane), and its scree stair was slabs over nothing.
+- **`ramp()` is solid down to its low end** (`min(0, y0, y1, …)`); a ramp into a pit was a stair of
+  floating slabs you could walk under. Ramps from the ground up are unchanged.
+- **Walling the edges exposed that the bots had never climbed out of a pit** — they fell off its far
+  end and respawned. The glacier's crevasse ran 7 m under the rink into a pocket, its ramp was
+  mostly under the lip, **and the rink's rim ran straight across the ramp's top**: the way down
+  led into the underside of a wall. Rebuilt (ends at the rim, 12 m solid ramp, gap in the rim).
+- **`ZoneDef.exits` / `b.exit(zone, foot, top)`** declare a pit's way out; `Bot.routeOut` walks to
+  the foot then pure-pursuits up the line (aimed at the top it fell off the ramp's sides 3/3).
+  "In a pit" is a height test, not a zone test — zones nest, and the outback's first checkpoint
+  on the flat is inside the gorge zone's sphere.
+- **The bot's detour never changed side**, though its comment said it did; and **the play-area
+  leash overrode checkpoints** 40.5 m out while the crevasse checkpoint is 58 m out. Both fixed.
+  Measured: a glacier racer that sat in the crevasse for 90 s is on the seracs by t = 40 s.
+- Still weak: a bot rarely climbs the outback's scree (1.3 m risers, 57°). It roams rather than
+  wedges, which is what the navigation test asks, but it is not a good racer there.
 
 ## How to find defects here
 

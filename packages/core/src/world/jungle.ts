@@ -46,6 +46,11 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   b.zone('cave', vec3(-72, 0, 0), 34, 'cave', 0.75);
   b.zone('canyon', vec3(76, 0, 6), 42, 'canyon', 0.15);
 
+  // Last, so it measures every floor that exists: wall off each edge that drops straight to the
+  // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
+  const killPlaneY = -35;
+  b.enclose(killPlaneY, 'cliffRock');
+
   return b.build({
     id: 'jungle-world',
     name: 'Jungle World',
@@ -54,9 +59,10 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // that only looked right while the builder was halving it.
     // 3: yawed boxes collide where they are drawn (physics used the mirror rotation), and tree
     // branches run out of their trunks instead of across them.
-    version: 3,
+    // 4: walled edges, and the cave and canyon ramps are solid to their floors.
+    version: 4,
     seed,
-    killPlaneY: -35,
+    killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
     // authored zone in play. See `LevelDef.playRadius`; measured per map, not chosen as a round number.
     playRadius: 90,

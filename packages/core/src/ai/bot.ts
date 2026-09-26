@@ -6,6 +6,7 @@ import { Buttons, createIntent } from '../input/intent.js';
 import type { InputIntent } from '../input/intent.js';
 import type { PlayerState } from '../player/state.js';
 import type { LevelDef } from '../world/level.js';
+import type { Vec3 } from '../math/vec3.js';
 
 export interface BotOptions {
   /** 0..1 — reaction speed, aim accuracy and willingness to take risky routes. */
@@ -68,8 +69,9 @@ export class Bot {
   private progressX = 0;
   private progressZ = 0;
   private progressTimer = 0;
-  /** Seconds left of the current detour, and the heading it holds. */
+  /** Seconds left of the current detour, the heading it holds, and how long the next one lasts. */
   private detourTimer = 0;
+  private detourSeconds = DETOUR_SECONDS;
   private detourYaw = 0;
   /**
    * Which way a bot turns when it meets something.
@@ -83,6 +85,9 @@ export class Bot {
   private detourSign = 1;
   /** True while the bot is making no ground. Steering reads it; no button does. */
   private blocked = false;
+  /** The way out of a pit the bot is taking, and whether it has reached the foot yet. */
+  private exitLeg: { foot: Vec3; top: Vec3; climbing: boolean; best: number } | null = null;
+  private readonly carrot: Vec3 = { x: 0, y: 0, z: 0 };
 
   constructor(
     readonly playerId: string,
@@ -133,6 +138,7 @@ export class Bot {
       // Nobody to chase and somewhere to be. The wobble is skill-scaled so a weak bot still takes
       // a sloppy line rather than running the course on rails, which is what makes a race worth
       // entering.
+      objective = this.routeOut(self, level, objective);
       const dx = objective.x - self.position.x;
       const dz = objective.z - self.position.z;
       desiredYaw = Math.atan2(dx, dz) + this.rand.range(-0.25, 0.25) * (1 - this.options.skill);
@@ -161,9 +167,12 @@ export class Bot {
      */
     desiredYaw = objective && !target ? this.avoidObstacle(self, desiredYaw, dt) : desiredYaw;
 
-    // Stay inside the play area.
+    // Stay inside the play area — unless the mode sent the bot somewhere. A checkpoint is authored
+    // route, and a leash that overrides it turns a racer round at the mouth of the glacier's
+    // crevasse, 40.5 m out, with its next checkpoint 58 m out: measured, it hopped back and forth
+    // across that line for the last ninety seconds of the race.
     const distanceFromCentre = Math.hypot(self.position.x, self.position.z);
-    if (distanceFromCentre > level.playRadius * 0.75) {
+    if ((target || !objective) && distanceFromCentre > level.playRadius * 0.75) {
       desiredYaw = Math.atan2(-self.position.x, -self.position.z);
     }
 
@@ -229,6 +238,65 @@ export class Bot {
   }
 
   /**
+   * Down in a pit with the objective up and out of it: head for the way out first.
+   *
+   * Straight at the objective is straight into the pit's wall. Measured on the glacier: a racer
+   * down in the crevasse with the next checkpoint on the rink pinned itself against the crevasse's
+   * east face for ninety seconds — the only way it had ever left before was by falling off the far
+   * end, which `LevelBuilder.enclose` now walls. A pit declares its exit (`ZoneDef.exits`); the bot
+   * walks to its foot, then up to its top, then carries on.
+   */
+  private routeOut(self: PlayerState, level: LevelDef, objective: Vec3): Vec3 {
+    const p = self.position;
+    // In a pit is a height, not a zone name: below the top of a way out of a zone you are inside,
+    // with the objective up at that height rather than down here with you. Zones nest (the
+    // outback's cave is inside its gorge) and a zone's sphere can reach the ground around it, so
+    // "which zone is the objective in" gave the wrong answer on both maps.
+    if (!this.exitLeg) {
+      let best = Infinity;
+      for (const zone of level.zones) {
+        if (!zone.exits || v3distance(zone.center, p) > zone.radius) continue;
+        for (const exit of zone.exits) {
+          if (p.y > exit.top.y - 2.5 || objective.y < exit.top.y - 2.5) continue;
+          const d = Math.hypot(exit.foot.x - p.x, exit.foot.z - p.z);
+          if (d < best) {
+            best = d;
+            this.exitLeg = { foot: exit.foot, top: exit.top, climbing: false, best: -Infinity };
+          }
+        }
+      }
+      if (!this.exitLeg) return objective;
+    } else if (p.y > this.exitLeg.top.y - 1 || objective.y < this.exitLeg.top.y - 2.5) {
+      // Out, or the objective has moved down into the pit: straight at it again.
+      this.exitLeg = null;
+      return objective;
+    }
+    const leg = this.exitLeg as { foot: Vec3; top: Vec3; climbing: boolean; best: number };
+    if (!leg.climbing && Math.hypot(leg.foot.x - p.x, leg.foot.z - p.z) < 2.5) {
+      leg.climbing = true;
+      leg.best = p.y;
+    }
+    if (leg.climbing) {
+      leg.best = Math.max(leg.best, p.y);
+      // Fell off the side of the way up: from the floor the top is only a wall. Back to the foot.
+      if (p.y < leg.best - 2) leg.climbing = false;
+    }
+    if (!leg.climbing) return leg.foot;
+    // Steer at a point a few metres ahead on the line up, not at the top: a bot aimed at the top
+    // from wherever momentum put it walks off the side of the ramp. Measured on the glacier, it
+    // crossed the ramp side to side and fell off three times out of three.
+    const ax = leg.top.x - leg.foot.x;
+    const az = leg.top.z - leg.foot.z;
+    const length = Math.hypot(ax, az) || 1;
+    const along = ((p.x - leg.foot.x) * ax + (p.z - leg.foot.z) * az) / length;
+    const t = Math.min(1, Math.max(0, (along + 4) / length));
+    this.carrot.x = leg.foot.x + ax * t;
+    this.carrot.y = leg.foot.y + (leg.top.y - leg.foot.y) * t;
+    this.carrot.z = leg.foot.z + az * t;
+    return this.carrot;
+  }
+
+  /**
    * Notice when the way ahead is blocked, and go round it.
    *
    * The bot steers straight at whatever it wants and has no idea the world is solid, so anything
@@ -252,10 +320,21 @@ export class Bot {
 
     if (this.progressTimer >= PROGRESS_WINDOW) {
       const net = Math.hypot(self.position.x - this.progressX, self.position.z - this.progressZ);
+      const wasBlocked = this.blocked;
       this.blocked = net < PROGRESS_MIN;
       if (this.blocked) {
+        // Stuck again straight after a detour: that way was wrong. The comment above always said
+        // so, and nothing did it — the sign never changed, so a bot whose one side was a wall
+        // turned into that wall forever. Measured on the glacier: a racer beside the crevasse ramp
+        // spent ninety seconds turning into the ramp's side, one metre from a clear run to its foot.
+        if (wasBlocked) {
+          this.detourSign = -this.detourSign;
+          this.detourSeconds = Math.min(this.detourSeconds * 1.5, DETOUR_SECONDS * 3);
+        }
         this.detourYaw = desiredYaw + this.detourSign * DETOUR_ANGLE;
-        this.detourTimer = DETOUR_SECONDS;
+        this.detourTimer = this.detourSeconds;
+      } else {
+        this.detourSeconds = DETOUR_SECONDS;
       }
       this.progressX = self.position.x;
       this.progressZ = self.position.z;

@@ -44,7 +44,14 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   // Below the ice and genuinely dark — the same role the jungle's cave plays, and the reason the
   // zone darkness work had to land before a second map could be worth building.
   b.zone('crevasse', vec3(-42, 0, 0), 20, 'cave', 0.7);
+  // Out the way you came in: the foot of the ramp, then onto the rink past its top.
+  b.exit('crevasse', vec3(-59, -8, 0), vec3(-34, 0, 0));
   b.zone('seracs', vec3(43, 0, 2), 24, 'canyon', 0.12);
+
+  // Last, so it measures every floor that exists: wall off each edge that drops straight to the
+  // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
+  const killPlaneY = -40;
+  b.enclose(killPlaneY, 'cliffIce');
 
   return b.build({
     id: 'glacier-world',
@@ -53,9 +60,10 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     // exactly -8 — but `ramp()` bottomed the descent out at -3.7, leaving a 4.3 m drop at the end
     // of a ramp. Measured: crevasse occupancy 9 % -> 15 % once it is walkable.
     // 4: yawed towers collide where they are drawn, and the snow drifts rest on the ice.
-    version: 4,
+    // 5: walled edges; the crevasse ends at the rim instead of under it, with a solid ramp.
+    version: 5,
     seed,
-    killPlaneY: -40,
+    killPlaneY,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and
     // still clears both outlying zones. See `LevelDef.playRadius`.
     playRadius: 54,
@@ -76,15 +84,22 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
  * honest way to make an empty floor interesting: the scattered boulders are not decoration, they
  * are the only things you can push off to change direction.
  */
+/** How wide the way down into the crevasse is; the rink's rim leaves a gap for it. */
+const CREVASSE_RAMP_WIDTH = 12;
+
 function buildIceShelf(b: LevelBuilder, rand: Rand): void {
   b.box(vec3(0, -1, 0), vec3(38, 1, 38), 'ice', 0, 'shelf');
 
   // A low rim, so a player who loses control slides to a stop instead of off the map. Bare rock:
-  // the one edge of the rink you can actually grab.
+  // the one edge of the rink you can actually grab. Open on the west for the crevasse ramp: the rim
+  // used to run straight across its top, so the way down led into the underside of a wall.
+  const mouth = CREVASSE_RAMP_WIDTH / 2 + 0.5;
+  const westHalf = (38 - mouth) / 2;
   for (const [dx, dz, sx, sz] of [
     [0, -38, 38, 1.5],
     [0, 38, 38, 1.5],
-    [-38, 0, 1.5, 38],
+    [-38, -(mouth + westHalf), 1.5, westHalf],
+    [-38, mouth + westHalf, 1.5, westHalf],
     [38, 0, 1.5, 38],
   ] as const) {
     b.box(vec3(dx, 0.4, dz), vec3(sx, 1.4, sz), 'rock', 0, 'shelf');
@@ -118,29 +133,47 @@ function buildIceShelf(b: LevelBuilder, rand: Rand): void {
 }
 
 /**
- * The crevasse: a slot under the shelf, reached by a ramp at its mouth.
+ * The crevasse: a slot beside the shelf, reached by a ramp at its mouth.
  *
  * The only place on the map with full grip, which is what makes it worth the risk of going
  * somewhere with one exit.
+ *
+ * It ends at the rink's rim (x = -38) with a wall under the lip. It used to run 7 m further, under
+ * the shelf, and stop there over nothing: a dark pocket beneath the rink whose far side dropped to
+ * the kill plane, with the ramp tucked under the lip so that only a 1.5 m strip of it had
+ * headroom. Measured with a racing bot: once that drop was walled, it pinned itself in the pocket
+ * for the last ninety seconds of the race, because the only way it had ever left was by falling.
  */
 function buildCrevasse(b: LevelBuilder, rand: Rand): void {
-  // Ramp down from the rink's western edge. Rock, not ice: a slippery ramp into a hole is a trap
-  // rather than a route, and the player has to be able to come back up it.
-  b.ramp(-35, 0, 9, 15, 0, -8, 0, 'crevasse');
+  const RIM = -38;
+  const FLOOR = -8;
+  // Ramp up to the rink, rising east so it meets the shelf edge head on. Rock, not ice: a slippery
+  // ramp into a hole is a trap rather than a route, and the player has to be able to come back up
+  // it. It is solid to the floor — see `LevelBuilder.ramp` — so it reads as a slope, not a stair of
+  // slabs you can walk under.
+  const RAMP_LENGTH = 17;
+  b.ramp(RIM - RAMP_LENGTH / 2, 0, CREVASSE_RAMP_WIDTH, RAMP_LENGTH, FLOOR, 0, Math.PI / 2, 'crevasse');
 
-  b.box(vec3(-47, -9, 0), vec3(16, 1, 12), 'snow', 0, 'crevasse');
+  const west = -63;
+  const midX = (west + RIM) / 2;
+  const halfX = (RIM - west) / 2;
+  b.box(vec3(midX, FLOOR - 1, 0), vec3(halfX, 1, 12), 'snow', 0, 'crevasse');
 
   // Walls and roof. The roof is what makes it dark and what stops the sun reaching in.
-  b.box(vec3(-47, -2, -13), vec3(16, 8, 1.5), 'rock', 0, 'crevasse');
-  b.box(vec3(-47, -2, 13), vec3(16, 8, 1.5), 'rock', 0, 'crevasse');
-  b.box(vec3(-47, 6, 0), vec3(16, 1, 13), 'rock', 0, 'crevasse');
-  b.box(vec3(-63, -2, 0), vec3(1.5, 8, 13), 'rock', 0, 'crevasse');
+  b.box(vec3(midX, -2, -13), vec3(halfX, 8, 1.5), 'rock', 0, 'crevasse');
+  b.box(vec3(midX, -2, 13), vec3(halfX, 8, 1.5), 'rock', 0, 'crevasse');
+  b.box(vec3(midX, 6, 0), vec3(halfX, 1, 13), 'rock', 0, 'crevasse');
+  b.box(vec3(west, -2, 0), vec3(1.5, 8, 13), 'rock', 0, 'crevasse');
+  // Under the lip, floor to the underside of the ice: the crevasse's east face.
+  b.box(vec3(RIM + 0.75, -6, 0), vec3(0.75, 4, 14.5), 'rock', 0, 'crevasse');
 
-  // Ice columns from floor to roof: the cover that makes a dead end survivable.
+  // Ice columns from floor to roof: the cover that makes a dead end survivable. Either side of the
+  // ramp, never through it, and clear of its sides: a column within a body's width of the ramp
+  // closes the walk along it to the foot.
   for (let i = 0; i < 9; i++) {
     const x = -42 - i * 2 - rand.range(0, 1.2);
-    const z = rand.range(-9, 9);
-    b.cylinder(vec3(x, -2.5, z), rand.range(0.5, 1.1), 5.5, 'glazedIce', 'crevasse');
+    const z = (i % 2 === 0 ? 1 : -1) * rand.range(8, 10.4);
+    b.cylinder(vec3(x, -2.5, z), rand.range(0.5, 0.9), 5.5, 'glazedIce', 'crevasse');
   }
 
   // Ledges up one wall — the climb back out that is not the ramp.
@@ -150,7 +183,7 @@ function buildCrevasse(b: LevelBuilder, rand: Rand): void {
     b.grip(vec3(x, -4 + i * 1.6, -10), vec3(0, 0, 1), 'ledge');
   }
 
-  b.spawn(vec3(-47, -8, 0), Math.PI / 2, 'crevasse', 'runner');
+  b.spawn(vec3(-58, FLOOR, 7), Math.PI / 2, 'crevasse', 'runner');
 }
 
 /**
@@ -240,9 +273,11 @@ function dressGlacier(b: LevelBuilder, rand: Rand): void {
   for (let i = 0; i < 26; i++) {
     b.rocks(24 + rand.range(0, 36), rand.range(-18, 23), 2, rand.range(0.4, 1), 'seracs');
   }
-  // Crystals in the crevasse: the only light down there that is not the player's own.
+  // Crystals in the crevasse: the only light down there that is not the player's own. On the floor
+  // either side of the ramp, not buried in it.
   for (let i = 0; i < 18; i++) {
-    b.prop('crystal', vec3(-42 - rand.range(0, 18), -8 + rand.range(0, 0.4), rand.range(-10, 10)), rand.range(0, Math.PI * 2), rand.range(0.6, 1.4));
+    const z = (i % 2 === 0 ? 1 : -1) * rand.range(6.6, 10.8);
+    b.prop('crystal', vec3(-42 - rand.range(0, 18), -8 + rand.range(0, 0.4), z), rand.range(0, Math.PI * 2), rand.range(0.6, 1.4));
   }
 }
 
@@ -250,7 +285,7 @@ function dressGlacier(b: LevelBuilder, rand: Rand): void {
 function buildGlacierRoute(b: LevelBuilder): void {
   b.checkpoint(vec3(0, 1, 0), 4.5);
   b.checkpoint(vec3(-34, 0.5, 0), 5);
-  b.checkpoint(vec3(-47, -7.5, 0), 5);
+  b.checkpoint(vec3(-58, -7.5, 0), 5);
   b.checkpoint(vec3(-40, -3.5, -10), 4.5);
   b.checkpoint(vec3(29, 1, 2), 5);
   b.checkpoint(vec3(52, 12, 4), 6, true);

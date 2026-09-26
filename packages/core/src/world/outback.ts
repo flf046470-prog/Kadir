@@ -52,18 +52,26 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
 
   b.zone('flat', vec3(0, 0, 0), 72, 'jungle', 0);
   b.zone('gorge', vec3(-74, -8, 0), 34, 'canyon', 0.25);
+  // Up the scree: its foot on the bed, then out onto the flat past its top.
+  b.exit('gorge', vec3(-68, -15, 0), vec3(-55, 0, 0));
   // Genuinely dark, and the only such pocket here. On a map whose whole subject is sightlines, one
   // room you cannot be seen in is worth more than it would be anywhere else.
   b.zone('cave', vec3(-65.5, -7, 22), 14, 'cave', 0.72);
   b.zone('station', vec3(76, 0, 0), 38, 'village', 0.06);
 
+  // Last, so it measures every floor that exists: wall off each edge that drops straight to the
+  // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
+  const killPlaneY = -40;
+  b.enclose(killPlaneY, 'cliffRedRock');
+
   return b.build({
     id: 'outback-station',
     name: 'Outback Station',
     // 2: yawed boxes collide where they are drawn, and tree branches run out of their trunks.
-    version: 2,
+    // 3: walled edges; the bed reaches the west wall and the scree is solid.
+    version: 3,
     seed,
-    killPlaneY: -40,
+    killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
     // authored zone in play. See `LevelDef.playRadius`; measured per map, not chosen as a round number.
     playRadius: 90,
@@ -234,8 +242,10 @@ function buildGumFlat(b: LevelBuilder, rand: Rand): void {
 function buildGorge(b: LevelBuilder, rand: Rand): void {
   const FLOOR_Y = -15;
 
-  // The bed itself, running north-south so it cuts across anyone crossing the map east-west.
-  b.box(vec3(-74, FLOOR_Y - 1, 0), vec3(15, 1, 44), 'redRock', 0, 'gorge');
+  // The bed itself, running north-south so it cuts across anyone crossing the map east-west. It runs
+  // under the west wall (x −90.5) rather than stopping at −89: it used to, and the whole west side
+  // of the gorge was a 1.5 m slot to the kill plane, 88 m long, at the foot of the way out.
+  b.box(vec3(-75, FLOOR_Y - 1, 0), vec3(16, 1, 44), 'redRock', 0, 'gorge');
   // The creek. A shallow channel down the middle rather than the whole floor: there is a dry route
   // through, it is just the one everybody can predict.
   b.box(vec3(-74, FLOOR_Y - 0.6, 0), vec3(4.5, 0.6, 44), 'water', 0, 'gorge');
@@ -252,8 +262,8 @@ function buildGorge(b: LevelBuilder, rand: Rand): void {
   b.box(vec3(-92, FLOOR_Y / 2, 0), vec3(1.5, 8, 44), 'redRock', 0, 'gorge');
   // End caps. The side walls were there from the start and these were not, so the gorge was a
   // corridor open at both ends into fifteen metres of nothing.
-  b.box(vec3(-74, FLOOR_Y / 2, 44), vec3(15, 8, 1.5), 'redRock', 0, 'gorge');
-  b.box(vec3(-74, FLOOR_Y / 2, -44), vec3(15, 8, 1.5), 'redRock', 0, 'gorge');
+  b.box(vec3(-75, FLOOR_Y / 2, 44), vec3(16, 8, 1.5), 'redRock', 0, 'gorge');
+  b.box(vec3(-75, FLOOR_Y / 2, -44), vec3(16, 8, 1.5), 'redRock', 0, 'gorge');
 
   /**
    * The way in from the flat: a scree slope through the notch in the east face.
@@ -265,12 +275,16 @@ function buildGorge(b: LevelBuilder, rand: Rand): void {
    *
    * Fast down, awkward up. The stepped west wall is the way out, and it is at the far side.
    */
+  // Each step is solid down to the bed. They were 1.4 m slabs, and the bed stops at x −59 where the
+  // flat above is a 2 m slab with nothing under it: the space beneath the stair was open to the
+  // kill plane, and walking east along the bed through the notch went straight into it.
   const SCREE_STEPS = 11;
   for (let i = 0; i < SCREE_STEPS; i++) {
     const t = (i + 0.5) / SCREE_STEPS;
     const x = -57 - t * 9;
-    const y = -0.8 + (FLOOR_Y + 1.2 + 0.8) * t;
-    b.box(vec3(x, y, 0), vec3(0.75, 0.7, 5.5), 'redRock', 0, 'gorge');
+    const top = -0.1 + (FLOOR_Y + 1.2 + 0.8) * t;
+    const bottom = FLOOR_Y - 1;
+    b.box(vec3(x, (top + bottom) / 2, 0), vec3(0.75, (top - bottom) / 2, 6.2), 'redRock', 0, 'gorge');
   }
 
   /**

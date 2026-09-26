@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Collider } from '../physics/types.js';
+import { capsuleFits } from '../physics/character.js';
+import type { Collider, RaycastResult } from '../physics/types.js';
+import { PhysicsWorld } from '../physics/world.js';
+import { vec3 } from '../math/vec3.js';
 import type { Vec3 } from '../math/vec3.js';
 import { Rand } from '../math/rand.js';
-import { LevelBuilder } from './builder.js';
+import { LevelBuilder, SURFACES } from './builder.js';
 import { buildLevel, listLevels } from './registry.js';
 import { buildOutbackWorld } from './outback.js';
 import { zoneAt } from './zone.js';
@@ -92,6 +95,45 @@ describe('every map', () => {
       }
     }
   });
+
+  it('has no edge a player can walk off into the kill plane', () => {
+    /**
+     * Six bots lost 19, 26 and 10 of themselves a round (jungle, glacier, outback) off floor edges,
+     * through an 88 m slot along the gorge's west wall and under the outback's scree stair —
+     * `LevelBuilder.enclose` and two geometry fixes took all three to 0. This steps just past every
+     * side of every box at its own top and asks whether a player's capsule could fall from there all
+     * the way down: a point ray alone reports slots a body cannot fit through.
+     */
+    const ray = (): RaycastResult => ({
+      hit: false, distance: 0, point: vec3(), normal: vec3(), colliderIndex: -1, surface: SURFACES.rock,
+    });
+    const body = { radius: 0.35, height: 1.5 };
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      const world = new PhysicsWorld(level.colliders);
+      const drops: string[] = [];
+      for (const c of level.colliders) {
+        if (c.kind !== 'box' || c.zone === 'edge') continue;
+        const top = c.center.y + c.half.y;
+        const cos = Math.cos(c.yaw);
+        const sin = Math.sin(c.yaw);
+        for (const [axis, side] of [['x', 1], ['x', -1], ['z', 1], ['z', -1]] as const) {
+          const along = axis === 'x' ? c.half.z : c.half.x;
+          const out = (axis === 'x' ? c.half.x : c.half.z) + 0.4;
+          for (let t = -along; t <= along + 1e-6; t += (2 * along) / Math.max(1, Math.ceil(2 * along))) {
+            const [lx, lz] = axis === 'x' ? [side * out, t] : [t, side * out];
+            const p = vec3(c.center.x + lx * cos + lz * sin, top + 0.05, c.center.z - lx * sin + lz * cos);
+            if (!capsuleFits(world, p, body)) continue;
+            if (world.raycast(ray(), p, vec3(0, -1, 0), p.y - level.killPlaneY).hit) continue;
+            let fell = true;
+            for (let y = p.y - 0.25; y > level.killPlaneY && fell; y -= 0.25) fell = capsuleFits(world, vec3(p.x, y, p.z), body);
+            if (fell) drops.push(`${c.zone ?? '-'} top ${top.toFixed(1)} at (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`);
+          }
+        }
+      }
+      expect(drops.slice(0, 5), `${entry.id}: ${drops.length} death drops`).toEqual([]);
+    }
+  });
 });
 
 describe('Outback Station', () => {
@@ -135,9 +177,14 @@ describe('Outback Station', () => {
     const others = listLevels()
       .filter((e) => e.id !== 'outback-station')
       .map((e) => buildLevel(e.id));
-    const worstColliders = Math.max(...others.map((l) => l.colliders.length));
+    // Authored geometry only. The walled edge (`LevelBuilder.enclose`) is generated from the map's
+    // perimeter, and this one has the longest by design: 145 cliff pieces against the jungle's 91,
+    // which as drawn is ~700 more triangles in the same instanced batch — against a Quest frame of
+    // 410k–1M. Counting them here would make "the long view" the thing this test forbids.
+    const authored = (l: { colliders: readonly Collider[] }): number => l.colliders.filter((c) => c.zone !== 'edge').length;
+    const worstColliders = Math.max(...others.map(authored));
     const worstProps = Math.max(...others.map((l) => l.props.length));
-    expect(outback.colliders.length).toBeLessThanOrEqual(worstColliders);
+    expect(authored(outback)).toBeLessThanOrEqual(worstColliders);
     expect(outback.props.length).toBeLessThanOrEqual(worstProps);
   });
 
