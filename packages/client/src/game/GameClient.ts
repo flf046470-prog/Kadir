@@ -1036,6 +1036,7 @@ export class GameClient {
     if (!local) return;
 
     const sample = zoneAt(this.level, local.position);
+    this.audio.setLevel(this.level.id);
     this.audio.setAmbience(sample?.zone.ambience ?? null);
 
     const target = sample ? sample.zone.darkness * sample.weight : 0;

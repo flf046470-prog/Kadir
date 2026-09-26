@@ -1,10 +1,16 @@
 import { getGadget } from '@kc/core';
 
 import { MusicPlayer } from './Music.js';
+import { LOOP_FILES, SAMPLE_FILES, SampleBank, landingFamily, loopFor } from './samples.js';
+import type { SampleFamily } from './samples.js';
 import type { Mood } from './score.js';
 import type { SimEvent, SurfaceMaterial, Settings, ZoneDef } from '@kc/core';
 
 export type AmbienceKind = ZoneDef['ambience'];
+
+/** Where the recordings sit against the synthesis they replace; levelled per file in `samples.ts`. */
+const RECORDED_SFX_LEVEL = 0.55;
+const RECORDED_BED_LEVEL = 1.6;
 
 /**
  * One filtered-noise bed per zone kind.
@@ -44,8 +50,12 @@ export class AudioSystem {
   /** The mood asked for before the context existed; audio starts on a gesture, menus do not. */
   private pendingMood: Mood = 'menu';
   /** The running ambience bed, if any, kept so it can be faded out when the zone changes. */
-  private ambience: { source: AudioBufferSourceNode; lfo: OscillatorNode; gain: GainNode } | null = null;
+  private ambience: { source: AudioBufferSourceNode; lfo: OscillatorNode | null; gain: GainNode; recorded: boolean } | null = null;
   private ambienceKind: AmbienceKind | null = null;
+  /** Recorded sound; see `samples.ts`. Null until the context exists. */
+  private bank: SampleBank | null = null;
+  /** The map being played, which decides what a zone's ambience kind actually sounds like. */
+  private levelId: string | null = null;
 
   /**
    * Try to start audio. Best-effort by design, and safe to call from anywhere.
@@ -114,6 +124,27 @@ export class AudioSystem {
     const data = buffer.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
     this.noiseBuffer = buffer;
+
+    // The one-shots are small and every map uses them; the beds follow the map (`setLevel`).
+    this.bank = new SampleBank(ctx);
+    for (const names of Object.values(SAMPLE_FILES)) for (const name of names) void this.bank.load(name);
+    this.preloadLoops();
+  }
+
+  /** Tell the audio which map is loaded, so its zones get that map's beds. */
+  setLevel(levelId: string): void {
+    if (levelId === this.levelId) return;
+    this.levelId = levelId;
+    this.preloadLoops();
+  }
+
+  private preloadLoops(): void {
+    if (!this.bank || !this.levelId) return;
+    const kinds: AmbienceKind[] = ['jungle', 'cave', 'canyon', 'waterfall', 'village'];
+    for (const kind of kinds) {
+      const loop = loopFor(this.levelId, kind);
+      if (loop) void this.bank.load(LOOP_FILES[loop], true);
+    }
   }
 
   get context(): AudioContext | null {
@@ -403,6 +434,34 @@ export class AudioSystem {
     this.stopAmbience(ctx);
     if (!kind) return;
 
+    // A recording of the place, when there is one. If it is still downloading, the synthesised bed
+    // plays meanwhile and is crossfaded out when the file arrives — a zone is never silent while
+    // it waits.
+    const loop = loopFor(this.levelId, kind);
+    const name = loop ? LOOP_FILES[loop] : null;
+    const recorded = name ? this.bank?.get(name) : null;
+    if (recorded) {
+      const source = ctx.createBufferSource();
+      source.buffer = recorded.buffer;
+      source.loop = true;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(recorded.gain * RECORDED_BED_LEVEL, ctx.currentTime + 1.4);
+      source.connect(gain).connect(bus);
+      // Start somewhere in the loop rather than at zero, so re-entering a zone is not a replay.
+      source.start(0, Math.random() * recorded.buffer.duration);
+      this.ambience = { source, lfo: null, gain, recorded: true };
+      return;
+    }
+    if (name && this.bank) {
+      void this.bank.load(name, true).then((sample) => {
+        if (sample && this.ambienceKind === kind && this.ambience && !this.ambience.recorded) {
+          this.ambienceKind = null;
+          this.setAmbience(kind);
+        }
+      });
+    }
+
     const bed = AMBIENCE[kind];
     const source = ctx.createBufferSource();
     source.buffer = this.noiseBuffer;
@@ -429,7 +488,7 @@ export class AudioSystem {
     source.connect(filter).connect(gain).connect(bus);
     source.start();
     lfo.start();
-    this.ambience = { source, lfo, gain };
+    this.ambience = { source, lfo, gain, recorded: false };
   }
 
   get currentAmbience(): AmbienceKind | null {
@@ -463,7 +522,7 @@ export class AudioSystem {
     running.gain.gain.setValueAtTime(Math.max(0.0001, running.gain.gain.value), ctx.currentTime);
     running.gain.gain.exponentialRampToValueAtTime(0.0001, end);
     running.source.stop(end + 0.05);
-    running.lfo.stop(end + 0.05);
+    running.lfo?.stop(end + 0.05);
   }
 
   /** Rate-limit identical sounds so a crowded room cannot produce a wall of noise. */
@@ -503,9 +562,46 @@ export class AudioSystem {
     osc.stop(ctx.currentTime + 0.24);
   }
 
+  /**
+   * A landing: the recording for the surface, scaled by how hard it was.
+   *
+   * Heavier landings are louder and pitched down — a big drop sounds bigger, not just louder — and
+   * every play draws a variant and a few percent of pitch, so a bounding kangaroo is not one file
+   * on repeat. Water and metal keep the synthesised impact (see `landingFamily`).
+   */
   private land(at: { x: number; y: number; z: number }, speed: number, material?: SurfaceMaterial): void {
     const strength = Math.min(1, speed / 20);
+    const family = landingFamily(material, speed);
+    const rate = (material === 'wood' || material === 'rock' || material === 'stone' ? 1.12 : 1) * (1.06 - strength * 0.14);
+    if (family && this.playSample(family, at, 0.3 + strength * 0.7, rate)) return;
     this.impact(at, 0.25 + strength * 0.75, 60 + materialPitch(material));
+  }
+
+  /** Play one variant of a recorded family at a position. False if nothing is loaded yet. */
+  private playSample(family: SampleFamily, at: { x: number; y: number; z: number }, level: number, rate: number): boolean {
+    const ctx = this.ctx;
+    const bus = this.buses?.sfx;
+    if (!ctx || !bus || !this.bank || this.muted) return false;
+    const names = SAMPLE_FILES[family];
+    const sample = this.bank.get(names[Math.floor(Math.random() * names.length)] as string) ?? this.bank.get(names[0] as string);
+    if (!sample) return false;
+    if (!this.throttle(`sample-${family}`, 35)) return true;
+
+    const source = ctx.createBufferSource();
+    source.buffer = sample.buffer;
+    source.playbackRate.value = rate * (0.95 + Math.random() * 0.1);
+    const gain = ctx.createGain();
+    gain.gain.value = sample.gain * level * (0.9 + Math.random() * 0.2) * RECORDED_SFX_LEVEL;
+    const panner = this.panner(at);
+    source.connect(gain);
+    if (panner) {
+      gain.connect(panner);
+      panner.connect(bus);
+    } else {
+      gain.connect(bus);
+    }
+    source.start(0, sample.offset);
+    return true;
   }
 
   private impact(at: { x: number; y: number; z: number }, strength: number, frequency: number): void {
@@ -624,7 +720,7 @@ export class AudioSystem {
 
   /** Being tagged is the loudest moment in the game — it must be unmistakable. */
   private tag(at: { x: number; y: number; z: number }, isLocalPlayer: boolean): void {
-    this.impact(at, 1, 200);
+    if (!this.playSample('tag', at, 1, isLocalPlayer ? 0.92 : 1.05)) this.impact(at, 1, 200);
     this.chime(at, isLocalPlayer ? 320 : 520, isLocalPlayer ? 2 : 3);
   }
 

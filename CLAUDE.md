@@ -1747,29 +1747,30 @@ Meshy's UV-seam splits (1,200 islands → 1 surface; heat weighting cannot skin 
 faces it +Y, scales to 1.75 m and decimates to 3,900 tris (`TRIANGLE_BUDGET` 4,000); joint positions
 were read off gridded orthographic renders of the normalised mesh; `_paint_source` colours regions
 from the animal palette. Bone names are unchanged, so every clip and socket still works. A fourth
-tail bone was needed: the mesh's tail runs 0.4 m along the ground and one bone made it a stick
-(`animal-motion` tripod test caught it). Other animals are still procedural; any of them can take a
-source mesh the same way.
-
-Third-person camera: it sat at head height looking level, half the frame sky. It now orbits
-`CAMERA_ELEVATION` (0.24 rad) above the player's pitch, looks `CAMERA_LOOK_AHEAD` ahead (more at
-speed) and widens FOV up to +7° with speed — flat screens only; VR never touches the camera.
-
-## The hero kangaroo is a sculpted mesh
-
-The procedural kangaroo read as a figurine of stacked ellipsoids from behind — the view a flat-screen
-player sees all game. `assets/meshy/animals/kangaroo.glb` (Meshy text-to-3d preview, 20 credits,
-provenance in `assets/meshy/provenance.json`, picked from three candidates by rendering front/side/back)
-is rigged onto the **same hopper skeleton** by `characters.SOURCE_MESHES`: `_import_source` merges
-Meshy's UV-seam splits (1,200 islands → 1 surface; heat weighting cannot skin the unmerged file),
-faces it +Y, scales to 1.75 m and decimates to 3,900 tris (`TRIANGLE_BUDGET` 4,000); joint positions
-were read off gridded orthographic renders of the normalised mesh; `_paint_source` colours regions
-from the animal palette. Bone names are unchanged, so every clip and socket still works. A fourth
 tail bone was needed: the tail runs 0.4 m along the ground and one bone made it a stick.
 
 Third-person camera: it sat at head height looking level, half the frame sky. It now orbits
 `CAMERA_ELEVATION` (0.24 rad) above the player's pitch, looks ahead (more at speed) and widens FOV
 up to +7° with speed — flat screens only; VR never touches the camera.
+
+## Recorded sound (ElevenLabs), with synthesis as the fallback
+
+Every sound used to be oscillators and one second of white noise; the zone beds were filtered noise.
+`audio/samples.ts` plays recordings from `public/audio/` (ElevenLabs Sound Effects v2, prompts and
+licence note in `assets/audio/provenance.json` — **commercial use needs the account to have been on
+a paid plan**): four landing families (dirt / leaves / snow-ice / hard, two variants each, random
+pitch ±5 %, pitched down and louder with impact speed), the tag, and five 20 s seamless beds.
+
+- A zone's `ambience` kind is **not** a place: the outback flat is declared `jungle`. `loopFor(levelId,
+  kind)` picks the bed per map, so `AudioSystem.setLevel` must be called (GameClient does it in
+  `updateZone`). Only the current map's beds are fetched.
+- Generated files arrive with up to 0.41 s of leading silence and levels 25× apart; `measure`
+  trims and levels at decode, so a regenerated file needs no hand editing.
+- The sound-effects model defaults to ~1–2 s clips. Beds need `duration_seconds` and `loop: true`
+  set on the flow node (`creative_update_node`) — the prompt text alone does not lengthen them.
+- Missing or undecodable files fall back to the synthesis; water and metal landings stay synthesised.
+- Measured in the built game (jungle practice, 8 s hopping): 12 files fetched 200, 2 recorded beds
+  and 21 recorded landings started.
 
 ## How to find defects here
 
