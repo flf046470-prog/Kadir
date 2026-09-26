@@ -115,6 +115,22 @@ def _head_sockets(top, forward):
     }
 
 
+def _hand_sockets(bone, where, x):
+    """
+    `socket_hand_L` / `socket_hand_R`: where a glove goes, at the end of each forelimb.
+
+    Hand cosmetics used to hang on the avatar's own hand groups, which the client hides once a
+    model loads ("the model has its own arms") — so on every PC and mobile player, which is every
+    player not in a headset, equipped gloves were never drawn at all. The model's forelimb ends
+    here, and only this file knows where. Underscored names because three.js strips dots.
+    `where(x)` gives the point for the side whose sign `x` carries.
+    """
+    return {
+        "socket_hand_L": (f"{bone}.L", where(x)),
+        "socket_hand_R": (f"{bone}.R", where(-x)),
+    }
+
+
 def _head_parts(spec, mats, top, forward):
     """Head, snout, ears and eyes, sitting at `top` and facing +Y."""
     parts = [sphere("head", (0, forward, top), (0.34, 0.36, 0.32), mats["body"])]
@@ -413,6 +429,7 @@ def build_hopper(spec, mats):
     # (0, 0.14, 1.01) and 0.38 deep (a diameter), so its back surface is near y = -0.05.
     sockets = _head_sockets(1.32, 0.26)
     sockets["socket_back"] = ("spine", (0, -0.05, 1.02))
+    sockets.update(_hand_sockets("arm", lambda x: (x * 0.7, 0.38, 0.84), 0.17))
     return parts, bones, "hopper", sockets
 
 
@@ -446,8 +463,10 @@ def build_upright(spec, mats):
         sphere("shoulders", (0, 0, 1.20), (0.52, 0.26, 0.18), mats["body"]),
     ]
     if longneck:
-        parts.append(_segment("neck", (0, 0.0, 1.16), (0, forward - 0.03, top - 0.08), 0.17, 0.18,
-                              mats["body"], overlap=1.2))
+        # Pinned to its own bone (below): it spans exactly that bone, so riding it rigidly is the
+        # right deformation, and it keeps the neck out of the heat solve — see the bone's comment.
+        parts.append(lib.pin(_segment("neck", (0, 0.0, 1.16), (0, forward - 0.03, top - 0.08), 0.17, 0.18,
+                                      mats["body"], overlap=1.2), "neck"))
     if feature == "dorsal":
         # A shark's fin, on a back that is vertical because this shark stands up: turned a quarter
         # turn about X so its base runs up the spine and its point sweeps down toward the tail.
@@ -471,8 +490,18 @@ def build_upright(spec, mats):
         ("root", (0, 0, 0.0), (0, 0, 0.12), None),
         ("hips", (0, 0, 0.86), (0, 0, 1.02), "root"),
         ("spine", (0, 0, 1.02), (0, 0, 1.20), "hips"),
-        ("head", (0, 0, 1.20), (0, forward, top + 0.08), "spine"),
     ]
+    if longneck:
+        # A neck bone of its own, the way the quadrupeds have one. With a single head bone
+        # running 0.41 m from inside the shoulders through the neck into the skull, heat
+        # weighting failed on 9 dragon builds in 40 — and on no other animal in 640.
+        neck_top = (0, forward - 0.03, top - 0.10)
+        bones += [
+            ("neck", (0, 0, 1.20), neck_top, "spine"),
+            ("head", neck_top, (0, forward, top + 0.08), "neck"),
+        ]
+    else:
+        bones.append(("head", (0, 0, 1.20), (0, forward, top + 0.08), "spine"))
     bones += _jaw_bone(top, forward)
     bones += _tail_bones(spec, 0.86, -0.02, "hips")
     for side, x in (("L", 0.13), ("R", -0.13)):
@@ -486,6 +515,7 @@ def build_upright(spec, mats):
     # Torso 0.32 deep (a diameter): the back surface is y = -0.16 at chest height.
     sockets = _head_sockets(top, forward)
     sockets["socket_back"] = ("spine", (0, -0.16, 1.10))
+    sockets.update(_hand_sockets("arm", lambda x: (x * 1.9 * 1.06, 0.06, 0.77), 0.13))
     return parts, bones, "upright", sockets
 
 
@@ -560,6 +590,10 @@ def build_waddler(spec, mats):
     # The egg is 0.52 deep (a diameter): its back surface is y = -0.26 at chest height.
     sockets = _head_sockets(top, forward)
     sockets["socket_back"] = ("spine", (0, -0.25, 0.96))
+    if flippers:
+        sockets.update(_hand_sockets("arm", lambda x: (x * 2.2, 0.0, 0.66), 0.15))
+    else:
+        sockets.update(_hand_sockets("arm", lambda x: (x * 2.2, 0.16, 0.74), 0.15))
     return parts, bones, "waddler", sockets
 
 
@@ -615,6 +649,7 @@ def build_quadruped(spec, mats):
     # pack rides on it at z 1.13 rather than hanging off the rump.
     sockets = _head_sockets(1.30, 0.58)
     sockets["socket_back"] = ("spine", (0, -0.06, 1.13))
+    sockets.update(_hand_sockets("frontpaw", lambda x: (x, 0.31, 0.06), 0.19))
     return parts, bones, "quadruped", sockets
 
 
@@ -987,6 +1022,32 @@ def _emotes(arm, legs, arms, tail_bones):
 # --------------------------------------------------------------------------------------------
 
 
+def skin_parts(parts, bones, name):
+    """
+    Join, rig and weight an animal: heat weighting for the body, rigid pins for the rest.
+
+    Pinned parts are joined in *after* the heat solve, not before. `lib.pin` only relabels
+    weights once the solve is done, so a pinned part used to be solved anyway — and small closed
+    islands are exactly what destabilise it. Measured with the dragon's long neck: the whole solve
+    failed on 9 roster builds in 40 (every other animal: 0 in 640), a failure that depends on
+    floating-point summation order, so it came and went with build order and process state. A
+    neck bone of its own brought it to 2 in 40, and "pinning" the neck changed nothing, because
+    pinning never took it out of the solve. Keeping pinned parts out of it does.
+
+    Ears and eyes are the original reason pins exist: heat weighting skipped them — measured,
+    every animal's 440 eye vertices and every round-eared animal's 104 ear vertices came out on
+    the exporter's `neutral_bone` and stayed put while the head moved.
+    """
+    pinned = [p for p in parts if lib.is_pinned(p)]
+    free = [p for p in parts if not lib.is_pinned(p)]
+    mesh = join(free, name)
+    arm = armature(f"{name}_rig", bones)
+    skin(mesh, arm)
+    lib.join_into(mesh, pinned)
+    lib.apply_pins(mesh)
+    return mesh, arm
+
+
 def build_animal(spec, out_path, capsule):
     lib.reset()
     lib.reset_materials()
@@ -1018,14 +1079,7 @@ def build_animal(spec, out_path, capsule):
     if loose:
         raise AssertionError(f"{spec['id']}: parts touching nothing: {loose}")
 
-    mesh = join(parts, spec["id"])
-    arm = armature(f"{spec['id']}_rig", bones)
-    skin(mesh, arm)
-    # Ears and eyes are small detached islands that heat-diffusion weighting silently skips:
-    # measured, every animal's 440 eye vertices and every round-eared animal's 104 ear vertices
-    # came out unweighted, bound to the exporter's `neutral_bone`, and stayed put while the head
-    # moved. They are pinned to the head in `_head_parts` and resolved here.
-    lib.apply_pins(mesh)
+    mesh, arm = skin_parts(parts, bones, spec["id"])
     # Anything else auto-weighting dropped would ride `neutral_bone` and stay behind in every clip.
     # Refused here rather than shipped: `animal-motion.test.ts` checks the files, this stops the build.
     left = lib.unweighted_vertices(mesh)

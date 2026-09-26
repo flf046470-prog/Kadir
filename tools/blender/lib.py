@@ -191,6 +191,28 @@ def join(parts, name):
     return ob
 
 
+def join_into(target, parts):
+    """
+    Join `parts` into an existing mesh, which keeps its own modifiers, parent and vertex groups.
+
+    For pinned parts after skinning: see `characters.skin_parts`.
+    """
+    parts = [p for p in parts if p is not None]
+    if not parts:
+        return target
+    bpy.ops.object.select_all(action="DESELECT")
+    target.select_set(True)
+    for p in parts:
+        p.select_set(True)
+    bpy.context.view_layer.objects.active = target
+    bpy.ops.object.join()
+    return target
+
+
+def is_pinned(ob) -> bool:
+    return any(g.name.startswith(PIN_PREFIX) for g in ob.vertex_groups)
+
+
 def triangle_count(ob) -> int:
     ob.data.calc_loop_triangles()
     return len(ob.data.loop_triangles)

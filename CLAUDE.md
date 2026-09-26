@@ -1623,14 +1623,45 @@ the check it should have failed, and three animals later failed on geometry that
 file. Scratch probes that import `characters` should set `PYTHONDONTWRITEBYTECODE=1` for the same
 reason. And never run an `Edit` and a `Bash` that reads the same file in the same parallel batch.
 
-Still open from the same probe:
+**Pinned parts stay out of the heat solve.** `lib.pin` relabels weights *after* weighting, so a
+pinned part used to be solved anyway. Giving the dragon a long neck made the whole solve fail on
+**9 roster builds in 40** (every other animal: 0 in 640), coming and going with build order and
+process state. Three wrong fixes were measured and dropped: scaling the rig ×10 before weighting
+(far worse — partial failures on nearly every biped), retrying on the same mesh (never recovered),
+and "pinning" the neck (unchanged, for the reason above). A neck bone of its own got it to 2 in 40;
+`characters.skin_parts` joining pinned parts in only *after* `skin` got it to **0 in 960**. Probe
+scripts must call `skin_parts` rather than re-implementing join/skin/pin, or they measure a
+different pipeline from the one that ships. And never name a scratch script after a stdlib module:
+`bisect.py` shadowed `bisect`, bpy imported it and re-imported itself, and it died with "You called
+InitGoogleLogging() twice" — which looks like a Blender bug and is not.
 
-- **17 visual cosmetics are 9 distinct meshes.** `buildCosmetic` reads `visual.shape` for hats only;
-  both masks, both glasses, both packs, both tails and both gloves are one mesh per pair, and both
-  effects plus both trails are the *same* torus. **Gloves also leak**: they are added to the hand
-  objects while `setCosmetics` removes an empty group, so unequipping leaves them on (`2/2` hand
-  children instead of `1/1`) and three swaps stack them to `5/5`. Every equip in the shell calls
-  `setCosmetics`, so it grows in the menu too.
+## Cosmetics: every item is its own object, and the gloves were never drawn
+
+`render/cosmetics.ts` is one recipe per `visual.shape`, each returning every geometry and material
+it made, so `Avatar.setCosmetics` frees the last set before building the next. Before it, 17 visual
+items drew **9 distinct meshes** — both effects and both trails were the same static torus lying at
+the hips — and gloves leaked onto the hand groups on every equip (`5/5` children after three
+swaps). `cosmetics.test.ts` builds all 17 and refuses two with the same meshes, and pins the leak.
+
+Found only by rendering the real `Avatar` in a browser (a throwaway page served by the client's own
+Vite config, so `@kc/core` resolves):
+
+- **Gloves were invisible on every player without a headset.** On the loaded-model path `update`
+  sets the avatar's hand groups `visible = false` ("the model has its own arms"), and that is where
+  gloves hung. The generator exports `socket_hand_L`/`_R` at the end of every forelimb now (paw,
+  hand, flipper tip, a quadruped's front paw), and `placeHandCosmetics` hangs gloves there unless
+  the hands are tracked, when they move onto the tracked hands — re-placed when tracking changes.
+- **Tail cosmetics were inside the tail.** A 0.1 m tube on a socket where the kangaroo's own tail
+  is 0.12 m in radius drew nothing at all on the default animal. They are sleeves wider than it.
+- **`update` returns early on the model path**, so per-frame cosmetic motion runs before that
+  branch. The test for it was vacuous at first: `attachModel` with no clips makes no mixer, the
+  model branch never ran, and the mutation it exists for passed. It carries a clip now and asserts
+  the mixer exists. Same shape as this file's "prove the thing you are counting exists" rule.
+
+Trails keep a world-space history of the feet and draw it in the node's own frame each tick, so
+they lie *behind* a moving avatar and vanish when it stops; dust only while grounded. Unknown shapes
+(a CDN item) borrow their slot's recipe rather than vanishing, and the test asserts no catalog item
+does.
 
 ## How to find defects here
 

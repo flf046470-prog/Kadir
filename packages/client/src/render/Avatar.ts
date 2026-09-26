@@ -1,8 +1,10 @@
 import * as THREE from 'three';
-import type { AnimalDef, AnimalVisual, CosmeticDef, PlayerSnapshot } from '@kc/core';
+import type { AnimalDef, AnimalVisual, PlayerSnapshot } from '@kc/core';
 import { EMOTE_CLIPS, SnapFlags, emoteClip, getAnimal, getCosmetic } from '@kc/core';
 import { AssetLibrary } from './AssetLibrary.js';
 import type { LoadedModel } from './AssetLibrary.js';
+import { buildCosmetic, disposeCosmetic } from './cosmetics.js';
+import type { CosmeticBuild, CosmeticFrame } from './cosmetics.js';
 
 /**
  * Clip names the renderer asks a model for.
@@ -24,6 +26,8 @@ export const DEFAULT_MODEL_SOCKETS: Readonly<Record<string, string>> = {
   head: 'socket_head',
   face: 'socket_face',
   back: 'socket_back',
+  handL: 'socket_hand_L',
+  handR: 'socket_hand_R',
 };
 
 /**
@@ -335,7 +339,20 @@ export class Avatar {
   private materials: THREE.Material[] = [];
   private geometries: THREE.BufferGeometry[] = [];
   private sockets: Record<string, THREE.Group> = {};
-  private cosmeticNodes = new Map<string, THREE.Object3D>();
+  /** Equipped cosmetics, each owning its own geometry and materials — see `cosmetics.ts`. */
+  private cosmetics: CosmeticBuild[] = [];
+  private cosmeticClock = 0;
+  /**
+   * Where a glove goes on the loaded model, one per hand, or null before a model (or on an art
+   * pack without hand sockets). The avatar's own hand groups are hidden once a model loads —
+   * "the model has its own arms" — so gloves hung on them were never drawn for anyone not in a
+   * headset. See `placeHandCosmetics`.
+   */
+  private modelHands: (THREE.Object3D | null)[] = [null, null];
+  private handsTracked = false;
+  private readonly cosmeticFrame: CosmeticFrame = {
+    time: 0, dt: 0, origin: new THREE.Vector3(), speed: 0, grounded: true,
+  };
   /**
    * The lower jaw, hinged at the back of the head.
    *
@@ -571,6 +588,32 @@ export class Avatar {
       if (slot !== 'tail') {
         socket.quaternion.copy(target.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bodyRotation));
       }
+    }
+
+    // Hand sockets only exist on the model: the procedural body's hands *are* `this.hands`.
+    (['handL', 'handR'] as const).forEach((slot, i) => {
+      const node = authored(slot);
+      if (!node) return;
+      const socket = new THREE.Group();
+      socket.name = `cosmetic_${slot}`;
+      node.add(socket);
+      node.updateWorldMatrix(true, false);
+      socket.quaternion.copy(node.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(bodyRotation));
+      this.modelHands[i] = socket;
+    });
+    this.placeHandCosmetics();
+  }
+
+  /**
+   * Put each glove where the hand that is actually drawn is: the tracked hand in a headset, the
+   * model's own forelimb otherwise, and the procedural hand before any model has loaded.
+   */
+  private placeHandCosmetics(): void {
+    for (const build of this.cosmetics) {
+      build.handNodes.forEach((node, i) => {
+        const target = (!this.handsTracked && this.modelHands[i]) || this.hands[i];
+        if (target && node.parent !== target) target.add(node);
+      });
     }
   }
 
@@ -1128,77 +1171,46 @@ export class Avatar {
     this.tailJoints.unshift(root);
   }
 
-  /** Equip cosmetics by slot. Unknown or unowned ids are simply ignored. */
+  /**
+   * Equip cosmetics by slot. Unknown or unowned ids are simply ignored.
+   *
+   * Everything the previous set made is detached *and freed* first. It used to be detached only,
+   * and only from the sockets: gloves live on the hand objects, so unequipping left them on and
+   * every equip in the menu stacked another pair (measured `5/5` hand children after three swaps),
+   * and every equip's geometry and materials stayed in this avatar's lists until it was disposed.
+   */
   setCosmetics(cosmetics: Record<string, string>): void {
-    for (const [, node] of this.cosmeticNodes) node.removeFromParent();
-    this.cosmeticNodes.clear();
-
+    this.clearCosmetics();
     for (const [slot, id] of Object.entries(cosmetics)) {
       const def = getCosmetic(id);
       if (!def) continue;
-      const node = this.buildCosmetic(def);
-      if (!node) continue;
-      const socket = socketForSlot(slot);
-      const parent = this.sockets[socket];
+      const parent = this.sockets[socketForSlot(slot)];
       if (!parent) continue;
-      parent.add(node);
-      this.cosmeticNodes.set(slot, node);
+      const build = buildCosmetic(def, this.hands.length);
+      if (!build) continue;
+      parent.add(build.node);
+      this.cosmetics.push(build);
     }
+    this.placeHandCosmetics();
   }
 
-  private buildCosmetic(def: CosmeticDef): THREE.Object3D | null {
-    const material = this.mat(def.visual.color);
-    switch (def.slot) {
-      case 'hat': {
-        const geometry =
-          def.visual.shape === 'crown'
-            ? this.geo(new THREE.CylinderGeometry(0.17, 0.19, 0.14, 7, 1, true))
-            : def.visual.shape === 'brim'
-              ? this.geo(new THREE.CylinderGeometry(0.13, 0.26, 0.16, 10))
-              : this.geo(new THREE.ConeGeometry(0.18, 0.2, 5));
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.y = 0.08;
-        return mesh;
-      }
-      case 'mask':
-        return new THREE.Mesh(this.geo(new THREE.BoxGeometry(0.26, 0.16, 0.06)), material);
-      case 'glasses': {
-        const group = new THREE.Group();
-        const lens = this.geo(new THREE.CircleGeometry(0.07, 8));
-        for (const side of [-1, 1]) {
-          const mesh = new THREE.Mesh(lens, material);
-          mesh.position.set(side * 0.09, 0.04, 0.02);
-          group.add(mesh);
-        }
-        return group;
-      }
-      case 'backpack':
-        return new THREE.Mesh(this.geo(new THREE.BoxGeometry(0.28, 0.32, 0.18)), material);
-      case 'tail':
-        return new THREE.Mesh(this.geo(new THREE.CapsuleGeometry(0.1, 0.4, 3, 6)), material);
-      case 'hands': {
-        const group = new THREE.Group();
-        // Hand cosmetics attach to the hands themselves rather than a body socket.
-        const geometry = this.geo(new THREE.SphereGeometry(0.11, 7, 6));
-        for (const hand of this.hands) {
-          const mesh = new THREE.Mesh(geometry, material);
-          hand.add(mesh);
-          group.add(new THREE.Object3D());
-        }
-        return group;
-      }
-      case 'effect':
-      case 'trail': {
-        const mesh = new THREE.Mesh(
-          this.geo(new THREE.TorusGeometry(0.5, 0.03, 4, 14)),
-          this.mat(def.visual.color, { transparent: true, opacity: 0.55 }),
-        );
-        mesh.rotation.x = Math.PI / 2;
-        return mesh;
-      }
-      default:
-        return null;
-    }
+  private clearCosmetics(): void {
+    for (const build of this.cosmetics) disposeCosmetic(build);
+    this.cosmetics = [];
+  }
+
+  /** Move the cosmetics that move: effects, glows, flames, and the trails that record the path. */
+  private animateCosmetics(dt: number, speed: number, grounded: boolean): void {
+    if (this.cosmetics.length === 0) return;
+    this.cosmeticClock += dt;
+    const frame = this.cosmeticFrame;
+    frame.time = this.cosmeticClock;
+    frame.dt = dt;
+    frame.speed = speed;
+    frame.grounded = grounded;
+    this.group.updateWorldMatrix(true, false);
+    this.group.getWorldPosition(frame.origin);
+    for (const build of this.cosmetics) build.animate?.(frame);
   }
 
   /** Nameplate above the head. Pass `show = false` for the local player — you know who you are,
@@ -1305,6 +1317,9 @@ export class Avatar {
     if (tagged && !this.wasTagged) this.hitTimer = 0.45;
     this.wasTagged = tagged;
     if (this.hitTimer > 0) this.hitTimer = Math.max(0, this.hitTimer - dt);
+
+    // Before the model branch below, which returns early: cosmetics move on either body.
+    this.animateCosmetics(dt, speed, grounded);
 
     if (this.mixer) {
       this.updateModel(snapshot, dt, grounded, crouching, speed);
@@ -1435,6 +1450,10 @@ export class Avatar {
         hand.visible = false; // the model has its own arms
       }
     }
+    if (this.handsTracked !== Boolean(hands)) {
+      this.handsTracked = Boolean(hands);
+      this.placeHandCosmetics();
+    }
   }
 
   private updateNameplate(cameraPosition: THREE.Vector3): void {
@@ -1537,6 +1556,7 @@ export class Avatar {
     this.modelJaw = null;
     this.modelJawRest = null;
 
+    this.clearCosmetics();
     for (const material of this.materials) disposeMaterial(material);
     for (const geometry of this.geometries) geometry.dispose();
     this.group.removeFromParent();
