@@ -25,7 +25,7 @@ import math
 import bpy
 
 import lib
-from lib import Clip, armature, box, cone, join, material, skin, sphere
+from lib import Clip, armature, box, cone, join, material, skin, sphere, wedge
 
 
 def bpy_update() -> None:
@@ -79,6 +79,20 @@ def _trait(spec, field, handled):
     return value
 
 
+FEATURES = {"none", "mane", "patches", "mask", "dorsal", "antlers", "longneck"}
+
+
+def _feature(spec):
+    """`visual.feature`, optional, refused like any trait when there is no geometry for it."""
+    value = spec["visual"].get("feature", "none")
+    if value not in FEATURES:
+        raise ValueError(
+            f"{spec['id']}: feature={value!r} is not one this generator builds "
+            f"(it builds {sorted(FEATURES)}). Add the branch or change the animal."
+        )
+    return value
+
+
 def _head_sockets(top, forward):
     """
     Where a hat and a pair of glasses go, derived from the numbers that build the head.
@@ -120,30 +134,64 @@ def _head_parts(spec, mats, top, forward):
     else:  # flat — a face, not a muzzle
         parts.append(sphere("face", (0, forward + 0.16, top - 0.03), (0.22, 0.10, 0.20), mats["belly"]))
 
+    feature = _feature(spec)
+    # A panda's ears are black; everybody else's are the colour of their head.
+    ear_mat = mats["accent"] if feature == "patches" else mats["body"]
     ears = _trait(spec, "ears", {"tall", "pointed", "round", "fin", "none"})
     for side, x in (("L", 0.13), ("R", -0.13)):
         if ears == "tall":
             parts.append(lib.pin(
-                cone(f"ear.{side}", (x, forward - 0.04, top + 0.26), 0.06, 0.02, 0.30, mats["body"], vertices=6), "head"
+                cone(f"ear.{side}", (x, forward - 0.04, top + 0.26), 0.06, 0.02, 0.30, ear_mat, vertices=6), "head"
             ))
         elif ears == "pointed":
             parts.append(lib.pin(
-                cone(f"ear.{side}", (x, forward - 0.02, top + 0.19), 0.07, 0.01, 0.18, mats["body"], vertices=5), "head"
+                cone(f"ear.{side}", (x, forward - 0.02, top + 0.19), 0.07, 0.01, 0.18, ear_mat, vertices=5), "head"
             ))
         elif ears == "round":
-            parts.append(lib.pin(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), mats["body"]), "head"))
+            parts.append(lib.pin(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), ear_mat), "head"))
         elif ears == "fin":
             # A blade swept back off the side of the skull, not a cone standing up off it. Thin in
             # X so it reads as a fin edge-on and disappears from the front, which is the whole
             # visual joke of an animal with fins where its ears should be.
             parts.append(lib.pin(
-                box(f"ear.{side}", (x + 0.05 * (1 if side == "L" else -1), forward - 0.08, top + 0.14),
-                    (0.03, 0.22, 0.20), mats["accent"],
-                    rotation=(math.radians(-24), 0, math.radians(14 if side == "L" else -14))), "head"
+                wedge(f"ear.{side}", (x + 0.05 * (1 if side == "L" else -1), forward - 0.08, top + 0.14),
+                      (0.03, 0.24, 0.22), mats["accent"],
+                      rotation=(math.radians(-10), 0, math.radians(14 if side == "L" else -14))), "head"
             ))
 
     for side, x in (("L", 0.12), ("R", -0.12)):
         parts.append(lib.pin(sphere(f"eye.{side}", (x, forward + 0.14, top + 0.06), (0.06, 0.05, 0.06), mats["dark"]), "head"))
+
+    # Signature marks that live on the head. All pinned: they are small, they ride the skull
+    # rigidly, and heat weighting is not trusted with small islands (see `lib.pin`).
+    if feature == "mane":
+        # A halo round the face, wider and taller than the skull, and a drape down onto the chest.
+        # Behind the face rather than over it, so the eyes and muzzle stay in front of it.
+        parts.append(lib.pin(sphere("mane", (0, forward - 0.07, top - 0.03), (0.58, 0.34, 0.56), mats["accent"]), "head"))
+        parts.append(lib.pin(sphere("mane.2", (0, forward - 0.10, top - 0.22), (0.50, 0.36, 0.34), mats["accent"]), "head"))
+    elif feature == "patches":
+        # A panda's eye patches: teardrops round each eye, tilted down and out. Inboard of the
+        # eye rather than centred on it: centred, they reached past the edge of the skull and
+        # read from the front as a second pair of round ears.
+        for side, x in (("L", 0.10), ("R", -0.10)):
+            tilt = math.radians(-22 if side == "L" else 22)
+            parts.append(lib.pin(sphere(f"patch.{side}", (x, forward + 0.125, top + 0.04), (0.11, 0.07, 0.12),
+                                        mats["accent"], rotation=(0, tilt, 0)), "head"))
+    elif feature == "mask":
+        # The bandit band across the eyes, wrapping round the sides of the skull. The eyes still sit
+        # proud of it, and the short muzzle covers its lower edge, so it reads as a mask over a pale
+        # snout rather than as a dark face.
+        parts.append(lib.pin(sphere("mask", (0, forward + 0.075, top + 0.05), (0.40, 0.18, 0.11), mats["accent"]), "head"))
+    elif feature == "antlers":
+        # Two swept beams with a forward tine each, in the pale colour of bone. Kept under the
+        # capsule's height tolerance, which the tall ears already come close to.
+        for side, x in (("L", 1), ("R", -1)):
+            parts.append(lib.pin(cone(f"antler.{side}", (0.13 * x, forward - 0.06, top + 0.27), 0.028, 0.012, 0.30,
+                                      mats["belly"], vertices=6,
+                                      rotation=(math.radians(18), math.radians(32 * x), 0)), "head"))
+            parts.append(lib.pin(cone(f"tine.{side}", (0.15 * x, forward + 0.01, top + 0.31), 0.016, 0.006, 0.14,
+                                      mats["belly"], vertices=5,
+                                      rotation=(math.radians(-40), math.radians(12 * x), 0)), "head"))
     return parts
 
 
@@ -170,9 +218,14 @@ def _tail_parts(spec, mats, base_z, base_y):
         # A caudal blade standing on edge: nearly flat in X, tall in Z. Two segments so the
         # animation's travelling wave still has something to sweep — a rigid fin reads as a prop
         # bolted to the hips the moment the animal moves.
+        #
+        # The stock is round and the fluke is a swept triangle. Both used to be boxes, and the
+        # fluke sat three centimetres clear of the stock — a floating slab behind the shark, found
+        # by `lib.detached_parts` rather than by eye.
         return [
-            box("tail.1", (0, base_y - 0.20, base_z + 0.06), (0.04, 0.22, 0.24), mats["body"]),
-            box("tail.2", (0, base_y - 0.44, base_z + 0.12), (0.03, 0.20, 0.30), mats["accent"]),
+            _segment("tail.1", (0, base_y + 0.02, base_z), (0, base_y - 0.30, base_z + 0.08), 0.12, 0.13,
+                     mats["body"], overlap=1.15),
+            wedge("tail.2", (0, base_y - 0.42, base_z + 0.16), (0.035, 0.26, 0.34), mats["accent"]),
         ]
     # thick — a kangaroo's counterweight, thinning as it goes and resting toward the ground
     #
@@ -364,60 +417,165 @@ def build_hopper(spec, mats):
 
 
 def build_upright(spec, mats):
-    """Human and penguin: a vertical torso on two straight legs."""
-    v = spec["visual"]
-    wide = v.get("build") == "waddler"
+    """
+    Human, lion, deer, raccoon, koala, shark, dragon: a vertical torso on two straight legs.
+
+    Built the same way as the hopper — every limb is laid along the segment between its two
+    joints — so thighs taper into shins and arms hang from shoulders with the hand at the hip,
+    rather than the square pillars and box arms of the first version.
+
+    Proportions are an animal's standing up, not a mannequin's: a barrel of a torso, thighs as
+    wide as the hip joint they hang from, arms thick enough to touch the body, and rounded paws.
+    Rendered side by side, the first draft of this plan read as seven identical action figures
+    wearing different heads.
+    """
+    feature = _feature(spec)
+    longneck = feature == "longneck"
+    # A long neck carries the head up and forward off the shoulders, so it is seen from the side
+    # as a neck rather than as a head resting on a collar.
+    top, forward = (1.48, 0.20) if longneck else (1.38, 0.02)
     parts = [
-        sphere("hips", (0, 0, 0.88), (0.34 + 0.08 * wide, 0.30, 0.28), mats["body"]),
-        sphere("chest", (0, 0, 1.14), (0.38 + 0.10 * wide, 0.32, 0.34), mats["body"]),
-        sphere("belly", (0, 0.13, 1.02), (0.26 + 0.08 * wide, 0.16, 0.34), mats["belly"]),
+        sphere("hips", (0, -0.01, 0.86), (0.40, 0.30, 0.28), mats["body"]),
+        _segment("torso", (0, 0, 0.84), (0, 0.01, 1.24), 0.46, 0.32, mats["body"], overlap=1.2),
+        _segment("belly", (0, 0.10, 0.90), (0, 0.11, 1.14), 0.30, 0.20, mats["belly"], overlap=1.1),
+        # No neck part on a short-necked plan. The first draft had one, sitting entirely inside
+        # the shoulders and the skull, so it drew nothing — and a closed island no bone can see
+        # gives heat weighting a singular block. Whether that solve fails then depends on
+        # summation order: 3 skins in 320, each leaving over a thousand vertices on no bone.
+        # `lib.hidden_parts` refuses such a part at build time now.
+        sphere("shoulders", (0, 0, 1.20), (0.52, 0.26, 0.18), mats["body"]),
     ]
-    parts += _head_parts(spec, mats, 1.38, 0.02)
+    if longneck:
+        parts.append(_segment("neck", (0, 0.0, 1.16), (0, forward - 0.03, top - 0.08), 0.17, 0.18,
+                              mats["body"], overlap=1.2))
+    if feature == "dorsal":
+        # A shark's fin, on a back that is vertical because this shark stands up: turned a quarter
+        # turn about X so its base runs up the spine and its point sweeps down toward the tail.
+        parts.append(lib.pin(wedge("dorsal", (0, -0.25, 1.06), (0.04, 0.34, 0.24), mats["accent"],
+                                   rotation=(math.radians(90), 0, 0)), "spine"))
+    parts += _head_parts(spec, mats, top, forward)
     parts += _tail_parts(spec, mats, 0.86, -0.02)
 
-    for side, x in (("L", 0.14), ("R", -0.14)):
-        parts.append(box(f"thigh.{side}", (x, 0, 0.66), (0.15, 0.16, 0.34), mats["body"]))
-        # The shin reaches down to the top of the foot. It used to stop at z=0.17 while the foot
-        # ended at 0.08, leaving nine centimetres of nothing between them — which from the side
-        # read as a bird walking along above its own detached feet.
-        parts.append(box(f"shin.{side}", (x, 0, 0.30), (0.13, 0.14, 0.44), mats["body"]))
-        parts.append(box(f"foot.{side}", (x, 0.10, 0.04), (0.14, 0.30, 0.08), mats["accent"]))
-        if wide:
-            # A flipper, angled out from the body so it reads as a wing rather than an arm.
-            parts.append(
-                box(f"arm.{side}", (x + 0.22 * (1 if side == "L" else -1), 0, 1.08), (0.07, 0.22, 0.34),
-                    mats["accent"], rotation=(0, math.radians(12 if side == "L" else -12), 0))
-            )
-        else:
-            parts.append(box(f"arm.{side}", (x + 0.14 * (1 if side == "L" else -1), 0, 1.06), (0.11, 0.11, 0.36), mats["body"]))
+    for side, x in (("L", 0.13), ("R", -0.13)):
+        hip, knee, ankle = (x, 0, 0.86), (x, 0.03, 0.47), (x, 0, 0.09)
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.21, 0.22, mats["body"], overlap=1.2))
+        parts.append(_segment(f"shin.{side}", knee, ankle, 0.15, 0.16, mats["body"], overlap=1.15))
+        parts.append(sphere(f"foot.{side}", (x, 0.07, 0.05), (0.15, 0.30, 0.11), mats["accent"]))
+        sx = x * 1.9
+        shoulder, elbow, hand = (sx, 0, 1.18), (sx * 1.06, 0.02, 0.96), (sx * 1.06, 0.06, 0.77)
+        parts.append(_segment(f"upperarm.{side}", shoulder, elbow, 0.13, 0.13, mats["body"], overlap=1.25))
+        parts.append(_segment(f"forearm.{side}", elbow, hand, 0.11, 0.11, mats["body"], overlap=1.2))
+        parts.append(sphere(f"hand.{side}", hand, (0.12, 0.12, 0.12), mats["accent"]))
 
     bones = [
         ("root", (0, 0, 0.0), (0, 0, 0.12), None),
         ("hips", (0, 0, 0.86), (0, 0, 1.02), "root"),
         ("spine", (0, 0, 1.02), (0, 0, 1.20), "hips"),
-        ("head", (0, 0, 1.20), (0, 0.02, 1.46), "spine"),
+        ("head", (0, 0, 1.20), (0, forward, top + 0.08), "spine"),
     ]
-    bones += _jaw_bone(1.38, 0.02)
+    bones += _jaw_bone(top, forward)
     bones += _tail_bones(spec, 0.86, -0.02, "hips")
-    for side, x in (("L", 0.14), ("R", -0.14)):
+    for side, x in (("L", 0.13), ("R", -0.13)):
+        sx = x * 1.9
         bones += [
-            (f"thigh.{side}", (x, 0, 0.86), (x, 0, 0.50), "hips"),
-            (f"shin.{side}", (x, 0, 0.50), (x, 0, 0.10), f"thigh.{side}"),
+            (f"thigh.{side}", (x, 0, 0.86), (x, 0.03, 0.47), "hips"),
+            (f"shin.{side}", (x, 0.03, 0.47), (x, 0, 0.10), f"thigh.{side}"),
             (f"foot.{side}", (x, 0, 0.08), (x, 0.24, 0.04), f"shin.{side}"),
-            (f"arm.{side}", (x * 1.2, 0, 1.22), (x * 2.0, 0, 0.90), "spine"),
+            (f"arm.{side}", (sx, 0, 1.18), (sx * 1.06, 0.06, 0.77), "spine"),
         ]
-    # Chest centred on (0, 0, 1.14) and 0.32 deep: the back surface is y = -0.16.
-    sockets = _head_sockets(1.38, 0.02)
-    sockets["socket_back"] = ("spine", (0, -0.16, 1.12))
-    return parts, bones, "waddler" if wide else "upright", sockets
+    # Torso 0.32 deep (a diameter): the back surface is y = -0.16 at chest height.
+    sockets = _head_sockets(top, forward)
+    sockets["socket_back"] = ("spine", (0, -0.16, 1.10))
+    return parts, bones, "upright", sockets
+
+
+def build_waddler(spec, mats):
+    """
+    Penguin, bear, panda: a tall egg of a body on short legs.
+
+    It used to be `build_upright` with a wider chest, which kept a person's leg length — so the
+    penguin walked on two long black stilts and the bear and panda had the penguin's flippers for
+    arms. `PLANS.waddler` in the procedural avatar already puts the hip at 0.29 m; this matches it.
+    Every animal still fills the same capsule (fairness), so a waddler is tall by being mostly body.
+
+    Forelimbs come from `visual.forelimbs`: flippers are a penguin's, not a property of the plan.
+    """
+    v = spec["visual"]
+    flippers = v.get("forelimbs", "arms") == "flippers"
+    # A panda is a white bear in black stockings with a black saddle over the shoulders; without
+    # that it rendered as a polar bear. Limbs take the accent colour and a band crosses the back.
+    patches = _feature(spec) == "patches"
+    limb = mats["accent"] if patches else mats["body"]
+    top, forward = 1.30, 0.04
+    parts = [
+        _segment("body", (0, 0, 0.28), (0, 0.02, 1.16), 0.62, 0.52, mats["body"], overlap=1.12),
+        # The pale front is what makes a penguin a penguin (and a panda's chest a panda's). Set
+        # just inside the egg it was 98 % hidden on the penguin; it sits forward enough now that
+        # the whole front of the body reads as belly.
+        _segment("belly", (0, 0.19, 0.36), (0, 0.20, 1.02), 0.46, 0.30, mats["belly"], overlap=1.05),
+    ]
+    if patches:
+        # The saddle: a band a little proud of the egg at shoulder height, pinned to the spine so
+        # it moves with the chest. The pale belly still shows through in front.
+        parts.append(lib.pin(sphere("saddle", (0, -0.01, 1.00), (0.66, 0.56, 0.20), mats["accent"]), "spine"))
+    parts += _head_parts(spec, mats, top, forward)
+    # Against the egg where the egg is: at hip height it has narrowed to 0.18 m deep, and a tail
+    # placed for its widest point hung twelve centimetres behind every penguin, bear and panda.
+    parts += _tail_parts(spec, mats, 0.50, -0.10)
+
+    for side, x in (("L", 0.15), ("R", -0.15)):
+        hip, knee, ankle = (x, 0, 0.36), (x, 0.03, 0.20), (x, 0, 0.07)
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.15, 0.16, limb, overlap=1.3))
+        parts.append(_segment(f"shin.{side}", knee, ankle, 0.12, 0.13, limb, overlap=1.3))
+        parts.append(box(f"foot.{side}", (x, 0.08, 0.035), (0.16, 0.28, 0.07), mats["accent"]))
+        sx = 0.30 if side == "L" else -0.30
+        if flippers:
+            # A wing hanging from the shoulder and held away from the body at the tip, flat, so it
+            # reads as a flipper edge-on. The first version tilted the other way — tips pinned to
+            # the sides and the tops sticking out, a V — and in the accent colour, which on a
+            # penguin is the beak's yellow: two yellow sticks either side of the head.
+            parts.append(box(f"arm.{side}", (sx * 1.05, 0.0, 0.86), (0.05, 0.18, 0.46), mats["body"],
+                             rotation=(0, math.radians(-14 if side == "L" else 14), 0)))
+        else:
+            shoulder, paw = (sx, 0.04, 1.02), (sx * 1.1, 0.16, 0.74)
+            parts.append(_segment(f"arm.{side}", shoulder, paw, 0.14, 0.14, limb, overlap=1.2))
+            parts.append(sphere(f"paw.{side}", paw, (0.13, 0.13, 0.12), mats["accent"]))
+
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", (0, 0, 0.36), (0, 0, 0.72), "root"),
+        ("spine", (0, 0, 0.72), (0, 0.01, 1.14), "hips"),
+        ("head", (0, 0.01, 1.14), (0, 0.04, 1.42), "spine"),
+    ]
+    bones += _jaw_bone(top, forward)
+    bones += _tail_bones(spec, 0.50, -0.10, "hips")
+    for side, x in (("L", 0.15), ("R", -0.15)):
+        sx = 0.30 if side == "L" else -0.30
+        bones += [
+            (f"thigh.{side}", (x, 0, 0.36), (x, 0.03, 0.20), "hips"),
+            (f"shin.{side}", (x, 0.03, 0.20), (x, 0, 0.08), f"thigh.{side}"),
+            (f"foot.{side}", (x, 0, 0.07), (x, 0.22, 0.03), f"shin.{side}"),
+            (f"arm.{side}", (sx, 0.04, 1.08), (sx * 1.1, 0.12, 0.66), "spine"),
+        ]
+    # The egg is 0.52 deep (a diameter): its back surface is y = -0.26 at chest height.
+    sockets = _head_sockets(top, forward)
+    sockets["socket_back"] = ("spine", (0, -0.25, 0.96))
+    return parts, bones, "waddler", sockets
 
 
 def build_quadruped(spec, mats):
-    """Wolf, fox, tiger: a horizontal spine carried on four legs."""
+    """
+    Wolf, fox, tiger: a horizontal spine carried on four legs.
+
+    One continuous barrel from haunch to chest, and legs that taper from a muscled top to a slim
+    wrist. It was three equal spheres in a row on four square pillars, which in a side render read
+    as a caterpillar on table legs — the same defect the kangaroo's back had. The joints, and so
+    the bones and every clip, are where they were.
+    """
     parts = [
-        sphere("chest", (0, 0.22, 0.96), (0.40, 0.42, 0.40), mats["body"]),
-        sphere("barrel", (0, -0.06, 0.94), (0.38, 0.36, 0.38), mats["body"]),
-        sphere("hips", (0, -0.34, 0.94), (0.38, 0.34, 0.36), mats["body"]),
+        _segment("barrel", (0, -0.36, 0.93), (0, 0.24, 0.97), 0.38, 0.38, mats["body"], overlap=1.22),
+        sphere("chest", (0, 0.20, 0.95), (0.42, 0.42, 0.44), mats["body"]),
+        sphere("hips", (0, -0.32, 0.94), (0.38, 0.34, 0.36), mats["body"]),
         sphere("underside", (0, -0.04, 0.80), (0.28, 0.56, 0.16), mats["belly"]),
         cone("neck", (0, 0.44, 1.12), 0.17, 0.13, 0.32, mats["body"], vertices=8,
              rotation=(math.radians(58), 0, 0)),
@@ -425,12 +583,17 @@ def build_quadruped(spec, mats):
     parts += _head_parts(spec, mats, 1.30, 0.58)
     parts += _tail_parts(spec, mats, 0.96, -0.34)
 
-    # Front legs sit under the chest, hind legs under the hips.
+    # Front legs sit under the chest, hind legs under the hips; a hind thigh is deeper than a
+    # foreleg because that is where the drive comes from.
     for side, x in (("L", 0.19), ("R", -0.19)):
-        for tag, y in (("front", 0.26), ("back", -0.30)):
-            parts.append(box(f"{tag}upper.{side}", (x, y, 0.66), (0.14, 0.16, 0.34), mats["body"]))
-            parts.append(box(f"{tag}lower.{side}", (x, y, 0.32), (0.12, 0.13, 0.34), mats["body"]))
-            parts.append(box(f"{tag}paw.{side}", (x, y + 0.05, 0.05), (0.14, 0.22, 0.10), mats["accent"]))
+        for tag, y, thigh in (("front", 0.26, (0.15, 0.17)), ("back", -0.30, (0.17, 0.24))):
+            parts.append(_segment(f"{tag}upper.{side}", (x, y, 0.88), (x, y, 0.50), thigh[0], thigh[1],
+                                  mats["body"], overlap=1.2))
+            # Down into the paw: the first version's shin stopped five centimetres above it, and
+            # every wolf, fox and tiger stood on four paws floating free of its legs.
+            parts.append(_segment(f"{tag}lower.{side}", (x, y, 0.50), (x, y, 0.08), 0.11, 0.12,
+                                  mats["body"], overlap=1.15))
+            parts.append(sphere(f"{tag}paw.{side}", (x, y + 0.05, 0.05), (0.14, 0.22, 0.11), mats["accent"]))
 
     bones = [
         ("root", (0, 0, 0.0), (0, 0, 0.12), None),
@@ -467,7 +630,7 @@ type now and this table has no default, so neither renderer can invent one again
 PLANS = {
     "hopper": build_hopper,
     "upright": build_upright,
-    "waddler": build_upright,
+    "waddler": build_waddler,
     "quadruped": build_quadruped,
 }
 
@@ -841,6 +1004,19 @@ def build_animal(spec, out_path, capsule):
             f"{spec['id']}: build={plan_name!r} is not a body plan (have {sorted(PLANS)})"
         )
     parts, bones, plan, sockets = PLANS[plan_name](spec, mats)
+
+    # A part drawn wholly inside other parts is invisible, and worse than invisible: see
+    # `lib.hidden_parts`. Refused before it can reach the weighting step it destabilises.
+    hidden = lib.hidden_parts(parts)
+    if hidden:
+        raise AssertionError(f"{spec['id']}: parts hidden inside other parts: {hidden}")
+    # And the opposite: a part touching nothing floats. Measured on the art as it shipped, this
+    # was every upright and waddler animal's arms, all four paws of every quadruped, the shark's
+    # tail fin and — once the arms were fixed — every waddler's tail. None of it looked wrong in
+    # the numbers; all of it looked wrong in a render.
+    loose = lib.detached_parts(parts)
+    if loose:
+        raise AssertionError(f"{spec['id']}: parts touching nothing: {loose}")
 
     mesh = join(parts, spec["id"])
     arm = armature(f"{spec['id']}_rig", bones)

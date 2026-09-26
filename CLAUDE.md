@@ -1316,7 +1316,10 @@ four win a tie, and the order triangles come out in, are not stable.
 
 Nothing visible changes. What it means in practice: **running `assets:build` and committing the
 result adds ~1.7 MB of meaningless binary diff**, and `git status` after a rebuild is not evidence
-that the art changed. Check `POSITION` before believing a model moved. It also softens this file's
+that the art changed. Check `POSITION` before believing a model moved — **as a sorted set of
+vertices, not as bytes**: a later rebuild of the untouched kangaroo, frog and raptor reordered
+their `POSITION` arrays (byte comparison said "changed", 4396 = 4396 vertices as a set said
+identical), so an order-sensitive check reports churn as a change. It also softens this file's
 claim elsewhere that the pipeline is "deterministic output of tracked sources" — deterministic
 enough to justify committing the output, not deterministic enough to reproduce a byte.
 
@@ -1571,8 +1574,54 @@ with its own message and reproduces the original numbers (rise 0, lean −0.2247
 Playwright renders any `.glb` with any clip at any time from any yaw. A render caught the loose
 tail lumps, the caterpillar back, the backwards lean and the floating eyes before any number did.
 
-**Still weak**: the upright and waddler bodies are the same stick-leg construction the hopper had,
-and the waddler plan gives **bear and panda penguin flippers** for arms — visible in a wave emote.
+`.viewer.html`'s `yaw` is in **degrees** (default 90 = side). Passing 0.6 and 2.2 thinking them
+radians renders two identical front views and reads as "the side view looks the same".
+
+## Every body plan, rendered: what the numbers never showed
+
+The upright, waddler and quadruped plans were rebuilt the way the hopper was (limbs laid along
+the segment between two joints), and each step was checked in a render, not in a table.
+
+**Parts that float and parts that are buried are both refused at build time now.** Every part the
+generator makes is convex, so `lib.hidden_parts` / `lib.detached_parts` test containment *exactly*:
+a point is inside a convex solid iff it is behind every face plane. Measured on the art as it
+shipped, `detached_parts` finds every upright and waddler animal's **arms**, all four **paws** of
+every quadruped (a 5 cm gap under each shin) and the shark's **tail fluke** floating free — none of
+which any number in the build log hinted at. A first version compared each vertex with the nearest
+face's normal and reported one eye hidden and its twin not, on a symmetric head: wrong at edges,
+where the nearest face is not the face a point is behind.
+
+**A hidden part is not just waste — it breaks skinning, nondeterministically.** A draft of the
+upright plan had a neck entirely inside the shoulders and skull. Heat-diffusion weighting cannot see
+a closed island no bone reaches, which makes its linear system singular, and whether the factorisation
+then fails depends on floating-point summation order: **3 skins in 320** failed, each leaving over a
+thousand vertices on `neutral_bone`, and a different animal each time. Retrying in the same process
+**never recovered** (both failing raccoons failed all four attempts), so a retry was written, measured
+and removed. Deleting the island took it to **0 in 320**. The build's existing unweighted-vertex
+check is what caught it; nothing would have caught it at 1 in 100 without that check.
+
+**The descriptions promised geometry that did not exist.** The lion's copy is "a mane you can see
+from the far ridge"; the dragon is "long-necked"; the panda's "flat face reads at any distance" — on
+a plain white body, i.e. a polar bear. `AnimalVisual.feature` (`mane`, `patches`, `mask`, `dorsal`,
+`antlers`, `longneck`) is the one mark an animal is recognised by, read by `characters.py` and
+refused there when it has no branch. `ANIMAL_FEATURES` is a runtime list so `animals.shape.test.ts`
+can hold it against the generator's `FEATURES` set — mutation: adding `'wings'` on the TS side
+alone fails it. Fins are a real `lib.wedge` now, wound outward because the containment tests
+depend on face planes; as boxes, a shark read as three dark squares from the side.
+
+Also fixed by looking: the penguin's white front was 98 % inside its body; its flippers were in the
+beak's yellow and splayed at the top like a V; every waddler's stub tail hung 12 cm behind the body
+(the egg narrows at hip height); the panda's eye patches, centred on the eyes, reached past the
+skull and read as a second pair of ears. The quadrupeds were three equal spheres on square pillars —
+a caterpillar on table legs — and are one barrel on tapered legs now, on the same joints, so no bone
+or clip moved.
+
+**`tools/blender/build.py` never reads or writes `__pycache__`.** A `.pyc` is trusted while the
+source's size and whole-second mtime match, and a mutation that swaps a number for one of the same
+width and is restored within a second leaves the *mutant's* bytecode valid. Measured: a mutant passed
+the check it should have failed, and three animals later failed on geometry that was no longer in the
+file. Scratch probes that import `characters` should set `PYTHONDONTWRITEBYTECODE=1` for the same
+reason. And never run an `Edit` and a `Bash` that reads the same file in the same parallel batch.
 
 Still open from the same probe:
 

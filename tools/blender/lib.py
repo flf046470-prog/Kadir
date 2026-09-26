@@ -136,6 +136,32 @@ def cone(name, center, radius1, radius2, depth, mat, vertices=8, rotation=(0.0, 
     return ob
 
 
+def wedge(name, center, size, mat, rotation=(0.0, 0.0, 0.0)):
+    """
+    A fin: a right triangle standing in the YZ plane, extruded `size[0]` thick along X.
+
+    The base runs along the bottom the full depth `size[1]`, and the apex sits above the *back*
+    end, so the leading edge sweeps back the way a dorsal fin, a tail fluke or a shark's ear does.
+    Fins used to be boxes, and from the side a shark read as three dark squares.
+
+    Faces are wound outward on purpose: `hidden_parts` and `detached_parts` treat every part as a
+    convex solid bounded by its face planes, so a reversed face would put the inside outside.
+    """
+    w, d, h = size[0] / 2, size[1] / 2, size[2] / 2
+    verts = [(-w, d, -h), (-w, -d, -h), (-w, -d, h), (w, d, -h), (w, -d, -h), (w, -d, h)]
+    # left (-X), right (+X), bottom (-Z), back (-Y), leading edge (+Y+Z)
+    faces = [(0, 1, 2), (3, 5, 4), (0, 3, 4, 1), (1, 4, 5, 2), (0, 2, 5, 3)]
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    ob = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(ob)
+    ob.location = center
+    ob.rotation_euler = Euler(rotation, "XYZ")
+    _finish(ob, mat)
+    return ob
+
+
 def _finish(ob, mat) -> None:
     ob.data.materials.append(mat)
     for poly in ob.data.polygons:
@@ -238,6 +264,88 @@ def skin(mesh_obj, arm_obj) -> None:
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
     if not any(m.type == "ARMATURE" for m in mesh_obj.modifiers):
         raise RuntimeError(f"{mesh_obj.name} did not receive an armature modifier")
+
+
+def _convex_solids(parts):
+    """Each part as (name, world vertices, outward face normals, plane offsets)."""
+    import numpy as np
+
+    bpy.context.view_layer.update()
+    solids = []
+    for p in parts:
+        mw = p.matrix_world
+        verts = np.array([tuple(mw @ v.co) for v in p.data.vertices])
+        normals, offsets = [], []
+        for f in p.data.polygons:
+            a = mw @ p.data.vertices[f.vertices[0]].co
+            b = mw @ p.data.vertices[f.vertices[1]].co
+            c = mw @ p.data.vertices[f.vertices[2]].co
+            n = (b - a).cross(c - a)
+            if n.length < 1e-12:
+                continue
+            n.normalize()
+            normals.append(tuple(n))
+            offsets.append(n.dot(a))
+        solids.append((p.name, verts, np.array(normals), np.array(offsets)))
+    return solids
+
+
+def detached_parts(parts, reach: float = 0.01) -> list:
+    """
+    Parts that touch no other part: a tail, an ear or a hand floating free of the body.
+
+    Measured by rendering, not by reading: every waddler's stub tail hung twelve centimetres
+    behind the body, because the egg narrows at hip height and the tail was placed against the
+    widest part of it. Nothing about the numbers looked wrong. A part is attached when any of its
+    vertices lies within `reach` of the inside of another part, or another part's vertex lies
+    within `reach` of the inside of it — the same exact convex test as `hidden_parts`, loosened
+    by a centimetre so that two parts meeting face to face count as touching.
+    """
+    import numpy as np
+
+    solids = _convex_solids(parts)
+    touching = {name: False for name, *_ in solids}
+    for i, (name, verts, _n, _d) in enumerate(solids):
+        for j, (other, _v, normals, offsets) in enumerate(solids):
+            if i == j or len(normals) == 0:
+                continue
+            if np.any(np.all(verts @ normals.T - offsets < reach, axis=1)):
+                touching[name] = touching[other] = True
+    return [name for name, ok in touching.items() if not ok]
+
+
+def hidden_parts(parts, threshold: float = 0.97) -> list:
+    """
+    Parts whose vertices lie almost entirely inside other parts, as `(name, fraction)` pairs.
+
+    Such a part draws nothing, and it is not merely waste: a closed island no bone can see gives
+    heat-diffusion weighting a singular block. A draft of the upright plan had one — a neck
+    enclosed by the shoulders and the skull on all seven upright animals — and the solve then
+    failed or not on floating-point summation order, 3 skins in 320, each time leaving over a
+    thousand vertices on no bone at all. On the shipped plans the most-hidden part is 83 % hidden
+    (a belly set into a torso), so the default threshold leaves a real margin.
+
+    Exact rather than approximate, because every part this generator builds is convex (spheres,
+    boxes, cones, and affine images of them): a point is inside a convex solid exactly when it is
+    behind every one of its face planes. A first version compared against the nearest face's normal
+    and reported whole eyes as hidden on one side of a head and not the other — wrong at edges,
+    where the nearest face is not the face the point is behind.
+    """
+    import numpy as np
+
+    solids = _convex_solids(parts)
+    hidden = []
+    for name, verts, _n, _d in solids:
+        inside = np.zeros(len(verts), dtype=bool)
+        for other, _v, normals, offsets in solids:
+            if other == name or len(normals) == 0:
+                continue
+            # Behind every plane by a millimetre: touching a surface is not being hidden by it.
+            inside |= np.all(verts @ normals.T - offsets < -1e-3, axis=1)
+        fraction = float(inside.mean()) if len(verts) else 0.0
+        if fraction >= threshold:
+            hidden.append((name, round(fraction, 3)))
+    return hidden
 
 
 PIN_PREFIX = "pin:"

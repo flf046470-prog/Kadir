@@ -1,6 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { describe, expect, it } from 'vitest';
 
-import { LAUNCH_ANIMALS } from './animals.js';
+import { ANIMAL_FEATURES, LAUNCH_ANIMALS } from './animals.js';
 import type { AnimalDef } from './animals.js';
 
 /**
@@ -29,7 +32,9 @@ function shapeSignature(animal: AnimalDef): string {
   // `build` is optional and falls back to `upright` in the renderer, so a missing one is not a
   // different shape from an explicit `upright` — comparing the raw field would let those two
   // declare the same body and pass.
-  return [v.ears, v.tail, v.snout, v.build ?? 'upright'].join('/');
+  // A feature is geometry too — a mane, a mask, antlers — so two animals may share the four
+  // traits above and still be different bodies if their features differ.
+  return [v.ears, v.tail, v.snout, v.build ?? 'upright', v.feature ?? 'none'].join('/');
 }
 
 describe('every animal on the roster', () => {
@@ -66,5 +71,27 @@ describe('every animal on the roster', () => {
       expect(animal.visual.scale, animal.id).toBeGreaterThanOrEqual(0.85);
       expect(animal.visual.scale, animal.id).toBeLessThanOrEqual(1.15);
     }
+  });
+});
+
+describe('the signature-mark vocabulary', () => {
+  const generator = readFileSync(
+    fileURLToPath(new URL('../../../../tools/blender/characters.py', import.meta.url)),
+    'utf8',
+  );
+
+  it('is exactly what the Blender generator builds', () => {
+    // The generator refuses an unknown feature, but only when somebody runs it. A value added here
+    // without a branch there would sit in the data while the committed art lacked it, and every
+    // test in CI would stay green — the declared vocabulary quietly wider than the built one.
+    const match = /^FEATURES = \{([^}]*)\}/m.exec(generator);
+    expect(match, 'FEATURES set not found in characters.py').not.toBeNull();
+    const built = [...match![1].matchAll(/"([a-z]+)"/g)].map((m) => m[1]).sort();
+    expect(built).toEqual([...ANIMAL_FEATURES, 'none'].sort());
+  });
+
+  it('is used by every mark it declares, so none is dead vocabulary', () => {
+    const used = new Set(LAUNCH_ANIMALS.map((a) => a.visual.feature).filter(Boolean));
+    expect([...ANIMAL_FEATURES].filter((f) => !used.has(f))).toEqual([]);
   });
 });

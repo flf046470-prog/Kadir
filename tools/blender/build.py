@@ -23,6 +23,19 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
+# No bytecode cache for the generator, read or written. A `.pyc` is trusted when the source's
+# size and whole-second mtime match, and a mutation test changes a number for one of the same
+# width and restores it inside a second: measured, the build then ran the *mutant's* bytecode
+# against the restored source, passed a check it should have failed, and later failed three
+# animals on geometry that was no longer in the file. Compiling these modules costs nothing
+# next to a Blender build.
+sys.dont_write_bytecode = True
+for stale in (os.path.join(HERE, "__pycache__"),):
+    if os.path.isdir(stale):
+        import shutil
+
+        shutil.rmtree(stale)
+
 import characters  # noqa: E402  (path set above)
 
 REPO = os.path.abspath(os.path.join(HERE, "..", ".."))
