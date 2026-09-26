@@ -75,7 +75,19 @@ export interface BoxCollider extends ColliderBase {
   center: Vec3;
   /** Half extents in local space. */
   half: Vec3;
-  /** Rotation around Y only — enough for level geometry and keeps the solver cheap. */
+  /**
+   * Rotation around Y only — enough for level geometry and keeps the solver cheap.
+   *
+   * The same rotation as everything else in the game: a player's yaw faces (sin, 0, cos), a prop's
+   * yaw is handed straight to three.js, and `LevelRenderer` draws this box with
+   * `setFromAxisAngle(up, yaw)`. So local +Z is world (sin, 0, cos) and local +X is (cos, 0, −sin).
+   *
+   * Physics used to apply the mirror of that. Measured: of points inside each drawn yawed box, the
+   * collider agreed on 47 % (jungle), 64 % (glacier) and 45 % (outback), and on the worst boxes
+   * only the vertical centre line — while drawing with −yaw agreed on 100 %. 222 boxes collided
+   * somewhere other than where they were drawn, 173 of them tree branches: the jungle's main way
+   * up. `collider-render-agreement.test.ts` holds the two sides together.
+   */
   yaw: number;
 }
 

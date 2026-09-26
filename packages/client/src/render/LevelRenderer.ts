@@ -373,14 +373,7 @@ export class LevelRenderer {
       mesh.receiveShadow = true;
 
       list.forEach((entry, i) => {
-        const collider = entry.collider;
-        position.set(collider.center.x, collider.center.y, collider.center.z);
-        quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), collider.kind === 'box' ? collider.yaw : 0);
-        if (collider.kind === 'box') scale.set(collider.half.x * 2, collider.half.y * 2, collider.half.z * 2);
-        else if (collider.kind === 'sphere') scale.setScalar(collider.radius);
-        else scale.set(collider.radius, collider.halfHeight * 2, collider.radius);
-        matrix.compose(position, quaternion, scale);
-        mesh.setMatrixAt(i, matrix);
+        mesh.setMatrixAt(i, colliderMatrix(entry.collider, matrix, position, quaternion, scale));
       });
       mesh.instanceMatrix.needsUpdate = true;
       this.group.add(mesh);
@@ -703,4 +696,27 @@ function propColor(kind: string, tint: number): number {
     default:
       return 0xcccccc;
   }
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * The matrix a collider is drawn with, for the unit box/sphere/cylinder geometry this renderer
+ * instances. Exported so `collider-render-agreement.test.ts` checks the transform that is really
+ * drawn against the physics, rather than a copy of it that could drift the way the two once had:
+ * physics applied the mirror of this rotation, and 222 boxes collided somewhere else.
+ */
+export function colliderMatrix(
+  collider: Collider,
+  out = new THREE.Matrix4(),
+  position = new THREE.Vector3(),
+  quaternion = new THREE.Quaternion(),
+  scale = new THREE.Vector3(),
+): THREE.Matrix4 {
+  position.set(collider.center.x, collider.center.y, collider.center.z);
+  quaternion.setFromAxisAngle(UP, collider.kind === 'box' ? collider.yaw : 0);
+  if (collider.kind === 'box') scale.set(collider.half.x * 2, collider.half.y * 2, collider.half.z * 2);
+  else if (collider.kind === 'sphere') scale.setScalar(collider.radius);
+  else scale.set(collider.radius, collider.halfHeight * 2, collider.radius);
+  return out.compose(position, quaternion, scale);
 }

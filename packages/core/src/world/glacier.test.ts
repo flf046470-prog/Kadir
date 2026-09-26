@@ -6,6 +6,8 @@ import { buildLevel, defaultLevelId, getLevelEntry, listLevels } from './registr
 import { zoneAt } from './zone.js';
 import type { BoxCollider } from '../physics/types.js';
 import { SurfaceFlags } from '../physics/types.js';
+import { closestPointOnBox } from '../physics/geometry.js';
+import { vec3 } from '../math/vec3.js';
 
 /**
  * The second map, and the registry that makes a second map possible at all.
@@ -140,5 +142,38 @@ describe('glacier world', () => {
 
   it('keeps every spawn above the kill plane', () => {
     for (const spawn of level.spawns) expect(spawn.position.y).toBeGreaterThan(level.killPlaneY);
+  });
+});
+
+describe('the serac bridges', () => {
+  it('rest on a tower at both ends', () => {
+    const level = buildLevel('glacier-world');
+    expect(level.id).toBe('glacier-world');
+    // `glazedIce` is the surface preset; its material is `ice`. Filtering on the preset name found
+    // no towers, and every bridge end then read as unsupported — including the correct ones.
+    const towers = level.colliders.filter(
+      (c) => c.kind === 'box' && c.zone === 'seracs' && c.surface.material === 'ice' && c.half.y > 2,
+    );
+    expect(towers.length, 'no towers found: nothing is being checked').toBeGreaterThan(8);
+    const bridges = level.colliders.filter(
+      (c) => c.kind === 'box' && c.zone === 'seracs' && c.surface.material === 'wood' && Math.abs(c.half.y - 0.3) < 1e-9,
+    );
+    expect(bridges.length, 'no bridges found: nothing is being checked').toBeGreaterThan(2);
+    const scratch = vec3(0, 0, 0);
+    const normal = vec3(0, 0, 0);
+    const unsupported: string[] = [];
+    for (const bridge of bridges) {
+      if (bridge.kind !== 'box') continue;
+      for (const end of [-1, 1]) {
+        // Local +Z is world (sin yaw, cos yaw): see `BoxCollider.yaw`.
+        const x = bridge.center.x + end * Math.sin(bridge.yaw) * bridge.half.z * 0.95;
+        const z = bridge.center.z + end * Math.cos(bridge.yaw) * bridge.half.z * 0.95;
+        const onTower = towers.some(
+          (t) => t.kind === 'box' && closestPointOnBox(scratch, normal, vec3(x, t.center.y, z), t),
+        );
+        if (!onTower) unsupported.push(`#${bridge.id} end ${end}`);
+      }
+    }
+    expect(unsupported).toEqual([]);
   });
 });

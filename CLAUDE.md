@@ -43,6 +43,11 @@ what you would guess, and defects that were found by measuring rather than by re
   `node_modules/.bin/tsx`.
 - `LevelDef` is **pure data built from a seed**. A level must not import gameplay modules; that is
   what lets the server, every client and a future map editor agree without downloading anything.
+- `LevelBuilder.box(center, half, …)` takes **half extents**, like the collider it makes. Reading
+  `vec3(2.2, 0.35, 2.4)` as a full size "proved" the canyon ledges hung 1 m off their walls; they
+  overlap them by 1.6 m. Check against `level.colliders`, never against the call site.
+- A box's `yaw` is the same rotation as a player's: local +Z faces (sin, 0, cos), local +X is
+  (cos, 0, −sin) — what three.js draws. See "Boxes collided as their mirror image".
 - `level.playRadius` is **only a bot-steering hint**. Nothing in physics or the simulation reads
   it, so it contains nobody — build real geometry if you want a boundary.
 - Falling below `killPlaneY` sets `player.alive = false` and the sim respawns. This is normal.
@@ -1662,6 +1667,48 @@ Trails keep a world-space history of the feet and draw it in the node's own fram
 they lie *behind* a moving avatar and vanish when it stops; dust only while grounded. Unknown shapes
 (a CDN item) borrow their slot's recipe rather than vanishing, and the test asserts no catalog item
 does.
+
+## Boxes collided as their mirror image
+
+Asked why slabs and rocks hung in the air in real gameplay frames, the first answer — "the canyon
+ledges float 1 m off their walls" — was arithmetic on a call site that takes half extents, and was
+wrong. What was actually wrong was found by **listing every collider that touches no other**
+(AABB overlap is necessary for contact, so the list has no false floaters): 105 of the jungle's and
+53 of the outback's were tree branches, all nowhere near their trunks.
+
+The cause was not the branches. **Physics rotated a yawed box by −yaw while `LevelRenderer` drew
+it at +yaw.** Sampling points inside each drawn box and asking `closestPointOnBox`: 47 % (jungle),
+64 % (glacier), 45 % (outback) agreement, 33 % on the worst boxes — and 100 % on all three with the
+drawn rotation negated. 222 boxes collided somewhere other than where they were drawn; you could
+stand on air beside a branch and fall through the one you were looking at. Everything else in the
+game (player yaw, props, three.js) already used the rotation the renderer draws, so physics joined
+it (`sin` negated in `closestPointOnBox` and `rayBox`), and `colliderMatrix` — now exported from
+`LevelRenderer` and used by it — is held against the physics on every yawed box of every map by
+`collider-render-agreement.test.ts`. Mutating either physics function fails it.
+
+**Content had been authored against both conventions**, so flipping one side breaks whatever was
+authored against it. Every yawed-box call site was reviewed:
+
+- `tree()` branches were long along X at −angle — tangent to the trunk under *either* rotation.
+  Now long along Z at +angle. `levels.test.ts` checks every branch starts at bark.
+- The glacier's bridges were long along X at `atan2(dz, dx)`: right under the old physics, so they
+  *collided* across their towers while being *drawn* pointing elsewhere — the one site the physics
+  fix would have broken. Now long along Z at `atan2(dx, dz)`; `glacier.test.ts` checks both ends
+  rest on a tower. (Its first version filtered towers by `glazedIce`, the surface preset — the
+  material is `ice` — found none, and failed every bridge including correct ones.)
+- `ramp()` steps along `(sin yaw, cos yaw)`: already the new convention (all ramps use 0 or π/2).
+- Random yaws (towers, ridges, crates, crystal ledges, arch pillars) and square platforms carry no
+  direction; they simply collide as drawn now. Two glacier drifts hovered 0.8 m up and sit on the
+  ice now. All three maps' `version` is bumped.
+
+Measured with six bots, `kangaroo-chase`, 90 s, twelve seeds, HEAD against the fix: the jungle is
+**byte-identical** (bots never reach a branch — they start 4 m up), glacier seracs occupancy moves
+24 % → 16 % (towers now block where they are drawn), and tag counts differ within noise (per-seed
+0–29 on the outback; t ≈ 1.3). The bridges changed nothing measurable, for the same reason as the
+branches.
+
+**Bots fall through the kill plane** about seven times a round on the jungle, on HEAD as much as
+after — this file said 0 earlier. Open; not caused by this change.
 
 ## How to find defects here
 

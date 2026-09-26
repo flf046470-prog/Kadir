@@ -29,7 +29,8 @@ export function closestPointOnBox(
   box: BoxCollider,
 ): boolean {
   const cos = Math.cos(box.yaw);
-  const sin = Math.sin(box.yaw);
+  // Negated: see `BoxCollider.yaw`. A box's local +X is world (cos, 0, −sin), as three.js draws it.
+  const sin = -Math.sin(box.yaw);
   const dx = point.x - box.center.x;
   const dy = point.y - box.center.y;
   const dz = point.z - box.center.z;
@@ -279,7 +280,7 @@ export function aabbOverlaps(a: Aabb, b: Aabb): boolean {
 /** Slab test against a yaw-rotated box. Returns entry distance or -1. */
 export function rayBox(origin: Vec3, dir: Vec3, maxDist: number, box: BoxCollider, outNormal: Vec3): number {
   const cos = Math.cos(box.yaw);
-  const sin = Math.sin(box.yaw);
+  const sin = -Math.sin(box.yaw); // see `BoxCollider.yaw`
   const dx = origin.x - box.center.x;
   const dz = origin.z - box.center.z;
   const ox = dx * cos + dz * sin;

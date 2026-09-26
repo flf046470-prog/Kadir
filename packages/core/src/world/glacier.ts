@@ -52,7 +52,8 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     // 3: the crevasse ramp reaches the crevasse floor. Its -8 was always right — the floor is at
     // exactly -8 — but `ramp()` bottomed the descent out at -3.7, leaving a 4.3 m drop at the end
     // of a ramp. Measured: crevasse occupancy 9 % -> 15 % once it is walkable.
-    version: 3,
+    // 4: yawed towers collide where they are drawn, and the snow drifts rest on the ice.
+    version: 4,
     seed,
     killPlaneY: -40,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and
@@ -194,7 +195,9 @@ function buildSeracField(b: LevelBuilder, rand: Rand): void {
   for (let i = 0; i < 10; i++) {
     const a = towers[Math.floor(rand.range(0, towers.length))];
     if (!a) continue;
-    b.mushroom(a.x + rand.range(-6, 6), 0.8, a.z + rand.range(-6, 6), rand.range(1.2, 2.2), 'seracs');
+    // On the ice, not 0.8 m above it: a drift that lands against a tower looked wedged, and one
+    // that landed in the open hovered — two of the ten, found by listing colliders touching nothing.
+    b.mushroom(a.x + rand.range(-6, 6), 0, a.z + rand.range(-6, 6), rand.range(1.2, 2.2), 'seracs');
   }
 
   // Bridges between the taller towers, so there is a high line across the whole field.
@@ -207,8 +210,12 @@ function buildSeracField(b: LevelBuilder, rand: Rand): void {
     const midZ = (from.z + to.z) / 2;
     const span = Math.hypot(to.x - from.x, to.z - from.z);
     if (span > 22) continue; // too far to be a bridge; leave it as a jump
-    const yaw = Math.atan2(to.z - from.z, to.x - from.x);
-    b.box(vec3(midX, Math.min(from.height, to.height) - 0.4, midZ), vec3(span / 2, 0.3, 1.3), 'platform', yaw, 'seracs');
+    // Long along local +Z and yawed to face `to`, which is the rotation every box uses — see
+    // `BoxCollider.yaw`. This used to be long along X at atan2(dz, dx): right under the mirrored
+    // rotation physics once applied, so the bridges *collided* across their towers while being
+    // *drawn* pointing somewhere else, and fixing the physics would have broken the high line.
+    const yaw = Math.atan2(to.x - from.x, to.z - from.z);
+    b.box(vec3(midX, Math.min(from.height, to.height) - 0.4, midZ), vec3(1.3, 0.3, span / 2), 'platform', yaw, 'seracs');
   }
 
   b.spawn(vec3(SERAC_SPAWN.x, 0.4, SERAC_SPAWN.z), -Math.PI / 2, 'seracs', 'runner');

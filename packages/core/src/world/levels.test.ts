@@ -308,3 +308,38 @@ describe('LevelBuilder.ramp', () => {
     expect(shallow[0]?.bottom).toBeLessThan(0);
   });
 });
+
+describe('tree branches', () => {
+  /**
+   * A branch grows out of its trunk. `tree()` pushed each branch out along (sin a, cos a) and then
+   * yawed a box that was long along X by −a — which points it along the trunk's tangent under
+   * either rotation convention, so its inner end was half a branch-length from the bark. Listing
+   * colliders that touch nothing found all 105 jungle branches and 53 outback ones floating.
+   */
+  it('starts at the bark of the trunk it belongs to, on every map', () => {
+    for (const id of ['jungle-world', 'outback-station']) {
+      const level = buildLevel(id);
+      expect(level.id).toBe(id);
+      const trunks = level.colliders.filter((c) => c.kind === 'cylinder' && c.surface.material === 'wood');
+      const branches = level.colliders.filter(
+        (c) => c.kind === 'box' && c.surface.material === 'wood' && Math.abs(c.half.y - 0.18) < 1e-9 && Math.abs(c.half.x - 0.28) < 1e-9,
+      );
+      expect(branches.length, `${id} has no branches to check`).toBeGreaterThan(20);
+      const loose: string[] = [];
+      for (const branch of branches) {
+        if (branch.kind !== 'box') continue;
+        // Local +Z is world (sin yaw, cos yaw): see `BoxCollider.yaw`.
+        const innerX = branch.center.x - Math.sin(branch.yaw) * branch.half.z;
+        const innerZ = branch.center.z - Math.cos(branch.yaw) * branch.half.z;
+        const attached = trunks.some(
+          (t) =>
+            t.kind === 'cylinder' &&
+            Math.hypot(innerX - t.center.x, innerZ - t.center.z) <= t.radius + 0.05 &&
+            Math.abs(branch.center.y - t.center.y) <= t.halfHeight,
+        );
+        if (!attached) loose.push(`${id} #${branch.id}`);
+      }
+      expect(loose.slice(0, 5), `${loose.length} branches do not reach a trunk`).toEqual([]);
+    }
+  });
+});

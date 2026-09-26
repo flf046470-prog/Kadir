@@ -182,7 +182,10 @@ export class LevelBuilder {
       const length = this.rand.range(1.9, 3.4);
       const bx = x + Math.sin(angle) * (radius + length * 0.5);
       const bz = z + Math.cos(angle) * (radius + length * 0.5);
-      this.box(vec3(bx, y, bz), vec3(length * 0.5, 0.18, 0.28), 'wood', -angle, zone);
+      // Long along local +Z, yawed by `angle`: local +Z is then (sin, cos) of it, which is the
+      // direction the branch was pushed out along — so it runs out of the trunk rather than
+      // across it. It was long along X at `-angle`, which is radial under neither rotation.
+      this.box(vec3(bx, y, bz), vec3(0.28, 0.18, length * 0.5), 'wood', angle, zone);
       this.grip(vec3(bx + Math.sin(angle) * length * 0.4, y + 0.18, bz + Math.cos(angle) * length * 0.4), vec3(0, 1, 0), 'branch');
       if (this.rand.bool(0.35)) {
         this.prop('vine', vec3(bx, y, bz), angle, this.rand.range(0.8, 1.4), tint);

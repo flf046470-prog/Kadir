@@ -60,7 +60,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   return b.build({
     id: 'outback-station',
     name: 'Outback Station',
-    version: 1,
+    // 2: yawed boxes collide where they are drawn, and tree branches run out of their trunks.
+    version: 2,
     seed,
     killPlaneY: -40,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

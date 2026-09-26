@@ -52,7 +52,9 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 2: the cave and canyon ramps reach their own floors. `ramp()` stopped inflating low steps
     // upward, and both ramps now ask for the -4 those floors actually sit at instead of the -8
     // that only looked right while the builder was halving it.
-    version: 2,
+    // 3: yawed boxes collide where they are drawn (physics used the mirror rotation), and tree
+    // branches run out of their trunks instead of across them.
+    version: 3,
     seed,
     killPlaneY: -35,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
