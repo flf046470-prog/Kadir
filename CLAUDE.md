@@ -1796,6 +1796,27 @@ rock. `LevelRenderer.rocks.test.ts` pins all three halves, each mutation-tested.
 An `IcosahedronGeometry` clones as an `IcosahedronGeometry`, so a test stub built from one is
 counted as the ball it replaces. Build stubs as plain `BufferGeometry`, as `GLTFLoader` returns.
 
+## World effects existed nowhere
+
+No event produced anything on screen. A landing, a punch connecting, a freeze bolt, a tag: sound
+and (local player only) a haptic pulse, and the ground never reacted. `render/Effects.ts` is the
+whole FX layer: two `THREE.Points` (soft/normal-blended and glow/additive), fixed typed-array
+pools, so every particle in the game is **two draw calls** and nothing allocates per burst. Driven
+from `GameClient.handleEvents` for **every** player's events, culled past `FX_RANGE` (70 m), thinned
+to 0.6 where `foliageBudget < 160` (low tier, headset below high).
+
+- **Point size is a true world diameter**: the shader multiplies by `projectionMatrix[1][1]`,
+  which three.js's own `scale / -z` attenuation omits — without it "0.3 m" is 0.3 m only at 90° FOV.
+- **Dust is paler than its ground, and grit alone is invisible.** Both measured in a render: red
+  dust coloured like red earth vanished into it, and 7 cm rock chips were a few pixels at 7 m. Each
+  surface is a `puff` (soft cloud) plus `chips` layer; a test holds every dusty material's puff
+  lighter than `MATERIAL_COLORS` for its ground.
+- **A landed projectile reports twice** (Measurement hazards): `WorldEffects` keys `gadgetHit` by
+  shooter/victim/gadget per tick and bursts once.
+- `rockball` geometry needs `computeVertexNormals()`: the collider material blends its triplanar
+  normal map by the vertex normal and falls back to "up" without one — every rock lit as one flat
+  top, white in the lab and **black in the game's canyon**. Found in a real-game screenshot.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

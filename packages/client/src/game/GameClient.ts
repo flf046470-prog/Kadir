@@ -34,6 +34,7 @@ import { NetClient } from '../net/NetClient.js';
 import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
 import { GadgetEntityView } from '../render/GadgetEntities.js';
+import { WorldEffects } from '../render/Effects.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
@@ -152,6 +153,8 @@ export class GameClient {
   private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
   private gadgetEntities = new GadgetEntityView();
+  /** Dust, sparks and bursts from gameplay events — every player's, not only the local one. */
+  private effects: WorldEffects;
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
@@ -219,6 +222,10 @@ export class GameClient {
     // Added once, unlike `levelRenderer.group`: gadget entities are match state, not level
     // geometry, so they survive a level rebuild between rounds rather than being torn down with it.
     this.renderer.scene.add(this.gadgetEntities.group);
+    // Fewer particles where the budget for scenery is already cut (the low tier, and a headset
+    // below `high`): the cost of a puff is overdraw, and that is what a Quest runs out of first.
+    this.effects = new WorldEffects(this.levelRendererProfile.foliageBudget >= 160 ? 1 : 0.6);
+    this.renderer.scene.add(this.effects.group);
 
     this.sim = new Simulation({ level: this.level, modeId: this.modeId });
     this.audio.applySettings(this.settings);
@@ -641,6 +648,7 @@ export class GameClient {
     for (const event of events) {
       const isLocal = event.playerId === this.localId;
       this.audio.handleEvent(event, isLocal);
+      this.effects.handleEvent(event, this.renderer.camera.getWorldPosition(this.tmpVec2));
       if (isLocal && event.type === 'portal') this.enterPortal(String(event.data ?? ''));
       if (isLocal && event.type === 'land') this.applyLandingKick(event.magnitude);
       if (isLocal || event.otherId === this.localId) {
@@ -769,6 +777,8 @@ export class GameClient {
     // they were using when the game booted.
     this.rebuildLevelRenderer();
     this.renderer.applyLevel(this.level);
+    // Dust hanging where the old map's ground was would hang in mid-air over the new one.
+    this.effects.clear();
     // The old map's zone is meaningless in the new one, and `updateZone` only acts on a change.
     this.darkness = 0;
     this.audio.setAmbience(null);
@@ -874,6 +884,7 @@ export class GameClient {
 
     this.updateAvatars(dt);
     this.updateGadgetEntities();
+    this.effects.update(dt);
     this.updateCamera(dt);
     this.updateZone(dt);
     this.updateMood();
@@ -1042,6 +1053,7 @@ export class GameClient {
     const target = sample ? sample.zone.darkness * sample.weight : 0;
     this.darkness += (target - this.darkness) * Math.min(1, dt * 2.2);
     this.renderer.setDarkness(this.darkness);
+    this.effects.setDarkness(this.darkness);
   }
 
   /**
@@ -1180,6 +1192,7 @@ export class GameClient {
     this.vignette = null;
     this.levelRenderer.dispose();
     this.gadgetEntities.dispose();
+    this.effects.dispose();
     this.audio.dispose();
     this.voice.dispose();
   }

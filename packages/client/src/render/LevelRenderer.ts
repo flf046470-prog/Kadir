@@ -27,7 +27,7 @@ const MODEL_PROPS: Record<string, { base: string; variants: number }> = {
   banner: { base: 'banner', variants: 2 },
 };
 
-const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
+export const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
   dirt: 0x6d5535,
   rock: 0x7b7f86,
   wood: 0x7a5230,
@@ -813,6 +813,12 @@ export function fillUnitCube(source: THREE.BufferGeometry): THREE.BufferGeometry
   const size = box.getSize(new THREE.Vector3());
   geometry.translate(-centre.x, -centre.y, -centre.z);
   geometry.scale(2 / Math.max(size.x, 1e-6), 2 / Math.max(size.y, 1e-6), 2 / Math.max(size.z, 1e-6));
+  // The prop files ship without normals (a renderer computes flat ones, and it is a third of the
+  // bytes), which is right for a prop's material and wrong for this one: the collider material
+  // blends its triplanar normal map by the *vertex* normal, falls back to "straight up" when there
+  // is none, and so lit every face of the rock as the same flat top — measured as a uniformly
+  // white blob under the lab's light and a black one in the game's canyon.
+  geometry.computeVertexNormals();
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   return geometry;
