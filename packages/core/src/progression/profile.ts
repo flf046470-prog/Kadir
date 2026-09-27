@@ -63,6 +63,14 @@ export interface PlayerProfile {
   /** Moderation state kept with the profile so it survives reconnects. */
   mutedPlayerIds: string[];
   blockedPlayerIds: string[];
+
+  /**
+   * Sanctions *on* this player, kept with the profile so a restart does not lift them. Unix ms;
+   * absent or past = none. A permanent ban is `Number.MAX_SAFE_INTEGER`.
+   */
+  banUntil?: number;
+  muteUntil?: number;
+  sanctionReason?: string;
 }
 
 export function emptyStats(): StatBlock {

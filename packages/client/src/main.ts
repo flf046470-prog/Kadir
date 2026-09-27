@@ -167,9 +167,10 @@ async function main(): Promise<void> {
         onQuickPlay: (modeId) => void startMatch({ modeId }),
         onPractice: (modeId) => startPractice(modeId),
         onJoinRoom: (code) => void startMatch({ roomCode: code }),
-        onCreatePrivate: (modeConfig, levelId) =>
+        onCreatePrivate: (modeConfig, levelId, modeId) =>
           void startMatch({
             roomCode: NEW_PRIVATE_ROOM,
+            ...(modeId ? { modeId } : {}),
             ...(modeConfig === undefined ? {} : { modeConfig }),
             ...(levelId ? { levelId } : {}),
           }),
@@ -201,6 +202,12 @@ async function main(): Promise<void> {
           open: game?.micOpen ?? false,
           enabled: game?.voice.isEnabled ?? false,
         }),
+        safety: () => ({
+          players: game?.safetyPlayers() ?? [],
+          isModerator: game?.isModerator ?? false,
+          reports: game?.moderatorReports ?? [],
+        }),
+        onSafetyAction: (action) => game?.safetyAction(action),
       },
     },
     settings,
@@ -287,6 +294,10 @@ async function main(): Promise<void> {
         onShopToggle: () => {
           hud?.setShop(game?.shopStock ?? []);
           hud?.toggleShop();
+        },
+        // A report arriving, or a moderator action coming back, while the safety screen is open.
+        onModeration: () => {
+          if (shell.currentScreen === 'players') shell.show('players');
         },
       },
     });

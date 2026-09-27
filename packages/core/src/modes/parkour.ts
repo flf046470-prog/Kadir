@@ -10,7 +10,7 @@ export const PARKOUR_DEF: GameModeDef = {
   name: 'Parkour Race',
   description: 'Race the checkpoint route. Beat your personal best, then the world best.',
   minPlayers: 1,
-  maxPlayers: 16,
+  maxPlayers: 32,
   roundSeconds: 300,
   countdownSeconds: 5,
   icon: 'parkour',

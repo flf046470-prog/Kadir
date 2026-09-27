@@ -8,7 +8,7 @@ export const TRAINING_ROOM_DEF: GameModeDef = {
   name: 'Training Room',
   description: 'No round, no clock, no winner. Climb, punch the bags, talk, and work out the controls.',
   minPlayers: 1,
-  maxPlayers: 24,
+  maxPlayers: 32,
   roundSeconds: 0,
   countdownSeconds: 0,
   icon: 'training',

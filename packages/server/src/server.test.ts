@@ -32,6 +32,8 @@ function testConfig(overrides: Partial<ServerConfig> = {}): ServerConfig {
     stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },
     allowDevPurchases: true,
     databaseUrl: '',
+    ice: { servers: [], turnUrls: [], turnSecret: '', turnTtlSeconds: 43200 },
+    moderators: new Set<string>(),
     ...overrides,
   };
 }

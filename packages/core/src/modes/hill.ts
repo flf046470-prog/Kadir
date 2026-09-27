@@ -10,7 +10,7 @@ export const HILL_DEF: GameModeDef = {
   name: 'King of the Hill',
   description: 'Hold the glowing ring. It moves every forty seconds, and it is never somewhere easy.',
   minPlayers: 2,
-  maxPlayers: 16,
+  maxPlayers: 24,
   roundSeconds: 240,
   countdownSeconds: 5,
   icon: 'hill',

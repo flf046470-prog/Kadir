@@ -9,11 +9,14 @@ import type {
   LicenceId,
   MatchResult,
   PlayerProfile,
+  ReportReason,
   Reward,
   Settings,
 } from '@kc/core';
 import { button, clear, el } from './dom.js';
 import type { TuningStore } from '../game/TuningStore.js';
+import type { SafetyAction, SafetyPlayer } from '../game/GameClient.js';
+import type { ModActionKind, ModReportView } from '@kc/net';
 import type { Api, ContentBundle, ProfileBundle } from '../net/Api.js';
 
 export type ScreenId =
@@ -28,6 +31,7 @@ export type ScreenId =
   | 'results'
   | 'tutorial'
   | 'credits'
+  | 'players'
   | 'none';
 
 export interface ShellCallbacks {
@@ -38,7 +42,7 @@ export interface ShellCallbacks {
    * Create a private room. `modeConfig` carries house rules when the host set any; the server
    * sanitises it, so the shape sent here is a suggestion rather than a contract.
    */
-  onCreatePrivate(modeConfig?: unknown, levelId?: string): void;
+  onCreatePrivate(modeConfig?: unknown, levelId?: string, modeId?: string): void;
   onAnimalChanged(animalId: string): void;
   onCosmeticsChanged(cosmetics: Record<string, string>): void;
   onSettingsChanged(settings: Settings): void;
@@ -55,6 +59,9 @@ export interface ShellCallbacks {
   onMicDeviceChanged(deviceId: string): void;
   /** Live microphone state, polled while the settings panel is open, for the test meter. */
   micState(): { level: number; open: boolean; enabled: boolean };
+  /** Everyone else in the room, and — for a moderator — the report queue. */
+  safety(): { players: SafetyPlayer[]; isModerator: boolean; reports: readonly ModReportView[] };
+  onSafetyAction(action: SafetyAction): void;
 }
 
 export interface ShellOptions {
@@ -99,6 +106,16 @@ function assertNever(value: never): never {
   throw new Error(`unhandled screen: ${String(value)}`);
 }
 
+/** Report reasons, in the words a player would pick; values are the server's `ReportReason`. */
+const REPORT_REASONS: [ReportReason, string][] = [
+  ['voice-abuse', 'Abusive voice'],
+  ['harassment', 'Harassment'],
+  ['cheating', 'Cheating'],
+  ['inappropriate-name', 'Inappropriate name'],
+  ['griefing', 'Griefing'],
+  ['other', 'Other'],
+];
+
 export type MenuAction =
   | 'resume'
   | 'play'
@@ -109,6 +126,7 @@ export type MenuAction =
   | 'settings'
   | 'tutorial'
   | 'practice'
+  | 'players'
   | 'leave';
 
 export interface MenuEntry {
@@ -141,6 +159,7 @@ export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuE
   if (state.inMatch) {
     return [
       { action: 'resume', label: 'Resume', variant: 'primary' },
+      { action: 'players', label: 'Players & safety', variant: 'ghost' },
       { action: 'customize', label: 'Customise', variant: 'ghost' },
       { action: 'settings', label: 'Settings', variant: 'ghost' },
       { action: 'tutorial', label: 'How to play', variant: 'ghost' },
@@ -321,6 +340,9 @@ export class Shell {
       case 'tutorial':
         this.element.append(this.tutorialScreen());
         break;
+      case 'players':
+        this.element.append(this.playersScreen());
+        break;
       case 'results':
         if (this.results) this.element.append(this.resultsScreen(this.results));
         break;
@@ -387,6 +409,7 @@ export class Shell {
         case 'store':
         case 'settings':
         case 'tutorial':
+        case 'players':
           this.show(action);
           return;
         default:
@@ -452,6 +475,10 @@ export class Shell {
     );
   }
 
+  private modeName(modeId: string): string {
+    return this.content?.modes.find((m) => m.id === modeId)?.name ?? modeId.replace(/-/g, ' ');
+  }
+
   private roomScreen(): HTMLElement {
     const input = el('input', { type: 'text', placeholder: 'KANG-1234', maxLength: 9 }) as HTMLInputElement;
     input.addEventListener('input', () => {
@@ -475,7 +502,13 @@ export class Shell {
           : null,
         el('hr', { style: { opacity: '0.15', width: '100%' } }),
         this.online ? this.mapPicker() : null,
-        this.online ? button('Create a private room', () => this.options.callbacks.onCreatePrivate(undefined, this.levelId)) : null,
+        // The mode picked on the Game modes screen. It used to be dropped here — every private room
+        // opened as Kangaroo Chase whatever the player had selected — and nothing on this screen
+        // said which mode was coming, so there was no way to notice.
+        this.online ? el('p', { class: 'kc-note' }, `Mode: ${this.modeName(this.currentModeId)} — change it under Game modes.`) : null,
+        this.online
+          ? button('Create a private room', () => this.options.callbacks.onCreatePrivate(undefined, this.levelId, this.currentModeId))
+          : null,
         this.online
           ? button('Create with your own rules', () => this.show('houseRules'))
           : el(
@@ -1264,6 +1297,99 @@ export class Shell {
       panel,
       el('p', { class: 'kc-note' }, 'Art packs are optional; the game renders procedurally when none are installed.'),
       button('Back', () => this.show('settings')),
+    );
+  }
+
+  /**
+   * Players & safety: mute, block and report anyone in the room — and, for a moderator, act on
+   * them and read the report queue.
+   *
+   * The server has accepted reports, mutes and blocks since the first multiplayer build, and the
+   * client never offered any of them. In a game with open proximity voice that is the one screen
+   * a player being harassed needs, and it did not exist.
+   */
+  private playersScreen(): HTMLElement {
+    const { players, isModerator, reports } = this.options.callbacks.safety();
+    const act = (action: SafetyAction): void => {
+      this.options.callbacks.onSafetyAction(action);
+      // Mute and block change the row's own buttons; redraw so the toggle shows its new state.
+      if (action.kind !== 'report') this.render();
+    };
+    const list = el('div', { class: 'kc-panel' });
+    if (players.length === 0) {
+      list.append(el('p', { class: 'kc-note' }, 'Nobody else is here. In practice the other players are bots.'));
+    }
+    for (const player of players) {
+      const reason = el(
+        'select',
+        { class: 'kc-select', ariaLabel: `Why report ${player.name}` },
+        ...REPORT_REASONS.map(([value, label]) => el('option', { value }, label)),
+      ) as HTMLSelectElement;
+      const row = el(
+        'div',
+        { class: 'kc-safety-row' },
+        el('strong', {}, player.name),
+        player.moderator ? el('span', { class: 'kc-tag kc-tag--mod' }, 'MOD') : null,
+        el('span', { class: 'kc-note' }, ` ${player.animalId}`),
+        el(
+          'div',
+          { class: 'kc-row' },
+          button(player.muted ? 'Unmute' : 'Mute', () => act({ kind: player.muted ? 'unmute' : 'mute', id: player.id })),
+          button(player.blocked ? 'Unblock' : 'Block', () => act({ kind: player.blocked ? 'unblock' : 'block', id: player.id }), 'danger'),
+          reason,
+          button('Report', () => act({ kind: 'report', id: player.id, reason: reason.value as ReportReason })),
+        ),
+        isModerator && !player.moderator ? this.moderatorButtons(player.id, act) : null,
+      );
+      list.append(row);
+    }
+
+    const sections: HTMLElement[] = [list];
+    if (isModerator) {
+      const queue = el('div', { class: 'kc-panel' }, el('h3', {}, 'Reports'));
+      queue.append(button('Refresh', () => act({ kind: 'mod-refresh' })));
+      if (reports.length === 0) queue.append(el('p', { class: 'kc-note' }, 'No reports.'));
+      for (const report of reports.slice(0, 30)) {
+        const when = new Date(report.at).toLocaleTimeString();
+        queue.append(
+          el(
+            'div',
+            { class: 'kc-safety-row' },
+            el('strong', {}, report.targetName),
+            el(
+              'span',
+              { class: 'kc-note' },
+              ` ${report.reason} — by ${report.reporterName}, ${when}, room ${report.roomCode || '?'} · ${report.reporters} reporter${report.reporters === 1 ? '' : 's'}${report.autoMuted ? ' · auto-muted' : ''}`,
+            ),
+            this.moderatorButtons(report.targetId, act),
+          ),
+        );
+      }
+      sections.push(queue);
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Players & safety', 'Mute or block anyone for yourself, instantly. Reports go to the moderators.'),
+      this.noticeNode(),
+      ...sections,
+      el('div', { class: 'kc-row' }, button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  private moderatorButtons(targetId: string, act: (action: SafetyAction) => void): HTMLElement {
+    const mod = (action: ModActionKind, minutes?: number) => () =>
+      act({ kind: 'mod', action, id: targetId, ...(minutes === undefined ? {} : { minutes }) });
+    return el(
+      'div',
+      { class: 'kc-row kc-row--mod' },
+      button('Kick', mod('kick'), 'danger'),
+      button('Mute 10 min', mod('mute', 10)),
+      button('Unmute', mod('unmute')),
+      button('Ban 1 day', mod('ban', 24 * 60), 'danger'),
+      button('Ban forever', mod('ban', 0), 'danger'),
+      button('Unban', mod('unban')),
     );
   }
 

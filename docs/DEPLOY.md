@@ -46,7 +46,9 @@ docker run --rm -p 8787:8787 \
 | `KC_PUBLIC_DIR` | `/app/dist/client` | Static client. Harmless to serve alongside the API; the store builds carry their own copy. |
 | `KC_ASSETLINKS` | *(empty)* | Digital Asset Links, served merged at `/.well-known/assetlinks.json`. Either the **JSON array itself** or a comma-separated list of files to read — a path cannot start with `[`, so the two do not collide. **Required for the Quest and Play builds**: without it Android cannot verify the Trusted Web Activity and the app launches with a browser URL bar, which the Horizon Store rejects for an immersive title. `build:quest` and `build:phone` each write a single-element array signed with its own key; one origin serving both apps needs both. The files are gitignored and never enter the image, so on a container host paste the JSON. |
 | `KC_ALLOWED_ORIGINS` | *(empty = any)* | Comma-separated. Browsers send `Origin` on the WebSocket upgrade. Empty is fine for the Quest and Steam builds; set it if a public web origin exists. |
-| `KC_MAX_ROOMS` / `KC_MAX_PLAYERS` | `200` / `16` | Voice is a mesh, so past ~16 per room it needs an SFU. |
+| `KC_MAX_ROOMS` / `KC_MAX_PLAYERS` | `200` / `32` | A room also stops at its mode's own `maxPlayers` (boxing 8, hunt 12, hill 24, the rest 32). Measured per room: 32 players cost 1.8 % of a core and 6.4 KB/s per client. Voice calls only the nearest 10 players within earshot, so the mesh does not grow with the room. |
+| `KC_ICE_SERVERS` | *(empty)* | JSON array of `RTCIceServer`s handed to every client's voice chat. Empty = public STUN only, which cannot connect two players both behind symmetric NAT (most mobile carriers). |
+| `KC_TURN_URLS`, `KC_TURN_SECRET`, `KC_TURN_TTL` | *(empty)*, *(empty)*, `43200` | A coturn relay in `use-auth-secret` mode: each player gets their own expiring credential; the secret never leaves the server. |
 | `KC_META_APP_ID`, `KC_META_APP_SECRET` | *(empty)* | Meta receipt verification. |
 | `KC_STEAM_APP_ID`, `KC_STEAM_WEB_API_KEY` | *(empty)* | Steam receipt verification. |
 
@@ -171,4 +173,5 @@ handles far more than the player count this game needs at launch.
 * TLS termination — do it at the proxy or the platform.
 * Backups. `pg_dump` on a schedule; the profile table is the part that cannot be regenerated.
 * Metrics beyond the health endpoint.
-* An SFU for voice past ~16 players per room.
+* A TURN relay (coturn) for voice behind symmetric NAT — set `KC_TURN_*` once one exists.
+* An SFU, if proximity voice ever has to be *enforced* against a modified client: in a mesh every peer already holds the streams it receives.

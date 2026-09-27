@@ -1,5 +1,7 @@
 import { proximityGainAt } from '@kc/core';
+import type { IceServerConfig } from '@kc/net';
 import type { AudioSystem } from './AudioSystem.js';
+import { MAX_VOICE_PEERS, planVoicePeers, tuneOpus, type Vec3Like } from './voiceRange.js';
 
 export type SignalKind = 'offer' | 'answer' | 'ice' | 'leave';
 
@@ -20,18 +22,38 @@ interface Peer {
   makingOffer: boolean;
 }
 
-const ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+/**
+ * STUN only, until the server says otherwise. STUN finds a public address and nothing more, so two
+ * players who are both behind symmetric NAT — most mobile carriers, many office and campus networks
+ * — can never connect, and voice fails for them in silence. A TURN relay is the only fix and it is
+ * infrastructure, not code: the server hands out whatever `KC_ICE_SERVERS` / `KC_TURN_*` configure
+ * in its `welcome`, and `setIceServers` takes them.
+ */
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+
+/** How often the set of voice peers is re-planned. Peers move at running speed, not per frame. */
+const PLAN_INTERVAL_MS = 500;
+/**
+ * After a peer hangs up on us, how long before we offer again. A peer at its own connection cap
+ * answers an offer with `leave`; without a pause this client would re-offer twice a second.
+ */
+const REFUSAL_BACKOFF_MS = 4000;
 
 /**
  * Spatial voice chat over a WebRTC mesh.
  *
  * Audio is peer-to-peer — the server only relays signalling and never sees or stores voice.
  * Each remote stream runs through a `PannerNode` positioned at that player's avatar, so someone
- * chasing you *sounds* like they are behind you. A mesh is the right shape up to ~16 players;
- * beyond that this class is the seam where an SFU would slot in.
+ * chasing you *sounds* like they are behind you. The mesh is bounded by distance rather than by
+ * the room — `updatePeers` calls only the nearest players within earshot — so its cost does not
+ * grow with the player count. Enforcing proximity against a modified client still needs an SFU.
  */
 export class VoiceChat {
   private peers = new Map<string, Peer>();
+  private iceServers: RTCIceServer[] = DEFAULT_ICE_SERVERS;
+  private nextPlanAt = 0;
+  /** Peers that hung up on us, and when we may call them again. */
+  private refusedUntil = new Map<string, number>();
   /** Applied to peers that connect later, so the preference survives a reconnect. */
   private panningModel: PanningModelType = 'HRTF';
   /** One promise chain per peer, so signals are handled in the order the wire delivered them. */
@@ -67,6 +89,8 @@ export class VoiceChat {
   private deviceId = '';
   private localId = '';
   private blocked = new Set<string>();
+  /** Players this listener muted: their calls stay up (so unmuting is instant) at zero gain. */
+  private locallyMuted = new Set<string>();
   /**
    * Local microphone loudness, 0..1.
    *
@@ -387,9 +411,47 @@ export class VoiceChat {
     });
   }
 
+  setLocallyMuted(ids: Iterable<string>): void {
+    this.locallyMuted = new Set(ids);
+  }
+
   setBlocked(ids: Iterable<string>): void {
     this.blocked = new Set(ids);
     for (const id of this.blocked) this.closePeer(id);
+  }
+
+  /**
+   * The relays this client should use, from the server's `welcome`. Applies to connections made
+   * from now on; an empty or missing list keeps the STUN default.
+   */
+  setIceServers(servers: IceServerConfig[] | undefined): void {
+    this.iceServers = servers && servers.length > 0 ? servers : DEFAULT_ICE_SERVERS;
+  }
+
+  /** How many peer connections are open. Bounded by `MAX_VOICE_PEERS`, not by the room. */
+  get openPeers(): string[] {
+    return [...this.peers.keys()];
+  }
+
+  /**
+   * Hold calls to the players close enough to hear, and only those — see `voiceRange.ts`. Called
+   * every frame; re-plans twice a second.
+   */
+  updatePeers(positions: ReadonlyMap<string, Vec3Like>, listener: Vec3Like | undefined, now = Date.now()): void {
+    if (!this.enabled || !listener || now < this.nextPlanAt) return;
+    this.nextPlanAt = now + PLAN_INTERVAL_MS;
+    for (const [id, until] of this.refusedUntil) if (until <= now) this.refusedUntil.delete(id);
+    const plan = planVoicePeers(listener, positions, new Set(this.peers.keys()), this.blocked);
+    for (const id of plan.drop) {
+      // Told, so the other end frees its side now rather than when ICE times out half a minute
+      // later — and does not keep a dead peer counted against its own cap.
+      this.send(id, '', 'leave');
+      this.closePeer(id);
+    }
+    for (const id of plan.connect) {
+      if (this.refusedUntil.has(id)) continue;
+      void this.connectTo(id);
+    }
   }
 
   /** Start a connection to a peer. The lower id makes the offer, so both sides never do. */
@@ -402,26 +464,21 @@ export class VoiceChat {
   }
 
   /**
-   * Call everyone already here.
+   * Forget the plan clock, so the next `updatePeers` runs at once. The microphone opening is when
+   * calls should start, not up to half a second after it.
    *
    * The microphone is asked for while the match is being joined, and `getUserMedia` takes long
-   * enough that the roster almost always lands first. Every `connectTo` fired from that roster
-   * then returned immediately at `!this.enabled`, and nothing ever tried again — so a player who
-   * joined a room that already had people in it was permanently silent to all of them, while
-   * anyone arriving *after* their microphone was ready connected fine. Measured: two clients in
-   * one private room, zero peer connections on the joining side.
-   *
-   * Reconnecting the whole roster once the microphone is live fixes that, and the same call
-   * covers switching voice on from the settings panel mid-match, which was broken in exactly the
-   * same way and for the same reason.
+   * enough that the roster almost always lands first. Calls placed from that roster used to be
+   * refused for having no microphone and never retried — a player who joined an occupied room was
+   * silent to all of them. Planning from positions every half second cannot miss that way: the
+   * first plan after the microphone opens places every call it should.
    */
-  connectToAll(peerIds: Iterable<string>): void {
-    if (!this.enabled) return;
-    for (const id of peerIds) void this.connectTo(id);
+  replanNow(): void {
+    this.nextPlanAt = 0;
   }
 
   private createPeer(peerId: string): Peer {
-    const connection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const connection = new RTCPeerConnection({ iceServers: this.iceServers });
     const peer: Peer = { connection, panner: null, proximity: null, element: null, polite: this.localId > peerId, makingOffer: false };
     this.peers.set(peerId, peer);
 
@@ -454,6 +511,7 @@ export class VoiceChat {
     try {
       peer.makingOffer = true;
       const offer = await peer.connection.createOffer();
+      if (offer.sdp) offer.sdp = tuneOpus(offer.sdp);
       await peer.connection.setLocalDescription(offer);
       this.send(peerId, JSON.stringify(offer), 'offer');
     } catch (error) {
@@ -506,12 +564,22 @@ export class VoiceChat {
     if (this.blocked.has(fromId)) return;
     if (kind === 'leave') {
       this.closePeer(fromId);
+      this.refusedUntil.set(fromId, Date.now() + REFUSAL_BACKOFF_MS);
       return;
     }
     if (!this.enabled) return;
 
     let peer = this.peers.get(fromId);
-    if (!peer) peer = this.createPeer(fromId);
+    if (!peer) {
+      // Calls this client did not plan are still answered — the other end chose from its own
+      // nearest ten, which need not be ours — but not without limit, or a crowd could push every
+      // phone in it back to a full mesh. Refused with `leave`, which backs the caller off.
+      if (this.peers.size >= MAX_VOICE_PEERS + 4) {
+        this.send(fromId, '', 'leave');
+        return;
+      }
+      peer = this.createPeer(fromId);
+    }
 
     try {
       const data = JSON.parse(payload) as RTCSessionDescriptionInit | RTCIceCandidateInit;
@@ -528,6 +596,7 @@ export class VoiceChat {
       await peer.connection.setRemoteDescription(description);
       if (description.type === 'offer') {
         const answer = await peer.connection.createAnswer();
+        if (answer.sdp) answer.sdp = tuneOpus(answer.sdp);
         await peer.connection.setLocalDescription(answer);
         this.send(fromId, JSON.stringify(answer), 'answer');
       }
@@ -616,7 +685,8 @@ export class VoiceChat {
       if (!peer.proximity || !listener || !ctx) continue;
       const distance = Math.hypot(position.x - listener.x, position.y - listener.y, position.z - listener.z);
       // Ramped rather than assigned: a gain that steps every frame as someone walks clicks.
-      peer.proximity.gain.setTargetAtTime(proximityGainAt(distance), ctx.currentTime, 0.05);
+      const gain = this.locallyMuted.has(id) ? 0 : proximityGainAt(distance);
+      peer.proximity.gain.setTargetAtTime(gain, ctx.currentTime, 0.05);
     }
   }
 

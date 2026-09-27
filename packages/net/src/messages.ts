@@ -76,6 +76,26 @@ export interface ClientModeration {
   targetId: string;
 }
 
+/**
+ * A moderator's action. The server decides whether the sender is a moderator — from the verified
+ * session, never from anything in this message — and ignores it from anyone else.
+ */
+export interface ClientModAction {
+  t: 'mod';
+  action: ModActionKind;
+  targetId: string;
+  /** Duration for mute/ban; 0 = permanent ban. Ignored for kick and the lifts. */
+  minutes?: number;
+  reason?: string;
+}
+
+export type ModActionKind = 'kick' | 'mute' | 'unmute' | 'ban' | 'unban';
+
+/** A moderator asking for the recent report queue. */
+export interface ClientModReports {
+  t: 'mod-reports';
+}
+
 export interface ClientReady {
   t: 'ready';
   ready: boolean;
@@ -97,7 +117,9 @@ export type ClientMessage =
   | ClientReport
   | ClientModeration
   | ClientReady
-  | ClientShop;
+  | ClientShop
+  | ClientModAction
+  | ClientModReports;
 
 export interface ServerWelcome {
   t: 'welcome';
@@ -113,6 +135,20 @@ export interface ServerWelcome {
   /** Slot assignments so the client can decode snapshots immediately. */
   slots: [string, number][];
   players: RosterEntry[];
+  /** Whether this player is a moderator — decides only which buttons the client draws. */
+  isModerator?: boolean;
+  /**
+   * ICE servers for voice chat (STUN, and TURN with this player's own short-lived credential).
+   * Absent or empty = the client's STUN default. See `packages/server/src/ice.ts`.
+   */
+  iceServers?: IceServerConfig[];
+}
+
+/** The shape of an `RTCIceServer`, without depending on DOM types in a package the server uses. */
+export interface IceServerConfig {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
 }
 
 export interface RosterEntry {
@@ -122,6 +158,8 @@ export interface RosterEntry {
   cosmetics: Record<string, string>;
   platform: Platform;
   slot: number;
+  /** Shown as a badge, so players can tell a moderator from someone claiming to be one. */
+  moderator?: boolean;
 }
 
 export interface ServerPlayerJoined {
@@ -197,7 +235,7 @@ export interface ServerGear {
 
 export interface ServerError {
   t: 'error';
-  code: 'protocol' | 'full' | 'banned' | 'rate-limit' | 'bad-request' | 'not-found' | 'name-rejected';
+  code: 'protocol' | 'full' | 'banned' | 'kicked' | 'rate-limit' | 'bad-request' | 'not-found' | 'name-rejected';
   message: string;
 }
 
@@ -235,6 +273,49 @@ export interface ServerRoomState {
   players: LobbyPlayer[];
 }
 
+/** One report as a moderator sees it: names resolved, so the queue is readable without lookups. */
+export interface ModReportView {
+  id: string;
+  reporterId: string;
+  reporterName: string;
+  targetId: string;
+  targetName: string;
+  reason: string;
+  roomCode: string;
+  at: number;
+  /** Distinct players who reported this target in the last ten minutes. */
+  reporters: number;
+  /** Set when the report tipped the target into an automatic mute. */
+  autoMuted?: boolean;
+}
+
+/** Pushed to every online moderator the moment a report is filed. */
+export interface ServerModReport {
+  t: 'mod-report';
+  report: ModReportView;
+}
+
+export interface ServerModReports {
+  t: 'mod-reports';
+  reports: ModReportView[];
+}
+
+/** The outcome of a moderator's action, to that moderator. */
+export interface ServerModResult {
+  t: 'mod-result';
+  ok: boolean;
+  message: string;
+}
+
+/** Told to the player a sanction was applied to, so the silence is explained. */
+export interface ServerSanctioned {
+  t: 'sanctioned';
+  kind: 'mute' | 'unmute' | 'kick' | 'ban';
+  /** Unix ms; 0 = permanent (ban) or not applicable. */
+  until: number;
+  message: string;
+}
+
 export type ServerMessage =
   | ServerWelcome
   | ServerPlayerJoined
@@ -247,7 +328,11 @@ export type ServerMessage =
   | ServerGear
   | ServerVoiceSignal
   | ServerError
-  | ServerRoomState;
+  | ServerRoomState
+  | ServerModReport
+  | ServerModReports
+  | ServerModResult
+  | ServerSanctioned;
 
 export function encodeJson(message: ClientMessage | ServerMessage): string {
   return JSON.stringify(message);

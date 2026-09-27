@@ -143,6 +143,60 @@ The unit suite covers the curve, not the wiring: deleting the one line in `updat
 applies it passes every test, because `VoiceChat` needs WebAudio. `npm run check:voice` exercises
 the real path.
 
+**The mesh is bounded by distance now, not by the room** (`audio/voiceRange.ts`). A client calls
+only players inside `VOICE_CONNECT_RADIUS` (`VOICE_FAR` + 10 = 32 m), nearest `MAX_VOICE_PEERS`
+(10) first, and hangs up past `VOICE_DROP_RADIUS` (40 m) with a `leave` so the far side frees its
+end at once. Nothing audible is lost — gain is already 0 past 22 m — and the cost stops growing
+with the room: the full mesh uploaded 15 Opus streams per client at 16 players. The rule is
+symmetric (both ends measure the same distance), incoming calls are still answered up to
+`MAX_VOICE_PEERS + 4`, and a refusal backs the caller off 4 s. Opus is tuned in the SDP
+(`tuneOpus`: DTX, in-band FEC, mono, 28 kbps) — measured on `check:voice`, ~17 B per packet while
+the gate is shut.
+
+- **`check:voice` must run in the Training Room.** Round modes spawn players across the map;
+  measured on the jungle the two check players landed **40.8 m apart** and correctly never called
+  each other. The lobby mode puts everyone on the one `lobby` spawn.
+- **Private rooms ignored the chosen mode.** `onCreatePrivate` never passed the Game modes
+  selection, so every private room opened as Kangaroo Chase; found because the check above could
+  not get into the Training Room. The room screen now says which mode it will create.
+- **TURN is configuration.** STUN alone cannot connect two players both behind symmetric NAT (most
+  mobile carriers). The server hands `KC_ICE_SERVERS` and/or per-player coturn REST credentials
+  (`KC_TURN_URLS` + `KC_TURN_SECRET`) out in `welcome` (`server/src/ice.ts`); none is running.
+- The first interpolation sample of a newly-seen player can be a placeholder position, so a call
+  may open for a frame and drop — harmless, and the reason run 1 of the debugging looked asymmetric.
+
+## Capacity
+
+Measured per room (jungle, bots, 20 Hz delta snapshots, far players at quarter rate): 16 players
+**1.4 %** of a core and **3.3 KB/s** down per client; 32 players **1.8 %** / **6.4 KB/s**; 48
+players 3.2 % / 9.9 KB/s. The server was never the limit — the voice mesh was. `KC_MAX_PLAYERS`
+defaults to **32**, and `Room.isFull` also honours the mode's own `maxPlayers` (boxing 8, hunt 12,
+hill 24), which used to be read only by the menu that printed "2-8 players".
+
+## Moderation
+
+Every piece existed and none connected: the server handled `report`/`moderate` and the client
+**never sent either** (no mute, block or report anywhere in the UI); `SanctionStore` had
+`kick`/`mute`/`ban` but each room built its own empty store; nothing issued a sanction, nothing
+checked a ban at login, and reports went to a list no one could read.
+
+- **Players & safety** (in-match menu): mute (voice gain 0, call kept up so unmute is instant),
+  block, report with a reason. Moderators also get Kick / Mute 10 min / Ban 1 day / Ban forever /
+  Unban on each player and a live report queue.
+- **Moderators are `KC_MODERATORS`** (player ids), decided from the verified session in
+  `server/src/moderation.ts`; a client cannot claim it. They wear a `MOD` badge in the roster.
+- **Bans and mutes are written onto the target's profile** (`banUntil`, `muteUntil`) so they
+  survive restarts — and they must be written to the **live** profile object the room holds:
+  applied to a copy from the store, a ban vanished when the kick after it saved the room's stale
+  profile (caught by `moderation.test.ts`).
+- A server mute refuses the muted player's call signalling and sends `leave` both ways, because a
+  connected call is peer-to-peer and never touches the server again.
+- **Auto-mute** for when nobody is online: distinct reporters within 10 min reaching
+  `max(3, 30 % of the rest of the room)` mutes for 10 min and tells moderators.
+- Kicked/banned sockets close with 4010/4011 and `NetClient` does **not** reconnect on them.
+
+
+
 ## VR
 
 There is no headset in CI and there never will be, so the VR entry path is exercised by
@@ -1024,7 +1078,7 @@ found or approved.
   frame rate. Only the static trailer *cover image* is generated. Both gaps are named in
   `docs/META_LISTING.md` rather than left for a reviewer to discover.
 - **The listing copy's claims are checked against the code, not merely written to sound right**:
-  nine mode files, `KC_MAX_PLAYERS` (16), `proximityGainAt` for voice falloff, `LAUNCH_STORE`
+  nine mode files, `KC_MAX_PLAYERS` (32), `proximityGainAt` for voice falloff, `LAUNCH_STORE`
   empty plus `validateCatalog` refusing any priced item at boot, and the actual field names of
   `ComfortSettings` — all cited by file, all read by something (per the Settings section above).
 - **The privacy policy, IARC filing and developer account are not build steps.** They need a

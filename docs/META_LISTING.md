@@ -63,7 +63,7 @@ seated play, and adjustable height calibration.
 Every claim in it is checkable against this repository rather than aspirational: nine mode files
 under `packages/core/src/modes/` (`chase`, `hunt`, `duel`, `freezetag`, `hill`, `infection`,
 `parkour`, `boxing`, `social`) plus the custom-mode editor (`packages/core/src/modes/custom.ts`);
-`KC_MAX_PLAYERS` defaults to 16 (`docs/DEPLOY.md`); voice falloff is `proximityGainAt` in
+`KC_MAX_PLAYERS` defaults to 32 (`docs/DEPLOY.md`), capped lower per mode by its `maxPlayers`; voice falloff is `proximityGainAt` in
 `packages/core/src/modes/social.ts`, applied by `packages/client/src/audio/VoiceChat.ts`; the
 free-item and no-pay-to-win claims are
 `validateCatalog` refusing any priced item at boot and the ±3% animal "feel" band clamp; the
@@ -81,7 +81,7 @@ be said with confidence, checked against the actual mechanics:
 
 - **Category:** Games.
 - **Primary genre:** Action (tag, combat and a timed hunt are the core loops).
-- **Secondary genre:** Social (voice chat, up to 16 per room, a room-based lobby).
+- **Secondary genre:** Social (proximity voice chat, up to 32 per room, a room-based lobby).
 
 Pick the closest match from whatever the dashboard currently offers; do not invent option strings
 that are not in front of you at submission time.
@@ -90,7 +90,7 @@ that are not in front of you at submission time.
 
 - **Game modes:** Multiplayer (online), with an offline single-player practice mode against bots
   (`soloPractice` in `GameClient`) for anyone without a room to join.
-- **Player count:** Up to 16 per room (`KC_MAX_PLAYERS`).
+- **Player count:** Up to 32 per room (`KC_MAX_PLAYERS`; boxing 8, hunt 12, hill 24).
 - **Controllers:** Touch controllers (primary) and hand tracking — both drive the same
   `InputIntent`, so nothing about the mode selection changes what a player can do. There is no
   gamepad-only VR path; the stick input this game does support is the PC/mobile accessibility

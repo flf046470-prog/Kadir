@@ -69,17 +69,69 @@ export class ReportLimiter {
   }
 }
 
+/** How long a kicked player is kept out of the room they were kicked from. */
+export const KICK_REJOIN_MS = 5 * 60_000;
+
+/**
+ * Automatic mute, for when no moderator is online.
+ *
+ * A report used to be written to a log and nothing else — "recorded for human review; no automated
+ * punishment" — and there was no human, and no way for one to read the log. So a player shouting
+ * slurs into proximity voice kept doing it for the whole round however many people reported them.
+ *
+ * The rule is deliberately hard to weaponise: it counts **distinct** reporters (one angry player
+ * reporting ten times is one report, and the limiter caps them anyway), in a short window, and needs
+ * at least three of them *and* three tenths of everybody else in the room — a party of friends in a
+ * 32-player lobby cannot mute a stranger by themselves. The mute is temporary, and it only stops
+ * this player's chat and voice reaching others; it takes nothing else away. Moderators are told.
+ */
+export const AUTO_MUTE_WINDOW_MS = 10 * 60_000;
+export const AUTO_MUTE_MS = 10 * 60_000;
+export const AUTO_MUTE_MIN_REPORTERS = 3;
+
+export function autoMuteThreshold(roomSize: number): number {
+  return Math.max(AUTO_MUTE_MIN_REPORTERS, Math.ceil(Math.max(0, roomSize - 1) * 0.3));
+}
+
+/** Distinct reporters per target over a sliding window. */
+export class ReportTracker {
+  private byTarget = new Map<string, Map<string, number>>();
+
+  /** Record a report; returns how many distinct players reported this target inside the window. */
+  record(targetId: string, reporterId: string, now = Date.now()): number {
+    const reporters = this.byTarget.get(targetId) ?? new Map<string, number>();
+    reporters.set(reporterId, now);
+    for (const [id, at] of reporters) if (now - at > AUTO_MUTE_WINDOW_MS) reporters.delete(id);
+    this.byTarget.set(targetId, reporters);
+    return reporters.size;
+  }
+
+  count(targetId: string, now = Date.now()): number {
+    const reporters = this.byTarget.get(targetId);
+    if (!reporters) return 0;
+    let n = 0;
+    for (const at of reporters.values()) if (now - at <= AUTO_MUTE_WINDOW_MS) n++;
+    return n;
+  }
+
+  clear(targetId: string): void {
+    this.byTarget.delete(targetId);
+  }
+}
+
 export interface SanctionStore {
-  active(playerId: string, now?: number): Sanction | null;
+  active(playerId: string, now?: number, kind?: SanctionKind): Sanction | null;
   add(sanction: Sanction): void;
+  lift(playerId: string, kind: SanctionKind): void;
 }
 
 export class MemorySanctionStore implements SanctionStore {
   private map = new Map<string, Sanction[]>();
 
-  active(playerId: string, now = Date.now()): Sanction | null {
+  active(playerId: string, now = Date.now(), kind?: SanctionKind): Sanction | null {
     const list = this.map.get(playerId) ?? [];
     for (const sanction of list) {
+      if (kind && sanction.kind !== kind) continue;
       if (sanction.expiresAt === 0 || sanction.expiresAt > now) return sanction;
     }
     return null;
@@ -89,6 +141,16 @@ export class MemorySanctionStore implements SanctionStore {
     const list = this.map.get(sanction.targetId) ?? [];
     list.push(sanction);
     this.map.set(sanction.targetId, list);
+  }
+
+  /** Lift every active sanction of one kind — an unmute, an unban. */
+  lift(playerId: string, kind: SanctionKind): void {
+    const list = this.map.get(playerId);
+    if (!list) return;
+    this.map.set(
+      playerId,
+      list.filter((s) => s.kind !== kind),
+    );
   }
 }
 

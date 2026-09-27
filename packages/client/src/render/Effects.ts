@@ -518,13 +518,15 @@ function particleMaterial(map: THREE.Texture, additive: boolean): THREE.PointsMa
   return material;
 }
 
+function dynamicAttribute(array: Float32Array, size: number): THREE.BufferAttribute {
+  const attribute = new THREE.BufferAttribute(array, size);
+  attribute.setUsage(THREE.DynamicDrawUsage);
+  return attribute;
+}
+
 function poolGeometry(pool: ParticlePool): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry();
-  const attr = (array: Float32Array, size: number): THREE.BufferAttribute => {
-    const a = new THREE.BufferAttribute(array, size);
-    a.setUsage(THREE.DynamicDrawUsage);
-    return a;
-  };
+  const attr = dynamicAttribute;
   geometry.setAttribute('position', attr(pool.position, 3));
   geometry.setAttribute('color', attr(pool.color, 3));
   geometry.setAttribute('aSize', attr(pool.size, 1));

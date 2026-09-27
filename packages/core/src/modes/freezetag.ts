@@ -10,7 +10,7 @@ export const FREEZE_TAG_DEF: GameModeDef = {
   name: 'Freeze Tag',
   description: 'Tagged players freeze solid. Stand by a frozen friend to thaw them out.',
   minPlayers: 3,
-  maxPlayers: 16,
+  maxPlayers: 32,
   roundSeconds: 210,
   countdownSeconds: 5,
   icon: 'freeze',

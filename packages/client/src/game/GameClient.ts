@@ -15,6 +15,7 @@ import {
   zoneAt,
 } from '@kc/core';
 import type {
+  ReportReason,
   EntitySnapshot,
   InputIntent,
   LevelDef,
@@ -26,7 +27,7 @@ import type {
   SimEvent,
 } from '@kc/core';
 import { InterpolationBuffer, PredictionBuffer } from '@kc/net';
-import type { LobbyPlayer, Platform, RosterEntry } from '@kc/net';
+import type { IceServerConfig, LobbyPlayer, ModActionKind, ModReportView, Platform, RosterEntry, ServerMessage } from '@kc/net';
 import { TuningStore } from './TuningStore.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { VoiceChat } from '../audio/VoiceChat.js';
@@ -60,7 +61,25 @@ export interface GameCallbacks {
   onLocalEvent(event: SimEvent): void;
   /** The shop button was pressed. Opening a panel is a local decision, not a simulated one. */
   onShopToggle(): void;
+  /** The moderator report queue changed, or a moderator action came back. Optional. */
+  onModeration?(): void;
 }
+
+/** One other player, as the safety panel shows them. */
+export interface SafetyPlayer {
+  id: string;
+  name: string;
+  animalId: string;
+  moderator: boolean;
+  muted: boolean;
+  blocked: boolean;
+}
+
+export type SafetyAction =
+  | { kind: 'mute' | 'unmute' | 'block' | 'unblock'; id: string }
+  | { kind: 'report'; id: string; reason: ReportReason }
+  | { kind: 'mod'; action: ModActionKind; id: string; minutes?: number; reason?: string }
+  | { kind: 'mod-refresh' };
 
 export interface GameClientOptions {
   renderer: Renderer;
@@ -152,6 +171,12 @@ export class GameClient {
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
   private remotes = new Map<string, RemotePlayer>();
+  /** Set from `welcome`, which the server decides from the verified session. Draws buttons only. */
+  private moderator = false;
+  private modReports: ModReportView[] = [];
+  /** This player's own mute and block lists, as sent to the server this session. */
+  private personallyMuted = new Set<string>();
+  private personallyBlocked = new Set<string>();
   private gadgetEntities = new GadgetEntityView();
   /** Dust, sparks and bursts from gameplay events — every player's, not only the local one. */
   private effects: WorldEffects;
@@ -266,7 +291,9 @@ export class GameClient {
         this.lobby = state.players ?? [];
         this.callbacks.onRoomState(state.roomCode, state.isPrivate, this.lobby);
       },
-      onError: (code, message) => this.callbacks.onNotice(`${code}: ${message}`),
+      onError: (code, message) =>
+        this.callbacks.onNotice(code === 'banned' || code === 'kicked' ? message : `${code}: ${message}`),
+      onModeration: (message) => this.handleModeration(message),
       onStatusChange: (status) => {
         this.online = status === 'connected';
         this.callbacks.onNetStatus(status);
@@ -364,6 +391,102 @@ export class GameClient {
    * the menu. Stopping it would freeze the whole screen, since the render loop and the fixed step
    * share a frame.
    */
+  /** Everyone else in the room, for the safety panel. Empty in solo practice: bots need no report. */
+  safetyPlayers(): SafetyPlayer[] {
+    if (!this.online) return [];
+    return [...this.remotes.entries()].map(([id, remote]) => ({
+      id,
+      name: remote.entry.name,
+      animalId: remote.entry.animalId,
+      moderator: remote.entry.moderator === true,
+      muted: this.personallyMuted.has(id),
+      blocked: this.personallyBlocked.has(id),
+    }));
+  }
+
+  get isModerator(): boolean {
+    return this.moderator && this.online;
+  }
+
+  get moderatorReports(): readonly ModReportView[] {
+    return this.modReports;
+  }
+
+  /**
+   * Mute, block, report — and, for a moderator, sanction.
+   *
+   * The server has handled `moderate` and `report` since the first multiplayer build, and nothing
+   * in the client ever sent either: there was no way for a player to report, mute or block anyone.
+   * Mute and block also act here at once — a player should not wait a round trip to stop hearing
+   * someone — and the server applies them to chat and to call signalling on its side.
+   */
+  safetyAction(action: SafetyAction): void {
+    if (!this.online) return;
+    switch (action.kind) {
+      case 'mute':
+      case 'unmute':
+        if (action.kind === 'mute') this.personallyMuted.add(action.id);
+        else this.personallyMuted.delete(action.id);
+        this.voice.setLocallyMuted(this.personallyMuted);
+        this.net.sendJson({ t: 'moderate', action: action.kind, targetId: action.id });
+        break;
+      case 'block':
+      case 'unblock':
+        if (action.kind === 'block') {
+          this.personallyBlocked.add(action.id);
+          this.personallyMuted.add(action.id);
+        } else {
+          this.personallyBlocked.delete(action.id);
+          this.personallyMuted.delete(action.id);
+        }
+        this.voice.setBlocked(this.personallyBlocked);
+        this.voice.setLocallyMuted(this.personallyMuted);
+        this.net.sendJson({ t: 'moderate', action: action.kind, targetId: action.id });
+        break;
+      case 'report':
+        this.net.sendJson({ t: 'report', targetId: action.id, reason: action.reason });
+        this.callbacks.onNotice('Report sent. Thank you — a moderator will review it.');
+        break;
+      case 'mod':
+        if (!this.moderator) return;
+        this.net.sendJson({
+          t: 'mod',
+          action: action.action,
+          targetId: action.id,
+          ...(action.minutes === undefined ? {} : { minutes: action.minutes }),
+          ...(action.reason ? { reason: action.reason } : {}),
+        });
+        break;
+      case 'mod-refresh':
+        if (this.moderator) this.net.sendJson({ t: 'mod-reports' });
+        break;
+    }
+  }
+
+  private handleModeration(message: Extract<ServerMessage, { t: 'mod-report' | 'mod-reports' | 'mod-result' | 'sanctioned' }>): void {
+    switch (message.t) {
+      case 'mod-report': {
+        this.modReports = [message.report, ...this.modReports].slice(0, 100);
+        const r = message.report;
+        this.callbacks.onNotice(
+          `Report: ${r.targetName} (${r.reason}) by ${r.reporterName}${r.autoMuted ? ' — auto-muted' : ''} · ${r.reporters} reporter${r.reporters === 1 ? '' : 's'}`,
+        );
+        break;
+      }
+      case 'mod-reports':
+        this.modReports = message.reports.slice(0, 100);
+        break;
+      case 'mod-result':
+        this.callbacks.onNotice(message.message);
+        break;
+      case 'sanctioned':
+        this.callbacks.onNotice(message.message);
+        this.callbacks.onChat('', message.message, 'system', true);
+        break;
+    }
+    this.callbacks.onModeration?.();
+  }
+
   /**
    * Switch voice on, and then call everyone who is already here.
    *
@@ -382,7 +505,9 @@ export class GameClient {
     if (!ready) return;
     this.micGate.reset();
     if (!this.online) return;
-    this.voice.connectToAll(this.remotes.keys());
+    // Calls are placed by distance from here on (`updatePeers` in `updateAvatars`), not to the
+    // whole roster; this only makes the first plan run on the next frame.
+    this.voice.replanNow();
   }
 
   /**
@@ -584,9 +709,14 @@ export class GameClient {
     this.tuning.applyTo(this.sim);
   }
 
-  private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelId: string; levelSeed: number }): void {
+  private handleWelcome(message: { playerId: string; serverTick: number; modeId: string; players: RosterEntry[]; roomCode: string; isPrivate: boolean; levelId: string; levelSeed: number; iceServers?: IceServerConfig[]; isModerator?: boolean }): void {
     // A real match starts: the server owns the configs from here on.
     this.soloPractice = false;
+    // Before any call is placed: a relay configured on the server is what connects players behind
+    // symmetric NAT at all.
+    this.voice.setIceServers(message.iceServers);
+    this.moderator = message.isModerator === true;
+    if (this.moderator) this.net.sendJson({ t: 'mod-reports' });
     this.soloResultsSent = false;
     this.localId = message.playerId;
     this.modeId = message.modeId;
@@ -810,7 +940,6 @@ export class GameClient {
     this.renderer.scene.add(avatar.group);
     this.remotes.set(entry.id, { avatar, entry });
     this.upgradeToModel(avatar);
-    if (this.online && this.voice.isEnabled) void this.voice.connectTo(entry.id);
   }
 
   /**
@@ -985,7 +1114,9 @@ export class GameClient {
     }
 
     // The listener is the local player's head, the same point `updateListener` places it at.
-    this.voice.updatePositions(voicePositions, local ? { x: local.position.x, y: local.position.y + 1.6, z: local.position.z } : undefined);
+    const listener = local ? { x: local.position.x, y: local.position.y + 1.6, z: local.position.z } : undefined;
+    if (this.online) this.voice.updatePeers(voicePositions, listener);
+    this.voice.updatePositions(voicePositions, listener);
   }
 
   /**

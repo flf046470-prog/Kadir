@@ -9,7 +9,7 @@ export const KANGAROO_CHASE_DEF: GameModeDef = {
   name: 'Kangaroo Chase',
   description: 'Chasers hunt runners. Get tagged and you become a chaser. Survive to score.',
   minPlayers: 2,
-  maxPlayers: 16,
+  maxPlayers: 32,
   roundSeconds: 240,
   countdownSeconds: 5,
   icon: 'chase',

@@ -49,7 +49,7 @@ export const MODE_LIMITS = {
   roundSeconds: { min: 60, max: 900 },
   countdownSeconds: { min: 3, max: 30 },
   minPlayers: { min: 2, max: 16 },
-  maxPlayers: { min: 2, max: 24 },
+  maxPlayers: { min: 2, max: 32 },
   chaserRatio: { min: 0.05, max: 0.5 },
   startingCash: { min: 0, max: 5000 },
   nameLength: 24,

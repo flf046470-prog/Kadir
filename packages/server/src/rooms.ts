@@ -5,6 +5,8 @@ import { NEW_PRIVATE_ROOM } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { Leaderboard } from './leaderboard.js';
 import { Room } from './room.js';
+import { iceServersFor } from './ice.js';
+import { ModerationService } from './moderation.js';
 import type { ServerConfig } from './config.js';
 
 export interface MatchmakeRequest {
@@ -17,6 +19,8 @@ export interface MatchmakeRequest {
    * would break the "join the fullest room running this mode" assumption matchmaking is built on.
    */
   modeConfig?: unknown;
+  /** Who is asking — so a player kicked from a room is kept out of it for a few minutes. */
+  playerId?: string;
   /**
    * A map by name. Honoured for a room being created; ignored when joining an existing one, which
    * is already playing whatever it is playing.
@@ -24,7 +28,7 @@ export interface MatchmakeRequest {
   levelId?: string;
 }
 
-export type MatchmakeError = 'not-found' | 'full' | 'bad-code' | 'no-capacity' | 'unknown-mode';
+export type MatchmakeError = 'not-found' | 'full' | 'bad-code' | 'no-capacity' | 'unknown-mode' | 'kicked';
 
 export interface MatchmakeResult {
   room?: Room;
@@ -40,6 +44,7 @@ export interface MatchmakeResult {
  */
 export class RoomManager {
   private rooms = new Map<string, Room>();
+  readonly moderation: ModerationService;
   private rand = new Rand(Date.now() >>> 0);
   private timer: NodeJS.Timeout | null = null;
   private accumulator = 0;
@@ -60,6 +65,18 @@ export class RoomManager {
     private readonly accounts: AccountService,
     private readonly leaderboard: Leaderboard,
   ) {
+    this.moderation = new ModerationService(config.moderators, accounts);
+    this.moderation.attach({
+      find: (playerId) => {
+        const room = this.roomOf(playerId);
+        const name = room?.playerName(playerId);
+        return room && name ? { name, roomCode: room.code, roomSize: room.playerCount } : null;
+      },
+      send: (playerId, message) => this.roomOf(playerId)?.sendTo(playerId, message),
+      disconnect: (playerId, code, reason) => this.roomOf(playerId)?.disconnect(playerId, code, reason),
+      silenceVoice: (playerId) => this.roomOf(playerId)?.silenceVoice(playerId),
+      liveProfile: (playerId) => this.roomOf(playerId)?.playerProfile(playerId) ?? null,
+    });
     // Built eagerly so the very first join does not pay for it, and so a level that throws on
     // construction takes the server down at boot rather than under a player.
     for (const entry of listLevels()) this.levels.set(entry.id, entry.build());
@@ -95,6 +112,11 @@ export class RoomManager {
     return entry?.id ?? defaultLevelId();
   }
 
+  roomOf(playerId: string): Room | null {
+    for (const room of this.rooms.values()) if (room.hasPlayer(playerId)) return room;
+    return null;
+  }
+
   get roomCount(): number {
     return this.rooms.size;
   }
@@ -122,6 +144,7 @@ export class RoomManager {
       if (!isValidRoomCode(code)) return { error: 'bad-code' };
       const room = this.rooms.get(code);
       if (!room) return { error: 'not-found' };
+      if (request.playerId && this.moderation.isKickedFrom(code, request.playerId)) return { error: 'kicked' };
       if (room.isFull) return { error: 'full' };
       return { room };
     }
@@ -143,6 +166,7 @@ export class RoomManager {
       let best: Room | null = null;
       for (const room of this.rooms.values()) {
         if (room.isPrivate || room.isFull || room.currentModeId !== modeId) continue;
+        if (request.playerId && this.moderation.isKickedFrom(room.code, request.playerId)) continue;
         if (!best || room.playerCount > best.playerCount) best = room;
       }
       if (best) return { room: best };
@@ -168,6 +192,8 @@ export class RoomManager {
       level: this.levelFor(this.pickLevelId(levelId)),
       seed: this.rand.int(0, 2 ** 30),
       ...(modeConfig ? { modeConfig } : {}),
+      iceServersFor: (playerId) => iceServersFor(this.config.ice, playerId),
+      moderation: this.moderation,
     });
     this.rooms.set(code, room);
     return room;

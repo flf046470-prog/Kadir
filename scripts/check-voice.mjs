@@ -112,6 +112,18 @@ const host = await player('VoiceHost');
 const guest = await player('VoiceGuest');
 
 // One private room, both players in it. Quick play would put them in separate rooms as often as not.
+//
+// In the Training Room, because voice now calls only players within earshot (`voiceRange.ts`):
+// a round mode spawns people across the map, and measured on the jungle the two players here
+// landed 40.8 m apart and — correctly — never called each other, where the old full mesh
+// connected them at a volume of zero. The lobby puts everyone on its one lobby spawn, so the two
+// players stand together the way two friends in a room would, and a missing call is a real failure.
+await host.locator('button', { hasText: 'Game modes' }).first().click();
+await sleep(400);
+await host.locator('.kc-card', { hasText: 'Training Room' }).locator('button').first().click();
+await sleep(300);
+await host.locator('button', { hasText: 'Back' }).first().click();
+await sleep(400);
 await host.locator('button', { hasText: 'Private room' }).first().click();
 await sleep(500);
 await host.locator('button', { hasText: 'Create a private room' }).first().click();

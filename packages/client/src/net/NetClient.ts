@@ -39,7 +39,15 @@ export interface NetHandlers {
   onRoomState(state: Extract<ServerMessage, { t: 'room' }>): void;
   onError(code: string, message: string): void;
   onStatusChange(status: NetStatus): void;
+  /** Report queue and action results for moderators; a sanction notice for its target. */
+  onModeration(message: Extract<ServerMessage, { t: 'mod-report' | 'mod-reports' | 'mod-result' | 'sanctioned' }>): void;
 }
+
+/**
+ * Close codes that mean "do not come back". Reconnecting after a kick walked straight back into
+ * the refusal six times with a backoff; after a ban, it asked a server that had already said no.
+ */
+const FINAL_CLOSE_CODES = new Set([4001, 4010, 4011]);
 
 export type NetStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'offline';
 
@@ -144,10 +152,14 @@ export class NetClient {
       this.updateStats();
     });
 
-    socket.addEventListener('close', () => {
+    socket.addEventListener('close', (event) => {
       this.socket = null;
       if (this.closedByUser) {
         this.setStatus('idle');
+        return;
+      }
+      if (FINAL_CLOSE_CODES.has(event.code)) {
+        this.setStatus('offline');
         return;
       }
       this.scheduleReconnect();
@@ -232,6 +244,12 @@ export class NetClient {
         break;
       case 'error':
         this.handlers.onError(message.code, message.message);
+        break;
+      case 'mod-report':
+      case 'mod-reports':
+      case 'mod-result':
+      case 'sanctioned':
+        this.handlers.onModeration(message);
         break;
       default:
         break;

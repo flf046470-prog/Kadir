@@ -9,7 +9,7 @@ export const INFECTION_DEF: GameModeDef = {
   name: 'Infection',
   description: 'One infected kangaroo. Every player they catch joins them. Last survivor wins.',
   minPlayers: 3,
-  maxPlayers: 16,
+  maxPlayers: 32,
   roundSeconds: 180,
   countdownSeconds: 6,
   icon: 'infection',

@@ -42,8 +42,9 @@ import {
   decodeIntent,
   encodeSnapshot,
 } from '@kc/net';
-import type { LobbyPlayer, Platform, RosterEntry, ServerMessage } from '@kc/net';
+import type { IceServerConfig, LobbyPlayer, Platform, RosterEntry, ServerMessage } from '@kc/net';
 import type { AccountService } from './accounts.js';
+import type { ModerationService } from './moderation.js';
 import type { Leaderboard } from './leaderboard.js';
 
 export interface ClientSocket {
@@ -83,6 +84,10 @@ export interface RoomOptions {
   seed?: number;
   /** House rules for a private room. Sanitised by the caller before it gets here. */
   modeConfig?: ModeConfig;
+  /** ICE servers for one player's voice chat, sent in their `welcome`. */
+  iceServersFor?: (playerId: string) => IceServerConfig[];
+  /** Server-wide moderation: shared sanctions, the report queue, who is a moderator. */
+  moderation?: ModerationService;
 }
 
 /**
@@ -109,6 +114,8 @@ export class Room {
   private reports = new ReportLimiter();
   private chat = new ChatGuard();
   private sanctions: SanctionStore;
+  private readonly iceServersFor: ((playerId: string) => IceServerConfig[]) | undefined;
+  private readonly moderationService: ModerationService | undefined;
   private resultsSent = false;
   private modeId: string;
   /** Non-null only in a room running player-authored house rules. */
@@ -122,7 +129,11 @@ export class Room {
     this.snapshotIntervalTicks = options.snapshotIntervalTicks;
     this.accounts = options.accounts;
     this.leaderboard = options.leaderboard;
-    this.sanctions = options.sanctions ?? new MemorySanctionStore();
+    this.moderationService = options.moderation;
+    // One store for the whole server when there is a moderation service: a store per room meant a
+    // mute ended the moment its target walked into another room.
+    this.sanctions = options.sanctions ?? options.moderation?.sanctions ?? new MemorySanctionStore();
+    this.iceServersFor = options.iceServersFor;
     this.level = options.level ?? buildJungleWorld();
     this.modeId = options.modeId;
     this.modeConfig = options.modeConfig ?? null;
@@ -138,8 +149,13 @@ export class Room {
     return this.clients.size;
   }
 
+  /**
+   * The room's own cap and the mode's, whichever is lower. The mode's `maxPlayers` used to be
+   * read only by the menu that prints "2-8 players", so a boxing ring built for eight filled to
+   * the server's sixteen.
+   */
   get isFull(): boolean {
-    return this.clients.size >= this.maxPlayers;
+    return this.clients.size >= Math.min(this.maxPlayers, this.sim.mode.def.maxPlayers);
   }
 
   get currentModeId(): string {
@@ -202,7 +218,10 @@ export class Room {
       serverTick: this.sim.tick,
       slots: this.slots.entries(),
       players: [...this.clients.values()].map((c) => this.rosterEntry(c)),
+      ...(this.iceServersFor ? { iceServers: this.iceServersFor(profile.playerId) } : {}),
+      ...(this.moderationService?.isModerator(profile.playerId) ? { isModerator: true } : {}),
     });
+    this.moderationService?.moderatorOnline(profile.playerId, true);
 
     this.broadcast({ t: 'joined', player: this.rosterEntry(client) }, profile.playerId);
     this.broadcastRoomState();
@@ -213,6 +232,7 @@ export class Room {
     const client = this.clients.get(playerId);
     if (!client) return;
     void this.accounts.save(client.profile);
+    this.moderationService?.moderatorOnline(playerId, false);
     this.clients.delete(playerId);
     this.slots.release(playerId);
     this.chat.forget(playerId);
@@ -246,8 +266,8 @@ export class Room {
     const client = this.clients.get(playerId);
     if (!client) return;
 
-    const sanction = this.sanctions.active(playerId);
-    if (sanction && sanction.kind === 'mute') {
+    const sanction = this.sanctions.active(playerId, Date.now(), 'mute');
+    if (sanction) {
       client.socket.sendJson({ t: 'chat-rejected', reason: 'muted', message: explainRejection('muted') });
       return;
     }
@@ -286,6 +306,9 @@ export class Room {
     if (!target || !from) return;
     // The server never inspects or stores voice data — it only introduces the two peers.
     if (target.moderation.blocked.has(fromId) || from.moderation.blocked.has(targetId)) return;
+    // A muted player cannot place or answer a call: the offer, answer and candidates that would
+    // carry their voice are not relayed. `leave` still is, so hanging up always works.
+    if (kind !== 'leave' && this.sanctions.active(fromId, Date.now(), 'mute')) return;
     if (payload.length > 8000) return;
     target.socket.sendJson({ t: 'voice', fromId, payload, kind });
   }
@@ -317,11 +340,50 @@ export class Room {
 
   handleReport(playerId: string, targetId: string, reason: string): boolean {
     if (!this.clients.has(targetId)) return false;
-    if (!this.reports.allow(playerId)) return false;
-    // Reports are recorded for human review; no automated punishment.
+    if (targetId === playerId || !this.reports.allow(playerId)) return false;
     reportLog.push({ reporterId: playerId, targetId, reason, roomCode: this.code, at: Date.now() });
     if (reportLog.length > 5000) reportLog.shift();
+    // Queued for moderators, pushed to any who are online, and counted towards an automatic mute.
+    this.moderationService?.report(playerId, targetId, reason);
     return true;
+  }
+
+  hasPlayer(playerId: string): boolean {
+    return this.clients.has(playerId);
+  }
+
+  playerName(playerId: string): string | null {
+    return this.clients.get(playerId)?.profile.name ?? null;
+  }
+
+  playerProfile(playerId: string): PlayerProfile | null {
+    return this.clients.get(playerId)?.profile ?? null;
+  }
+
+  sendTo(playerId: string, message: ServerMessage): void {
+    this.clients.get(playerId)?.socket.sendJson(message);
+  }
+
+  /** Remove a player on a moderator's word: close their socket and take them out of the room. */
+  disconnect(playerId: string, code: number, reason: string): void {
+    const client = this.clients.get(playerId);
+    if (!client) return;
+    this.leave(playerId);
+    client.socket.close(code, reason);
+  }
+
+  /**
+   * End every voice call to and from a muted player, now. Refusing new signals is not enough on
+   * its own: a call already connected is peer-to-peer and never touches the server again, so both
+   * ends are told to hang up, exactly as if the other had.
+   */
+  silenceVoice(playerId: string): void {
+    if (!this.clients.has(playerId)) return;
+    for (const other of this.clients.values()) {
+      if (other.playerId === playerId) continue;
+      other.socket.sendJson({ t: 'voice', fromId: playerId, payload: '', kind: 'leave' });
+      this.clients.get(playerId)?.socket.sendJson({ t: 'voice', fromId: other.playerId, payload: '', kind: 'leave' });
+    }
   }
 
   handleVote(playerId: string, modeId: string): void {
@@ -532,6 +594,7 @@ export class Room {
       cosmetics: client.cosmetics,
       platform: client.platform,
       slot: client.slot,
+      ...(this.moderationService?.isModerator(client.playerId) ? { moderator: true } : {}),
     };
   }
 

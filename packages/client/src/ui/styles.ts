@@ -78,6 +78,12 @@ export const UI_CSS = `
 @media (prefers-reduced-motion: reduce) { .kc-mic-pill.is-live { animation: none; } }
 .kc-credit { border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 8px; font-size: 13px; line-height: 1.5; }
 .kc-credit:last-child { border-bottom: 0; }
+.kc-safety-row { border-bottom: 1px solid rgba(255,255,255,.08); padding: 10px 0; display: flex; flex-direction: column; gap: 8px; }
+.kc-safety-row:last-child { border-bottom: 0; }
+.kc-safety-row .kc-row { justify-content: flex-start; }
+.kc-tag--mod { display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 4px; background: #2f7d4a; color: #fff; opacity: 1; font-weight: 700; }
+.kc-row--mod .kc-btn { min-height: 36px; font-size: 13px; }
+.kc-select { min-height: 44px; border-radius: 8px; padding: 0 10px; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.18); }
 .kc-credit .kc-note { word-break: break-word; }
 
 .kc-hud { position: absolute; inset: 0; pointer-events: none; }

@@ -1,4 +1,6 @@
 import { env } from 'node:process';
+import { parseIceConfig, type IceConfig } from './ice.js';
+import { parseModerators } from './moderation.js';
 
 export interface ServerConfig {
   port: number;
@@ -42,6 +44,10 @@ export interface ServerConfig {
   allowDevPurchases: boolean;
   /** Postgres URL. Empty = file storage, which is correct for a single instance only. */
   databaseUrl: string;
+  /** Voice chat relays handed to clients. See `ice.ts`. */
+  ice: IceConfig;
+  /** Player ids with moderator powers (`KC_MODERATORS`). See `moderation.ts`. */
+  moderators: ReadonlySet<string>;
 }
 
 function int(name: string, fallback: number): number {
@@ -62,7 +68,10 @@ export function loadConfig(): ServerConfig {
     tickRate: int('KC_TICK_RATE', 60),
     snapshotRate: int('KC_SNAPSHOT_RATE', 20),
     maxRooms: int('KC_MAX_ROOMS', 200),
-    maxPlayersPerRoom: int('KC_MAX_PLAYERS', 16),
+    // Measured per room (jungle, bots, 20 Hz delta snapshots): 16 players cost 1.4 % of a core and
+    // 3.3 KB/s per client, 32 cost 1.8 % and 6.4 KB/s, 48 cost 3.2 % and 9.9 KB/s. The server was
+    // never the limit; the full voice mesh was, and it is bounded by distance now.
+    maxPlayersPerRoom: int('KC_MAX_PLAYERS', 32),
     dataDir: env.KC_DATA_DIR ?? 'data',
     sessionSecret: secret || 'dev-only-insecure-secret',
     clientTimeoutSeconds: int('KC_CLIENT_TIMEOUT', 30),
@@ -79,5 +88,7 @@ export function loadConfig(): ServerConfig {
     },
     allowDevPurchases: env.NODE_ENV !== 'production',
     databaseUrl: env.KC_DATABASE_URL ?? '',
+    ice: parseIceConfig(env),
+    moderators: parseModerators(env.KC_MODERATORS),
   };
 }

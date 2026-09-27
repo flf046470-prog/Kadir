@@ -134,6 +134,7 @@ export function oneOf<T extends string>(value: unknown, allowed: readonly T[], f
 }
 
 const VOICE_KINDS = ['offer', 'answer', 'ice', 'leave'] as const;
+const MOD_ACTIONS = ['kick', 'mute', 'unmute', 'ban', 'unban'] as const;
 const MODERATION_ACTIONS = ['mute', 'unmute', 'block', 'unblock'] as const;
 
 /**
@@ -189,9 +190,19 @@ async function handleControl(
       ? await accounts.loadOrCreate(playerId, name)
       : (await accounts.createGuest(sanitizeName(name))).profile;
 
+    // A ban lives on the profile, so it holds across restarts and every room. Checked after the
+    // profile is loaded and before a room is touched: a banned account never occupies a slot.
+    const refusal = rooms.moderation.admit(profile);
+    if (refusal) {
+      send(client, { t: 'error', code: 'banned', message: refusal });
+      connection.socket.close(4011, 'banned');
+      return;
+    }
+
     const modeId = text(message.modeId, 64);
     const levelId = text(message.levelId, 64);
     const match = rooms.matchmake({
+      playerId: profile.playerId,
       // Absent must stay absent: `matchmake` defaults a missing mode to kangaroo-chase, but an
       // empty string is a mode id it will look up and fail to find.
       ...(modeId ? { modeId } : {}),
@@ -202,7 +213,9 @@ async function handleControl(
       ...(message.modeConfig === undefined ? {} : { modeConfig: message.modeConfig }),
     });
     if (!match.room) {
-      send(client, { t: 'error', code: match.error === 'not-found' ? 'not-found' : 'full', message: match.error ?? 'no room' });
+      const code = match.error === 'not-found' ? 'not-found' : match.error === 'kicked' ? 'kicked' : 'full';
+      const explanation = match.error === 'kicked' ? 'A moderator removed you from this room. Try again in a few minutes.' : (match.error ?? 'no room');
+      send(client, { t: 'error', code, message: explanation });
       connection.socket.close(4004, match.error ?? 'no-room');
       return;
     }
@@ -252,6 +265,23 @@ async function handleControl(
       break;
     case 'report':
       room.handleReport(playerId, text(message.targetId, 64), text(message.reason, 500));
+      break;
+    case 'mod': {
+      // Whether the sender is a moderator is decided inside `act`, from the player id this socket
+      // authenticated as — nothing in the message can claim it.
+      const minutes = typeof message.minutes === 'number' && Number.isFinite(message.minutes) ? message.minutes : 0;
+      const result = await rooms.moderation.act(
+        playerId,
+        oneOf(message.action, MOD_ACTIONS, 'kick'),
+        text(message.targetId, 64),
+        minutes,
+        text(message.reason, 200),
+      );
+      send(client, { t: 'mod-result', ...result });
+      break;
+    }
+    case 'mod-reports':
+      if (rooms.moderation.isModerator(playerId)) send(client, { t: 'mod-reports', reports: rooms.moderation.recentReports() });
       break;
     case 'vote':
       room.handleVote(playerId, text(message.modeId, 64));
