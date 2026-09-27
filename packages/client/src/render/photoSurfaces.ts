@@ -22,6 +22,10 @@ import type { SurfaceMaterial } from '@kc/core';
  *   `(-dh/du, -dh/dv, 1)` with v increasing along a row as it is uploaded unflipped; a GL normal map
  *   uploaded flipped has the same meaning, so the triplanar blend reads both identically.
  *
+ * Ice is deliberately not here. Every scanned ice set on ambientCG is a fractured mosaic, and on
+ * the glacier's twenty-metre walls and its rink that mosaic read as swimming-pool tiles in a real
+ * game frame — the procedural ice, streaked rather than tiled, is the more believable of the two.
+ *
  * 512² JPEGs, ~0.2–0.4 MB per surface, and only the surfaces a map uses are fetched. Not precached:
  * `build-precache.mjs` sweeps `assets/` and `icons/` only, and a surface is not needed to boot.
  */
@@ -31,7 +35,6 @@ export const PHOTO_SURFACES: Partial<Record<SurfaceMaterial, string>> = {
   stone: 'Rock051',
   sand: 'Ground080',
   wood: 'Bark012',
-  ice: 'Ice003',
   snow: 'Snow006',
   redEarth: 'Ground067',
   redRock: 'Rock029',

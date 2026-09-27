@@ -141,7 +141,6 @@ export const BUNDLED_ASSET_CREDITS: readonly Credit[] = [
       ['Rock051', 'cut stone'],
       ['Ground080', 'sand'],
       ['Bark012', 'wood'],
-      ['Ice003', 'ice'],
       ['Snow006', 'snow'],
       ['Ground067', 'red earth'],
       ['Rock029', 'red rock'],

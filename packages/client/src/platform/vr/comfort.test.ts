@@ -6,8 +6,7 @@ import {
   handScaleFrom,
   hapticFor,
   pinchStrength,
-  vignetteIntensity,
-} from './comfort.js';
+  vignetteIntensity, easeRigHeight, isTeleport, STEP_EASE_LIMIT } from './comfort.js';
 
 const at = (x: number, y = 0, z = 0) => ({ x, y, z });
 
@@ -171,5 +170,60 @@ describe('haptics', () => {
     expect(hapticFor('punch', 0.5).intensity).toBeCloseTo(0.45, 5);
     expect(hapticFor('tagged', 5).intensity).toBe(1);
     expect(hapticFor('punch', -1).intensity).toBe(0);
+  });
+});
+
+describe('VR rig height', () => {
+  const DT = 1 / 60;
+
+  it('follows a hop exactly: velocity is shown, never eased', () => {
+    const state = { y: 0, ready: false };
+    let y = 0;
+    let vy = 7;
+    let worst = 0;
+    easeRigHeight(state, y, vy, DT);
+    for (let i = 0; i < 40; i++) {
+      vy -= 24 * DT;
+      y += vy * DT;
+      worst = Math.max(worst, Math.abs(easeRigHeight(state, y, vy, DT) - y));
+    }
+    expect(worst).toBeLessThan(0.001);
+  });
+
+  it('eases a step-up over several frames instead of one', () => {
+    const state = { y: 0, ready: false };
+    easeRigHeight(state, 0, 0, DT);
+    const first = easeRigHeight(state, 0.45, 0, DT);
+    // The first frame shows a small part of the 45 cm, not all of it.
+    expect(first).toBeGreaterThan(0.02);
+    expect(first).toBeLessThan(0.08);
+    let y = first;
+    for (let i = 0; i < 60; i++) y = easeRigHeight(state, 0.45, 0, DT);
+    expect(y).toBeCloseTo(0.45, 3);
+  });
+
+  it('never trails the body by more than the ease limit', () => {
+    const state = { y: 0, ready: false };
+    easeRigHeight(state, 0, 0, DT);
+    let body = 0;
+    for (let i = 0; i < 20; i++) {
+      body += 0.45;
+      expect(Math.abs(easeRigHeight(state, body, 0, DT) - body)).toBeLessThanOrEqual(STEP_EASE_LIMIT + 1e-9);
+    }
+  });
+
+  it('takes a teleport at once rather than flying the view across it', () => {
+    const state = { y: 0, ready: false };
+    easeRigHeight(state, 0, 0, DT);
+    expect(easeRigHeight(state, 12, 0, DT)).toBe(12);
+  });
+
+  it('tells a teleport from fast movement', () => {
+    expect(isTeleport(0, 0, 40, 0, DT)).toBe(true);
+    expect(isTeleport(3, 0, 0, 5, DT)).toBe(true);
+    // 20 m/s for a frame is a third of a metre, not a teleport.
+    expect(isTeleport(0.33, 0, 0, 20, DT)).toBe(false);
+    // Nor is a very fast launch that genuinely covered the distance.
+    expect(isTeleport(1.2, 0, 0, 60, DT)).toBe(false);
   });
 });

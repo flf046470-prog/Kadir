@@ -1,3 +1,4 @@
+import { DistantLand } from './DistantLand.js';
 import * as THREE from 'three';
 import type { Collider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
@@ -117,6 +118,8 @@ const PORTAL_LABELS: Record<string, string> = {
 };
 
 export class LevelRenderer {
+  /** Hills, peaks or mesas beyond the edge cliffs; see `DistantLand`. */
+  private readonly distantLand: DistantLand;
   readonly group = new THREE.Group();
   /**
    * Everything holding GPU memory, released together in `dispose()`.
@@ -146,6 +149,8 @@ export class LevelRenderer {
     private readonly assets?: AssetLibrary,
   ) {
     this.buildBackdrop();
+    this.distantLand = new DistantLand(this.level);
+    this.group.add(this.distantLand.mesh);
     this.buildColliders();
     this.buildProps();
     this.buildCheckpoints();
@@ -713,9 +718,15 @@ export class LevelRenderer {
     }
   }
 
+  /** How far a camera must see to show the land beyond the map from anywhere on it. */
+  get viewReach(): number {
+    return this.distantLand.reach;
+  }
+
   dispose(): void {
     // Read by `upgradeProps`, which can still be awaiting a download when a player leaves.
     this.disposed = true;
+    this.distantLand.dispose();
     for (const mesh of this.instanced) mesh.dispose();
     for (const item of this.disposables) item.dispose();
     this.group.clear();

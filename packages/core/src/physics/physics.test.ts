@@ -96,6 +96,71 @@ describe('moveCapsule', () => {
     expect(pos.z).toBeGreaterThan(4); // still slid along it
   });
 
+  it('never lifts the body while sliding along a wall, however long the slide', () => {
+    /**
+     * The step-up used to accept any lift that did not overlap, with nothing to stand on up there:
+     * beside a wall that is every substep, so the body hung 0.45 m in the air and fell back, over
+     * and over — 41 snaps in 38 s of walking the glacier, each a 45 cm jolt in a headset.
+     */
+    const world = makeWorld();
+    const pos = vec3(9.1, 0, -8);
+    const vel = vec3(0, 0, 0);
+    const out = makeMoveResult();
+    let grounded = true;
+    let highest = 0;
+    for (let i = 0; i < 240; i++) {
+      vel.x = 4;
+      vel.z = 4;
+      vel.y -= 20 * (1 / 60);
+      moveCapsule(world, pos, vel, SHAPE, 1 / 60, DEFAULT_MOVE_PARAMS, out, grounded);
+      grounded = out.grounded;
+      highest = Math.max(highest, pos.y);
+    }
+    expect(out.touchedWall).toBe(true);
+    expect(pos.z).toBeGreaterThan(4);
+    expect(highest).toBeLessThan(0.02);
+  });
+
+  it('steps onto a kerb by its own height, not by the full step allowance', () => {
+    const world = makeWorld();
+    const pos = vec3(-9, 0, 0);
+    const vel = vec3(0, 0, 0);
+    const out = makeMoveResult();
+    let grounded = true;
+    let highest = 0;
+    for (let i = 0; i < 90; i++) {
+      vel.x = 4;
+      vel.z = 0;
+      vel.y -= 20 * (1 / 60);
+      moveCapsule(world, pos, vel, SHAPE, 1 / 60, DEFAULT_MOVE_PARAMS, out, grounded);
+      grounded = out.grounded;
+      highest = Math.max(highest, pos.y);
+      if (pos.x > -4) break;
+    }
+    // On the 0.3 m step, and never above it on the way.
+    expect(pos.x).toBeGreaterThan(-6.9);
+    expect(pos.y).toBeGreaterThan(0.28);
+    expect(highest).toBeLessThan(0.33);
+  });
+
+  it('does not step onto something taller than the step allowance', () => {
+    const world = new PhysicsWorld([box(0, -1, 0, 20, 1, 20, 0), box(3, 0.35, 0, 1, 0.35, 3, 1)]);
+    const pos = vec3(0, 0, 0);
+    const vel = vec3(0, 0, 0);
+    const out = makeMoveResult();
+    let grounded = true;
+    for (let i = 0; i < 90; i++) {
+      vel.x = 4;
+      vel.z = 0;
+      vel.y -= 20 * (1 / 60);
+      moveCapsule(world, pos, vel, SHAPE, 1 / 60, DEFAULT_MOVE_PARAMS, out, grounded);
+      grounded = out.grounded;
+    }
+    // 0.7 m is past the 0.45 m allowance: blocked at its face.
+    expect(pos.x).toBeLessThan(1.7);
+    expect(pos.y).toBeLessThan(0.05);
+  });
+
   it('does not tunnel through the ground at high speed', () => {
     const world = makeWorld();
     const pos = vec3(0, 3, 0);

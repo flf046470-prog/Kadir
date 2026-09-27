@@ -1,8 +1,8 @@
 import type { Vec3 } from '../math/vec3.js';
 import { v3copy, v3dot, v3set, v3zero } from '../math/vec3.js';
 import { closestPointSegmentCollider } from './geometry.js';
-import type { Collider, SurfaceProps } from './types.js';
-import { DEFAULT_SURFACE, SurfaceFlags, hasFlag } from './types.js';
+import type { Collider, RaycastResult, SurfaceProps } from './types.js';
+import { DEFAULT_SURFACE, SurfaceFlags, hasFlag, makeRaycastResult } from './types.js';
 import type { PhysicsWorld } from './world.js';
 
 export interface CapsuleShape {
@@ -72,6 +72,9 @@ const _normal: Vec3 = { x: 0, y: 0, z: 0 };
 const _probePos: Vec3 = { x: 0, y: 0, z: 0 };
 const _savedPos: Vec3 = { x: 0, y: 0, z: 0 };
 const _savedVel: Vec3 = { x: 0, y: 0, z: 0 };
+const _stepRay: RaycastResult = makeRaycastResult();
+const _stepFrom: Vec3 = { x: 0, y: 0, z: 0 };
+const _down: Vec3 = { x: 0, y: -1, z: 0 };
 
 function capsuleSegment(position: Vec3, shape: CapsuleShape): void {
   v3set(_p0, position.x, position.y + shape.radius, position.z);
@@ -129,8 +132,11 @@ export function moveCapsule(
       _probePos.y += params.stepOffset;
       _probePos.x += _savedVel.x * subDt;
       _probePos.z += _savedVel.z * subDt;
-      if (!overlaps(world, _probePos, shape, params)) {
+      const top = overlaps(world, _probePos, shape, params) ? Number.NEGATIVE_INFINITY : stepTop(world, _probePos, _savedPos.y, _savedVel, shape, params);
+      if (top > Number.NEGATIVE_INFINITY) {
         v3copy(position, _probePos);
+        // Onto the step, not a full `stepOffset` above it: a 10 cm kerb lifts you 10 cm.
+        position.y = top;
         velocity.x = _savedVel.x;
         velocity.z = _savedVel.z;
         if (velocity.y < 0) velocity.y = 0;
@@ -146,6 +152,34 @@ export function moveCapsule(
     out.landImpactSpeed = Math.max(out.landImpactSpeed, -entryVelocityY);
   }
   return out;
+}
+
+/**
+ * The top of the step a lifted capsule would stand on, or −∞ when there is none.
+ *
+ * The step-up used to accept any lift that did not overlap, whether or not there was anything to
+ * stand on up there. Walking along a wall is "blocked" every substep, and lifting the capsule a full
+ * `stepOffset` beside a wall overlaps nothing — so it was committed, the body hung 0.45 m in the air
+ * and fell back, over and over. Measured walking the glacier with the stick: 41 such snaps in 38 s,
+ * each one a 45 cm jolt of the view in a headset. A step is somewhere to put your feet: something
+ * walkable under the lifted capsule, above where you were standing and no higher than the lift.
+ */
+function stepTop(world: PhysicsWorld, lifted: Vec3, fromY: number, velocity: Vec3, shape: CapsuleShape, params: MoveParams): number {
+  let best = Number.NEGATIVE_INFINITY;
+  const run = Math.hypot(velocity.x, velocity.z);
+  // Just past the front of the capsule: the step is what the capsule has run into.
+  const reach = run > 1e-6 ? shape.radius * 1.3 : 0;
+  // The centre, and a point towards where you were going, since a step is met with the toes first.
+  for (let k = 0; k < 2; k++) {
+    const ox = k === 0 ? 0 : (velocity.x / (run || 1)) * reach;
+    const oz = k === 0 ? 0 : (velocity.z / (run || 1)) * reach;
+    v3set(_stepFrom, lifted.x + ox, lifted.y + shape.radius, lifted.z + oz);
+    world.raycast(_stepRay, _stepFrom, _down, shape.radius + params.stepOffset + params.skin);
+    if (!_stepRay.hit || _stepRay.normal.y < params.minGroundNormalY) continue;
+    const y = _stepRay.point.y;
+    if (y > fromY + params.skin && y <= lifted.y + params.skin) best = Math.max(best, y);
+  }
+  return best;
 }
 
 /** One depenetration pass set. Returns true when a wall-like contact blocked horizontal motion. */

@@ -115,6 +115,52 @@ export function vignetteIntensity(input: VignetteInput): number {
   return motion * strength;
 }
 
+/**
+ * A move of the body this far in one frame is a teleport — a respawn, a round's kickoff position —
+ * not motion, and it is covered with a blink rather than shown.
+ */
+export const TELEPORT_DISTANCE = 2;
+/** Time constant for easing out a vertical snap the body's own velocity does not explain. */
+export const STEP_EASE_SECONDS = 0.12;
+/** The eased head never trails the body by more than this: one full step-up (0.45 m), not a lag. */
+export const STEP_EASE_LIMIT = 0.6;
+
+export interface RigHeightState {
+  y: number;
+  ready: boolean;
+}
+
+/**
+ * Where to put the VR rig vertically this frame.
+ *
+ * The headset view used to be bolted to the capsule, so every vertical discontinuity reached the
+ * eyes in one frame: stepping onto a ledge or a stair, being pushed out of a collider. Measured
+ * walking the glacier with the stick, one such frame reached 264 m/s² of vertical acceleration —
+ * motion the inner ear never feels, which is the textbook recipe for simulator sickness.
+ *
+ * The rig follows the body's *velocity* exactly, so a hop, a fall and a climb are shown as they
+ * happen and never lag; only the part of a move that velocity does not explain — a snap — is
+ * eased, over `STEP_EASE_SECONDS`, and never by more than `STEP_EASE_LIMIT`. A jump of more than
+ * `TELEPORT_DISTANCE` is a teleport and is taken at once (and blinked by the caller).
+ */
+export function easeRigHeight(state: RigHeightState, bodyY: number, bodyVy: number, dt: number): number {
+  if (!state.ready || dt <= 0 || Math.abs(bodyY - state.y) > TELEPORT_DISTANCE) {
+    state.y = bodyY;
+    state.ready = true;
+    return state.y;
+  }
+  const predicted = state.y + bodyVy * dt;
+  const error = bodyY - predicted;
+  const eased = predicted + error * (1 - Math.exp(-dt / STEP_EASE_SECONDS));
+  state.y = Math.min(bodyY + STEP_EASE_LIMIT, Math.max(bodyY - STEP_EASE_LIMIT, eased));
+  return state.y;
+}
+
+/** Did the body move further in one frame than it could have by moving? */
+export function isTeleport(dx: number, dy: number, dz: number, speed: number, dt: number): boolean {
+  return Math.hypot(dx, dy, dz) > Math.max(TELEPORT_DISTANCE, speed * dt * 3);
+}
+
 /** Smooth the vignette so it fades rather than snapping, which is itself uncomfortable. */
 export function approach(current: number, target: number, dt: number, perSecond = 6): number {
   if (dt <= 0) return current;

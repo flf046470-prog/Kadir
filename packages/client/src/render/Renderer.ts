@@ -141,6 +141,7 @@ export class Renderer {
   /** Scratch for the sRGB components of the sky, so `setDarkness` allocates nothing per frame. */
   private skyRgb = { r: 1, g: 1, b: 1 };
   private darkness = 0;
+  private viewReach = 0;
   /**
    * The level's image-based lighting, rebuilt per level and disposed with the old one.
    *
@@ -283,7 +284,7 @@ export class Renderer {
   applyLevel(level: LevelDef): void {
     this.scene.background = new THREE.Color(level.skyColor);
     this.scene.fog = new THREE.FogExp2(level.skyColor, level.fogDensity);
-    this.camera.far = Math.max(200, this.profile.drawDistance * 2.2);
+    this.camera.far = this.farPlane();
     this.camera.updateProjectionMatrix();
 
     // Remembered so `setDarkness` has something to return to. Without a stored baseline every
@@ -381,6 +382,20 @@ export class Renderer {
     this.scene.environmentIntensity = values.envIntensity;
   }
 
+  /**
+   * The furthest anything in the level can be from the camera — the land beyond the edge cliffs.
+   * Without it the far plane (sized to the play area) cut the hills off at the horizon.
+   */
+  setViewReach(metres: number): void {
+    this.viewReach = metres;
+    this.camera.far = this.farPlane();
+    this.camera.updateProjectionMatrix();
+  }
+
+  private farPlane(): number {
+    return Math.max(200, this.profile.drawDistance * 2.2, this.viewReach);
+  }
+
   get currentDarkness(): number {
     return this.darkness;
   }
@@ -394,7 +409,7 @@ export class Renderer {
     this.sun.shadow.mapSize.set(profile.shadowMapSize, profile.shadowMapSize);
     this.sun.shadow.map?.dispose();
     this.sun.shadow.map = null;
-    this.camera.far = Math.max(200, profile.drawDistance * 2.2);
+    this.camera.far = this.farPlane();
     this.camera.updateProjectionMatrix();
     // The governor can drop a tier mid-match, and post-processing is one of the things a dropped
     // tier gives up — so the chain is rebuilt rather than left running at the old cost.

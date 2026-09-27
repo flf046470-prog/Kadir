@@ -40,6 +40,8 @@ import { ModeMarkers } from '../render/ModeMarkers.js';
 import { BodyView } from '../render/Bodies.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
+import { easeRigHeight, isTeleport } from '../platform/vr/comfort.js';
+import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { Renderer } from '../render/Renderer.js';
 import { worldNeedsRebuild } from '../render/surfaces.js';
@@ -172,6 +174,10 @@ export class GameClient {
   private assets = new AssetLibrary();
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
+  /** VR rig height, eased over vertical snaps; and where the body was last frame, for teleports. */
+  private rigHeight: RigHeightState = { y: 0, ready: false };
+  private rigLast = new THREE.Vector3();
+  private rigPlaced = false;
   private remotes = new Map<string, RemotePlayer>();
   /** Set from `welcome`, which the server decides from the verified session. Draws buttons only. */
   private moderator = false;
@@ -247,6 +253,7 @@ export class GameClient {
     this.level = buildJungleWorld();
     this.levelRendererProfile = options.profileForQuality;
     this.levelRenderer = new LevelRenderer(this.level, this.levelRendererProfile, this.assets);
+    this.renderer.setViewReach(this.levelRenderer.viewReach);
     this.renderer.scene.add(this.levelRenderer.group);
     this.renderer.applyLevel(this.level);
     // Added once, unlike `levelRenderer.group`: gadget entities are match state, not level
@@ -608,6 +615,7 @@ export class GameClient {
     this.renderer.scene.remove(this.levelRenderer.group);
     this.levelRendererProfile = this.renderer.currentProfile;
     this.levelRenderer = new LevelRenderer(this.level, this.levelRendererProfile, this.assets);
+    this.renderer.setViewReach(this.levelRenderer.viewReach);
     this.renderer.scene.add(this.levelRenderer.group);
   }
 
@@ -1232,12 +1240,21 @@ export class GameClient {
     this.landingKick = Math.max(0, this.landingKick - dt * 6);
 
     if (this.input.kind === 'vr') {
-      this.renderer.rig.position.set(px, py, pz);
+      // Teleports (respawn, kickoff) are cut to black and faded in; vertical snaps the body's own
+      // velocity does not explain (a step, a push out of a collider) are eased. See `easeRigHeight`.
+      const teleported =
+        this.rigPlaced && isTeleport(px - this.rigLast.x, py - this.rigLast.y, pz - this.rigLast.z, Math.hypot(local.velocity.x, local.velocity.y, local.velocity.z), dt);
+      this.rigLast.set(px, py, pz);
+      this.rigPlaced = true;
+      if (teleported) this.rigHeight.ready = false;
+      const rigY = easeRigHeight(this.rigHeight, py, local.velocity.y, dt);
+      this.renderer.rig.position.set(px, rigY, pz);
       this.audio.updateListener({ x: px, y: py + 1.6, z: pz }, { x: Math.sin(local.yaw), y: 0, z: Math.cos(local.yaw) });
 
       // Comfort vignette. Built on first VR frame rather than in the constructor because the
       // platform is only known once input is wired, and it must never exist on PC/Mobile.
       this.vignette ??= new Vignette(this.renderer.camera);
+      if (teleported) this.vignette.blink();
       const turning = Math.abs(local.yaw - this.cameraYaw) > 0.004;
       this.cameraYaw = local.yaw;
       this.vignette.update(dt, {

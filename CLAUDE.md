@@ -1894,10 +1894,12 @@ environment and fog colour, with the gradient kept until the file arrives.
 
 ## Photographed surfaces (ambientCG, CC0)
 
-Nine surfaces — dirt, rock, stone, sand, wood, ice, snow, redEarth, redRock — are photo-scanned PBR
+Eight surfaces — dirt, rock, stone, sand, wood, snow, redEarth, redRock — are photo-scanned PBR
 sets now (`render/photoSurfaces.ts`, `public/textures/<material>_{color,normal,orm}.jpg`, 512², ~2 MB
 for all nine, only a map's own surfaces fetched, not precached). Water, metal and foliage stay
-procedural. The procedural set is still the first frame and the fallback: `createSurfaceMaterial`
+procedural, and so does **ice**: every ambientCG ice scan is a fractured mosaic, and on the
+glacier's 20 m walls and rink it read as swimming-pool tiles in a real game frame (Ice003 shipped
+for one commit). The procedural set is still the first frame and the fallback: `createSurfaceMaterial`
 registers each material on its cache entry and `adoptPhotoSet` swaps the textures into every one
 when the files arrive — same slots, so no recompile — and a missing file leaves the procedural look.
 
@@ -1906,6 +1908,11 @@ when the files arrive — same slots, so no recompile — and a missing file lea
   palette every map's fog, exposure and dust were measured against, keeping the photo's detail.
   Roughness means were moved too — measured 0.1–0.4 lower than the tuned sets (dirt 0.57 vs 0.94),
   which reads as wet ground under a photographed sky.
+- **Neutral surfaces take only their brightness from the palette.** Rock, stone and snow are graded
+  by luminance and keep the photograph's own hue. Per-channel matching dragged Rock030's warm grey
+  granite onto the palette's cool blue-grey, and on the jungle's 30 m cave walls it read as blue
+  marble (fixed-camera A/B). Coloured surfaces (red earth, red rock, dirt, sand, bark) still match
+  per channel, because their hue *is* the map's identity.
 - **Low-contrast scans read as flat colour at play distance.** Ground088 (luminance std 0.025) left
   the outback's biggest surface featureless in a fixed-camera A/B; Ground067 (0.051) replaced it.
   Compare candidates graded, side by side, before packing one.
@@ -1976,6 +1983,41 @@ haptic, HUD toast and sparks. Every number below was measured with six bots over
   round the ball were narrowed/widened: 57 % towards goal, own goals 44 % → 28 %.
 - Result: 367 kicks and 22 goals over six 120 s matches (`rooball.test.ts`, mutation-tested by
   disabling the steering — 74 kicks — the touchlines and the big ball).
+
+## VR comfort: a physics bug was jolting the headset
+
+Asked to watch for motion sickness. `rig.position` followed the capsule exactly, so every vertical
+discontinuity reached the eyes in one frame. Measured with VR-shaped intents (tracked hands, stick
+forward): walking the glacier produced **41 one-frame 45 cm jumps in 38 s**, jungle 84.
+
+- **The cause was physics, not the camera.** `moveCapsule`'s auto step-up accepted any 0.45 m lift
+  that did not overlap — with nothing to stand on up there. Sliding along a wall is "blocked" every
+  substep, so the body was lifted beside the wall and fell back, over and over. `stepTop` now
+  requires walkable ground under the lifted capsule (centre, and just past its front — at 0.8 r the
+  probe missed a kerb the capsule had already touched, and it rolled up the edge to 0.42 m) and puts
+  the feet *on* it: a 0.3 m kerb lifts 0.3 m. Snaps: glacier/outback 41/22 → **0**, jungle 84 → 5
+  (real 18 cm steps). Also stops stepping onto 0.7 m ledges, which the old lift allowed. Every
+  navigation and bot test still passes. `physics.test.ts` pins all three; the old controller fails
+  all three.
+- **`easeRigHeight`** (`platform/vr/comfort.ts`) eases only what the body's velocity does not
+  explain (a real step) over 0.12 s, ≤ 0.6 m behind; hops, falls and climbs are shown exactly — the
+  hand-climbing path produced **0** unexplained snaps, so climbing stays 1:1 with the hands. Worst
+  one-frame step in a headset: 18 cm → 3.3 cm. **Landings are deliberately not smoothed**: comfort
+  guidance prefers an instant velocity change to a stretched acceleration.
+- **Teleports blink** (`isTeleport`, `Vignette.blink`): a respawn or a kickoff moved the world round
+  a still head in one frame; now it cuts to black and fades in over 0.25 s, even with the vignette
+  setting off.
+
+## The land beyond the map
+
+Every map is a rectangle walled by `enclose`, and above the walls there was only sky — a pure-sky
+HDRI has no ground — so each world read as a yard with a fence round it. `render/DistantLand.ts` is
+a ring of hills (jungle), snow peaks (glacier) or flat-topped mesas (outback) from 20 m past the
+map's corner out 420 m: one draw call, ≈2.7k triangles, vertex colours only, no shadows or
+colliders. It is fogged at `DISTANT_LAND_FOG_SCALE` (0.35) of the scene's density — at full density
+the glacier's 0.011 exp2 fog is 93 % opaque at 150 m and the land came out as sky — and it needs a
+far plane beyond the old `max(200, drawDistance × 2.2)`, so `Renderer.setViewReach` takes the ring's
+`reach`. The older flat `buildBackdrop` plain under the map is unrelated and stays.
 
 ## How to find defects here
 
