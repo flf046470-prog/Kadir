@@ -88,6 +88,14 @@ export interface RoomOptions {
   iceServersFor?: (playerId: string) => IceServerConfig[];
   /** Server-wide moderation: shared sanctions, the report queue, who is a moderator. */
   moderation?: ModerationService;
+  /** Told when players come and go and when one blocks another — the room manager's index and the party system listen. */
+  hooks?: RoomHooks;
+}
+
+export interface RoomHooks {
+  joined(playerId: string, room: Room, profile: PlayerProfile): void;
+  left(playerId: string, room: Room): void;
+  blocked?(playerId: string, targetId: string): void;
 }
 
 /**
@@ -116,6 +124,7 @@ export class Room {
   private sanctions: SanctionStore;
   private readonly iceServersFor: ((playerId: string) => IceServerConfig[]) | undefined;
   private readonly moderationService: ModerationService | undefined;
+  private readonly hooks: RoomHooks | undefined;
   private resultsSent = false;
   private modeId: string;
   /** Non-null only in a room running player-authored house rules. */
@@ -130,6 +139,7 @@ export class Room {
     this.accounts = options.accounts;
     this.leaderboard = options.leaderboard;
     this.moderationService = options.moderation;
+    this.hooks = options.hooks;
     // One store for the whole server when there is a moderation service: a store per room meant a
     // mute ended the moment its target walked into another room.
     this.sanctions = options.sanctions ?? options.moderation?.sanctions ?? new MemorySanctionStore();
@@ -155,7 +165,17 @@ export class Room {
    * the server's sixteen.
    */
   get isFull(): boolean {
-    return this.clients.size >= Math.min(this.maxPlayers, this.sim.mode.def.maxPlayers);
+    return !this.hasRoomFor(1);
+  }
+
+  /** The most players this room will hold: its own cap or its mode's, whichever is lower. */
+  get capacity(): number {
+    return Math.min(this.maxPlayers, this.sim.mode.def.maxPlayers);
+  }
+
+  /** Whether `seats` more players fit — a party leader's matchmaking asks for the whole party. */
+  hasRoomFor(seats: number): boolean {
+    return this.clients.size + Math.max(1, seats) <= this.capacity;
   }
 
   get currentModeId(): string {
@@ -222,6 +242,7 @@ export class Room {
       ...(this.moderationService?.isModerator(profile.playerId) ? { isModerator: true } : {}),
     });
     this.moderationService?.moderatorOnline(profile.playerId, true);
+    this.hooks?.joined(profile.playerId, this, profile);
 
     this.broadcast({ t: 'joined', player: this.rosterEntry(client) }, profile.playerId);
     this.broadcastRoomState();
@@ -237,6 +258,7 @@ export class Room {
     this.slots.release(playerId);
     this.chat.forget(playerId);
     this.sim.removePlayer(playerId);
+    this.hooks?.left(playerId, this);
     this.broadcast({ t: 'left', playerId });
     this.broadcastRoomState();
     if (this.clients.size === 0) this.emptySince = Date.now();
@@ -336,6 +358,8 @@ export class Room {
     profile.mutedPlayerIds = [...moderation.muted];
     profile.blockedPlayerIds = [...moderation.blocked];
     void this.accounts.save(profile);
+    // A block also ends a friendship and a shared party; the social service owns both.
+    if (action === 'block') this.hooks?.blocked?.(playerId, targetId);
   }
 
   handleReport(playerId: string, targetId: string, reason: string): boolean {

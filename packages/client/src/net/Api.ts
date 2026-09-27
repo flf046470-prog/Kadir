@@ -1,5 +1,6 @@
 import { listAnimals, listCosmetics, listLevels, listModes, listStoreItems } from '@kc/core';
 import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, Reward, SeasonDef, StoreItem } from '@kc/core';
+import type { SocialActionResult, SocialView } from '@kc/net';
 
 export interface ProfileBundle {
   profile: PlayerProfile;
@@ -93,7 +94,7 @@ export class Api {
     const text = await response.text();
     const body = text ? (JSON.parse(text) as T & { error?: string }) : ({} as T & { error?: string });
     if (!response.ok) {
-      throw new ApiError(body.error ?? `${response.status}`, response.status);
+      throw new ApiError(body.error ?? `${response.status}`, response.status, body);
     }
     return body;
   }
@@ -145,12 +146,44 @@ export class Api {
   rooms(): Promise<{ rooms: { code: string; modeId: string; players: number; max: number }[] }> {
     return this.request('/api/rooms');
   }
+
+  social(): Promise<SocialView> {
+    return this.request('/api/social');
+  }
+
+  /**
+   * A friend or party action. A refusal (409) still carries the server's message and the state
+   * afterwards, so it is returned rather than thrown: "your request is still waiting" is an answer,
+   * not a failure.
+   */
+  async socialAction(action: SocialActionPath, body: { playerId?: string; partyId?: string } = {}): Promise<SocialActionResult> {
+    try {
+      return await this.request<SocialActionResult>(`/api/${action}`, { method: 'POST', body: JSON.stringify(body) });
+    } catch (error) {
+      if (error instanceof ApiError && error.body && typeof error.body === 'object' && 'view' in error.body) {
+        return error.body as SocialActionResult;
+      }
+      throw error;
+    }
+  }
 }
+
+export type SocialActionPath =
+  | 'friends/request'
+  | 'friends/accept'
+  | 'friends/remove'
+  | 'party/invite'
+  | 'party/accept'
+  | 'party/decline'
+  | 'party/leave'
+  | 'party/kick';
 
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** The parsed response body, for endpoints whose refusals still say something useful. */
+    readonly body?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';

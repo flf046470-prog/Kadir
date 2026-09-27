@@ -211,6 +211,8 @@ async function handleControl(
       ...(levelId ? { levelId } : {}),
       // Passed through raw; `matchmake` sanitises, and only for a private room.
       ...(message.modeConfig === undefined ? {} : { modeConfig: message.modeConfig }),
+      // A party leader needs a room the whole party fits in; everyone else needs one seat.
+      seats: rooms.social.seatsFor(profile.playerId),
     });
     if (!match.room) {
       const code = match.error === 'not-found' ? 'not-found' : match.error === 'kicked' ? 'kicked' : 'full';

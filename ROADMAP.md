@@ -35,6 +35,7 @@ Phases are ordered by dependency, not by visibility. A phase is "done" only when
 * Animals: Lion, Bear, Panda, Raccoon, Deer, Koala, Shark, Raptor, Dragon (data only).
 * Maps: Waterfall, Tree Village, Cliff, Ruins sections; second world.
 * Modes: Hunt, Hide & Seek, Bomb Tag, King of the Hill, Team Chase, Escape, Boss.
+* Friends and parties — shipped (see `TODO.md`); friend codes and cross-server presence are next.
 * Ranked mode, tournaments, global leaderboards with anti-cheat review.
 * Community map format + curation pipeline.
 

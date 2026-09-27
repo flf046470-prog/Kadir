@@ -50,6 +50,11 @@ export class AccountService {
     return profile;
   }
 
+  /** An existing account, or null. Unlike `loadOrCreate`, naming an id nobody owns creates nothing. */
+  find(playerId: string): Promise<PlayerProfile | null> {
+    return this.store.load(playerId);
+  }
+
   save(profile: PlayerProfile): Promise<void> {
     return this.store.save(profile);
   }

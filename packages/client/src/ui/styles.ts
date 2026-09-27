@@ -82,6 +82,14 @@ export const UI_CSS = `
 .kc-safety-row:last-child { border-bottom: 0; }
 .kc-safety-row .kc-row { justify-content: flex-start; }
 .kc-tag--mod { display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 4px; background: #2f7d4a; color: #fff; opacity: 1; font-weight: 700; }
+/* A badge is a direct child of a column row, and a column stretches its children: MOD (and LEADER,
+   PARTY) rendered as a green bar the full width of the panel. */
+.kc-safety-row > .kc-tag { align-self: flex-start; margin-left: 0; }
+/* A titled group inside a panel. flex: none for the same reason as the mic meter: the panel is an
+   overflowing column, and a shrinkable section collapses instead of scrolling. */
+.kc-section { display: flex; flex-direction: column; gap: 4px; flex: none; }
+.kc-section + .kc-section { border-top: 1px solid rgba(255,255,255,.12); padding-top: 10px; }
+.kc-section h3 { margin: 0 0 4px; font-size: 16px; }
 .kc-row--mod .kc-btn { min-height: 36px; font-size: 13px; }
 .kc-select { min-height: 44px; border-radius: 8px; padding: 0 10px; background: rgba(255,255,255,.08); color: inherit; border: 1px solid rgba(255,255,255,.18); }
 .kc-credit .kc-note { word-break: break-word; }

@@ -154,6 +154,8 @@ client                          server
 | Currency, purchases, unlocks | Server; the client's copy is a display cache. |
 | Achievements, dailies, season progress | Server, from server-observed match results. |
 | Cosmetic equip | Client-requested, server-validated against inventory. |
+| Friendships, requests | Server (`server/src/social.ts`), written to both profiles together; only players who exist can be asked, blocks refuse. |
+| Party membership, who follows whom | Server holds the party and records the leader's room; members' clients follow by code through ordinary matchmaking, so capacity, kicks and bans still apply. A friend's private room code is never shown to them — only to the leader's own party. |
 
 Match results are never uploaded by the client. `MatchResult` is produced by the room and passed
 straight to the progression service inside the server process.

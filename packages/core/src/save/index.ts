@@ -78,6 +78,11 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
     purchases: Array.isArray(raw.purchases) ? (raw.purchases as PlayerProfile['purchases']) : [],
     mutedPlayerIds: uniqueStrings(raw.mutedPlayerIds, []),
     blockedPlayerIds: uniqueStrings(raw.blockedPlayerIds, []),
+    // Absent on every save written before friends existed; filled rather than migrated, because
+    // an empty list is the correct value for all of them and needs no version bump.
+    friendIds: uniqueStrings(raw.friendIds, []),
+    friendRequestsIn: uniqueStrings(raw.friendRequestsIn, []),
+    friendRequestsOut: uniqueStrings(raw.friendRequestsOut, []),
   };
 
   profile.coins = safeNumber(profile.coins, 0);

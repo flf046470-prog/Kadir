@@ -1,5 +1,5 @@
 import { Rand, isValidRoomCode, listModes, sanitiseModeConfig } from '@kc/core';
-import type { LevelDef, ModeConfig } from '@kc/core';
+import type { LevelDef, ModeConfig, PlayerProfile } from '@kc/core';
 import { buildLevel, defaultLevelId, listLevels } from '@kc/core';
 import { NEW_PRIVATE_ROOM } from '@kc/net';
 import type { AccountService } from './accounts.js';
@@ -7,6 +7,7 @@ import type { Leaderboard } from './leaderboard.js';
 import { Room } from './room.js';
 import { iceServersFor } from './ice.js';
 import { ModerationService } from './moderation.js';
+import { SocialService } from './social.js';
 import type { ServerConfig } from './config.js';
 
 export interface MatchmakeRequest {
@@ -26,6 +27,12 @@ export interface MatchmakeRequest {
    * is already playing whatever it is playing.
    */
   levelId?: string;
+  /**
+   * How many players must fit, counting the one asking. A party leader asks for the whole party,
+   * so quick play does not put them in the one room with a single free slot and leave the rest of
+   * the party to bounce off it as they follow.
+   */
+  seats?: number;
 }
 
 export type MatchmakeError = 'not-found' | 'full' | 'bad-code' | 'no-capacity' | 'unknown-mode' | 'kicked';
@@ -45,6 +52,10 @@ export interface MatchmakeResult {
 export class RoomManager {
   private rooms = new Map<string, Room>();
   readonly moderation: ModerationService;
+  readonly social: SocialService;
+  /** Which room each connected player is in. Friends lists ask this once per friend per poll. */
+  private where = new Map<string, Room>();
+  private lastSweepAt = 0;
   private rand = new Rand(Date.now() >>> 0);
   private timer: NodeJS.Timeout | null = null;
   private accumulator = 0;
@@ -75,7 +86,17 @@ export class RoomManager {
       send: (playerId, message) => this.roomOf(playerId)?.sendTo(playerId, message),
       disconnect: (playerId, code, reason) => this.roomOf(playerId)?.disconnect(playerId, code, reason),
       silenceVoice: (playerId) => this.roomOf(playerId)?.silenceVoice(playerId),
-      liveProfile: (playerId) => this.roomOf(playerId)?.playerProfile(playerId) ?? null,
+      liveProfile: (playerId) => this.liveProfile(playerId),
+    });
+    this.social = new SocialService(accounts);
+    this.social.attach({
+      liveProfile: (playerId) => this.liveProfile(playerId),
+      roomOf: (playerId) => {
+        const room = this.roomOf(playerId);
+        return room
+          ? { code: room.code, modeId: room.currentModeId, players: room.playerCount, max: room.capacity, isPrivate: room.isPrivate }
+          : null;
+      },
     });
     // Built eagerly so the very first join does not pay for it, and so a level that throws on
     // construction takes the server down at boot rather than under a player.
@@ -113,8 +134,19 @@ export class RoomManager {
   }
 
   roomOf(playerId: string): Room | null {
-    for (const room of this.rooms.values()) if (room.hasPlayer(playerId)) return room;
-    return null;
+    return this.where.get(playerId) ?? null;
+  }
+
+  /**
+   * The profile object a connected player's room holds, or null when they are in no room.
+   *
+   * Anything that edits a profile must edit *this* object when there is one. The room saves it when
+   * the player leaves, so a copy loaded from the store and saved separately is overwritten a moment
+   * later — measured: an animal equipped from the in-match Customise screen was saved, then undone
+   * when the player left the round.
+   */
+  liveProfile(playerId: string): PlayerProfile | null {
+    return this.roomOf(playerId)?.playerProfile(playerId) ?? null;
   }
 
   get roomCount(): number {
@@ -165,7 +197,7 @@ export class RoomManager {
       // Prefer the fullest room that still has space: players want a busy lobby, not an empty one.
       let best: Room | null = null;
       for (const room of this.rooms.values()) {
-        if (room.isPrivate || room.isFull || room.currentModeId !== modeId) continue;
+        if (room.isPrivate || !room.hasRoomFor(request.seats ?? 1) || room.currentModeId !== modeId) continue;
         if (request.playerId && this.moderation.isKickedFrom(room.code, request.playerId)) continue;
         if (!best || room.playerCount > best.playerCount) best = room;
       }
@@ -194,6 +226,22 @@ export class RoomManager {
       ...(modeConfig ? { modeConfig } : {}),
       iceServersFor: (playerId) => iceServersFor(this.config.ice, playerId),
       moderation: this.moderation,
+      hooks: {
+        joined: (playerId, joinedRoom, profile) => {
+          this.where.set(playerId, joinedRoom);
+          this.social.remember(profile);
+          this.social.enteredRoom(playerId, joinedRoom.code);
+        },
+        left: (playerId, leftRoom) => {
+          if (this.where.get(playerId) === leftRoom) this.where.delete(playerId);
+          this.social.leftRoom(playerId, leftRoom.code);
+        },
+        blocked: (playerId, targetId) => {
+          this.social.blocked(playerId, targetId).catch((error: unknown) => {
+            console.error(`social: block follow-up failed: ${String((error as Error)?.message ?? error)}`);
+          });
+        },
+      },
     });
     this.rooms.set(code, room);
     return room;
@@ -231,6 +279,10 @@ export class RoomManager {
     if (steps === maxSteps) this.accumulator = 0;
 
     if (steps > 0) this.reap(now);
+    if (now - this.lastSweepAt > 30_000) {
+      this.lastSweepAt = now;
+      this.social.sweep(now);
+    }
   }
 
   private reap(now: number): void {

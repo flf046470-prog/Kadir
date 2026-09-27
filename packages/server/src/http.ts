@@ -20,6 +20,7 @@ import {
   sanitizeName,
 } from '@kc/core';
 import type { CosmeticSlot, PlayerProfile } from '@kc/core';
+import type { SocialActionResult } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { ServerConfig } from './config.js';
 import type { Leaderboard } from './leaderboard.js';
@@ -225,7 +226,62 @@ async function handleApi(
     json(res, 401, { error: 'unauthorized' });
     return;
   }
-  const profile = await deps.accounts.loadOrCreate(playerId);
+  // The room's own object when the player is in one: it saves that object when they leave, so an
+  // edit made to a stored copy here — equipping from the in-match Customise screen — was saved and
+  // then quietly undone the moment the round ended. Measured: `wolf` in the store, `kangaroo` after.
+  const profile = deps.rooms.liveProfile(playerId) ?? (await deps.accounts.loadOrCreate(playerId));
+  deps.rooms.social.touch(playerId);
+
+  if (path === '/api/social' && method === 'GET') {
+    json(res, 200, await deps.rooms.social.view(playerId));
+    return;
+  }
+
+  if (path.startsWith('/api/friends/') || path.startsWith('/api/party/')) {
+    if (method !== 'POST') {
+      json(res, 405, { error: 'method-not-allowed' });
+      return;
+    }
+    const body = await readJson(req);
+    const target = idValue(body.playerId);
+    const partyId = idValue(body.partyId);
+    const social = deps.rooms.social;
+    const needsTarget = (run: (id: string) => Promise<SocialActionResult>) =>
+      target ? run(target) : Promise.resolve(null);
+    // `undefined` is "no such route", `null` is "that route needs an id you did not send".
+    const outcome: SocialActionResult | null | undefined = await (() => {
+      switch (path) {
+        case '/api/friends/request':
+          return needsTarget((id) => social.requestFriend(playerId, id));
+        case '/api/friends/accept':
+          return needsTarget((id) => social.acceptFriend(playerId, id));
+        case '/api/friends/remove':
+          return needsTarget((id) => social.removeFriend(playerId, id));
+        case '/api/party/invite':
+          return needsTarget((id) => social.invite(playerId, id));
+        case '/api/party/kick':
+          return needsTarget((id) => social.kick(playerId, id));
+        case '/api/party/accept':
+          return partyId ? social.acceptInvite(playerId, partyId) : Promise.resolve(null);
+        case '/api/party/decline':
+          return partyId ? social.declineInvite(playerId, partyId) : Promise.resolve(null);
+        case '/api/party/leave':
+          return social.leaveParty(playerId);
+        default:
+          return Promise.resolve(undefined);
+      }
+    })();
+    if (outcome === undefined) {
+      json(res, 404, { error: 'not-found' });
+      return;
+    }
+    if (!outcome) {
+      json(res, 400, { error: 'bad-request' });
+      return;
+    }
+    json(res, outcome.ok ? 200 : 409, outcome);
+    return;
+  }
 
   if (path === '/api/profile' && method === 'GET') {
     json(res, 200, { profile, daily: dailyPreview(profile), season: getSeasonProgress(profile), achievements: achievementProgress(profile) });
@@ -413,6 +469,14 @@ async function serveStatic(config: ServerConfig, path: string, res: ServerRespon
       res.writeHead(404).end('not found');
     }
   }
+}
+
+/**
+ * A player or party id from an untyped request body. Ids are short and printable; anything else —
+ * an object, an array, a novel — is not an id and never reaches a lookup.
+ */
+function idValue(value: unknown): string | null {
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : null;
 }
 
 /** One loadout slot from an untyped request body: a string, or nothing. */

@@ -36,6 +36,10 @@ what you would guess, and defects that were found by measuring rather than by re
 ## API shapes that are not what you would guess
 
 - `Simulation`: the intent API is **`sim.setIntent(id, intent)`** — there is no `applyIntent`.
+- Social HTTP: `GET /api/social` returns the whole `SocialView`; actions are `POST
+  /api/friends/{request,accept,remove}` and `/api/party/{invite,accept,decline,leave,kick}` with
+  `{playerId}` or `{partyId}`. A refusal is **409 with a body** (`{ok:false, message, view}`), not
+  an exception to swallow — `Api.socialAction` returns it.
 - `Bot`: **`new Bot(playerId: string, options: { skill: number; seed: number })`**. Passing a
   number where `BotOptions` belongs makes `1 - options.skill` NaN and the bot walks in a straight
   line forever — which silently invalidated a whole round of parkour measurements once.
@@ -194,6 +198,45 @@ checked a ban at login, and reports went to a list no one could read.
 - **Auto-mute** for when nobody is online: distinct reporters within 10 min reaching
   `max(3, 30 % of the rest of the room)` mutes for 10 min and tells moderators.
 - Kicked/banned sockets close with 4010/4011 and `NetClient` does **not** reconnect on them.
+
+## Friends and parties
+
+`server/src/social.ts` (`rooms.social`), rules in `core/src/social/friends.ts`, wire shapes in
+`net/src/social.ts`, client in `client/src/social/SocialClient.ts`. `npm run check:party` proves the
+whole loop with two real browsers: add from Players & safety → accept → invite → the member
+follows the leader into a new private room on their own (measured 2.6–4.8 s; the poll is 5 s).
+
+- **HTTP edited a stale profile copy, and the room undid it.** Every authenticated route did
+  `accounts.loadOrCreate(id)`; a player in a match has a *live* object in their room, which the
+  room saves on leave. Measured: equip `wolf` from the in-match Customise screen → store says
+  `wolf` → leave → store says `kangaroo`. Routes now use `rooms.liveProfile(id) ?? loadOrCreate`,
+  the same rule `moderation.ts` already followed. Anything new that edits a profile must too.
+- **Friendships are written to both profiles**, under a per-player promise chain in
+  `SocialService`: twelve simultaneous requests to one offline player kept 1 of 12 without it
+  (mutation-tested). `accounts.find` never creates — a request to an id nobody owns must not bring
+  an account into existence.
+- **A party follows `roomSeq`, not `roomCode`.** The room calls `social.enteredRoom` on join; a
+  leader's move increments the count, and a member follows when it passes the last value they
+  acted on. Following on "leader is somewhere else" would drag a member who left a round on
+  purpose straight back on the next poll. Quick play for a leader asks `matchmake` for
+  `seats = party size` (`Room.hasRoomFor`).
+- A friend's **private** room is shown without its code; only the leader's own party sees it.
+- **`NetClient` used to honour the close event of a socket it had already replaced.**
+  `disconnect()` then `connect()` (a member following) opened socket 2 before socket 1's close
+  arrived; that late event nulled out socket 2 and scheduled a reconnect — a third socket beside
+  the second. Events from any socket but the current one are ignored now (`NetClient.test.ts`).
+- `RoomManager.roomOf` is an index now, not a scan: a friends poll asks it once per friend, and
+  at 200 rooms × 100 friends the scan was ~25M checks/s at full load.
+- **UI traps found only in a browser:** `.kc-screen` shrinks each scrolling `.kc-panel` to fit, so
+  a screen of several panels became several scroll boxes one row tall — use one panel with
+  `.kc-section`s. And a badge that is a direct child of a column row stretches to full width —
+  the existing MOD badge was a full-width green bar too (`.kc-safety-row > .kc-tag`).
+- **Two game pages in swiftshader starve each other.** An `evaluate` took up to 3.3 s and a click
+  timed out waiting for a stable element; `check:party` seeds lowest graphics via
+  `localStorage['kc.settings.v1']`. A run killed by `timeout` left its server child on the port,
+  and the next run silently tested the stale server (`EADDRINUSE` in the log was the only sign);
+  the check kills its child on exit now. And `pkill -f "dist/server/main.js"` kills **your own
+  shell**, whose command line contains the pattern — use `pkill -f "server/mai[n].js"`.
 
 
 

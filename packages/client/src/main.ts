@@ -16,6 +16,7 @@ import { Hud } from './ui/Hud.js';
 import { resolveAssetUrl } from './render/AssetLibrary.js';
 import { Shell } from './ui/Shell.js';
 import { TuningStore } from './game/TuningStore.js';
+import { SocialClient, parseSocialRow, vrSocialRows } from './social/SocialClient.js';
 import { VRMenu } from './ui/VRPanels.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
@@ -208,15 +209,56 @@ async function main(): Promise<void> {
           reports: game?.moderatorReports ?? [],
         }),
         onSafetyAction: (action) => game?.safetyAction(action),
+        social: () => social.view,
+        onSocialAction: (path, body) => social.act(path, body),
+        onJoinFriend: (roomCode) => void switchRoom(roomCode),
+        localId: () => session?.playerId ?? '',
       },
     },
     settings,
   );
 
+  /**
+   * Friends and party. Polled while there is a server session; the poll is also this player's own
+   * presence, so friends see them as online in the menu and not only while a room holds them.
+   */
+  const social = new SocialClient(api, {
+    onChange: () => {
+      shell.socialChanged();
+      if (friendsMenu?.isVisible) drawFriends();
+    },
+    onFollow: (roomCode, leaderName) => {
+      announce(`Following ${leaderName} into ${roomCode}`);
+      void switchRoom(roomCode);
+    },
+    onNews: (text) => announce(text),
+  });
+
+  /** A line for the player wherever they are looking: the HUD during play, the menu otherwise. */
+  function announce(text: string): void {
+    if (inMatch && shell.currentScreen === 'none' && hud) hud.showToast(text, 4000);
+    else shell.setNotice(text);
+  }
+
+  /** Into a room by code, leaving whatever round is running first — never two sockets at once. */
+  async function switchRoom(roomCode: string): Promise<void> {
+    if (!game) return;
+    // A headset's panels float in the world, and following the leader must not leave one hanging
+    // in front of the player in the new room.
+    vrMenu?.hide();
+    friendsMenu?.hide();
+    if (inMatch) {
+      game.leaveMatch();
+      setInMatch(false);
+    }
+    await startMatch({ roomCode });
+  }
+
   let game: GameClient | null = null;
   let hud: Hud | null = null;
   let vrMenu: VRMenu | null = null;
   let tuningMenu: VRMenu | null = null;
+  let friendsMenu: VRMenu | null = null;
   /** Which way a tap on a tuning row moves the value. Flipped from a row in the panel. */
   let tuningStep = 1;
 
@@ -343,6 +385,9 @@ async function main(): Promise<void> {
     void startErrorReporting({ platform: device.kind, release: configuredRelease() }, settings.errorReports);
 
     if (device.kind === 'vr') setupVr();
+    if (session.token) {
+      social.start(session.playerId, () => (inMatch && game && !game.isSoloPractice ? game.currentRoomCode || null : null));
+    }
     shell.show(store.tutorialSeen() ? 'menu' : 'tutorial');
     store.markTutorialSeen();
   }
@@ -379,6 +424,14 @@ async function main(): Promise<void> {
     );
   }
 
+  /** The headset's friends panel, redrawn from the last social view. */
+  function drawFriends(): void {
+    if (!friendsMenu) return;
+    const rows = vrSocialRows(social.view, session?.playerId ?? '', 9);
+    const count = social.view?.friends.filter((f) => f.presence !== 'offline').length ?? 0;
+    friendsMenu.setContent('Friends & party', social.view ? `${count} friend${count === 1 ? '' : 's'} online` : 'Asking the server…', rows);
+  }
+
   function setupVr(): void {
     const vrInput = input as VRInput;
     vrMenu = new VRMenu({
@@ -393,6 +446,12 @@ async function main(): Promise<void> {
           drawTuning();
           tuningMenu?.show();
           return;
+        } else if (id === 'friends') {
+          vrMenu?.hide();
+          drawFriends();
+          friendsMenu?.show();
+          void social.refresh();
+          return;
         }
         vrMenu?.hide();
       },
@@ -400,10 +459,47 @@ async function main(): Promise<void> {
     vrMenu.setContent('Kangaroo Chase', 'Point and pull the trigger', [
       { id: 'play', label: 'Play' },
       { id: 'practice', label: 'Practice with bots' },
+      ...(session?.token ? [{ id: 'friends', label: 'Friends & party' }] : []),
       { id: 'tuning', label: 'Movement tuning' },
       { id: 'recenter', label: 'Recentre view' },
       { id: 'exit', label: 'Leave VR' },
     ]);
+
+    friendsMenu = new VRMenu({
+      renderer,
+      onSelect: (id) => {
+        const action = parseSocialRow(id);
+        if (!action) return;
+        const done = (message: string): void => {
+          announce(message);
+          drawFriends();
+        };
+        switch (action.kind) {
+          case 'back':
+            friendsMenu?.hide();
+            vrMenu?.show();
+            return;
+          case 'join':
+            friendsMenu?.hide();
+            void switchRoom(action.roomCode);
+            return;
+          case 'accept-invite':
+            // Accepting is followed by the poll's own follow decision, which takes the player to
+            // the leader — the same path as every other member, rather than a second one here.
+            void social.act('party/accept', { partyId: action.partyId }).then(done);
+            return;
+          case 'accept-friend':
+            void social.act('friends/accept', { playerId: action.playerId }).then(done);
+            return;
+          case 'invite':
+            void social.act('party/invite', { playerId: action.playerId }).then(done);
+            return;
+          case 'leave-party':
+            void social.act('party/leave', {}).then(done);
+            return;
+        }
+      },
+    });
 
     // Tuning is a separate panel rather than a sub-list of the main one, so leaving it does not
     // dump you back at the top of the menu after every single adjustment.

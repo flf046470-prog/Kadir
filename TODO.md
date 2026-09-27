@@ -64,8 +64,18 @@ These were Milestone B items in `ROADMAP.md` and are done:
   kit, hunter rifle, hunter net; entities rendered, audible and felt.
 - **Art: 16 animals + 47 props**, tracked, generated from tracked sources.
 - **Procedural PBR, ACES tone mapping, IBL sky, post-processing, music, animated water.**
+- **Friends and parties** — requests from the in-match Players screen, presence (`match` /
+  `menu` / `offline`), joining a friend's public room, and parties of up to 8 that follow their
+  leader into every room (quick play reserves seats for the whole party). Friendships persist on
+  both profiles; parties are in memory. Proven by `npm run check:party` with two real browsers.
 
 ## Known gaps (honest list)
+
+- **Friends: no friend codes and no push channel.** You can only add someone you have shared a
+  room with (a private room code gets you there), and the menu learns about requests, invites and
+  the leader's moves by polling every 5 s — a member follows the leader 2.6–4.8 s after they move
+  (measured, `check:party`). A headset gets no toast for a new request: the HUD is DOM, so the VR
+  friends panel is where to look. Parties do not survive a server restart.
 
 - **VR is untested on hardware, and this is the largest single risk.** Comfort vignette, haptics,
   hand tracking, bindings and the session entry path are implemented and unit tested against a

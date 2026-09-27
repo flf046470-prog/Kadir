@@ -23,3 +23,4 @@ export * from './moderation/index.js';
 export * from './chat/index.js';
 export * from './voice/gate.js';
 export * from './bodies/index.js';
+export * from './social/friends.js';

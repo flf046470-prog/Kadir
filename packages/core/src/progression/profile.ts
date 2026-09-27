@@ -65,6 +65,14 @@ export interface PlayerProfile {
   blockedPlayerIds: string[];
 
   /**
+   * Friends and pending requests, by player id. Mutual and written on both profiles together —
+   * see `social/friends.ts`, which is the only thing that should edit them.
+   */
+  friendIds: string[];
+  friendRequestsIn: string[];
+  friendRequestsOut: string[];
+
+  /**
    * Sanctions *on* this player, kept with the profile so a restart does not lift them. Unix ms;
    * absent or past = none. A permanent ban is `Number.MAX_SAFE_INTEGER`.
    */
@@ -117,6 +125,9 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     purchases: [],
     mutedPlayerIds: [],
     blockedPlayerIds: [],
+    friendIds: [],
+    friendRequestsIn: [],
+    friendRequestsOut: [],
   };
 }
 

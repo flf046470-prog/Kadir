@@ -88,3 +88,6 @@ jobs:
       - run: npm run check:smoke
       # Proves the PWA starts offline, which a headset launch depends on.
       - run: npm run check:pwa
+      # Two players befriend each other, form a party, and the member follows the leader into a
+      # new room on their own — the loop no unit test can see end to end.
+      - run: npm run check:party

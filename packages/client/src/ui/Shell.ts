@@ -16,8 +16,8 @@ import type {
 import { button, clear, el } from './dom.js';
 import type { TuningStore } from '../game/TuningStore.js';
 import type { SafetyAction, SafetyPlayer } from '../game/GameClient.js';
-import type { ModActionKind, ModReportView } from '@kc/net';
-import type { Api, ContentBundle, ProfileBundle } from '../net/Api.js';
+import type { FriendView, ModActionKind, ModReportView, SocialView } from '@kc/net';
+import type { Api, ContentBundle, ProfileBundle, SocialActionPath } from '../net/Api.js';
 
 export type ScreenId =
   | 'name'
@@ -32,6 +32,7 @@ export type ScreenId =
   | 'tutorial'
   | 'credits'
   | 'players'
+  | 'friends'
   | 'none';
 
 export interface ShellCallbacks {
@@ -62,6 +63,14 @@ export interface ShellCallbacks {
   /** Everyone else in the room, and — for a moderator — the report queue. */
   safety(): { players: SafetyPlayer[]; isModerator: boolean; reports: readonly ModReportView[] };
   onSafetyAction(action: SafetyAction): void;
+  /** Friends, requests and party as the server last described them; null before the first answer. */
+  social(): SocialView | null;
+  /** Perform a friend or party action; resolves to the server's message for the notice line. */
+  onSocialAction(path: SocialActionPath, body: { playerId?: string; partyId?: string }): Promise<string>;
+  /** Join a friend's public room. Mid-match that means leaving this one first, which the label says. */
+  onJoinFriend(roomCode: string): void;
+  /** This player's own id, so the party list can tell "me" from everyone else. */
+  localId(): string;
 }
 
 export interface ShellOptions {
@@ -101,6 +110,10 @@ function rewardLabel(reward: Reward): string {
   return `${id.slice(split + 1).replace(/[_-]/g, ' ')} ${id.slice(0, split)}`;
 }
 
+function presenceLabel(presence: 'offline' | 'menu' | 'match'): string {
+  return presence === 'match' ? 'In a match' : presence === 'menu' ? 'Online' : 'Offline';
+}
+
 /** Compile-time proof that a switch covered every case. Never reached at runtime. */
 function assertNever(value: never): never {
   throw new Error(`unhandled screen: ${String(value)}`);
@@ -127,6 +140,7 @@ export type MenuAction =
   | 'tutorial'
   | 'practice'
   | 'players'
+  | 'friends'
   | 'leave';
 
 export interface MenuEntry {
@@ -160,6 +174,7 @@ export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuE
     return [
       { action: 'resume', label: 'Resume', variant: 'primary' },
       { action: 'players', label: 'Players & safety', variant: 'ghost' },
+      ...(state.online ? [{ action: 'friends' as const, label: 'Friends & party', variant: 'ghost' as const }] : []),
       { action: 'customize', label: 'Customise', variant: 'ghost' },
       { action: 'settings', label: 'Settings', variant: 'ghost' },
       { action: 'tutorial', label: 'How to play', variant: 'ghost' },
@@ -170,6 +185,7 @@ export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuE
     ...(state.online ? [{ action: 'play' as const, label: 'Play', variant: 'primary' as const }] : []),
     { action: 'modes', label: 'Game modes', variant: 'ghost' },
     { action: 'room', label: 'Private room', variant: 'ghost' },
+    ...(state.online ? [{ action: 'friends' as const, label: 'Friends & party', variant: 'ghost' as const }] : []),
     { action: 'customize', label: 'Customise', variant: 'ghost' },
     { action: 'store', label: 'Season pass', variant: 'ghost' },
     { action: 'settings', label: 'Settings', variant: 'ghost' },
@@ -266,6 +282,26 @@ export class Shell {
     this.settings = settings;
   }
 
+  /**
+   * The social view changed. Only the two screens that show it are redrawn, and only when what
+   * they show actually differs: the poll answers every five seconds, and rebuilding a screen under
+   * a finger that is halfway through a tap loses the tap.
+   */
+  socialChanged(): void {
+    if (this.screen !== 'friends' && this.screen !== 'players') return;
+    const key = JSON.stringify(this.options.callbacks.social());
+    if (key === this.socialDrawn) return;
+    this.render();
+  }
+
+  private socialDrawn = '';
+
+  private async socialAct(path: SocialActionPath, body: { playerId?: string; partyId?: string }): Promise<void> {
+    const message = await this.options.callbacks.onSocialAction(path, body);
+    this.notice = message;
+    if (this.screen === 'friends' || this.screen === 'players') this.render();
+  }
+
   /** Told by the bootstrap: false when guest creation failed and we are running standalone. */
   setOnline(online: boolean): void {
     if (this.online === online) return;
@@ -343,6 +379,9 @@ export class Shell {
       case 'players':
         this.element.append(this.playersScreen());
         break;
+      case 'friends':
+        this.element.append(this.friendsScreen());
+        break;
       case 'results':
         if (this.results) this.element.append(this.resultsScreen(this.results));
         break;
@@ -410,6 +449,7 @@ export class Shell {
         case 'settings':
         case 'tutorial':
         case 'players':
+        case 'friends':
           this.show(action);
           return;
         default:
@@ -1310,6 +1350,7 @@ export class Shell {
    */
   private playersScreen(): HTMLElement {
     const { players, isModerator, reports } = this.options.callbacks.safety();
+    this.socialDrawn = JSON.stringify(this.options.callbacks.social());
     const act = (action: SafetyAction): void => {
       this.options.callbacks.onSafetyAction(action);
       // Mute and block change the row's own buttons; redraw so the toggle shows its new state.
@@ -1334,6 +1375,7 @@ export class Shell {
         el(
           'div',
           { class: 'kc-row' },
+          this.friendButton(player.id),
           button(player.muted ? 'Unmute' : 'Mute', () => act({ kind: player.muted ? 'unmute' : 'mute', id: player.id })),
           button(player.blocked ? 'Unblock' : 'Block', () => act({ kind: player.blocked ? 'unblock' : 'block', id: player.id }), 'danger'),
           reason,
@@ -1375,6 +1417,174 @@ export class Shell {
       this.noticeNode(),
       ...sections,
       el('div', { class: 'kc-row' }, button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  /**
+   * "Add friend" on somebody you are playing with — the one place two players who have just met
+   * both have each other's id. The button says where things stand, so a second tap is never a
+   * second request.
+   */
+  private friendButton(playerId: string): HTMLElement | null {
+    const social = this.options.callbacks.social();
+    if (!social || !this.online) return null;
+    if (social.friends.some((f) => f.id === playerId)) return el('span', { class: 'kc-tag' }, 'Friends');
+    if (social.outgoing.some((r) => r.id === playerId)) return el('span', { class: 'kc-tag' }, 'Request sent');
+    if (social.incoming.some((r) => r.id === playerId)) {
+      return button('Accept friend', () => void this.socialAct('friends/accept', { playerId }), 'primary');
+    }
+    return button('Add friend', () => void this.socialAct('friends/request', { playerId }));
+  }
+
+  /**
+   * Friends, requests and the party.
+   *
+   * Everything on it is the server's answer to the last poll or action; no button changes what is
+   * shown by itself, so the screen can never claim a friendship the server did not record.
+   */
+  private friendsScreen(): HTMLElement {
+    const social = this.options.callbacks.social();
+    this.socialDrawn = JSON.stringify(social);
+    const me = this.options.callbacks.localId();
+    const sections: HTMLElement[] = [];
+
+    if (!social) {
+      sections.push(el('div', { class: 'kc-section' }, el('p', { class: 'kc-note' }, 'Asking the server…')));
+    } else {
+      const party = social.party;
+      const leading = party?.leaderId === me;
+      if (party) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, `Your party (${party.members.length}/${party.max})`));
+        for (const member of party.members) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, member.id === me ? `${member.name} (you)` : member.name),
+              member.leader ? el('span', { class: 'kc-tag kc-tag--mod' }, 'LEADER') : null,
+              el('span', { class: 'kc-note' }, ` ${presenceLabel(member.presence)}`),
+              leading && member.id !== me
+                ? el('div', { class: 'kc-row' }, button('Remove', () => void this.socialAct('party/kick', { playerId: member.id }), 'danger'))
+                : null,
+            ),
+          );
+        }
+        if (party.invited.length > 0) {
+          panel.append(el('p', { class: 'kc-note' }, `Waiting for ${party.invited.map((i) => i.name).join(', ')} to answer.`));
+        }
+        panel.append(
+          el(
+            'p',
+            { class: 'kc-note' },
+            leading
+              ? 'Wherever you play, your party follows — quick play finds a room with space for all of you.'
+              : 'You follow the leader: when they join a room, you join it too.',
+          ),
+          el('div', { class: 'kc-row' }, button('Leave party', () => void this.socialAct('party/leave', {}), 'danger')),
+        );
+        sections.push(panel);
+      }
+
+      if (social.invites.length > 0) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, 'Party invites'));
+        for (const invite of social.invites) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, invite.fromName),
+              el('span', { class: 'kc-note' }, ` invited you · party of ${invite.size}`),
+              el(
+                'div',
+                { class: 'kc-row' },
+                button('Join party', () => void this.socialAct('party/accept', { partyId: invite.partyId }), 'primary'),
+                button('Decline', () => void this.socialAct('party/decline', { partyId: invite.partyId })),
+              ),
+            ),
+          );
+        }
+        sections.push(panel);
+      }
+
+      if (social.incoming.length > 0 || social.outgoing.length > 0) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, 'Friend requests'));
+        for (const request of social.incoming) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, request.name),
+              el('span', { class: 'kc-note' }, ' wants to be friends'),
+              el(
+                'div',
+                { class: 'kc-row' },
+                button('Accept', () => void this.socialAct('friends/accept', { playerId: request.id }), 'primary'),
+                button('Decline', () => void this.socialAct('friends/remove', { playerId: request.id })),
+              ),
+            ),
+          );
+        }
+        for (const request of social.outgoing) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, request.name),
+              el('span', { class: 'kc-note' }, ' — waiting for an answer'),
+              el('div', { class: 'kc-row' }, button('Cancel', () => void this.socialAct('friends/remove', { playerId: request.id }))),
+            ),
+          );
+        }
+        sections.push(panel);
+      }
+
+      const list = el('div', { class: 'kc-section' }, el('h3', {}, `Friends (${social.friends.length})`));
+      if (social.friends.length === 0) {
+        list.append(
+          el('p', { class: 'kc-note' }, 'No friends yet. In a match, open Players & safety and press Add friend on someone you played with.'),
+        );
+      }
+      for (const friend of social.friends) list.append(this.friendRow(friend, party?.id ?? null, leading || !party));
+      sections.push(list);
+    }
+
+    // One scrolling panel with sections, not a panel per section: `.kc-screen` shrinks each panel
+    // to fit the viewport, and four panels on a 640 px screen became four scroll boxes a row tall —
+    // measured in a real browser, the second party member and every friend's buttons were cut off.
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Friends & party', 'Friends see which public room you are in. A party follows its leader into every room.'),
+      this.noticeNode(),
+      el('div', { class: 'kc-panel' }, ...sections),
+      el('div', { class: 'kc-row' }, button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  private friendRow(friend: FriendView, partyId: string | null, canInvite: boolean): HTMLElement {
+    const room = friend.room;
+    const where =
+      friend.presence === 'match' && room
+        ? room.isPrivate
+          ? `In a private room · ${this.modeName(room.modeId)}`
+          : `In ${this.modeName(room.modeId)} · ${room.players}/${room.max}`
+        : presenceLabel(friend.presence);
+    const actions: HTMLElement[] = [];
+    // Joining by code goes through the same matchmaking as typing it, so a full room still says so.
+    if (room?.code && !friend.inParty) {
+      actions.push(button(this.inMatch ? 'Leave & join' : 'Join', () => this.options.callbacks.onJoinFriend(room.code as string), 'primary'));
+    }
+    if (canInvite && !friend.inParty && friend.presence !== 'offline') {
+      actions.push(button(partyId ? 'Invite to party' : 'Start a party', () => void this.socialAct('party/invite', { playerId: friend.id })));
+    }
+    actions.push(button('Remove', () => void this.socialAct('friends/remove', { playerId: friend.id }), 'danger'));
+    return el(
+      'div',
+      { class: 'kc-safety-row' },
+      el('strong', {}, friend.name),
+      friend.inParty ? el('span', { class: 'kc-tag kc-tag--mod' }, 'PARTY') : null,
+      el('span', { class: 'kc-note' }, ` ${where}`),
+      el('div', { class: 'kc-row' }, ...actions),
     );
   }
 

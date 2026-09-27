@@ -144,6 +144,8 @@ export class NetClient {
     });
 
     socket.addEventListener('message', (event) => {
+      // A socket this client has already replaced is not this client's any more; see 'close'.
+      if (this.socket !== socket) return;
       if (event.data instanceof ArrayBuffer) {
         this.bytesIn += event.data.byteLength;
         this.handleBinary(new Uint8Array(event.data));
@@ -156,6 +158,14 @@ export class NetClient {
     });
 
     socket.addEventListener('close', (event) => {
+      /**
+       * Only the current socket's close means anything. `disconnect()` followed at once by
+       * `connect()` — a party member following their leader out of one room into the next — opens
+       * the new socket before the old one's close event arrives, and that late event used to null
+       * out the *new* socket (every later send silently dropped) and, since `connect` had reset
+       * `closedByUser`, schedule a reconnect that opened a third socket beside the second.
+       */
+      if (this.socket !== socket) return;
       this.socket = null;
       if (this.closedByUser) {
         this.setStatus('idle');
