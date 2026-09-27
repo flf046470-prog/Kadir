@@ -1892,6 +1892,31 @@ environment and fog colour, with the gradient kept until the file arrives.
   forbids it in level-editing tools; Unity licenses assets only "as an embedded component". A web
   build serves raw files. Fab's CC0/CC-BY listings are fine but need an Epic login to download.
 
+## Photographed surfaces (ambientCG, CC0)
+
+Nine surfaces — dirt, rock, stone, sand, wood, ice, snow, redEarth, redRock — are photo-scanned PBR
+sets now (`render/photoSurfaces.ts`, `public/textures/<material>_{color,normal,orm}.jpg`, 512², ~2 MB
+for all nine, only a map's own surfaces fetched, not precached). Water, metal and foliage stay
+procedural. The procedural set is still the first frame and the fallback: `createSurfaceMaterial`
+registers each material on its cache entry and `adoptPhotoSet` swaps the textures into every one
+when the files arrive — same slots, so no recompile — and a missing file leaves the procedural look.
+
+- **Regraded offline, not shipped as downloaded** (the packing script lives in the session scratch,
+  the rules in `photoSurfaces.ts`): each channel's mean is moved onto the procedural set's mean, the
+  palette every map's fog, exposure and dust were measured against, keeping the photo's detail.
+  Roughness means were moved too — measured 0.1–0.4 lower than the tuned sets (dirt 0.57 vs 0.94),
+  which reads as wet ground under a photographed sky.
+- **Low-contrast scans read as flat colour at play distance.** Ground088 (luminance std 0.025) left
+  the outback's biggest surface featureless in a fixed-camera A/B; Ground067 (0.051) replaced it.
+  Compare candidates graded, side by side, before packing one.
+- **Normals are GL-convention uploaded with `flipY`** — the same meaning as the procedural
+  generator's unflipped `(-dh/du, -dh/dv, 1)`, so the triplanar whiteout blend reads both alike.
+- A random spawn makes in-game A/B frames incomparable (two runs, two different places). The
+  fixed-camera probe page (`probe-surfaces.html`, untracked, `?photos=0|1`) is the comparison.
+- Adobe's connector is Photoshop/Express-class tooling, not Substance 3D, and Substance 3D Assets
+  would need its licence read against a web build's extractability first, the same test Fab and the
+  Unity store failed.
+
 ## Loose balls you can kick, catch and throw (Escape Simulator 2's lesson)
 
 ES2's appeal is a room made of things that answer your hands; this game's VR is climbing with

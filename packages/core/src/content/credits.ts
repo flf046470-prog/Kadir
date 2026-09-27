@@ -133,6 +133,25 @@ export const BUNDLED_ASSET_CREDITS: readonly Credit[] = [
     licence: 'CC0-1.0',
     sourceUrl: 'https://polyhaven.com/a/sunflowers_puresky',
   },
+  // Photographed surface sets, regraded to each map's palette (`public/textures/`).
+  ...(
+    [
+      ['Ground085', 'dirt'],
+      ['Rock030', 'rock'],
+      ['Rock051', 'cut stone'],
+      ['Ground080', 'sand'],
+      ['Bark012', 'wood'],
+      ['Ice003', 'ice'],
+      ['Snow006', 'snow'],
+      ['Ground067', 'red earth'],
+      ['Rock029', 'red rock'],
+    ] as const
+  ).map(([id, use]): Credit => ({
+    work: `${id} — ${use} surface`,
+    author: 'Lennart Demes (ambientCG)',
+    licence: 'CC0-1.0',
+    sourceUrl: `https://ambientcg.com/view?id=${id}`,
+  })),
 ];
 
 registerCredits(ENGINE_CREDITS);

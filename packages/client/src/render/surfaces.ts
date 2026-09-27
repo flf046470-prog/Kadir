@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { surfaceTextureData } from './textures.js';
+import { PHOTO_SURFACES, defaultPhotoLoader, loadPhotoSet } from './photoSurfaces.js';
+import type { PhotoLoader, PhotoSet } from './photoSurfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
 import type { SurfaceMaterial } from '@kc/core';
 
@@ -76,12 +78,82 @@ export function surfaceQualityFor(profile: PerformanceProfile): SurfaceQuality {
  * Cached per (material, size) for the lifetime of the page: the same ice appears on hundreds of
  * colliders and in both maps, and generating a 512² set costs real milliseconds.
  */
-const cache = new Map<string, { map: THREE.DataTexture; normalMap: THREE.DataTexture; ormMap: THREE.DataTexture }>();
+interface TextureSet {
+  material: SurfaceMaterial;
+  map: THREE.Texture;
+  normalMap: THREE.Texture;
+  ormMap: THREE.Texture;
+  /** Every material built from this set, so a photographed set can be swapped into all of them. */
+  users: Set<THREE.MeshStandardMaterial>;
+}
 
-function texturesFor(material: SurfaceMaterial, size: number) {
+const cache = new Map<string, TextureSet>();
+
+/** One request per surface for the page's lifetime; resolved sets, for materials built later. */
+const photoRequests = new Map<SurfaceMaterial, Promise<void>>();
+const photoSets = new Map<SurfaceMaterial, PhotoSet>();
+let photoLoader: PhotoLoader | null = defaultPhotoLoader();
+
+/** Replace the image fetcher (tests), or pass null to stay procedural. */
+export function setPhotoLoader(loader: PhotoLoader | null): void {
+  photoLoader = loader;
+}
+
+/** Settles once every photographed set requested so far has arrived or failed. */
+export async function photoSurfacesSettled(): Promise<void> {
+  await Promise.all(photoRequests.values());
+}
+
+function requestPhotoSet(material: SurfaceMaterial): void {
+  if (!photoLoader || !PHOTO_SURFACES[material] || photoRequests.has(material)) return;
+  const request = loadPhotoSet(material, photoLoader)
+    .then((set) => {
+      if (set) adoptPhotoSet(material, set);
+    })
+    // A missing or undecodable file leaves the procedural set in place, which is a complete look.
+    .catch(() => undefined);
+  photoRequests.set(material, request);
+}
+
+/**
+ * Put a photographed set into every cached set for this surface and every material built from one.
+ *
+ * Swapping a texture for another in the same slot keeps the shader program — the defines depend on
+ * which slots are filled, not on what fills them — so this costs an upload, not a recompile. A slot a
+ * material did not use (a detail-only prop's colour, a normal map below the full tier) stays empty.
+ */
+function adoptPhotoSet(material: SurfaceMaterial, photo: PhotoSet): void {
+  photoSets.set(material, photo);
+  for (const set of cache.values()) {
+    if (set.material !== material) continue;
+    for (const user of set.users) {
+      if (user.map === set.map) user.map = photo.map;
+      if (user.normalMap === set.normalMap) user.normalMap = photo.normalMap;
+      if (user.roughnessMap === set.ormMap) user.roughnessMap = photo.ormMap;
+      if (user.metalnessMap === set.ormMap) user.metalnessMap = photo.ormMap;
+      if (user.aoMap === set.ormMap) user.aoMap = photo.ormMap;
+      user.needsUpdate = true;
+    }
+    set.map.dispose();
+    set.normalMap.dispose();
+    set.ormMap.dispose();
+    set.map = photo.map;
+    set.normalMap = photo.normalMap;
+    set.ormMap = photo.ormMap;
+  }
+}
+
+function texturesFor(material: SurfaceMaterial, size: number): TextureSet {
   const key = `${material}:${size}`;
   const hit = cache.get(key);
   if (hit) return hit;
+
+  const photo = photoSets.get(material);
+  if (photo) {
+    const set = { material, ...photo, users: new Set<THREE.MeshStandardMaterial>() };
+    cache.set(key, set);
+    return set;
+  }
 
   const data = surfaceTextureData(material, size);
   const make = (bytes: Uint8ClampedArray, srgb: boolean): THREE.DataTexture => {
@@ -100,10 +172,12 @@ function texturesFor(material: SurfaceMaterial, size: number) {
     return texture;
   };
 
-  const built = {
+  const built: TextureSet = {
+    material,
     map: make(data.albedo, true),
     normalMap: make(data.normal, false),
     ormMap: make(data.orm, false),
+    users: new Set(),
   };
   cache.set(key, built);
   return built;
@@ -117,6 +191,8 @@ export function disposeSurfaceTextures(): void {
     set.ormMap.dispose();
   }
   cache.clear();
+  photoSets.clear();
+  photoRequests.clear();
 }
 
 /**
@@ -374,6 +450,9 @@ export function createSurfaceMaterial(
   if (quality.triplanar) {
     applyTriplanar(standard, TILE_METRES[material] ?? 3, quality.normalMap && !options.detailOnly);
   }
+  textures.users.add(standard);
+  standard.addEventListener('dispose', () => textures.users.delete(standard));
+  requestPhotoSet(material);
   return standard;
 }
 
