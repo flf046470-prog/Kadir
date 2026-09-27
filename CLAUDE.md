@@ -1944,6 +1944,39 @@ bumped.
   consecutive positions (no spin on the wire). `bodyHit` (`kick`/`catch`/`throw`/`bounce`) drives a
   pitched-up knock, a light haptic for your own touches, and dust on bounces.
 
+## Roo Ball, and the hill nobody could see
+
+**King of the Hill's ring was never drawn.** It existed only as a `checkpoint` event with
+`data: 'hill'` — no renderer drew it, and the HUD read the data as a checkpoint *number*, so the
+toast said "Checkpoint NaN". `ModeStateView.markers` (broadcast twice a second, so a late joiner
+gets them) now carries mode places; `render/ModeMarkers.ts` draws the hill ring and beam, Roo Ball's
+goals and its corner flags.
+
+**Roo Ball** (`modes/rooball.ts`, id `roo-ball`, a lobby door): two teams (roles `red`/`blue`,
+appended to the wire's `ROLES`), goals found on any map by `findPitch` (two spawns 22–50 m apart,
+level, open ground between — deterministic, so server and solo agree), a `goal` event with sound,
+haptic, HUD toast and sparks. Every number below was measured with six bots over full rounds:
+
+- **A real football cannot be played by a kangaroo.** A kick is capsule-on-ball contact and a hop
+  lifts the feet clear of a 22 cm ball: 1–4 touches a round. The match ball is `rooball`
+  (r 0.55, not `holdable` — a ball you can carry is carried into the goal).
+- **No touchlines, no game.** The ball rolled 30 m off the pitch into the jungle and slept there
+  for 94 % of a round. Out of play (±`PITCH_HALF_WIDTH`, 3 m past a goal line, or 2 m below the
+  pitch) restarts it on the centre line level with where it left — the one strip `findPitch`
+  checked.
+- **Bots orbited the ball at 17–21 m/s.** A bot runs flat out and cannot turn mid-hop; on ice it
+  circled its objective at 10–20 m all round. `Objective.arrive` (opt-in, set by Roo Ball) makes
+  `Bot.think` steer the *velocity* onto the target, brake on a large slip, and slow near it.
+  **Turning it on for every mode wedged parkour racers** that the old steering never wedged
+  (`navigation.test.ts`), which is why it is opt-in — and every single one of the three parts,
+  disabled alone, still failed that test, so none of them is safe globally.
+- **Kicks were a coin toss.** Along the contact normal alone, 51 % of kicks went towards the
+  kicker's attacking goal even though 64 % were struck from behind. The kick now blends the
+  runner's heading with the normal (every ball, lobby toys too), and the bot's kick cone and detour
+  round the ball were narrowed/widened: 57 % towards goal, own goals 44 % → 28 %.
+- Result: 367 kicks and 22 goals over six 120 s matches (`rooball.test.ts`, mutation-tested by
+  disabling the steering — 74 kicks — the touchlines and the big ball).
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

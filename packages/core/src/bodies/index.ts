@@ -39,15 +39,28 @@ export interface BodyDef {
   drag: number;
   /** Rolling resistance on a surface of friction 1, per second. */
   rolling: number;
+  /** Whether a hand can pick it up. */
+  holdable: boolean;
 }
 
 /** Real sizes: a size-5 football is 22 cm across, a beach ball about 60 cm. */
 export const BODY_DEFS: Readonly<Record<BodyKind, BodyDef>> = {
-  football: { radius: 0.11, mass: 0.43, restitution: 0.62, drag: 0.08, rolling: 0.9 },
-  beachball: { radius: 0.3, mass: 0.1, restitution: 0.72, drag: 0.9, rolling: 0.5 },
+  football: { radius: 0.11, mass: 0.43, restitution: 0.62, drag: 0.08, rolling: 0.9, holdable: true },
+  beachball: { radius: 0.3, mass: 0.1, restitution: 0.72, drag: 0.9, rolling: 0.5, holdable: true },
+  /**
+   * Roo Ball's match ball: an exercise ball, 1.1 m across.
+   *
+   * A real football cannot be played by a kangaroo. A kick is capsule-on-ball contact, and a hop
+   * carries the feet well clear of a ball 22 cm tall: measured over 240 s rounds, six bots touched
+   * a size-5 ball 1–4 times a round on two of the three maps, and it slept on the centre spot for
+   * most of each one. Rocket League's answer is the right one here too — make the ball big enough
+   * that the way you move is the way you play it. Not holdable: a ball you can carry is carried
+   * into the goal.
+   */
+  rooball: { radius: 0.55, mass: 0.8, restitution: 0.7, drag: 0.35, rolling: 0.6, holdable: false },
 };
 
-export const BODY_KINDS: readonly BodyKind[] = ['football', 'beachball'];
+export const BODY_KINDS: readonly BodyKind[] = ['football', 'beachball', 'rooball'];
 
 /** Lower than a player's 24: a ball's arc is what the eye checks a game's gravity against. */
 export const BODY_GRAVITY = 12;
@@ -111,6 +124,44 @@ export class BodySystem {
       stillTicks: 0,
       carry: vec3(),
     }));
+  }
+
+  /**
+   * The first ball of this kind, or a new one if the level has none.
+   *
+   * A mode that needs a ball must work on any map, including one a player made without lobby toys.
+   * A ball made here is never removed again: the wire sends balls as a delta against the last
+   * snapshot and a client keeps the ones it has already seen, so a ball that vanished from the
+   * server would stay parked on every client's screen. Reusing it next round costs nothing.
+   */
+  ensure(kind: BodyKind, at: Vec3): Body {
+    const existing = this.bodies.find((b) => b.kind === kind);
+    if (existing) return existing;
+    const body: Body = {
+      id: BODY_ID_BASE + this.bodies.length,
+      kind,
+      position: { ...at },
+      velocity: vec3(),
+      home: { ...at },
+      holder: null,
+      hand: 0,
+      lastTouchedBy: null,
+      sleeping: false,
+      stillTicks: 0,
+      carry: vec3(),
+    };
+    this.bodies.push(body);
+    return body;
+  }
+
+  /** Put a ball somewhere, still, out of anyone's hands; optionally make that its new home. */
+  place(body: Body, at: Vec3, home?: Vec3): void {
+    v3set(body.position, at.x, at.y, at.z);
+    v3set(body.velocity, 0, 0, 0);
+    if (home) v3set(body.home, home.x, home.y, home.z);
+    body.holder = null;
+    body.sleeping = false;
+    body.stillTicks = 0;
   }
 
   step(players: Iterable<PlayerState>, dt: number, tick: number, events: EventQueue, killPlaneY: number): void {
@@ -187,7 +238,7 @@ export class BodySystem {
     let best: Body | null = null;
     let bestDistance = Infinity;
     for (const body of this.bodies) {
-      if (body.holder) continue;
+      if (body.holder || !BODY_DEFS[body.kind].holdable) continue;
       const d = Math.sqrt(distanceSq(body.position, hand.world)) - BODY_DEFS[body.kind].radius;
       if (d <= reach && d < bestDistance) {
         best = body;
@@ -289,9 +340,31 @@ export class BodySystem {
       body.stillTicks = 0;
       if (closing <= 0) continue;
       const gain = 1 + def.restitution;
-      body.velocity.x += nx * closing * gain;
+      /**
+       * The ball goes where you were running, not only where you touched it.
+       *
+       * Along the contact normal alone, a kick's direction is decided by which side of the ball the
+       * capsule happened to meet — measured over 366 Roo Ball kicks, 51 % went towards the kicker's
+       * attacking goal, a coin toss, although 64 % were struck from behind the ball. A kick is a
+       * foot swung in the direction of travel, so the horizontal push is the normal and the
+       * runner's heading blended equally. The lift still comes from the contact.
+       */
+      let kx = nx;
+      let kz = nz;
+      const run = Math.hypot(player.velocity.x, player.velocity.z);
+      const flat = Math.hypot(nx, nz);
+      if (run > 1 && flat > 1e-3) {
+        const bx = nx / flat + player.velocity.x / run;
+        const bz = nz / flat + player.velocity.z / run;
+        const b = Math.hypot(bx, bz);
+        if (b > 1e-3) {
+          kx = (bx / b) * flat;
+          kz = (bz / b) * flat;
+        }
+      }
+      body.velocity.x += kx * closing * gain;
       body.velocity.y += ny * closing * gain + closing * 0.35;
-      body.velocity.z += nz * closing * gain;
+      body.velocity.z += kz * closing * gain;
       clampLength(body.velocity, MAX_THROW_SPEED);
       body.lastTouchedBy = player.id;
       if (closing > MIN_EVENT_SPEED) events.emit('bodyHit', player.id, body.position, tick, closing, { data: 'kick' });

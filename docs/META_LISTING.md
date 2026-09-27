@@ -39,12 +39,14 @@ not a joystick standing in for one. Climb a ledge by reaching for it, throw a pu
 one, and cover ground the way a kangaroo does — leaning into a hop instead of pressing a button
 for one.
 
-Nine modes, one shared world:
+Ten modes, one shared world:
 - Kangaroo Chase — the tag mode the game is named for. Hop, climb and wall-bounce across jungle
   parkour to escape the chaser, or close the gap if you are it.
 - The Hunt — one armed hunter, several survivors racing the clock. Earn cash mid-round for traps,
   smoke and armour.
 - Conversion Duel — a fistfight for keeps. Lose, and you convert to the winner's species.
+- Roo Ball — two teams, one giant ball, no hands. Hop into it to kick it through the other side's
+  goal.
 - Freeze Tag, King of the Hill, Infection, Parkour Race, VR Boxing and a Training Room round out
   the roster, plus a mode editor for your own rules.
 
@@ -60,9 +62,9 @@ Comfort options: snap or smooth turning, a motion vignette that scales with how 
 seated play, and adjustable height calibration.
 ```
 
-Every claim in it is checkable against this repository rather than aspirational: nine mode files
+Every claim in it is checkable against this repository rather than aspirational: ten mode files
 under `packages/core/src/modes/` (`chase`, `hunt`, `duel`, `freezetag`, `hill`, `infection`,
-`parkour`, `boxing`, `social`) plus the custom-mode editor (`packages/core/src/modes/custom.ts`);
+`parkour`, `boxing`, `rooball`, `social`) plus the custom-mode editor (`packages/core/src/modes/custom.ts`);
 `KC_MAX_PLAYERS` defaults to 32 (`docs/DEPLOY.md`), capped lower per mode by its `maxPlayers`; voice falloff is `proximityGainAt` in
 `packages/core/src/modes/social.ts`, applied by `packages/client/src/audio/VoiceChat.ts`; the
 free-item and no-pay-to-win claims are

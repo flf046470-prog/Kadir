@@ -108,6 +108,8 @@ export const UI_CSS = `
 .kc-tally--chaser { color: #ffb4a2; }
 .kc-tally--runner { color: #a8e6a3; }
 .kc-tally--fighter { color: #ffd166; }
+.kc-tally--red { color: #ff8a80; }
+.kc-tally--blue { color: #8ab4ff; }
 /* The fight panel. Centred and high-contrast: for twenty seconds it is the only thing that
    matters, and a player in a bout has stopped reading anything at the edges of the screen. */
 .kc-bout { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; border-radius: 14px; background: rgba(24,8,8,.72); border: 1px solid rgba(255,209,102,.55); }

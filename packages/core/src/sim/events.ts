@@ -29,7 +29,9 @@ export type SimEventType =
   | 'gadgetExpire'
   | 'status'
   /** A loose body was kicked, caught, thrown or bounced. `data` says which; see `bodies/`. */
-  | 'bodyHit';
+  | 'bodyHit'
+  /** Roo Ball: the ball crossed a goal line. `data` is the scoring team, `playerId` the last toucher. */
+  | 'goal';
 // `chat` and `voice` were members here and were never emitted by anything, in either direction:
 // no `.emit()` call site in this package named them, and no consumer existed in any of the three
 // switches that turn an event into something a player perceives. Both already have a working home

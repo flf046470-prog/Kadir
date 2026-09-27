@@ -3,7 +3,7 @@ import type { Vec3 } from '../math/vec3.js';
 import type { PlayerState } from '../player/state.js';
 import { RoundMode, activePlayers } from './base.js';
 import { registerMode } from './registry.js';
-import type { GameModeDef, ModeContext } from './types.js';
+import type { GameModeDef, ModeContext, ModeStateView } from './types.js';
 
 export const HILL_DEF: GameModeDef = {
   id: 'hill',
@@ -140,6 +140,19 @@ export class HillMode extends RoundMode {
             ? `${ctx.players.get(this.holders[0] as string)?.name ?? 'Someone'} holds it`
             : `Contested by ${this.holders.length}`;
     }
+  }
+
+  /**
+   * The ring, on the broadcast view.
+   *
+   * It used to be announced only as a `checkpoint` event, which no renderer drew and the HUD read
+   * as a checkpoint *number* — "Checkpoint NaN" — so a mode about standing in a ring never showed
+   * anybody where the ring was, and a player who joined late was never told at all.
+   */
+  protected override extraState(): Partial<ModeStateView> {
+    if (this.phase !== 'playing') return {};
+    const { x, y, z } = this.hill;
+    return { markers: [{ kind: 'hill', x, y, z, radius: HILL_RADIUS }] };
   }
 
   /** Where the ring is, for the renderer and the HUD compass. */

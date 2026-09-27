@@ -17,7 +17,10 @@ export type PlayerRole =
   /** Hunt: the armed kangaroo. */
   | 'hunter'
   /** Hunt: a human trying to last the clock. */
-  | 'survivor';
+  | 'survivor'
+  /** Roo Ball: the two teams. Symmetric, so neither is a threat or prey to the bots. */
+  | 'red'
+  | 'blue';
 
 export type HandSide = 0 | 1;
 export const LEFT: HandSide = 0;

@@ -5,7 +5,7 @@ import type { BodyKind, EntitySnapshot } from '@kc/core';
 /**
  * Loose balls, as the simulation reports them (`@kc/core` `bodies/`).
  *
- * One `InstancedMesh` per kind — every ball in the game is two draw calls — and no spin on the
+ * One `InstancedMesh` per kind — every ball in the game is one draw call per kind — and no spin on the
  * wire: a ball rolls by exactly as far as it moved, about the axis perpendicular to its travel, so
  * each client turns the mesh itself from consecutive positions. Right for rolling, which is what a
  * ball on the ground does nearly all the time; a spinning throw simply shows no spin in flight.
@@ -56,6 +56,26 @@ function beachballGeometry(): THREE.BufferGeometry {
   return geometry;
 }
 
+/**
+ * Roo Ball's match ball: orange panels split by dark seams on three great circles, like the exercise
+ * and basketballs everyone has kicked — a pattern whose roll is readable from across a pitch.
+ */
+function rooballGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.SphereGeometry(1, 40, 24);
+  const position = geometry.getAttribute('position');
+  const colours = new Float32Array(position.count * 3);
+  const panel = new THREE.Color(0xff7a1a);
+  const seam = new THREE.Color(0x2a1a10);
+  const v = new THREE.Vector3();
+  for (let i = 0; i < position.count; i++) {
+    v.fromBufferAttribute(position, i);
+    const onSeam = Math.abs(v.x) < 0.045 || Math.abs(v.y) < 0.045 || Math.abs(v.z) < 0.045;
+    (onSeam ? seam : panel).toArray(colours, i * 3);
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  return geometry;
+}
+
 interface Rolling {
   quaternion: THREE.Quaternion;
   last: THREE.Vector3;
@@ -85,6 +105,8 @@ export class BodyView {
     make('football', footballGeometry(), 0.55);
     // Glossy vinyl: it should catch the sky.
     make('beachball', beachballGeometry(), 0.28);
+    // Rubber: a soft sheen, between the football's leather and the beach ball's vinyl.
+    make('rooball', rooballGeometry(), 0.45);
   }
 
   update(entities: readonly EntitySnapshot[]): void {

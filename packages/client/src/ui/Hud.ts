@@ -101,6 +101,8 @@ export class Hud {
   private touchLayer: HTMLElement | null = null;
   private stick: HTMLElement | null = null;
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The local player's role as of the last update, for events that care which side you are on. */
+  private localRole = '';
   private options: HudOptions;
 
   constructor(options: HudOptions) {
@@ -264,6 +266,7 @@ export class Hud {
   }
 
   update(state: ModeStateView, local: PlayerState | undefined): void {
+    this.localRole = local?.role ?? '';
     this.headline.textContent = state.headline;
     this.timer.textContent = state.phase === 'playing' ? formatTime(state.timeRemaining) : state.phase.toUpperCase();
 
@@ -558,7 +561,12 @@ export class Hud {
     }
     this.tally.hidden = false;
     clear(this.tally);
-    for (const [role, label] of [['chaser', 'KANGAROO'], ['runner', 'HUMAN'], ['fighter', 'IN THE RING']] as const) {
+    // Roo Ball's tally is goals per team, not heads per role.
+    const sides =
+      'red' in tally
+        ? ([['red', 'RED'], ['blue', 'BLUE']] as const)
+        : ([['chaser', 'KANGAROO'], ['runner', 'HUMAN'], ['fighter', 'IN THE RING']] as const);
+    for (const [role, label] of sides) {
       const count = tally[role] ?? 0;
       if (count === 0 && role === 'fighter') continue;
       this.tally.append(
@@ -619,8 +627,14 @@ export class Hud {
         break;
       }
       case 'checkpoint':
-        this.showToast(`Checkpoint ${Number(event.data) + 1}`, 1200);
+        // King of the Hill moves its ring with the same event; its data is 'hill', not an index.
+        this.showToast(event.data === 'hill' ? 'The hill has moved' : `Checkpoint ${Number(event.data) + 1}`, 1200);
         break;
+      case 'goal': {
+        const mine = this.localRole === event.data;
+        this.showToast(`${String(event.data).toUpperCase()} SCORES${mine ? '!' : ''}`, 2000);
+        break;
+      }
       case 'lapComplete':
         this.showToast(`Finished in ${event.magnitude.toFixed(2)}s`, 3000);
         break;
@@ -653,6 +667,10 @@ function roleLabel(role: string): string {
       return 'RACER';
     case 'fighter':
       return 'FIGHTER';
+    case 'red':
+      return 'RED TEAM';
+    case 'blue':
+      return 'BLUE TEAM';
     default:
       return 'WARM-UP';
   }

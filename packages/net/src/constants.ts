@@ -60,6 +60,8 @@ export const ROLES = [
   'spectator',
   'hunter',
   'survivor',
+  'red',
+  'blue',
 ] as const;
 export type RoleName = (typeof ROLES)[number];
 
@@ -105,7 +107,7 @@ export const ENTITY_KINDS = ['projectile', 'placed', 'cloud', 'body'] as const;
  * A `body` entity's gadget byte carries its `BodyKind` from this table instead — a ball is not a
  * gadget, and `gadgetIndex` would have turned every one of them into gadget 0. Append-only.
  */
-export const BODY_KIND_NAMES = ['football', 'beachball'] as const;
+export const BODY_KIND_NAMES = ['football', 'beachball', 'rooball'] as const;
 
 export function bodyKindIndex(kind: string): number {
   const index = (BODY_KIND_NAMES as readonly string[]).indexOf(kind);

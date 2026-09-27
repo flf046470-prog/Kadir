@@ -36,6 +36,7 @@ import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
 import { GadgetEntityView } from '../render/GadgetEntities.js';
 import { WorldEffects } from '../render/Effects.js';
+import { ModeMarkers } from '../render/ModeMarkers.js';
 import { BodyView } from '../render/Bodies.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
@@ -183,6 +184,7 @@ export class GameClient {
   private effects: WorldEffects;
   /** Loose balls — the simulation's `bodies`, drawn with their roll. */
   private bodyView: BodyView;
+  private modeMarkers = new ModeMarkers();
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
@@ -256,6 +258,7 @@ export class GameClient {
     this.renderer.scene.add(this.effects.group);
     this.bodyView = new BodyView(this.levelRendererProfile.shadows);
     this.renderer.scene.add(this.bodyView.group);
+    this.renderer.scene.add(this.modeMarkers.group);
 
     this.sim = new Simulation({ level: this.level, modeId: this.modeId });
     this.audio.applySettings(this.settings);
@@ -275,6 +278,7 @@ export class GameClient {
       onEvents: (events) => this.handleEvents(events),
       onModeState: (state) => {
         this.callbacks.onModeState(state);
+        this.modeMarkers.update(state.markers, this.settings.colorblindSafe);
         this.levelRenderer.setCheckpointsVisible(state.modeId === 'parkour');
         // Doors belong to the lobby; in a match they would be eight glowing rings nobody can explain.
         this.levelRenderer.setPortalsVisible(state.modeId === 'training');
@@ -878,6 +882,11 @@ export class GameClient {
         // and the human its `otherId` — and both are about to be swung at.
         if (event.data === 'bout') feedback('tag', 'both', 1);
         break;
+      case 'goal':
+        // The scorer feels it. Everyone hears it; a pulse for all sixteen players would say
+        // nothing about who did what.
+        if (isLocal) feedback('tag', 'both', 1);
+        break;
       case 'roleChange': {
         // What you now are. The HUD's toast says it in words, and a toast is a DOM element that
         // an immersive session never shows, so without this a headset was told nothing at all.
@@ -887,7 +896,7 @@ export class GameClient {
         // Becoming the threat gets the heavier pulse of the two, for the same reason the tag it
         // usually follows does: it is the change that demands you do something differently.
         if (threat) feedback('tag', 'both', 1);
-        else if (role === 'runner' || role === 'survivor' || role === 'fighter') feedback('grab', 'both', 1);
+        else if (role === 'runner' || role === 'survivor' || role === 'fighter' || role === 'red' || role === 'blue') feedback('grab', 'both', 1);
         else if (role.startsWith('converted:')) feedback('tagged', 'both', 1);
         break;
       }
@@ -1028,6 +1037,7 @@ export class GameClient {
     this.updateZone(dt);
     this.updateMood();
     this.levelRenderer.animate(time / 1000);
+    this.modeMarkers.animate(time / 1000);
 
     const local = this.localPlayer;
     if (local) this.renderer.updateShadowFocus(local.position.x, local.position.z);
@@ -1069,7 +1079,9 @@ export class GameClient {
     if (!this.online) {
       const events = this.sim.events.drain();
       this.handleEvents(events);
-      this.callbacks.onModeState(this.sim.mode.state());
+      const state = this.sim.mode.state();
+      this.callbacks.onModeState(state);
+      this.modeMarkers.update(state.markers, this.settings.colorblindSafe);
       this.shop = this.sim.shopStock();
       this.reportSoloResults();
     } else {
@@ -1337,6 +1349,7 @@ export class GameClient {
     this.gadgetEntities.dispose();
     this.effects.dispose();
     this.bodyView.dispose();
+    this.modeMarkers.dispose();
     this.audio.dispose();
     this.voice.dispose();
   }

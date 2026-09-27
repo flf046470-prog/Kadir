@@ -92,6 +92,7 @@ const PORTAL_COLORS: Record<string, number> = {
   hill: 0xffd166,
   boxing: 0xdc2626,
   parkour: 0x9b5de5,
+  'roo-ball': 0x2fae5a,
 };
 
 /**
@@ -112,6 +113,7 @@ const PORTAL_LABELS: Record<string, string> = {
   hill: 'King of the Hill',
   boxing: 'VR Boxing',
   parkour: 'Parkour Race',
+  'roo-ball': 'Roo Ball',
 };
 
 export class LevelRenderer {

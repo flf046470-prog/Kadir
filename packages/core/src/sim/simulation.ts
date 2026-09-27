@@ -127,6 +127,7 @@ export class Simulation {
       players: this.players,
       gadgets: this.gadgets,
       gadgetCtx: this.gadgetCtx,
+      bodies: this.bodies,
       level: this.level,
       world: this.world,
       events: this.events,

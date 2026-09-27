@@ -5,6 +5,7 @@ import type { PlayerState } from '../player/state.js';
 import type { LevelDef } from '../world/level.js';
 import type { PhysicsWorld } from '../physics/world.js';
 import type { GadgetContext, GadgetRuntime } from '../gadgets/runtime.js';
+import type { BodySystem } from '../bodies/index.js';
 
 export type ModePhase = 'waiting' | 'countdown' | 'playing' | 'ended';
 
@@ -40,6 +41,8 @@ export interface ModeContext {
   gadgets: GadgetRuntime;
   /** Ready-made context for `applyPayload` and friends, so a mode never rebuilds one. */
   gadgetCtx: GadgetContext;
+  /** The loose balls. Roo Ball plays with one; every other mode leaves them to the players. */
+  bodies: BodySystem;
   level: LevelDef;
   world: PhysicsWorld;
   events: SimEventQueue;
@@ -104,6 +107,30 @@ export interface ModeStateView {
    * not in one can still see what is going on.
    */
   bouts?: ModeBoutView[];
+  /**
+   * Places the mode is about, for the renderer to draw: the hill's ring, Roo Ball's goals.
+   *
+   * On the broadcast view rather than in an event, because an event is heard once and a place has
+   * to be visible to whoever joins after it appeared. King of the Hill used to announce its ring
+   * only as a `checkpoint` event that no renderer drew, so the one thing its players had to find
+   * was never on screen.
+   */
+  markers?: ModeMarkerView[];
+}
+
+export interface ModeMarkerView {
+  kind: 'hill' | 'goal' | 'pitch';
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+  /** Goals: whose goal it is (the team that defends it). */
+  team?: 'red' | 'blue';
+  /** Goals: the way the mouth faces, as a yaw — towards the centre spot. Pitch: along its length. */
+  yaw?: number;
+  /** Pitch: half its length (goal line to goal line) and half its width. */
+  halfLength?: number;
+  halfWidth?: number;
 }
 
 /** One running fight: who is in it, and how long they have. */
@@ -155,7 +182,7 @@ export interface GameMode {
    * that knows the rules — which checkpoint is next for *this* player, where the ring moved to.
    * Modes whose objective is a player return null and keep the chase behaviour.
    */
-  objectiveFor?(player: PlayerState): Vec3 | null;
+  objectiveFor?(player: PlayerState): Objective | null;
   state(): ModeStateView;
   finished(): boolean;
   /** End the round early (host action, empty room, admin tooling, tests). */
@@ -164,3 +191,10 @@ export interface GameMode {
 }
 
 export type GameModeFactory = (def: GameModeDef) => GameMode;
+
+/**
+ * A place for a bot to go. `arrive` asks for precision over pace: steer the velocity onto it, brake
+ * when sliding past, and slow down on the way in. Roo Ball needs that to reach a ball; a race does
+ * not, and turning it on for every mode wedged racers that the unhurried version never wedged.
+ */
+export type Objective = Vec3 & { arrive?: boolean };

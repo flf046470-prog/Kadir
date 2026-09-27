@@ -1286,6 +1286,10 @@ export class Avatar {
       infected: [0xff4d4d, 0xff8c1a, 0.85, 1.5],
       runner: [0x4cc9f0, 0x2b6cff, 0.35, 1],
       fighter: [0xffd166, 0xf2f2f2, 0.5, 1.25],
+      // Roo Ball's teams: one size, because neither side is more urgent than the other. The safe
+      // palette's orange and blue separate under every common dichromacy.
+      red: [0xff5a4f, 0xff8c1a, 0.6, 1.15],
+      blue: [0x3d8bff, 0x2b6cff, 0.6, 1.15],
     };
     const preset = style[role];
     if (!preset) {

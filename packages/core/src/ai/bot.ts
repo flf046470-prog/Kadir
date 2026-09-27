@@ -55,6 +55,9 @@ const PUNCH_RANGE = 1.15;
 /** Roughly where an opponent's head sits relative to the puncher, for the 1.6x head multiplier. */
 const HEAD_AIM_PITCH = 0.5;
 
+/** Within this many metres of its objective a bot slows down rather than sprinting past. */
+const ARRIVE_RADIUS = 4;
+
 export class Bot {
   private rand: Rand;
   private intent: InputIntent = createIntent();
@@ -109,8 +112,9 @@ export class Bot {
     others: Iterable<PlayerState>,
     level: LevelDef,
     dt: number,
-    objective: { x: number; y: number; z: number } | null = null,
+    objective: { x: number; y: number; z: number; arrive?: boolean } | null = null,
   ): InputIntent {
+    const precise = objective?.arrive === true;
     const intent = this.intent;
     intent.buttons = 0;
     intent.hands = null;
@@ -128,6 +132,7 @@ export class Bot {
     const target = this.pickTarget(self, others, chasing);
 
     let desiredYaw = this.wanderYaw;
+    let braking = false;
     if (target) {
       const dx = target.position.x - self.position.x;
       const dz = target.position.z - self.position.z;
@@ -141,7 +146,25 @@ export class Bot {
       objective = this.routeOut(self, level, objective);
       const dx = objective.x - self.position.x;
       const dz = objective.z - self.position.z;
-      desiredYaw = Math.atan2(dx, dz) + this.rand.range(-0.25, 0.25) * (1 - this.options.skill);
+      const want = Math.atan2(dx, dz);
+      /**
+       * Steer the *velocity* onto the objective, not the nose.
+       *
+       * A kangaroo mid-hop cannot turn its momentum, and on ice it barely can on the ground either.
+       * Measured on the glacier: a bot chasing a point at 17–21 m/s, heading 0.2–0.5 rad behind
+       * the direction it wanted, orbiting its objective at 10–20 m for the whole round. Aiming
+       * past the objective by part of the slip cancels the sideways drift instead of chasing it,
+       * and a large slip at speed means brake — stop sprinting, stop hopping — and turn. Opt-in,
+       * like the arrival below.
+       */
+      const speed = Math.hypot(self.velocity.x, self.velocity.z);
+      let aim = want;
+      if (precise && speed > 3) {
+        const slip = shortestAngle(want - Math.atan2(self.velocity.x, self.velocity.z));
+        aim = want + Math.max(-0.8, Math.min(0.8, slip * 0.6));
+        braking = Math.abs(slip) > 0.6 && speed > 7;
+      }
+      desiredYaw = aim + this.rand.range(-0.25, 0.25) * (1 - this.options.skill);
     } else if (this.repathTimer <= 0) {
       this.repathTimer = this.rand.range(1.5, 4);
       this.wanderYaw += this.rand.range(-1.4, 1.4);
@@ -181,6 +204,30 @@ export class Bot {
     intent.moveX = 0;
     intent.moveZ = 1;
 
+    /**
+     * Arrive at a place rather than orbit it.
+     *
+     * A bot runs flat out and turns at a bounded rate, so a small target is circled: measured in Roo
+     * Ball, bots within 1–24 m of a resting ball for twenty seconds, none touching it, because every
+     * pass overshot and every hop carried them further. Near the objective they ease off, stop
+     * sprinting and stop hopping, which tightens the turn to something that can land on a point.
+     * Only for an objective that asks for it (`Objective.arrive`): a race and a hill keep the
+     * unhurried version, because turning this on for them wedged a racer the old one never did.
+     */
+    let arriving = braking;
+    if (braking) intent.moveZ = 0.25;
+    if (precise && objective && !target) {
+      const flat = Math.hypot(objective.x - self.position.x, objective.z - self.position.z);
+      // Further out at speed: what matters is how long it takes to stop, not a fixed distance.
+      const radius = Math.max(ARRIVE_RADIUS, Math.hypot(self.velocity.x, self.velocity.z) * 0.5);
+      // Only on the level: an objective overhead is a climb, and a climb needs the run-up. Slowing
+      // under a checkpoint twelve metres up wedged a jungle racer at the foot of its wall.
+      if (flat < radius && Math.abs(objective.y - self.position.y) < 1.5) {
+        intent.moveZ = Math.min(intent.moveZ, Math.max(0.35, flat / radius));
+        arriving = true;
+      }
+    }
+
     // Shoot, if this role was handed something to shoot with.
     //
     // The Hunt gives one player a rifle and everyone else four minutes to live, and a bot hunter
@@ -191,13 +238,13 @@ export class Bot {
 
     // Hop rhythmically; charge a bigger hop when chasing something far away.
     const distance = target ? v3distance(self.position, target.position) : 99;
-    if (self.grounded && this.jumpTimer <= 0) {
+    if (self.grounded && this.jumpTimer <= 0 && !arriving) {
       intent.buttons |= Buttons.Jump;
       if (distance > 12 && chasing) intent.buttons |= Buttons.Sprint;
       if (this.rand.bool(0.25 + this.options.skill * 0.3)) this.jumpTimer = this.rand.range(0.15, 0.5);
       else this.jumpTimer = this.rand.range(0.5, 1.4);
     }
-    if (self.stamina > 40 && (chasing || objective !== null || distance < 18)) intent.buttons |= Buttons.Sprint;
+    if (self.stamina > 40 && !arriving && (chasing || objective !== null || distance < 18)) intent.buttons |= Buttons.Sprint;
 
     /**
      * Climb when the objective is above you.

@@ -2,7 +2,7 @@ import type { Vec3 } from '../math/vec3.js';
 import type { Collider, SurfaceMaterial } from '../physics/types.js';
 
 /** What kind of loose physical object a level places. Behaviour lives in `bodies/`, not here. */
-export type BodyKind = 'football' | 'beachball';
+export type BodyKind = 'football' | 'beachball' | 'rooball';
 
 export interface BodySpawn {
   kind: BodyKind;
@@ -77,6 +77,7 @@ export const LOBBY_MODE_IDS = [
   'hill',
   'boxing',
   'parkour',
+  'roo-ball',
 ] as const;
 
 export interface ZoneDef {

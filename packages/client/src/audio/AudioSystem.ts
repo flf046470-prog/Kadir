@@ -236,6 +236,13 @@ export class AudioSystem {
       case 'checkpoint':
         this.chime(at, 660);
         break;
+      case 'goal':
+        // Heard across the pitch: a thump of the net and a rising three-note call, the one sound in
+        // Roo Ball that is news to everybody at once.
+        this.impact(at, 0.9, 140);
+        this.chime(at, 523, 3);
+        this.chime(at, 784, 3);
+        break;
       case 'lapComplete':
         this.chime(at, 880, 3);
         break;
@@ -369,6 +376,12 @@ export class AudioSystem {
         // is the moment you learn one of the two fighters is you.
         this.impact(at, 0.5, 260);
         this.chime(at, 460, 2);
+        break;
+      case 'red':
+      case 'blue':
+        // Picked for a side. Neither team is a threat to the other, so it is the prey's bright
+        // cue without the urgency: a whistle, not a starting pistol.
+        this.chime(at, 700, 2);
         break;
       case 'down':
       case 'spectator':
