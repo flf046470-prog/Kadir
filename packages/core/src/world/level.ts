@@ -1,6 +1,14 @@
 import type { Vec3 } from '../math/vec3.js';
 import type { Collider, SurfaceMaterial } from '../physics/types.js';
 
+/** What kind of loose physical object a level places. Behaviour lives in `bodies/`, not here. */
+export type BodyKind = 'football' | 'beachball';
+
+export interface BodySpawn {
+  kind: BodyKind;
+  position: Vec3;
+}
+
 /**
  * A level is *plain data*. Nothing here references a renderer, so the server loads the same
  * definition the client renders, and a future community map editor only has to emit this shape.
@@ -123,6 +131,8 @@ export interface LevelDef {
   checkpoints: CheckpointDef[];
   zones: ZoneDef[];
   props: PropInstance[];
+  /** Loose physical objects — balls a player can kick, pick up and throw. See `bodies/`. */
+  bodies?: BodySpawn[];
   /** Doorways into the game modes, standing in the lobby. */
   portals: PortalDef[];
   killPlaneY: number;

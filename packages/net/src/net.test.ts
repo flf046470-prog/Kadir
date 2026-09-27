@@ -389,3 +389,45 @@ describe('slot table', () => {
     expect(slots.idOf(5)).toBe('d');
   });
 });
+
+describe('loose bodies on the wire', () => {
+  it('round-trips a ball with its kind, not as a gadget', () => {
+    const sim = new Simulation({ level: buildJungleWorld(), modeId: 'kangaroo-chase', seed: 1 });
+    sim.step();
+    const snapshot = sim.snapshot();
+    const bodies = snapshot.entities.filter((e) => e.kind === 'body');
+    expect(bodies.length).toBeGreaterThan(0);
+    const slots = new SlotTable();
+    const decoded = decodeSnapshot(encodeSnapshot(snapshot, slots), slots, new Map());
+    const back = decoded.entities.filter((e) => e.kind === 'body');
+    expect(back.map((e) => e.gadgetId)).toEqual(bodies.map((e) => e.gadgetId));
+    expect(back.map((e) => e.id)).toEqual(bodies.map((e) => e.id));
+    for (const [i, e] of back.entries()) {
+      expect(e.x).toBeCloseTo(bodies[i]!.x, 1);
+      expect(e.y).toBeCloseTo(bodies[i]!.y, 1);
+    }
+    expect(back.some((e) => e.gadgetId === 'beachball')).toBe(true);
+  });
+
+  it('sends a still ball once, and the client keeps drawing it', () => {
+    const sim = new Simulation({ level: buildJungleWorld(), modeId: 'kangaroo-chase', seed: 1 });
+    sim.stepMany(300); // every ball settles and sleeps
+    const slots = new SlotTable();
+    const known = new Map<number, EntitySnapshot>();
+    const first = sim.snapshot();
+    const keyframe = encodeSnapshot(first, slots);
+    decodeSnapshot(keyframe, slots, new Map(), known);
+    sim.stepMany(3);
+    const withBodies = encodeSnapshot(sim.snapshot(), slots, { baseline: first });
+    const withoutBodies = encodeSnapshot({ ...sim.snapshot(), entities: [] }, slots, { baseline: { ...first, entities: [] } });
+    // Nothing moved, so the balls cost nothing beyond their one count byte.
+    expect(withBodies.length).toBe(withoutBodies.length);
+    const decoded = decodeSnapshot(withBodies, slots, new Map(), known);
+    expect(decoded.entities.filter((e) => e.kind === 'body')).toHaveLength(sim.bodies.bodies.length);
+    // A kicked ball is sent again.
+    const ball = sim.bodies.bodies[0]!;
+    ball.position = { x: ball.position.x + 1, y: ball.position.y, z: ball.position.z };
+    const moved = encodeSnapshot(sim.snapshot(), slots, { baseline: first });
+    expect(moved.length).toBeGreaterThan(withBodies.length);
+  });
+});

@@ -41,6 +41,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
    */
   b.spawn(vec3(0, 0.5, 3), 0, 'jungle', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
+  b.lobbyToys(vec3(0, 0.5, 0), 0);
 
   b.zone('jungle', vec3(0, 0, 0), 72, 'jungle', 0.05);
   b.zone('cave', vec3(-72, 0, 0), 34, 'cave', 0.75);
@@ -60,7 +61,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 3: yawed boxes collide where they are drawn (physics used the mirror rotation), and tree
     // branches run out of their trunks instead of across them.
     // 4: walled edges, and the cave and canyon ramps are solid to their floors.
-    version: 4,
+    version: 5,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

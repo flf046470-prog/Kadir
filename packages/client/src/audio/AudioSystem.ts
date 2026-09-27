@@ -224,6 +224,12 @@ export class AudioSystem {
       case 'punchHit':
         this.impact(at, Math.min(1, event.magnitude / 20), event.data === 'head' ? 180 : 120);
         break;
+      case 'bodyHit':
+        // A ball is small and hollow beside a landing kangaroo: the same knock, pitched well up,
+        // and the surface still colours it. A throw is a swing, so it sounds like one.
+        if (event.data === 'throw') this.whoosh(at, Math.min(0.4, event.magnitude / 30));
+        else this.impact(at, Math.min(0.7, event.magnitude / 14), (event.data === 'catch' ? 240 : 330) + materialPitch(event.material));
+        break;
       case 'stagger':
         this.impact(at, 0.5, 90);
         break;

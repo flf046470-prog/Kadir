@@ -22,3 +22,4 @@ export * from './analytics/index.js';
 export * from './moderation/index.js';
 export * from './chat/index.js';
 export * from './voice/gate.js';
+export * from './bodies/index.js';

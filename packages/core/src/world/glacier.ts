@@ -39,6 +39,7 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   // The same ring of doors, so the lobby reads identically whichever map you are standing on.
   b.spawn(vec3(0, 0.5, 0), 0, 'shelf', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
+  b.lobbyToys(vec3(0, 0.5, 0), 0);
 
   b.zone('shelf', vec3(0, 0, 0), 50, 'canyon', 0.04);
   // Below the ice and genuinely dark — the same role the jungle's cave plays, and the reason the
@@ -61,7 +62,7 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     // of a ramp. Measured: crevasse occupancy 9 % -> 15 % once it is walkable.
     // 4: yawed towers collide where they are drawn, and the snow drifts rest on the ice.
     // 5: walled edges; the crevasse ends at the rim instead of under it, with a solid ramp.
-    version: 5,
+    version: 6,
     seed,
     killPlaneY,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and

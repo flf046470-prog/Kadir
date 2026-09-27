@@ -6,8 +6,11 @@
  * server ship from one image (`KC_PUBLIC_DIR` serves `dist/client`), so they cannot drift; a
  * stale cached PWA client gets `gateway.ts`'s clean "Server speaks protocol N" refusal rather
  * than misparsing every frame, which is the whole point of checking a version at all.
+ *
+ * 4: entity kind `body` (loose balls), whose gadget byte carries a `BodyKind` instead. A version-3
+ * client would have read every ball as a gadget-0 projectile.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /**
  * `roomCode` value that asks the server to *create* a private room rather than join one.
@@ -96,7 +99,22 @@ export function gadgetName(index: number): string {
 }
 
 /** Entity kinds as one byte, same append-only rule. */
-export const ENTITY_KINDS = ['projectile', 'placed', 'cloud'] as const;
+export const ENTITY_KINDS = ['projectile', 'placed', 'cloud', 'body'] as const;
+
+/**
+ * A `body` entity's gadget byte carries its `BodyKind` from this table instead — a ball is not a
+ * gadget, and `gadgetIndex` would have turned every one of them into gadget 0. Append-only.
+ */
+export const BODY_KIND_NAMES = ['football', 'beachball'] as const;
+
+export function bodyKindIndex(kind: string): number {
+  const index = (BODY_KIND_NAMES as readonly string[]).indexOf(kind);
+  return index < 0 ? 0 : index;
+}
+
+export function bodyKindName(index: number): string {
+  return BODY_KIND_NAMES[index] ?? 'football';
+}
 export type EntityKindName = (typeof ENTITY_KINDS)[number];
 
 export function entityKindIndex(kind: string): number {

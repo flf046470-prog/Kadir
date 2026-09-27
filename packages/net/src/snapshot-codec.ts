@@ -1,4 +1,5 @@
-import type { PlayerSnapshot, Snapshot } from '@kc/core';
+import { BODY_DEFS } from '@kc/core';
+import type { BodyKind, PlayerSnapshot, Snapshot } from '@kc/core';
 import { ByteReader, ByteWriter, dequantize, quantize } from './binary.js';
 import {
   ALL_FIELDS,
@@ -11,6 +12,8 @@ import {
   VEL_SCALE,
   entityKindIndex,
   entityKindName,
+  bodyKindIndex,
+  bodyKindName,
   gadgetIndex,
   gadgetName,
   roleIndex,
@@ -154,8 +157,47 @@ export function encodeSnapshot(snapshot: Snapshot, slots: SlotTable, options: En
     }
   }
 
-  writeEntities(w, snapshot.entities);
+  writeEntities(
+    w,
+    snapshot.entities.filter((e) => e.kind !== 'body'),
+  );
+  writeBodies(
+    w,
+    snapshot.entities.filter((e) => e.kind === 'body'),
+    baseline?.entities ?? null,
+  );
   return w.finish();
+}
+
+/**
+ * Loose bodies, delta-encoded against the baseline: only the ones that moved.
+ *
+ * Unlike gadgets they are a fixed set every client already knows — they come from the level,
+ * which is pure data built from the same seed on both ends — so a ball the client has seen and
+ * that has not moved costs nothing. Sent whole like gadgets, three sleeping balls added 36 bytes
+ * to every snapshot of an idle room and took a 16-player idle frame from 58 bytes to 94.
+ */
+function writeBodies(w: ByteWriter, bodies: EntitySnapshot[], baseline: EntitySnapshot[] | null): void {
+  const previous = new Map<number, EntitySnapshot>();
+  if (baseline) for (const e of baseline) if (e.kind === 'body') previous.set(e.id, e);
+  const changed = bodies.filter((body) => {
+    const before = previous.get(body.id);
+    return (
+      !before ||
+      quantize(before.x, POS_SCALE) !== quantize(body.x, POS_SCALE) ||
+      quantize(before.y, POS_SCALE) !== quantize(body.y, POS_SCALE) ||
+      quantize(before.z, POS_SCALE) !== quantize(body.z, POS_SCALE)
+    );
+  });
+  const included = changed.slice(0, MAX_ENTITIES);
+  w.u8(included.length);
+  for (const body of included) {
+    w.u16(body.id & 0xffff);
+    w.u8(bodyKindIndex(body.gadgetId));
+    w.i16(quantize(body.x, POS_SCALE));
+    w.i16(quantize(body.y, POS_SCALE));
+    w.i16(quantize(body.z, POS_SCALE));
+  }
 }
 
 /**
@@ -171,7 +213,7 @@ function writeEntities(w: ByteWriter, entities: EntitySnapshot[]): void {
   w.u8(included.length);
   for (const entity of included) {
     w.u16(entity.id & 0xffff);
-    w.u8(gadgetIndex(entity.gadgetId));
+    w.u8(entity.kind === 'body' ? bodyKindIndex(entity.gadgetId) : gadgetIndex(entity.gadgetId));
     w.u8(entityKindIndex(entity.kind));
     w.i16(quantize(entity.x, POS_SCALE));
     w.i16(quantize(entity.y, POS_SCALE));
@@ -255,6 +297,11 @@ export function decodeSnapshot(
   data: Uint8Array,
   slots: SlotTable,
   baseline: Map<string, PlayerSnapshot>,
+  /**
+   * Every body this client knows, by id — updated in place with the ones this frame moved, and
+   * returned whole. Without it only the moved ones come back.
+   */
+  bodies?: Map<number, EntitySnapshot>,
 ): DecodedSnapshot {
   const r = new ByteReader(data);
   const type = r.u8();
@@ -319,8 +366,9 @@ export function decodeSnapshot(
   const entities: EntitySnapshot[] = [];
   for (let i = 0; i < entityCount; i++) {
     const id = r.u16();
-    const gadgetId = gadgetName(r.u8());
+    const tag = r.u8();
     const kind = entityKindName(r.u8());
+    const gadgetId = kind === 'body' ? bodyKindName(tag) : gadgetName(tag);
     const x = dequantize(r.i16(), POS_SCALE);
     const y = dequantize(r.i16(), POS_SCALE);
     const z = dequantize(r.i16(), POS_SCALE);
@@ -329,6 +377,18 @@ export function decodeSnapshot(
     // trap would tell the hunter who placed it.
     entities.push({ id, gadgetId, ownerId: '', kind, x, y, z, radius });
   }
+
+  const known = bodies ?? new Map<number, EntitySnapshot>();
+  const bodyCount = r.u8();
+  for (let i = 0; i < bodyCount; i++) {
+    const id = r.u16();
+    const kind = bodyKindName(r.u8()) as BodyKind;
+    const x = dequantize(r.i16(), POS_SCALE);
+    const y = dequantize(r.i16(), POS_SCALE);
+    const z = dequantize(r.i16(), POS_SCALE);
+    known.set(id, { id, gadgetId: kind, ownerId: '', kind: 'body', x, y, z, radius: BODY_DEFS[kind]?.radius ?? 0.2 });
+  }
+  for (const body of known.values()) entities.push({ ...body });
 
   return { tick, baseTick, players, entities };
 }

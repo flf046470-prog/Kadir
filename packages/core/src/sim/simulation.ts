@@ -6,6 +6,7 @@ import type { InputIntent } from '../input/intent.js';
 import { Buttons, createIntent, copyIntent, hasButton, sanitizeIntent } from '../input/intent.js';
 import { emoteSeconds, isEmoteId, nextEmote } from '../content/emotes.js';
 import { GadgetRuntime } from '../gadgets/runtime.js';
+import { BodySystem } from '../bodies/index.js';
 import type { GadgetContext } from '../gadgets/runtime.js';
 import { applyLoadout } from '../gadgets/loadout.js';
 import { cycleSelection, resetForRound } from '../gadgets/state.js';
@@ -77,6 +78,8 @@ export interface AddPlayerOptions {
 export class Simulation {
   readonly level: LevelDef;
   readonly world: PhysicsWorld;
+  /** Loose balls a player can kick, catch and throw — simulated here so every client agrees. */
+  readonly bodies: BodySystem;
   readonly players = new Map<string, PlayerState>();
   readonly events = new SimEventQueue();
   readonly rand: Rand;
@@ -97,6 +100,7 @@ export class Simulation {
   constructor(options: SimulationOptions) {
     this.level = options.level;
     this.world = new PhysicsWorld(options.level.colliders);
+    this.bodies = new BodySystem(options.level, this.world);
     this.rand = new Rand(options.seed ?? hashString(options.level.id));
     this.mode = options.modeConfig ? createCustomMode(options.modeConfig) : createMode(options.modeId);
     this.combatConfig = options.combat ?? DEFAULT_COMBAT;
@@ -155,6 +159,7 @@ export class Simulation {
   }
 
   removePlayer(id: string): void {
+    this.bodies.release(id);
     this.players.delete(id);
     this.intents.delete(id);
     this.prevButtons.delete(id);
@@ -203,6 +208,10 @@ export class Simulation {
         resolvePunches(player, this.players.values(), this.combatConfig, this.events, this.tick, canHit);
       }
     }
+
+    // After every player has moved, so a kick uses this tick's velocity and a held ball sits in
+    // this tick's hand rather than last tick's.
+    this.bodies.step(this.players.values(), TICK_DT, this.tick, this.events, this.level.killPlaneY);
 
     // Gadgets step after the mode has had a chance to change roles this tick, so a player who
     // stopped being the hunter this tick no longer has a rifle when their projectiles resolve.
@@ -276,7 +285,7 @@ export class Simulation {
     for (const player of this.players.values()) {
       players.push(snapshotPlayer(player));
     }
-    const entities = this.gadgets.entities.filter((e) => !e.spent).map(snapshotEntity);
+    const entities = [...this.gadgets.entities.filter((e) => !e.spent).map(snapshotEntity), ...this.bodies.entities()];
     return { tick: this.tick, players, entities, mode: this.mode.state() };
   }
 

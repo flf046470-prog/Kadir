@@ -36,6 +36,7 @@ import type { NetStatus } from '../net/NetClient.js';
 import { Avatar } from '../render/Avatar.js';
 import { GadgetEntityView } from '../render/GadgetEntities.js';
 import { WorldEffects } from '../render/Effects.js';
+import { BodyView } from '../render/Bodies.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
@@ -180,6 +181,8 @@ export class GameClient {
   private gadgetEntities = new GadgetEntityView();
   /** Dust, sparks and bursts from gameplay events — every player's, not only the local one. */
   private effects: WorldEffects;
+  /** Loose balls — the simulation's `bodies`, drawn with their roll. */
+  private bodyView: BodyView;
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
@@ -251,6 +254,8 @@ export class GameClient {
     // below `high`): the cost of a puff is overdraw, and that is what a Quest runs out of first.
     this.effects = new WorldEffects(this.levelRendererProfile.foliageBudget >= 160 ? 1 : 0.6);
     this.renderer.scene.add(this.effects.group);
+    this.bodyView = new BodyView(this.levelRendererProfile.shadows);
+    this.renderer.scene.add(this.bodyView.group);
 
     this.sim = new Simulation({ level: this.level, modeId: this.modeId });
     this.audio.applySettings(this.settings);
@@ -842,6 +847,11 @@ export class GameClient {
       case 'punchHit':
         feedback('punch', 'both', Math.min(1, event.magnitude / 6));
         break;
+      case 'bodyHit':
+        // Your own kick, catch or throw: a light knock, well under a punch landing. A ball bouncing
+        // somewhere after you last touched it is not in your hand, so it is not felt.
+        if (isLocal && event.data !== 'bounce') feedback('grab', 'both', Math.min(0.5, 0.2 + event.magnitude / 30));
+        break;
       case 'tag':
         // Being tagged is the moment that most needs to be felt, and it is easy to miss
         // visually when the tagger comes from behind.
@@ -1127,7 +1137,9 @@ export class GameClient {
    */
   private updateGadgetEntities(): void {
     const entities = this.online ? this.interpolation.sampleEntities() : this.sim.snapshot().entities;
-    this.gadgetEntities.update(entities);
+    // Balls ride the same channel and the same interpolation, and are drawn by their own view.
+    this.gadgetEntities.update(entities.filter((e) => e.kind !== 'body'));
+    this.bodyView.update(entities);
   }
 
   /**
@@ -1324,6 +1336,7 @@ export class GameClient {
     this.levelRenderer.dispose();
     this.gadgetEntities.dispose();
     this.effects.dispose();
+    this.bodyView.dispose();
     this.audio.dispose();
     this.voice.dispose();
   }

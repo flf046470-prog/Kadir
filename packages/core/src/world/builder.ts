@@ -4,7 +4,7 @@ import { vec3 } from '../math/vec3.js';
 import type { Collider, RaycastResult, SurfaceMaterial, SurfaceProps } from '../physics/types.js';
 import { SurfaceFlags } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
-import type { CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
+import type { BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
 
 export interface SurfacePreset {
   friction: number;
@@ -136,6 +136,7 @@ export type SurfaceName = keyof typeof SURFACES;
 export class LevelBuilder {
   readonly colliders: Collider[] = [];
   readonly props: PropInstance[] = [];
+  readonly bodies: BodySpawn[] = [];
   readonly grips: GripDef[] = [];
   readonly spawns: SpawnPoint[] = [];
   readonly checkpoints: CheckpointDef[] = [];
@@ -204,6 +205,22 @@ export class LevelBuilder {
 
   grip(position: Vec3, normal: Vec3, kind: GripKind): void {
     this.grips.push({ position, normal, kind });
+  }
+
+  /** A loose ball; it settles onto whatever is under `position` in its first second. */
+  body(kind: BodyKind, position: Vec3): void {
+    this.bodies.push({ kind, position });
+  }
+
+  /**
+   * The same few balls beside every lobby spawn, inside the ring of doors — the first thing a new
+   * player can pick up, and the thing a room of friends waiting for a round does together.
+   * `floorY` is the lobby floor's top.
+   */
+  lobbyToys(centre: Vec3, floorY: number): void {
+    this.body('football', vec3(centre.x + 2.5, floorY + 0.3, centre.z + 5.5));
+    this.body('beachball', vec3(centre.x - 3, floorY + 0.5, centre.z + 6));
+    this.body('football', vec3(centre.x + 4.5, floorY + 0.3, centre.z - 3.5));
   }
 
   spawn(position: Vec3, yaw: number, zone: string, tag?: SpawnPoint['tag']): void {
@@ -563,6 +580,7 @@ export class LevelBuilder {
       ...meta,
       colliders: this.colliders,
       props: this.props,
+      bodies: this.bodies,
       grips: this.grips,
       spawns: this.spawns,
       checkpoints: this.checkpoints,

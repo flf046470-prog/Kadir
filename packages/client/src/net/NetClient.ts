@@ -78,6 +78,8 @@ export class NetClient {
   private socket: WebSocket | null = null;
   private slots = new SlotTable();
   private baseline = new Map<string, PlayerSnapshot>();
+  /** Every loose body this connection has been told about — the codec sends only the ones that moved. */
+  private bodies = new Map<number, EntitySnapshot>();
   private handlers: NetHandlers;
   private options: ConnectOptions | null = null;
   private status: NetStatus = 'idle';
@@ -119,6 +121,7 @@ export class NetClient {
     this.socket = socket;
     this.slots = new SlotTable();
     this.baseline.clear();
+    this.bodies.clear();
 
     socket.addEventListener('open', () => {
       this.reconnectAttempts = 0;
@@ -187,7 +190,7 @@ export class NetClient {
 
   private handleBinary(data: Uint8Array): void {
     try {
-      const decoded = decodeSnapshot(data, this.slots, this.baseline);
+      const decoded = decodeSnapshot(data, this.slots, this.baseline, this.bodies);
       for (const player of decoded.players) this.baseline.set(player.id, player);
       this.handlers.onSnapshot(decoded.tick, decoded.players, decoded.entities);
     } catch {

@@ -401,7 +401,7 @@ property of the whole build. With art installed a mistyped model URL still fails
 rule per-file instead would have made those two indistinguishable forever.
 
 **`ClientMessage`'s discriminator is `t`, not `type`, and the join message is `hello`** — with
-`protocol` (`PROTOCOL_VERSION`, currently 3), `name`, `animalId`, `cosmetics`, `platform`,
+`protocol` (`PROTOCOL_VERSION`, currently 4), `name`, `animalId`, `cosmetics`, `platform`,
 `crossPlay` and `token` all required. A guessed `{type:'join'}` connects, is ignored, and sends
 nothing back for as long as you care to wait, which looks exactly like a broken server.
 
@@ -1891,6 +1891,33 @@ environment and fog colour, with the gradient kept until the file arrives.
   licences themselves: Fab requires that you "restrict end users from extracting" the content and
   forbids it in level-editing tools; Unity licenses assets only "as an embedded component". A web
   build serves raw files. Fab's CC0/CC-BY listings are fine but need an Epic login to download.
+
+## Loose balls you can kick, catch and throw (Escape Simulator 2's lesson)
+
+ES2's appeal is a room made of things that answer your hands; this game's VR is climbing with
+your arms and there was nothing loose for them to hold — a ball was a collider-less prop you hopped
+through. `@kc/core` `bodies/` is a server-authoritative `BodySystem` stepped in `Simulation.step`
+after players: spheres only (`football` r 0.11, `beachball` r 0.3, real sizes), gravity 12,
+per-surface restitution and rolling resistance, ball–ball impulses, sleeping when still, reset
+home when lost. Placed by `LevelBuilder.lobbyToys` beside every lobby spawn (+2 on the outback
+flat); `LevelDef.bodies`, types in `level.ts` so levels stay pure data. All three maps' versions
+bumped.
+
+- **Kick:** a moving capsule gives the ball its closing speed along the contact normal plus lift.
+- **Catch/throw:** a rising `hand.gripHeld` within reach grabs (PC/mobile: the grab buttons, reach
+  1.1 m; VR: tracked hand within 18 cm). PC throws along `aimFrom` (the gadgets' aim) at 9 m/s;
+  VR throws with the **smoothed hold velocity** (`carry`, ~4 ticks) — measured, the hand's speed
+  on the release tick was **0** for a 5.4 m/s swing, because opening the fingers is when a real
+  hand slows. Derived server-side from hold positions, capped at 18 m/s; never a client number.
+- **`closestPointOnCollider` returns "the point is inside", not "there is a contact".** Read the
+  other way every resting contact was skipped, footballs sank into the floor slab and escaped out
+  of its underside (−3.89 m on the jungle). The settle test catches it.
+- **Wire:** entity kind `body` (**`PROTOCOL_VERSION` 4**), its gadget byte a `BodyKind`. Balls are
+  **delta-encoded** (only ones that moved since the baseline) and `NetClient` keeps the rest —
+  whole-every-frame took an idle 16-player frame from 58 B to 94 B against the < 70 B budget.
+- **Client:** `render/Bodies.ts`, one `InstancedMesh` per kind (2 draw calls), rolled from
+  consecutive positions (no spin on the wire). `bodyHit` (`kick`/`catch`/`throw`/`bounce`) drives a
+  pitched-up knock, a light haptic for your own touches, and dust on bounces.
 
 ## How to find defects here
 

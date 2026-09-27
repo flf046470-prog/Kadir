@@ -64,7 +64,8 @@ export interface EntitySnapshot {
   id: number;
   gadgetId: string;
   ownerId: string;
-  kind: 'projectile' | 'placed' | 'cloud';
+  /** `body` is a loose physical object (`bodies/`); its `gadgetId` carries the `BodyKind`. */
+  kind: 'projectile' | 'placed' | 'cloud' | 'body';
   x: number;
   y: number;
   z: number;

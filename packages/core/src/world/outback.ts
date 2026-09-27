@@ -48,6 +48,10 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   // The same ring of doors, so the lobby reads identically whichever map you are standing on.
   b.spawn(vec3(0, 0.5, 0), 0, 'flat', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
+  b.lobbyToys(vec3(0, 0.5, 0), 0);
+  // A ball out on the flat, where the round is actually played.
+  b.body('football', vec3(18, 0.4, -12));
+  b.body('beachball', vec3(-16, 0.6, 14));
   buildSpawns(b);
 
   b.zone('flat', vec3(0, 0, 0), 72, 'jungle', 0);
@@ -69,7 +73,7 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     name: 'Outback Station',
     // 2: yawed boxes collide where they are drawn, and tree branches run out of their trunks.
     // 3: walled edges; the bed reaches the west wall and the scree is solid.
-    version: 3,
+    version: 4,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

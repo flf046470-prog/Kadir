@@ -440,6 +440,12 @@ export function recipeFor(event: SimEvent, rand: Rand, lastGround?: SurfaceMater
     case 'lapComplete':
       sparks(offset(at, 1), 0xffd35a, event.type === 'lapComplete' ? 44 : 24, 4.8, 0.2, 0.95, rand, out.glow);
       break;
+    case 'bodyHit':
+      // A ball landing on dust kicks up a little of it; a kick scuffs the ground at the ball.
+      if ((event.data === 'bounce' && event.magnitude > 3) || event.data === 'kick') {
+        groundKick(offset(at, -0.2), event.material ?? lastGround, event.magnitude, rand, out, 0.3);
+      }
+      break;
     case 'stagger':
       sparks(offset(at, 1.4), 0xfff4a0, 8, 1.6, 0.16, 0.8, rand, out.glow);
       break;
