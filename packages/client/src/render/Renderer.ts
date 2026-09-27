@@ -8,6 +8,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { buildSkyEnvironment } from './sky.js';
+import { SKY_PHOTOS, loadSkyPhoto, skyRotation } from './hdriSky.js';
 
 export interface RendererOptions {
   container: HTMLElement;
@@ -147,6 +148,11 @@ export class Renderer {
    * a session that visits both maps repeatedly would otherwise accumulate one per visit.
    */
   private environment: THREE.Texture | null = null;
+  /** The map's photographed sky, once it has loaded — see `hdriSky.ts`. Null means the gradient. */
+  private skyPhoto: THREE.DataTexture | null = null;
+  /** Which level a sky download belongs to, so a slow one cannot land on the next map. */
+  private skyLevelId = '';
+  private disposed = false;
   /**
    * The post-processing chain, or null when the profile does not want one.
    *
@@ -316,6 +322,13 @@ export class Renderer {
     this.scene.environment = this.environment;
 
     this.darkness = 0;
+    // Back to the gradient until this map's photographed sky arrives (if it has one).
+    this.skyPhoto?.dispose();
+    this.skyPhoto = null;
+    this.scene.backgroundRotation.set(0, 0, 0);
+    this.scene.environmentRotation.set(0, 0, 0);
+    this.skyLevelId = level.id;
+    void this.applySkyPhoto(level.id);
     this.setDarkness(0);
   }
 
@@ -350,7 +363,10 @@ export class Renderer {
       this.skyRgb.b * values.skyScale,
       THREE.SRGBColorSpace,
     );
-    this.scene.background = sky;
+    // With a photographed sky the panorama stays and is dimmed instead; `skyScale` is a statement
+    // about displayed brightness, so it is taken back to linear for the intensity.
+    this.scene.background = this.skyPhoto ?? sky;
+    this.scene.backgroundIntensity = this.skyPhoto ? values.skyScale ** 2.2 : 1;
     const fog = this.scene.fog;
     if (fog instanceof THREE.FogExp2) {
       fog.color.copy(sky);
@@ -470,7 +486,44 @@ export class Renderer {
     this.sun.target.updateMatrixWorld();
   }
 
+  /**
+   * Swap the gradient sky for the map's photographed one once it has downloaded.
+   *
+   * The gradient stays up until then — a slow network gets the old sky, never a black one — and
+   * the lowest tier never asks, because a device that cannot afford a texture on the ground cannot
+   * afford a 1024×512 half-float panorama and its PMREM either.
+   */
+  private async applySkyPhoto(levelId: string): Promise<void> {
+    const photo = SKY_PHOTOS[levelId];
+    if (!photo || this.profile.textureDetail === 'none') return;
+    const loaded = await loadSkyPhoto(photo);
+    if (!loaded || this.disposed || this.skyLevelId !== levelId) {
+      loaded?.texture.dispose();
+      return;
+    }
+    const lightDirection = new THREE.Vector3().copy(SUN_OFFSET).normalize();
+    const rotation = skyRotation(loaded.analysis.sunAzimuth, lightDirection);
+    this.scene.backgroundRotation.set(0, rotation, 0);
+    this.scene.environmentRotation.set(0, rotation, 0);
+
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const environment = pmrem.fromEquirectangular(loaded.texture).texture;
+    pmrem.dispose();
+    this.environment?.dispose();
+    this.environment = environment;
+    this.scene.environment = environment;
+
+    this.skyPhoto?.dispose();
+    this.skyPhoto = loaded.texture;
+    // Fog fades distant geometry into the photographed horizon, not into the level's flat colour:
+    // a fog that is not the sky's own horizon draws a seam round the whole map.
+    this.baseSkyColor.copy(loaded.horizon);
+    this.setDarkness(this.darkness);
+  }
+
   dispose(): void {
+    this.disposed = true;
+    this.skyPhoto?.dispose();
     globalThis.removeEventListener('resize', this.onResize);
     this.composer?.dispose();
     this.environment?.dispose();

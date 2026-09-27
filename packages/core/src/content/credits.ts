@@ -110,5 +110,31 @@ export const ASSET_PACK_CREDITS: readonly Credit[] = [
   },
 ];
 
+/**
+ * Files committed to `packages/client/public/` from outside sources — shipped in every build,
+ * unlike the packs above. Each one's licence was read at its source before it went in.
+ */
+export const BUNDLED_ASSET_CREDITS: readonly Credit[] = [
+  {
+    work: 'Kloofendal 48d Partly Cloudy (Pure Sky) — jungle sky',
+    author: 'Greg Zaal; sky edits by Jarod Guest (Poly Haven)',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky',
+  },
+  {
+    work: 'Autumn Field (Pure Sky) — outback sky',
+    author: 'Sergej Majboroda; sky edits by Jarod Guest (Poly Haven)',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://polyhaven.com/a/autumn_field_puresky',
+  },
+  {
+    work: 'Sunflowers (Pure Sky) — glacier sky',
+    author: 'Sergej Majboroda; sky edits by Jarod Guest (Poly Haven)',
+    licence: 'CC0-1.0',
+    sourceUrl: 'https://polyhaven.com/a/sunflowers_puresky',
+  },
+];
+
 registerCredits(ENGINE_CREDITS);
 registerCredits(ASSET_PACK_CREDITS);
+registerCredits(BUNDLED_ASSET_CREDITS);

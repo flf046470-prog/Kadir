@@ -1871,6 +1871,27 @@ to 0.6 where `foliageBudget < 160` (low tier, headset below high).
   normal map by the vertex normal and falls back to "up" without one — every rock lit as one flat
   top, white in the lab and **black in the game's canyon**. Found in a real-game screenshot.
 
+## Photographed skies (Poly Haven, CC0)
+
+The sky was a flat `level.skyColor` and the environment a two-colour gradient (`sky.ts`). Each map
+now loads one Poly Haven *pure-sky* HDRI (`render/hdriSky.ts`, `public/sky/`, 1.1–1.5 MB each,
+only the current map's is fetched, skipped on `textureDetail: 'none'`): background, PMREM
+environment and fog colour, with the gradient kept until the file arrives.
+
+- **The panorama is turned to our sun, not ours to it.** `analyseSky` finds the brightest texel and
+  `skyRotation` sets `scene.backgroundRotation`/`environmentRotation` so it sits on `SUN_OFFSET`'s
+  azimuth; three.js negates that Euler before use, and the test replays the negation. Elevation is
+  not matched (tilting a photo tilts its horizon): the photos' suns are 29–48° against our 34.6°.
+- **The sun is clamped to `SUN_CLAMP` (24) before PMREM** — the directional light carries the sun,
+  the environment carries the sky; unclamped, every surface would be lit by the sun twice.
+- **Fog is the horizon's hue capped at luminance 0.5.** Measured horizons: jungle 0.47, glacier
+  0.48, outback **0.92** — fogged to that, the outback's walls went near-white while its ground
+  contrast had actually risen (lower-half std 0.095 → 0.108). Measure before "fixing" contrast.
+- **Unity Asset Store and Fab (Epic) Standard-licence content cannot ship here**, read from the
+  licences themselves: Fab requires that you "restrict end users from extracting" the content and
+  forbids it in level-editing tools; Unity licenses assets only "as an embedded component". A web
+  build serves raw files. Fab's CC0/CC-BY listings are fine but need an Epic login to download.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:
