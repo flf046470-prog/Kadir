@@ -1,6 +1,8 @@
 import { DistantLand } from './DistantLand.js';
 import * as THREE from 'three';
-import type { Collider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
+import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
+import type { Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
+import { terrainGeometry } from './Terrain.js';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
 import type { AssetLibrary } from './AssetLibrary.js';
@@ -180,8 +182,7 @@ export class LevelRenderer {
   private buildBackdrop(): void {
     let lowest = 0;
     for (const collider of this.level.colliders) {
-      const bottom = collider.kind === 'box' ? collider.center.y - collider.half.y : collider.center.y;
-      lowest = Math.min(lowest, bottom);
+      lowest = Math.min(lowest, colliderBottom(collider));
     }
 
     // Wide enough that its own edge is beyond the fog: at this density anything past ~250 m is
@@ -215,6 +216,11 @@ export class LevelRenderer {
   private backdropColor(): number {
     const area = new Map<SurfaceMaterial, number>();
     for (const collider of this.level.colliders) {
+      if (collider.kind === 'heightfield') {
+        const key = collider.surface.material;
+        area.set(key, (area.get(key) ?? 0) + ((heightfieldMaxX(collider) - collider.minX) * (heightfieldMaxZ(collider) - collider.minZ)) / 4);
+        continue;
+      }
       if (collider.kind !== 'box') continue;
       // Floors only: a tall wall has a large face and covers no ground.
       if (collider.half.y > Math.min(collider.half.x, collider.half.z)) continue;
@@ -366,6 +372,10 @@ export class LevelRenderer {
   private buildColliders(): void {
     const buckets = new Map<string, { collider: Collider; index: number }[]>();
     this.level.colliders.forEach((collider, index) => {
+      if (collider.kind === 'heightfield') {
+        this.buildTerrain(collider);
+        return;
+      }
       const key = `${collider.kind}:${collider.surface.material}`;
       const list = buckets.get(key) ?? [];
       list.push({ collider, index });
@@ -404,6 +414,23 @@ export class LevelRenderer {
         });
       }
     }
+  }
+
+  /**
+   * One terrain collider, as its own mesh: a grid is not a unit shape an instance can scale.
+   *
+   * Its own material rather than the instanced boxes' one of the same surface, because the boxes
+   * are flat-shaded on the untextured tier and a flat-shaded grid shows every 2 m cell as a facet.
+   */
+  private buildTerrain(collider: HeightfieldCollider): void {
+    const geometry = terrainGeometry(collider);
+    const color = MATERIAL_COLORS[collider.surface.material] ?? 0x888888;
+    const material = createSurfaceMaterial(collider.surface.material, surfaceQualityFor(this.profile), { color, flatShading: false });
+    this.disposables.push(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
   }
 
   /**
@@ -854,6 +881,8 @@ export function colliderMatrix(
   quaternion.setFromAxisAngle(UP, collider.kind === 'box' ? collider.yaw : 0);
   if (collider.kind === 'box') scale.set(collider.half.x * 2, collider.half.y * 2, collider.half.z * 2);
   else if (collider.kind === 'sphere') scale.setScalar(collider.radius);
-  else scale.set(collider.radius, collider.halfHeight * 2, collider.radius);
+  else if (collider.kind === 'cylinder') scale.set(collider.radius, collider.halfHeight * 2, collider.radius);
+  // Terrain is its own mesh in world coordinates (`terrainGeometry`), never an instance of a unit shape.
+  else return out.identity();
   return out.compose(position, quaternion, scale);
 }

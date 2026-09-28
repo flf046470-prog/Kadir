@@ -1,8 +1,10 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
+import { fractalNoise2 } from '../math/noise.js';
 import { LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
-import type { BoxCollider } from '../physics/types.js';
+import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
+import type { BoxCollider, HeightfieldCollider } from '../physics/types.js';
 import type { LevelDef, PropKind } from './level.js';
 import { LOBBY_MODE_IDS } from './level.js';
 
@@ -23,11 +25,10 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   const rand = new Rand(seed);
   const b = new LevelBuilder(rand);
 
-  buildTerrain(b);
+  const ground = buildTerrain(b);
   buildJungleDistrict(b, rand);
   buildCaveDistrict(b, rand);
   buildCanyonDistrict(b, rand);
-  dressWorld(b, rand);
   buildParkourRoute(b);
 
   /**
@@ -42,6 +43,11 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   b.spawn(vec3(0, 0.5, 3), 0, 'jungle', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
   b.lobbyToys(vec3(0, 0.5, 0), 0);
+
+  // Everything that stands on the floor exists now, so the floor can take its shape round it; the
+  // undergrowth is scattered after, onto the ground as it finally is.
+  b.sculpt(ground, (x, z, free) => jungleFloorHeight(x, z, free, seed));
+  dressWorld(b, rand);
 
   b.zone('jungle', vec3(0, 0, 0), 72, 'jungle', 0.05);
   b.zone('cave', vec3(-72, 0, 0), 34, 'cave', 0.75);
@@ -61,7 +67,10 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 3: yawed boxes collide where they are drawn (physics used the mirror rotation), and tree
     // branches run out of their trunks instead of across them.
     // 4: walled edges, and the cave and canyon ramps are solid to their floors.
-    version: 5,
+    // 5: loose balls in the lobby.
+    // 6: the floor is terrain. It rolls, it slopes down into the cave instead of dropping four
+    // metres at its mouth, the river runs in a bed, and the canyon approach has no lip.
+    version: 6,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -73,9 +82,20 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   });
 }
 
-function buildTerrain(b: LevelBuilder): void {
-  // Main jungle floor.
-  b.box(vec3(0, -2, 0), vec3(62, 2, 62), 'dirt', 0, 'jungle');
+/**
+ * The jungle floor, as terrain. See `jungleFloorHeight` for its shape.
+ *
+ * It was a 124 m slab of dirt at exactly y = 0, and everything that joined it to the districts
+ * below was a box: the cave ramp was built *inside* the slab (every point over it read the slab's
+ * own 0.00), so the real way into the cave was a 4 m sheer drop inside its mouth; and the upper
+ * half of the canyon ramp was buried the same way, leaving a 2 m lip at the slab's edge.
+ *
+ * It reaches four metres further west than the slab did, into the cave's mouth, so the slope down
+ * to the cave floor has room. `bottom` is the cave and canyon floors' own bottom, so where the two
+ * meet the ground is solid all the way down.
+ */
+function buildTerrain(b: LevelBuilder): HeightfieldCollider {
+  const ground = b.terrain({ minX: -66, maxX: 62, minZ: -62, maxZ: 62, cellSize: 2, base: 0, bottom: -8, surface: 'dirt', zone: 'jungle' });
   // Sand shoreline strip to the south — open ground where chasers can catch runners.
   b.box(vec3(0, -1.8, 70), vec3(62, 2, 12), 'sand', 0, 'jungle');
   // River between jungle and canyon: slows you down, so bridges and vines matter.
@@ -94,8 +114,47 @@ function buildTerrain(b: LevelBuilder): void {
   // rather than against the geometry. With `ramp()` fixed, -8 would drive the lower half of each
   // ramp underneath its own floor — walkable only down to -4, so the same drop covered in half
   // the run, twice as steep as the map has ever played.
-  b.ramp(-46, 0, 12, 22, 0, -4, Math.PI / 2, 'cave');
-  b.ramp(62, 6, 14, 26, 0, -4, Math.PI / 2, 'canyon');
+  //
+  // The cave ramp is gone: the ground slopes into the cave now. Only the canyon ramp's lower half
+  // was ever above ground — from the slab's edge at x = 62 down to the canyon floor — and that is
+  // the half kept; the terrain comes down to meet its top.
+  b.ramp(68.5, 6, 14, 13, -2, -4, Math.PI / 2, 'canyon');
+  return ground;
+}
+
+const smooth = (edge0: number, edge1: number, x: number): number => {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+};
+
+/** 1 inside [lo, hi], falling to 0 over `blend` outside it. */
+const band = (x: number, lo: number, hi: number, blend: number): number =>
+  x < lo ? smooth(lo - blend, lo, x) : x > hi ? 1 - smooth(hi, hi + blend, x) : 1;
+
+/** Mixed with the level seed, so a different seed is a different floor as well as different trees. */
+const RELIEF_SALT = hashString('kangaroo-chase/jungle-world/relief');
+
+/**
+ * The shape of the jungle floor. Three terms, and only the first is held flat round the things
+ * built on the ground (`free`, see `LevelBuilder.sculpt`):
+ *
+ * - **Relief**: swells up to about a metre, 30 m across, with smaller bumps on them. Gentle enough
+ *   to run over flat out — nowhere near the capsule's 53° limit — and tall enough to break a
+ *   sightline for a crouching player, which on a map about not being seen is worth having.
+ * - **The cave mouth**: from the entrance pillars (x = -53) down to the cave floor at x = -66,
+ *   between the cave's side walls. A slope instead of a 4 m drop.
+ * - **The river bed** under the water, which used to sit exactly on the slab's top: two surfaces
+ *   at the same depth, and the transparent one flickered over the dirt.
+ * - **The canyon notch**: from the river's bank down to the canyon ramp's top at the old edge,
+ *   across the ramp's width.
+ */
+function jungleFloorHeight(x: number, z: number, free: number, seed: number): number {
+  const relief = 1.1 * fractalNoise2(seed ^ RELIEF_SALT, x, z, 30, 3, 0.45);
+  // Full depth to the cave walls' inner faces (|z| = 28), blended out inside the walls themselves.
+  const caveMouth = -4 * smooth(-53, -66, x) * band(z, -28, 28, 3);
+  const riverBed = -1.2 * band(x, 37.5, 54.5, 1.5) * band(z, -32.5, 52.5, 1.5);
+  const canyonNotch = -2.09 * smooth(56.5, 62, x) * band(z, -1, 13, 4);
+  return relief * free + Math.min(caveMouth, riverBed, canyonNotch);
 }
 
 /**
@@ -139,7 +198,22 @@ function scatter(
   // Spheres and cylinders are skipped on purpose: every floor in this world is a box, and a
   // rounded obstacle is small enough that a bush beside it costs nothing.
   const boxes = b.colliders.filter((c): c is BoxCollider => c.kind === 'box');
-  const floors = boxes.filter((c) => c.center.y + c.half.y <= y + 0.75);
+  // A floor at the height being dressed, not any box lower down: with the jungle slab gone, "top at
+  // or below y" also let the cave floor 4 m down count as ground for a bush meant for the jungle.
+  const floors = boxes.filter((c) => Math.abs(c.center.y + c.half.y - y) <= 0.75);
+  /**
+   * Terrain is a floor at its own height, not at `y`: a bush on a swell stands on the swell. Within
+   * a metre and a half of `y` it is the ground this scatter is dressing; well above `y` it is
+   * ground over the floor being dressed — the jungle's over the cave's mouth — and a prop there
+   * would be buried.
+   */
+  const terrains = b.colliders.filter((c): c is HeightfieldCollider => c.kind === 'heightfield');
+  const terrainAt = (x: number, z: number): number | null => {
+    for (const t of terrains) {
+      if (x >= t.minX && x <= heightfieldMaxX(t) && z >= t.minZ && z <= heightfieldMaxZ(t)) return heightfieldHeight(t, x, z);
+    }
+    return null;
+  };
   /**
    * Something solid standing in the space a prop would occupy — not merely something above it.
    *
@@ -150,9 +224,14 @@ function scatter(
    * overlaps the couple of metres the prop stands in.
    */
   const standHeight = 2;
-  const obstacles = boxes.filter(
-    (c) => c.center.y - c.half.y < y + standHeight && c.center.y + c.half.y > y + 0.2,
-  );
+  const blocked = (x: number, z: number, at: number): boolean =>
+    boxes.some(
+      (c) =>
+        c.center.y - c.half.y < at + standHeight &&
+        c.center.y + c.half.y > at + 0.2 &&
+        Math.abs(x - c.center.x) <= c.half.x + 0.4 &&
+        Math.abs(z - c.center.z) <= c.half.z + 0.4,
+    );
   const covers = (list: BoxCollider[], x: number, z: number, pad: number): boolean =>
     list.some((c) => Math.abs(x - c.center.x) <= c.half.x + pad && Math.abs(z - c.center.z) <= c.half.z + pad);
 
@@ -160,13 +239,21 @@ function scatter(
   for (let i = 0; i < count; i++) {
     let x = 0;
     let z = 0;
+    let at = y;
     let ok = false;
     // A bounded search, not a while(true): a badly chosen area must cost a few wasted rolls, not
     // hang the level build — and the caller finds out by getting fewer props than it asked for.
     for (let attempt = 0; attempt < 12 && !ok; attempt++) {
       x = rand.range(minX, maxX);
       z = rand.range(minZ, maxZ);
-      ok = covers(floors, x, z, -0.5) && !covers(obstacles, x, z, 0.4);
+      const ground = terrainAt(x, z);
+      if (ground !== null && Math.abs(ground - y) <= 1.5) {
+        at = ground;
+        ok = !blocked(x, z, at);
+      } else {
+        at = y;
+        ok = (ground === null || ground < y) && covers(floors, x, z, -0.5) && !blocked(x, z, at);
+      }
     }
     if (!ok) continue;
 
@@ -179,7 +266,7 @@ function scatter(
         break;
       }
     }
-    b.prop(kind, vec3(x, y, z), rand.range(0, Math.PI * 2), rand.range(scale[0], scale[1]), options.tint ?? i % 4);
+    b.prop(kind, vec3(x, at, z), rand.range(0, Math.PI * 2), rand.range(scale[0], scale[1]), options.tint ?? i % 4);
     placed++;
   }
   return placed;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { colliderReach, colliderTop } from '@kc/core';
 import type { LevelDef } from '@kc/core';
 
 /**
@@ -76,7 +77,7 @@ export function distantLandFrame(level: LevelDef): DistantLandFrame {
   let minZ = Infinity;
   let maxZ = -Infinity;
   for (const c of level.colliders) {
-    const hx = c.kind === 'box' ? Math.hypot(c.half.x, c.half.z) : c.radius;
+    const hx = colliderReach(c);
     minX = Math.min(minX, c.center.x - hx);
     maxX = Math.max(maxX, c.center.x + hx);
     minZ = Math.min(minZ, c.center.z - hx);
@@ -96,7 +97,7 @@ export function distantLandFrame(level: LevelDef): DistantLandFrame {
   const edges = level.colliders.filter((c) => c.zone === 'edge');
   let wallAngle = 0;
   for (const c of edges.length > 0 ? edges : level.colliders) {
-    const top = c.center.y + (c.kind === 'box' ? c.half.y : c.kind === 'cylinder' ? c.halfHeight : c.radius) - floorY;
+    const top = colliderTop(c) - floorY;
     const distance = Math.max(1, Math.hypot(c.center.x - centreX, c.center.z - centreZ));
     wallAngle = Math.max(wallAngle, Math.atan2(top, distance));
   }

@@ -2144,6 +2144,67 @@ the glacier's 0.011 exp2 fog is 93 % opaque at 150 m and the land came out as sk
 far plane beyond the old `max(200, drawDistance × 2.2)`, so `Renderer.setViewReach` takes the ring's
 `reach`. The older flat `buildBackdrop` plain under the map is unrelated and stays.
 
+## Terrain: the jungle floor rolls, and the way into the cave was buried
+
+`HeightfieldCollider` (`physics/heightfield.ts`) is a grid of heights, solid down to `bottom`, and
+the jungle floor is one now (`LevelBuilder.terrain` + `sculpt`). Measured before it, by raycasting
+the ground along the approaches: **the cave ramp was built inside the jungle slab** — every point
+over it read the slab's 0.00 — so the real way into the cave was a **4 m sheer drop** at x = -62;
+and the upper half of the canyon ramp was buried the same way, leaving a **2.1 m lip** at the
+slab's edge. Now the ground slopes 0 → -4 through both gaps in the cave mouth (largest step
+0.11 m), comes down 0 → -2.09 to meet the canyon ramp (largest step 0.18 m, the ramp's own riser),
+runs the river in a bed (water and dirt at the same height used to fight for the same pixels), and
+rolls up to ±0.9 m elsewhere, max 30° on the open floor.
+
+- **Cells split on the (0,0)–(1,1) diagonal, in physics and in `render/Terrain.ts` alike.** The
+  other diagonal is a different surface up to a quarter of the height difference away.
+  `Terrain.test.ts` raycasts the drawn mesh with three.js against the physics; flipping the
+  renderer's diagonal fails it.
+- **Every fast path is tested against a slow one.** Closest point (a window of cells, capped at
+  `HEIGHTFIELD_SEARCH`) and the ray (a grid walk, plus sides and underside) are compared with
+  every triangle of the grid by different arithmetic, 1,600 points and 2,000 rays.
+- **`sculpt(hf, height(x, z, free))`** runs after everything is placed: `free` is 0 within
+  `TERRAIN_CLEARANCE` of anything built on the old plane (spawns, doors, checkpoints, balls, pit
+  exits, colliders in the floor band, the footprint's edge) and 1 past `TERRAIN_BLEND` beyond, so
+  relief never buries a spawn or hangs a mushroom over a hollow. Deliberate carving (the cave slope)
+  is a term `free` does not scale. Props on the old plane are set down on the surface.
+- **Scatter only counts a floor at the height it dresses.** "Top at or below y" let the cave floor
+  4 m down count as ground for a jungle bush once the slab was gone — measured, a mushroom floating
+  1.54 m over the cave slope.
+- **`scatter` runs after `sculpt`** in the jungle, so undergrowth lands on the final ground.
+- **The relief is seeded from the level seed** through `math/noise.ts` (integer hashing only), so it
+  consumes no `Rand` and does not move the trees placed after it. The fingerprint mixes every height.
+- Box-count cost tests count a heightfield as its triangles / 12; counted as one collider, the
+  jungle got "cheaper" by gaining 8k triangles. It is one draw call and ~8.4k triangles against a
+  measured 709k-triangle frame.
+
+Two things the solver had never met, because boxes have vertical walls and no slopes:
+
+- **Walking into a 60° slope climbed it** — 10 m in 4 s — because a contact resolved along a
+  steep normal lifts the capsule and keeps `ny` of the speed going up. Steep *terrain* (normal y
+  under `minGroundNormalY`) is now resolved as a vertical wall. Boulders and box edges are not
+  touched: rolling up over a lip on an oblique contact is how the game has always played.
+- **Walking up any slope flickered airborne every other tick** — the probe skipped anything rising
+  faster than 0.5 m/s, and the slope itself makes you rise. Grounded last tick, the ground's own
+  slope now explains `along` of rise and only the excess is a launch (a punch, a palm push). Measured
+  with the real locomotion over the relief: 171 m walked, 0 airborne ticks, 1 landing event.
+
+**What it did to the bots, measured over 16 seeds × 90 s** (A/B against the previous commit —
+and note the worktree trap below): falls 0 → 0; stuck bot-seconds 14.1 % → 9.8 % (the base of
+the old 4 m drop at (-64, ±24) was a trap and is gone); cave occupancy 26 % → 11 %; tags 299 → 200;
+median nearest player 14.5 m → 16.2 m. The tag count per seed ranges 0–37 on *both* sides, and
+changing only the physics on the old map moved 4 of 16 seeds by up to 22 each way — the chase is
+chaotic, and the honest reading is that the cave stopped being a pit that cornered runners. Relief
+is not the cause: without it, 145 tags; without the cave slope, 204.
+
+**A git worktree does not isolate `@kc/core`.** `node_modules/@kc/core` is a symlink to the main
+tree's `packages/core`, so a probe importing `@kc/core` from a worktree of HEAD measures the working
+tree — it reported byte-identical numbers for "before" and "after". Import
+`./packages/core/src/index.ts` by relative path in A/B probes. (Also: there is no `rsync` here.)
+
+Left alone: the canyon ramp's lower steps still run into the canyon's west wall, and the corner
+where its side meets the jungle's edge wall catches a bot now and then (15 bot-seconds in 16 rounds).
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

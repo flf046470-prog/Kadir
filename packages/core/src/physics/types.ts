@@ -105,7 +105,32 @@ export interface CylinderCollider extends ColliderBase {
   halfHeight: number;
 }
 
-export type Collider = BoxCollider | SphereCollider | CylinderCollider;
+/**
+ * Terrain: a grid of surface heights, solid down to `bottom`. See `physics/heightfield.ts`.
+ *
+ * Plain data like every other collider — built from the level's seed on the server and on every
+ * client, never downloaded.
+ */
+export interface HeightfieldCollider extends ColliderBase {
+  kind: 'heightfield';
+  /** Middle of the footprint at mid height: where a closest-point search starts, and the fingerprint. */
+  center: Vec3;
+  /** World x and z of sample (0, 0). Samples run +x along a row, rows run +z. */
+  minX: number;
+  minZ: number;
+  cellSize: number;
+  /** Samples along x and along z: one more than the cells. */
+  cols: number;
+  rows: number;
+  /** Absolute surface heights, `heights[row * cols + col]`. */
+  heights: number[];
+  /** The solid runs from the surface down to here. */
+  bottom: number;
+  /** The highest sample, kept so a bounding box does not have to scan the grid. */
+  top: number;
+}
+
+export type Collider = BoxCollider | SphereCollider | CylinderCollider | HeightfieldCollider;
 
 export interface Aabb {
   minX: number;

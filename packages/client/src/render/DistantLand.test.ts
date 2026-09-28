@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
-import { buildLevel, listLevels } from '@kc/core';
+import { buildLevel, colliderReach, listLevels } from '@kc/core';
 import { DISTANT_LAND_STYLES, DistantLand, distantLandFrame, distantLandGeometry } from './DistantLand.js';
 
 describe('the land beyond the map', () => {
@@ -11,7 +11,7 @@ describe('the land beyond the map', () => {
       const frame = distantLandFrame(level);
       // Every collider is inside the ring's inner edge.
       for (const c of level.colliders) {
-        const r = c.kind === 'box' ? Math.hypot(c.half.x, c.half.z) : c.radius;
+        const r = colliderReach(c);
         expect(Math.hypot(c.center.x - frame.centreX, c.center.z - frame.centreZ) + r).toBeLessThan(frame.inner);
       }
       const geometry = distantLandGeometry(frame, DISTANT_LAND_STYLES[level.id]!, 1);

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { capsuleFits } from '../physics/character.js';
 import type { Collider, RaycastResult } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
+import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
 import { vec3 } from '../math/vec3.js';
 import type { Vec3 } from '../math/vec3.js';
 import { Rand } from '../math/rand.js';
@@ -32,6 +33,11 @@ function inside(collider: Collider, point: Vec3): boolean {
       Math.hypot(point.x - collider.center.x, point.z - collider.center.z) < collider.radius &&
       Math.abs(point.y - collider.center.y) < collider.halfHeight
     );
+  }
+  if (collider.kind === 'heightfield') {
+    const inX = point.x > collider.minX && point.x < heightfieldMaxX(collider);
+    const inZ = point.z > collider.minZ && point.z < heightfieldMaxZ(collider);
+    return inX && inZ && point.y > collider.bottom && point.y < heightfieldHeight(collider, point.x, point.z);
   }
   // Box: rotate the point into the collider's frame, then compare against the half extents.
   const dx = point.x - collider.center.x;
@@ -181,7 +187,13 @@ describe('Outback Station', () => {
     // perimeter, and this one has the longest by design: 145 cliff pieces against the jungle's 91,
     // which as drawn is ~700 more triangles in the same instanced batch — against a Quest frame of
     // 410k–1M. Counting them here would make "the long view" the thing this test forbids.
-    const authored = (l: { colliders: readonly Collider[] }): number => l.colliders.filter((c) => c.zone !== 'edge').length;
+    //
+    // Terrain is one collider and thousands of triangles, so it is counted as the boxes it costs to
+    // draw (a box is 12 triangles). Counted as one, the jungle got *cheaper* by gaining 8k triangles
+    // of ground — the metric has to follow the geometry, not the object count.
+    const cost = (c: Collider): number => (c.kind === 'heightfield' ? ((c.cols - 1) * (c.rows - 1) * 2) / 12 : 1);
+    const authored = (l: { colliders: readonly Collider[] }): number =>
+      l.colliders.filter((c) => c.zone !== 'edge').reduce((sum, c) => sum + cost(c), 0);
     const worstColliders = Math.max(...others.map(authored));
     const worstProps = Math.max(...others.map((l) => l.props.length));
     expect(authored(outback)).toBeLessThanOrEqual(worstColliders);

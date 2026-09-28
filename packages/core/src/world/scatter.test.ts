@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildJungleWorld } from './jungle.js';
-import type { BoxCollider } from '../physics/types.js';
+import type { BoxCollider, HeightfieldCollider } from '../physics/types.js';
+import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
 import type { PropInstance } from './level.js';
 
 /**
@@ -34,8 +35,20 @@ describe('jungle world props', () => {
     expect(level.props.length).toBeGreaterThan(400);
   });
 
+  const terrains = level.colliders.filter((c): c is HeightfieldCollider => c.kind === 'heightfield');
+  /** Terrain under the prop whose surface is at or just below it — the floor is terrain now. */
+  const onTerrain = (p: PropInstance): boolean =>
+    terrains.some(
+      (t) =>
+        p.position.x >= t.minX &&
+        p.position.x <= heightfieldMaxX(t) &&
+        p.position.z >= t.minZ &&
+        p.position.z <= heightfieldMaxZ(t) &&
+        heightfieldHeight(t, p.position.x, p.position.z) <= p.position.y + 0.8,
+    );
+
   it('gives every prop ground to stand on', () => {
-    const floating = level.props.filter((p) => !covers(floorsUnder(p.position.y), p, 0.6));
+    const floating = level.props.filter((p) => !covers(floorsUnder(p.position.y), p, 0.6) && !onTerrain(p));
     expect(
       floating.map((p) => `${p.kind} at ${p.position.x.toFixed(0)},${p.position.y.toFixed(0)},${p.position.z.toFixed(0)}`),
     ).toEqual([]);
@@ -55,6 +68,21 @@ describe('jungle world props', () => {
       return covers(solid, p, -0.6);
     });
     expect(inside.map((p) => `${p.kind} at ${p.position.x.toFixed(0)},${p.position.z.toFixed(0)}`)).toEqual([]);
+  });
+
+  it('sets every ground prop down on the terrain, not under it or over a hollow', () => {
+    // Scattered onto the ground as it finally is: a bush on a swell stands on the swell. A prop a
+    // few centimetres into a hollow, or buried in a rise, is the defect this would show.
+    const ground = level.props.filter((p) => {
+      const t = terrains.find((c) => p.position.x >= c.minX && p.position.x <= heightfieldMaxX(c) && p.position.z >= c.minZ && p.position.z <= heightfieldMaxZ(c));
+      return t && Math.abs(p.position.y - heightfieldHeight(t, p.position.x, p.position.z)) < 1.6 && p.kind !== 'tree' && p.kind !== 'vine' && p.kind !== 'banner';
+    });
+    expect(ground.length).toBeGreaterThan(200);
+    const off = ground.filter((p) => {
+      const t = terrains[0] as HeightfieldCollider;
+      return Math.abs(p.position.y - heightfieldHeight(t, p.position.x, p.position.z)) > 1e-6;
+    });
+    expect(off.map((p) => `${p.kind} at ${p.position.x.toFixed(1)},${p.position.y.toFixed(2)},${p.position.z.toFixed(1)}`)).toEqual([]);
   });
 
   it('furnishes the cave and the canyon, not only the jungle', () => {

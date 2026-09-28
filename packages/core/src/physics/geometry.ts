@@ -1,6 +1,7 @@
 import type { Vec3 } from '../math/vec3.js';
 import { v3set, v3sub, v3dot, v3length } from '../math/vec3.js';
 import type { Aabb, BoxCollider, Collider, CylinderCollider, SphereCollider } from './types.js';
+import { closestPointOnHeightfield, heightfieldMaxX, heightfieldMaxZ, rayHeightfield } from './heightfield.js';
 
 /** Parametric position of the closest point on segment [p0,p1] to `point`, clamped to 0..1. */
 export function closestTOnSegment(p0: Vec3, p1: Vec3, point: Vec3): number {
@@ -185,6 +186,8 @@ export function closestPointOnCollider(
       return closestPointOnSphere(outPoint, outNormal, point, collider);
     case 'cylinder':
       return closestPointOnCylinder(outPoint, outNormal, point, collider);
+    case 'heightfield':
+      return closestPointOnHeightfield(outPoint, outNormal, point, collider);
   }
 }
 
@@ -259,6 +262,55 @@ export function colliderAabb(out: Aabb, collider: Collider): Aabb {
       out.minZ = collider.center.z - collider.radius;
       out.maxZ = collider.center.z + collider.radius;
       return out;
+    case 'heightfield':
+      out.minX = collider.minX;
+      out.maxX = heightfieldMaxX(collider);
+      out.minY = collider.bottom;
+      out.maxY = collider.top;
+      out.minZ = collider.minZ;
+      out.maxZ = heightfieldMaxZ(collider);
+      return out;
+  }
+}
+
+/** Highest point of a collider: where something standing on it stands, at most. */
+export function colliderTop(collider: Collider): number {
+  switch (collider.kind) {
+    case 'box':
+      return collider.center.y + collider.half.y;
+    case 'sphere':
+      return collider.center.y + collider.radius;
+    case 'cylinder':
+      return collider.center.y + collider.halfHeight;
+    case 'heightfield':
+      return collider.top;
+  }
+}
+
+/** Lowest point of a collider. */
+export function colliderBottom(collider: Collider): number {
+  switch (collider.kind) {
+    case 'box':
+      return collider.center.y - collider.half.y;
+    case 'sphere':
+      return collider.center.y - collider.radius;
+    case 'cylinder':
+      return collider.center.y - collider.halfHeight;
+    case 'heightfield':
+      return collider.bottom;
+  }
+}
+
+/** Horizontal distance from a collider's centre that contains its whole footprint. */
+export function colliderReach(collider: Collider): number {
+  switch (collider.kind) {
+    case 'box':
+      return Math.hypot(collider.half.x, collider.half.z);
+    case 'sphere':
+    case 'cylinder':
+      return collider.radius;
+    case 'heightfield':
+      return Math.hypot(heightfieldMaxX(collider) - collider.minX, heightfieldMaxZ(collider) - collider.minZ) / 2;
   }
 }
 
@@ -416,6 +468,8 @@ export function rayCollider(
       return raySphere(origin, dir, maxDist, collider, outNormal);
     case 'cylinder':
       return rayCylinder(origin, dir, maxDist, collider, outNormal);
+    case 'heightfield':
+      return rayHeightfield(origin, dir, maxDist, collider, outNormal);
   }
 }
 

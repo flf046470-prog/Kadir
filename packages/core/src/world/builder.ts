@@ -1,9 +1,11 @@
 import type { Rand } from '../math/rand.js';
 import type { Vec3 } from '../math/vec3.js';
 import { vec3 } from '../math/vec3.js';
-import type { Collider, RaycastResult, SurfaceMaterial, SurfaceProps } from '../physics/types.js';
+import type { Collider, HeightfieldCollider, RaycastResult, SurfaceMaterial, SurfaceProps } from '../physics/types.js';
 import { SurfaceFlags } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
+import { colliderAabb, colliderBottom, colliderReach, colliderTop, makeAabb } from '../physics/geometry.js';
+import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
 import type { BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
 
 export interface SurfacePreset {
@@ -64,10 +66,6 @@ const DIRECTIONS: readonly (readonly [number, number])[] = [
   [0, -1],
 ];
 
-function colliderHalfHeight(c: Collider): number {
-  return c.kind === 'box' ? c.half.y : c.kind === 'sphere' ? c.radius : c.halfHeight;
-}
-
 /** Named surface presets keep level authoring readable and consistent. */
 export const SURFACES = {
   dirt: { friction: 1, bounciness: 0, flags: SurfaceFlags.Climbable, material: 'dirt' },
@@ -127,6 +125,29 @@ export const SURFACES = {
 } as const satisfies Record<string, SurfacePreset>;
 
 export type SurfaceName = keyof typeof SURFACES;
+
+export interface TerrainOptions {
+  /** Footprint. Widened to whole cells from `minX`/`minZ`. */
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+  cellSize: number;
+  /** Height of the flat ground everything is built on until `sculpt` shapes it. */
+  base: number;
+  /** Where the solid ends below. */
+  bottom: number;
+  surface: SurfaceName;
+  zone?: string;
+}
+
+/**
+ * How far from anything built on flat ground terrain stays flat, and how far beyond that it takes
+ * to rise to its full shape. A spawn, a door, a mushroom or a ramp's foot was placed on a plane;
+ * keeping a flat pad round it is what lets a map gain relief without re-authoring every placement.
+ */
+export const TERRAIN_CLEARANCE = 1.5;
+export const TERRAIN_BLEND = 5;
 
 /**
  * Fluent level builder. Deterministic: given the same `Rand` seed it produces byte-identical
@@ -197,6 +218,108 @@ export class LevelBuilder {
     };
     this.colliders.push(collider);
     return collider;
+  }
+
+  /**
+   * Ground as a grid of heights instead of a slab. Flat at `base` until `sculpt` shapes it, so
+   * everything placed in the meantime — trees, scatter, spawns — stands on it as it would on a box.
+   */
+  terrain(opts: TerrainOptions): HeightfieldCollider {
+    const cols = Math.max(2, Math.ceil((opts.maxX - opts.minX) / opts.cellSize) + 1);
+    const rows = Math.max(2, Math.ceil((opts.maxZ - opts.minZ) / opts.cellSize) + 1);
+    const collider: HeightfieldCollider = {
+      kind: 'heightfield',
+      id: this.nextId++,
+      center: vec3(opts.minX + ((cols - 1) * opts.cellSize) / 2, (opts.base + opts.bottom) / 2, opts.minZ + ((rows - 1) * opts.cellSize) / 2),
+      minX: opts.minX,
+      minZ: opts.minZ,
+      cellSize: opts.cellSize,
+      cols,
+      rows,
+      heights: Array.from({ length: cols * rows }, () => opts.base),
+      bottom: opts.bottom,
+      top: opts.base,
+      surface: this.surface(opts.surface, opts.zone),
+      ...(opts.zone ? { zone: opts.zone } : {}),
+    };
+    this.colliders.push(collider);
+    return collider;
+  }
+
+  /**
+   * Shape terrain once everything that stands on it exists.
+   *
+   * `height(x, z, free)` returns the surface height at a sample. `free` runs from 0 within
+   * `TERRAIN_CLEARANCE` of anything built on the flat ground — a spawn, a door, a checkpoint, a
+   * ball, a pit's way out, a collider standing at ground level, the footprint's own edge — to 1
+   * past `TERRAIN_BLEND` further out; multiply relief by it and nothing placed on the plane ends
+   * up buried or hanging over a hollow. A level may still carve beneath a feature on purpose (a
+   * slope into a cave) by adding a term `free` does not scale.
+   *
+   * Then every prop that sat on the old flat ground, or is now inside the new one, is set down on
+   * the surface. Call it after everything is placed and before `enclose`, which measures floors.
+   */
+  sculpt(hf: HeightfieldCollider, height: (x: number, z: number, free: number) => number): void {
+    const base = hf.heights[0] as number;
+    const maxX = heightfieldMaxX(hf);
+    const maxZ = heightfieldMaxZ(hf);
+    const reach = TERRAIN_CLEARANCE + TERRAIN_BLEND;
+
+    // What was built on the flat ground, as XZ rectangles (points are zero-size rectangles).
+    const keep: { minX: number; maxX: number; minZ: number; maxZ: number; pad: number }[] = [];
+    const point = (p: Vec3, pad: number): void => {
+      keep.push({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, pad });
+    };
+    for (const s of this.spawns) if (Math.abs(s.position.y - base) < 2) point(s.position, 2);
+    for (const p of this.portals) if (Math.abs(p.position.y - base) < 2) point(p.position, p.radius + 1.5);
+    for (const c of this.checkpoints) if (Math.abs(c.position.y - base) < 2) point(c.position, Math.min(c.radius, 3));
+    for (const body of this.bodies) point(body.position, 1);
+    for (const zone of this.zones) {
+      for (const exit of zone.exits ?? []) {
+        point(exit.foot, 2);
+        point(exit.top, 2);
+      }
+    }
+    const box = makeAabb();
+    for (const c of this.colliders) {
+      if (c === hf) continue;
+      colliderAabb(box, c);
+      // Standing on the ground, or reaching down into it: anything whose span crosses the floor band.
+      if (box.minY > base + 1 || box.maxY < base - 0.5) continue;
+      if (box.maxX < hf.minX - reach || box.minX > maxX + reach || box.maxZ < hf.minZ - reach || box.minZ > maxZ + reach) continue;
+      keep.push({ minX: box.minX, maxX: box.maxX, minZ: box.minZ, maxZ: box.maxZ, pad: 0 });
+    }
+
+    let top = -Infinity;
+    for (let j = 0; j < hf.rows; j++) {
+      for (let i = 0; i < hf.cols; i++) {
+        const x = hf.minX + i * hf.cellSize;
+        const z = hf.minZ + j * hf.cellSize;
+        // The footprint's own edge is a feature too: whatever meets the terrain there met a plane.
+        let nearest = Math.min(x - hf.minX, maxX - x, z - hf.minZ, maxZ - z);
+        for (const k of keep) {
+          const dx = Math.max(k.minX - x, 0, x - k.maxX);
+          const dz = Math.max(k.minZ - z, 0, z - k.maxZ);
+          nearest = Math.min(nearest, Math.hypot(dx, dz) - k.pad);
+          if (nearest <= TERRAIN_CLEARANCE) break;
+        }
+        const t = Math.min(1, Math.max(0, (nearest - TERRAIN_CLEARANCE) / TERRAIN_BLEND));
+        const free = t * t * (3 - 2 * t);
+        const h = height(x, z, free);
+        hf.heights[j * hf.cols + i] = h;
+        top = Math.max(top, h);
+      }
+    }
+    hf.top = top;
+    hf.center.y = (top + hf.bottom) / 2;
+
+    // Set down every prop that stood on the plane, or that the new ground has swallowed.
+    for (const prop of this.props) {
+      const { x, y, z } = prop.position;
+      if (x < hf.minX || x > maxX || z < hf.minZ || z > maxZ) continue;
+      const ground = heightfieldHeight(hf, x, z);
+      if (Math.abs(y - base) < 0.02 || (y < ground && y > hf.bottom)) prop.position = vec3(x, ground, z);
+    }
   }
 
   prop(kind: PropKind, position: Vec3, yaw = 0, scale = 1, tint = 0): void {
@@ -402,12 +525,12 @@ export class LevelBuilder {
     let maxZ = -Infinity;
     let maxY = -Infinity;
     for (const c of this.colliders) {
-      const reach = c.kind === 'box' ? Math.hypot(c.half.x, c.half.z) : c.radius;
+      const reach = colliderReach(c);
       minX = Math.min(minX, c.center.x - reach);
       maxX = Math.max(maxX, c.center.x + reach);
       minZ = Math.min(minZ, c.center.z - reach);
       maxZ = Math.max(maxZ, c.center.z + reach);
-      maxY = Math.max(maxY, c.center.y + colliderHalfHeight(c));
+      maxY = Math.max(maxY, colliderTop(c));
     }
     const x0 = Math.floor(minX) - 4;
     const z0 = Math.floor(minZ) - 4;
@@ -434,7 +557,7 @@ export class LevelBuilder {
           world.raycast(ray, origin, down, y - killPlaneY);
           if (!ray.hit) break;
           const c = this.colliders[ray.colliderIndex] as Collider;
-          const bottom = c.center.y - colliderHalfHeight(c);
+          const bottom = colliderBottom(c);
           // A ray that starts inside a solid meets it at distance 0. That solid overlaps the one
           // above it, so the two are one mass: nothing to stand on at the seam, and the lower one's
           // bottom is where the mass ends. Skipping it instead dropped it from the column outright —

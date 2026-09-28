@@ -200,6 +200,8 @@ export function levelFingerprint(level: LevelDef): string {
     mix(collider.center.x);
     mix(collider.center.y);
     mix(collider.center.z);
+    // Terrain's shape is its heights, not its centre: two floors with different hills share one.
+    if (collider.kind === 'heightfield') for (const h of collider.heights) mix(h);
   }
   return `${level.id}:${(hash >>> 0).toString(36)}`;
 }

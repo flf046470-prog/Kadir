@@ -1,6 +1,6 @@
 import type { Vec3 } from '../math/vec3.js';
 import { v3copy, v3dot, v3set, v3zero } from '../math/vec3.js';
-import { closestPointSegmentCollider } from './geometry.js';
+import { closestPointSegmentCollider, colliderTop } from './geometry.js';
 import type { Collider, RaycastResult, SurfaceProps } from './types.js';
 import { DEFAULT_SURFACE, SurfaceFlags, hasFlag, makeRaycastResult } from './types.js';
 import type { PhysicsWorld } from './world.js';
@@ -197,6 +197,7 @@ function resolve(
     let deepest = 0;
     let hitIndex = -1;
     let hitSurface: SurfaceProps = DEFAULT_SURFACE;
+    let hitTerrain = false;
     let nx = 0;
     let ny = 0;
     let nz = 0;
@@ -210,6 +211,7 @@ function resolve(
         deepest = penetration;
         hitIndex = index;
         hitSurface = collider.surface;
+        hitTerrain = collider.kind === 'heightfield';
         nx = _normal.x;
         ny = _normal.y;
         nz = _normal.z;
@@ -218,7 +220,22 @@ function resolve(
 
     if (hitIndex < 0) break;
 
-    const push = deepest + params.skin * 0.5;
+    let push = deepest + params.skin * 0.5;
+    // Terrain too steep to stand on is a wall, not a ramp. Resolved along its real normal, every
+    // contact lifts the capsule by `ny` of the push and the slide keeps `ny` of the speed going up:
+    // measured, a capsule walking into a 60° slope climbed 10 m of it in four seconds. A box never
+    // showed this because its walls are vertical. Pushed straight out instead, it is as far as a
+    // capsule gets, and gravity slides it back down. Only terrain: an oblique contact on a boulder
+    // or a box edge is how the game has always rolled a player up over a lip.
+    if (hitTerrain && ny < params.minGroundNormalY && ny > -0.5) {
+      const flat = Math.hypot(nx, nz);
+      if (flat > 1e-6) {
+        push /= flat;
+        nx /= flat;
+        nz /= flat;
+        ny = 0;
+      }
+    }
     position.x += nx * push;
     position.y += ny * push;
     position.z += nz * push;
@@ -275,7 +292,8 @@ function probeGround(
   out: MoveResult,
   wasGrounded: boolean,
 ): void {
-  if (velocity.y > 0.5) return;
+  // Rising fast and not on the ground last tick: a jump, a bounce or a launch — never snapped down.
+  if (velocity.y > 0.5 && !wasGrounded) return;
   const probe = wasGrounded ? params.groundProbe + params.stepOffset * 0.5 : params.groundProbe;
   v3set(_p0, position.x, position.y + shape.radius - probe, position.z);
   v3set(_p1, position.x, position.y + Math.max(shape.height - shape.radius, shape.radius), position.z);
@@ -303,6 +321,15 @@ function probeGround(
   });
 
   if (bestIndex >= 0 && bestNy >= params.minGroundNormalY) {
+    // Rising while grounded last tick is either walking up a slope or being launched off the ground
+    // (a punch's knockback, a palm push). The ground's own slope says which: speed along it explains
+    // `along` of rise, and anything past that is a launch. Without this, every tick up a slope that
+    // did not quite touch it read as airborne — measured on a 17° hill, grounded and airborne
+    // alternated tick by tick the whole way up, each "landing" a landing sound and a jump pose.
+    if (velocity.y > 0.5) {
+      const along = -(bestNormalX * velocity.x + bestNormalZ * velocity.z) / bestNy;
+      if (velocity.y > Math.max(0, along) + 0.5) return;
+    }
     out.grounded = true;
     v3set(out.groundNormal, bestNormalX, bestNy, bestNormalZ);
     out.groundColliderIndex = bestIndex;
@@ -324,13 +351,7 @@ function probeGround(
 function shouldCollide(collider: Collider, position: Vec3, velocity: Vec3, shape: CapsuleShape): boolean {
   if (!hasFlag(collider.surface, SurfaceFlags.OneWay)) return true;
   if (velocity.y > 0.01) return false;
-  const top =
-    collider.kind === 'box'
-      ? collider.center.y + collider.half.y
-      : collider.kind === 'cylinder'
-        ? collider.center.y + collider.halfHeight
-        : collider.center.y + collider.radius;
-  return position.y >= top - shape.radius * 0.25;
+  return position.y >= colliderTop(collider) - shape.radius * 0.25;
 }
 
 /** Test whether a capsule at `position` would be free of geometry — used for spawn selection. */

@@ -20,7 +20,8 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
       momentum, palm push, two-handed multiplier, assisted climb for flat platforms
 - [x] **4 · Maps** — **3 worlds**, each deterministic from a seed: `jungle-world` (jungle, cave,
       canyon, tree village), `glacier-world` (shelf, seracs, crevasse), `outback-station`
-      (gum flat, gorge, cave, station). Grips, spawns, zones and parkour routes indexed
+      (gum flat, gorge, cave, station). Grips, spawns, zones and parkour routes indexed;
+      the jungle floor is heightfield terrain that slopes into the cave and the canyon
 - [x] **5 · Multiplayer** — authoritative rooms, binary intents (**protocol 3**), delta
       snapshots, interest management, prediction + rewind/replay reconciliation, interpolation
       (players *and* gadget entities on one clock)
@@ -128,8 +129,9 @@ These were Milestone B items in `ROADMAP.md` and are done:
   a lie about a cheat. Enforcing it means putting the server in the audio path.
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
 - **Moderation** has the model, rate limiting and a report log, but no review tooling.
-- **Level geometry has no terrain primitive** — `LevelBuilder` offers box/cylinder/sphere/ramp
-  only. Heightmap terrain is a new primitive, not a tuning job.
+- **Terrain is on one map.** `HeightfieldCollider` exists and the jungle floor uses it; the
+  glacier's rink is ice (flat by nature) and the outback's flat is open by design, so neither was
+  given relief. The outback's outer frame of empty ground is the next candidate.
 - **`LevelDef.grips`/`GripKind`** (`branch`/`ledge`/`vine`/`rock`/`root`) are authored into every
   map and read only by a test's level-stats count. All five climb identically, keyed on
   `SurfaceFlags.Climbable`; the promised per-grip feel and highlighting do not exist.
