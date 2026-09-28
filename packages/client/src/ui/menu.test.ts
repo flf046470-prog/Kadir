@@ -90,7 +90,7 @@ describe('menuEntries', () => {
 
     it('reaches every screen the menu is the only entry point for', () => {
       const list = actions(online);
-      for (const action of ['modes', 'room', 'customize', 'store', 'settings', 'tutorial'] as const) {
+      for (const action of ['modes', 'room', 'customize', 'store', 'challenges', 'settings', 'tutorial'] as const) {
         expect(list).toContain(action);
       }
     });

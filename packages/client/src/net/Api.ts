@@ -1,5 +1,5 @@
 import { listAnimals, listCosmetics, listLevels, listModes, listStoreItems } from '@kc/core';
-import type { AnimalDef, CosmeticDef, GameModeDef, PlayerProfile, Reward, SeasonDef, StoreItem } from '@kc/core';
+import type { AchievementDef, AnimalDef, CosmeticDef, EventProgress, GameModeDef, PlayerProfile, Reward, SeasonDef, StoreItem } from '@kc/core';
 import type { SocialActionResult, SocialView } from '@kc/net';
 
 export interface ProfileBundle {
@@ -25,7 +25,12 @@ export interface ProfileBundle {
     premiumOwned: boolean;
     claimable: { level: number; track: 'free' | 'premium'; reward: Reward }[];
   };
-  achievements: { def: { id: string; name: string; description: string; threshold: number }; value: number; done: boolean }[];
+  achievements: { def: AchievementDef; value: number; done: boolean }[];
+  /**
+   * The running events (or the next one), with this player's progress — `eventProgress` on the
+   * server. Optional because a server older than the challenges screen does not send it.
+   */
+  events?: EventProgress[];
 }
 
 export interface ContentBundle {

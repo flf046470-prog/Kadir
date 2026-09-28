@@ -57,7 +57,17 @@ if (process.env.PLAYWRIGHT_CHROMIUM_PATH) launch.executablePath = process.env.PL
 const browser = await chromium.launch(launch);
 
 async function player(name) {
-  const page = await (await browser.newContext({ viewport: { width: 1024, height: 640 } })).newPage();
+  const context = await browser.newContext({ viewport: { width: 1024, height: 640 } });
+  // Two games rendering in software starve each other's main thread (see check-party.mjs): one run
+  // here timed out on a click that had already landed, "waiting for scheduled navigations", and
+  // the rerun passed. Nothing this check reads is a pixel, so both players run the lowest settings.
+  await context.addInitScript(() => {
+    localStorage.setItem(
+      'kc.settings.v1',
+      JSON.stringify({ graphics: { quality: 'low', shadows: false, postProcessing: false, renderScale: 0.5, sceneryDetail: 0.25 } }),
+    );
+  });
+  const page = await context.newPage();
   page.on('console', (m) => {
     if (m.type() === 'error') errors.push(`[${name}] ${m.text()}`);
   });

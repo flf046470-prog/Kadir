@@ -7,7 +7,7 @@ import {
   encodeIntent,
   encodeJson,
 } from '@kc/net';
-import type { ClientHello, ClientMessage, Platform, RosterEntry, ServerMessage } from '@kc/net';
+import type { ClientHello, ClientMessage, Platform, RosterEntry, RoundRewards, ServerMessage } from '@kc/net';
 
 export interface NetHandlers {
   onWelcome(message: Extract<ServerMessage, { t: 'welcome' }>): void;
@@ -24,7 +24,7 @@ export interface NetHandlers {
   onPlayerLeft(playerId: string): void;
   onEvents(events: SimEvent[]): void;
   onModeState(state: ModeStateView): void;
-  onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
+  onResults(result: MatchResult, rewards: Record<string, RoundRewards>): void;
   /**
    * The server's view of this player's gadgets and what the in-round shop is selling.
    *

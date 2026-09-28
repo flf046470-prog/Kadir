@@ -85,6 +85,7 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
     friendIds: uniqueStrings(raw.friendIds, []),
     friendRequestsIn: uniqueStrings(raw.friendRequestsIn, []),
     friendRequestsOut: uniqueStrings(raw.friendRequestsOut, []),
+    events: eventRecords(raw.events),
   };
 
   profile.coins = safeNumber(profile.coins, 0);
@@ -100,6 +101,29 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
   // inventory forever, silently occupying a slot the player cannot fill.
   profile.ownedGadgets = profile.ownedGadgets.filter((id) => getGadget(id) !== undefined);
   return profile;
+}
+
+/**
+ * Event progress from an untrusted save: only records with a numeric end, a numeric baseline and a
+ * list of paid challenge ids survive. A corrupt record is dropped rather than repaired — the next round rejoins
+ * the event with a fresh baseline, which is the same as never having played it.
+ */
+function eventRecords(value: unknown): PlayerProfile['events'] {
+  const out: PlayerProfile['events'] = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [id, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (id === '__proto__' || id === 'constructor' || id === 'prototype') continue;
+    if (!raw || typeof raw !== 'object') continue;
+    const record = raw as { endsAt?: unknown; baseline?: unknown; done?: unknown };
+    if (typeof record.endsAt !== 'number' || !Number.isFinite(record.endsAt)) continue;
+    if (!record.baseline || typeof record.baseline !== 'object') continue;
+    const baseline: Record<string, number> = {};
+    for (const [metric, n] of Object.entries(record.baseline as Record<string, unknown>)) {
+      if (typeof n === 'number' && Number.isFinite(n) && metric in emptyStats()) baseline[metric] = n;
+    }
+    out[id] = { endsAt: record.endsAt, baseline, done: uniqueStrings(record.done, []) };
+  }
+  return out;
 }
 
 function uniqueStrings(value: unknown, fallback: string[]): string[] {

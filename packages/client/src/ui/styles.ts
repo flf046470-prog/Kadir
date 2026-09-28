@@ -187,6 +187,9 @@ export const UI_CSS = `
 .kc-xpbar { position: relative; height: 22px; border-radius: 11px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .kc-xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg,#4caf50,#8bc34a); }
 .kc-xpbar span { position: relative; font-size: 12px; font-weight: 700; }
+.kc-goal .kc-xpbar { height: 18px; }
+.kc-goal--done .kc-xpbar i { background: linear-gradient(90deg,#d4a017,#f5d05e); }
+.kc-unlock { font-weight: 700; margin: 2px 0; }
 .kc-track { display: flex; flex-direction: column; gap: 4px; width: 100%; max-width: 420px; align-self: center; }
 .kc-track-head, .kc-track-row { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; width: 100%; max-width: 420px; align-self: center; box-sizing: border-box; }
 .kc-track-head { font-weight: 700; font-size: 12px; opacity: .8; }

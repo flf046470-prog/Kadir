@@ -1,7 +1,8 @@
 import { createServer } from 'node:http';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MemorySaveStore, SEASON_SHELF } from '@kc/core';
 import type { ServerMessage } from '@kc/net';
+import type { EventProgress } from '@kc/core';
 import { AccountService } from './accounts.js';
 import { createHttpHandler } from './http.js';
 import { Leaderboard } from './leaderboard.js';
@@ -53,7 +54,11 @@ async function server() {
     });
     return { status: response.status, body: (await response.json()) as Record<string, unknown> };
   };
-  return { accounts, rooms, call, close: () => http.close() };
+  const get = async (token: string, path: string) => {
+    const response = await fetch(`${base}${path}`, { headers: { authorization: `Bearer ${token}` } });
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  };
+  return { accounts, rooms, call, get, close: () => http.close() };
 }
 
 /** What everyone else in the room is told this player is wearing. */
@@ -114,5 +119,31 @@ describe('a season cosmetic is earned before it is worn', () => {
     expect(refused.status).toBe(400);
     expect(refused.body.error).toBe('unknown-item');
     s.close();
+  });
+});
+
+describe('the profile answers with the events', () => {
+  it('joins a running event on opening the game, so progress starts from there', async () => {
+    // Only Date is faked: the server and fetch still need real timers.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'));
+    const s = await server();
+    try {
+      const player = await s.accounts.createGuest('Spooky');
+      const before = await s.accounts.loadOrCreate(player.playerId);
+      before.stats.climbMetres = 400; // climbed long before Halloween
+      await s.accounts.save(before);
+
+      const response = await s.get(player.token, '/api/profile');
+      expect(response.status).toBe(200);
+      const events = response.body.events as EventProgress[];
+      expect(events.map((e) => [e.id, e.active])).toEqual([['halloween', true]]);
+      expect(events[0]?.challenges.map((c) => c.value)).toEqual([0, 0]);
+      // Written, not only shown: the next round counts from 400, not from whenever it is played.
+      expect((await s.accounts.loadOrCreate(player.playerId)).events['halloween@2026']?.baseline.climbMetres).toBe(400);
+    } finally {
+      s.close();
+      vi.useRealTimers();
+    }
   });
 });

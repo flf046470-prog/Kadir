@@ -186,7 +186,16 @@ export interface ServerResults {
   t: 'results';
   result: MatchResult;
   /** Per-player rewards, computed server-side. */
-  rewards: Record<string, { coins: number; xp: number; achievements: string[] }>;
+  rewards: Record<string, RoundRewards>;
+}
+
+/** What one player earned from a round: coins and XP, and anything it unlocked, by id. */
+export interface RoundRewards {
+  coins: number;
+  xp: number;
+  achievements: string[];
+  /** Event challenges this round completed (`EventChallenge.id`). Absent on older servers. */
+  challenges?: string[];
 }
 
 export interface ServerChat {

@@ -7,6 +7,8 @@ import {
   claimSeasonRewards,
   dailyPreview,
   achievementProgress,
+  enterActiveEvents,
+  eventProgress,
   equipAnimal,
   equipCosmetic,
   equipGadgets,
@@ -284,7 +286,16 @@ async function handleApi(
   }
 
   if (path === '/api/profile' && method === 'GET') {
-    json(res, 200, { profile, daily: dailyPreview(profile), season: getSeasonProgress(profile), achievements: achievementProgress(profile) });
+    // Opening the game during an event joins it, so the challenges screen counts from here.
+    const now = Date.now();
+    if (enterActiveEvents(profile, now)) await deps.accounts.save(profile);
+    json(res, 200, {
+      profile,
+      daily: dailyPreview(profile),
+      season: getSeasonProgress(profile),
+      achievements: achievementProgress(profile),
+      events: eventProgress(profile, now),
+    });
     return;
   }
 

@@ -67,6 +67,12 @@ export interface PlayerResult {
   /** Parkour: best lap in ticks, -1 when not applicable. */
   bestLapTicks: number;
   won: boolean;
+  /**
+   * Metres moved and metres climbed this round, filled in by the simulation rather than the mode
+   * (`Simulation.results`), because every mode moves bodies the same way.
+   */
+  distanceMetres?: number;
+  climbMetres?: number;
 }
 
 export interface MatchResult {

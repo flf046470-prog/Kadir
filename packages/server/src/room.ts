@@ -23,6 +23,8 @@ import {
   resolveEquippedEmote,
   resolveLoadout,
   verifiedCosmetics,
+  enterActiveEvents,
+  evaluateEvents,
 } from '@kc/core';
 import type {
   InputIntent,
@@ -43,7 +45,7 @@ import {
   decodeIntent,
   encodeSnapshot,
 } from '@kc/net';
-import type { IceServerConfig, LobbyPlayer, Platform, RosterEntry, ServerMessage } from '@kc/net';
+import type { IceServerConfig, LobbyPlayer, Platform, RosterEntry, RoundRewards, ServerMessage } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { ModerationService } from './moderation.js';
 import type { Leaderboard } from './leaderboard.js';
@@ -526,17 +528,22 @@ export class Room {
   /** Round over: compute rewards from the server's own result and persist everything. */
   private async finishRound(): Promise<void> {
     const result = this.sim.results();
-    const rewards: Record<string, { coins: number; xp: number; achievements: string[] }> = {};
+    const rewards: Record<string, RoundRewards> = {};
+    const now = Date.now();
 
     for (const client of this.clients.values()) {
       const award = computeMatchAward(result, client.playerId);
       grantAward(client.profile, award);
+      // Before the stats: the round that first touches a running event counts towards it.
+      enterActiveEvents(client.profile, now);
       applyMatchStats(client.profile, result, client.playerId);
       const unlocked = evaluateAchievements(client.profile);
+      const challenges = evaluateEvents(client.profile, now);
       rewards[client.playerId] = {
         coins: award.coins,
         xp: award.xp,
         achievements: unlocked.map((u) => u.def.id),
+        challenges: challenges.map((c) => c.challenge.id),
       };
       this.submitLeaderboard(result, client);
       await this.accounts.save(client.profile);

@@ -1,5 +1,5 @@
-import { describe, expect, it, beforeEach } from 'vitest';
-import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, listLevels, registerStoreItems } from '@kc/core';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { MemorySaveStore, buildJungleWorld, createIntent, Buttons, eventProgress, listLevels, registerStoreItems } from '@kc/core';
 import type { PlayerSnapshot, PlayerState } from '@kc/core';
 import { NEW_PRIVATE_ROOM, SlotTable, decodeSnapshot, encodeIntent } from '@kc/net';
 import type { ServerMessage } from '@kc/net';
@@ -396,6 +396,65 @@ describe('server-authoritative progression', () => {
 
     const persisted = await harness.store.load('racer');
     expect(persisted?.coins).toBe(racer.profile.coins);
+  });
+});
+
+describe('events, counted by the room', () => {
+  /** One parkour lap, run by the server's own simulation, as the payout test above does. */
+  async function runLap(harness: Awaited<ReturnType<typeof makeHarness>>, id: string, before?: (profile: import('@kc/core').PlayerProfile) => void) {
+    // Pinned to the jungle: rooms rotate maps, and the checkpoints walked below are the room's own.
+    const room = harness.rooms.createRoom('parkour', false, undefined, level.id);
+    const racer = await joinPlayer(harness.accounts, room, id);
+    before?.(racer.profile);
+    for (let i = 0; i < 60 * 6; i++) room.tick();
+    const player = room.playerState(id) as PlayerState;
+    for (const cp of room.level.checkpoints) {
+      player.position.x = cp.position.x;
+      player.position.y = cp.position.y + 0.2;
+      player.position.z = cp.position.z;
+      player.velocity.x = 0;
+      player.velocity.y = 0;
+      player.velocity.z = 0;
+      room.tick();
+      room.tick();
+    }
+    room.tick();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    return { ...racer, room };
+  }
+
+  it('counts the round that joins an event, and pays a challenge by name', async () => {
+    // The Jungle Festival: five parkour finishes pays 500.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-05T12:00:00Z'));
+    try {
+      const harness = await makeHarness();
+      // A veteran: 100 laps before the festival, none of which may count towards it.
+      const first = await runLap(harness, 'veteran', (profile) => {
+        profile.stats.parkourFinishes = 100;
+      });
+      expect(first.profile.stats.parkourFinishes).toBe(101);
+      const festival = eventProgress(first.profile, Date.now()).find((e) => e.id === 'jungle-festival');
+      // 1, not 0: the round that first touches the event is counted, because the room joins the
+      // event *before* it applies the round's stats. And not 101.
+      expect(festival?.challenges.find((c) => c.challenge.id === 'festival_laps')?.value).toBe(1);
+      expect(first.socket.last('results')?.rewards.veteran?.challenges).toEqual([]);
+
+      // Leaving saves the profile, event record included; the next room loads it back.
+      first.room.leave('veteran');
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      let coins = 0;
+      const second = await runLap(harness, 'veteran', (profile) => {
+        expect(Object.keys(profile.events)).toContain('jungle-festival@2026');
+        profile.stats.parkourFinishes += 3; // three more festival laps
+        coins = profile.coins;
+      });
+      const reward = second.socket.last('results')?.rewards.veteran;
+      expect(reward?.challenges).toEqual(['festival_laps']);
+      expect(second.profile.coins).toBe(coins + (reward?.coins ?? 0) + 500);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

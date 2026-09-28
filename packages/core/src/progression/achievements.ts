@@ -20,8 +20,12 @@ export function applyMatchStats(profile: PlayerProfile, result: MatchResult, pla
   stats.tags += entry.tags;
   stats.escapes += entry.escapes;
   stats.playSeconds += result.durationTicks / 60;
+  // Measured by the simulation (`Simulation.results`); a client never reports either.
+  addMetric(profile, 'distanceMetres', entry.distanceMetres ?? 0);
+  addMetric(profile, 'climbMetres', entry.climbMetres ?? 0);
   if (entry.won) stats.wins += 1;
   if (result.modeId === 'boxing') stats.knockouts += entry.tags;
+  if (result.modeId === 'infection') stats.infectionSurvivals += entry.escapes;
   if (result.modeId === 'parkour' && entry.bestLapTicks > 0) {
     stats.parkourFinishes += 1;
     const seconds = entry.bestLapTicks / 60;

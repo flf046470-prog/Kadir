@@ -1,4 +1,4 @@
-import { COSMETIC_SLOTS, CUSTOM_BASES, DEFAULT_MODE_CONFIG, listCredits } from '@kc/core';
+import { ACHIEVEMENTS, COSMETIC_SLOTS, CUSTOM_BASES, DEFAULT_MODE_CONFIG, EVENTS, listCredits } from '@kc/core';
 import type {
   ModeConfig,
   AnimalDef,
@@ -14,9 +14,10 @@ import type {
   Settings,
 } from '@kc/core';
 import { button, clear, el } from './dom.js';
+import { countdown, progressLine } from './progress.js';
 import type { TuningStore } from '../game/TuningStore.js';
 import type { SafetyAction, SafetyPlayer } from '../game/GameClient.js';
-import type { FriendView, ModActionKind, ModReportView, SocialView } from '@kc/net';
+import type { FriendView, ModActionKind, ModReportView, RoundRewards, SocialView } from '@kc/net';
 import type { Api, ContentBundle, ProfileBundle, SocialActionPath } from '../net/Api.js';
 
 export type ScreenId =
@@ -33,6 +34,7 @@ export type ScreenId =
   | 'credits'
   | 'players'
   | 'friends'
+  | 'challenges'
   | 'none';
 
 export interface ShellCallbacks {
@@ -110,6 +112,25 @@ function rewardLabel(reward: Reward): string {
   return `${id.slice(split + 1).replace(/[_-]/g, ' ')} ${id.slice(0, split)}`;
 }
 
+/**
+ * What a round unlocked, by name. Looked up in the catalog the client already holds; an id it
+ * does not know (content newer than this build) is shown as the id rather than dropped.
+ */
+export function unlockedLines(reward: RoundRewards | undefined): string[] {
+  if (!reward) return [];
+  const lines: string[] = [];
+  for (const id of reward.achievements) {
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    lines.push(`🏆 Achievement: ${def?.name ?? id}${def ? ` · +${def.rewardCoins} coins` : ''}`);
+  }
+  for (const id of reward.challenges ?? []) {
+    const event = EVENTS.find((e) => e.challenges.some((c) => c.id === id));
+    const challenge = event?.challenges.find((c) => c.id === id);
+    lines.push(`⭐ ${event ? `${event.name}: ` : ''}${challenge?.name ?? id}${challenge ? ` · +${challenge.rewardCoins} coins` : ''}`);
+  }
+  return lines;
+}
+
 function presenceLabel(presence: 'offline' | 'menu' | 'match'): string {
   return presence === 'match' ? 'In a match' : presence === 'menu' ? 'Online' : 'Offline';
 }
@@ -141,6 +162,7 @@ export type MenuAction =
   | 'practice'
   | 'players'
   | 'friends'
+  | 'challenges'
   | 'leave';
 
 export interface MenuEntry {
@@ -188,6 +210,7 @@ export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuE
     ...(state.online ? [{ action: 'friends' as const, label: 'Friends & party', variant: 'ghost' as const }] : []),
     { action: 'customize', label: 'Customise', variant: 'ghost' },
     { action: 'store', label: 'Season pass', variant: 'ghost' },
+    { action: 'challenges', label: 'Challenges', variant: 'ghost' },
     { action: 'settings', label: 'Settings', variant: 'ghost' },
     { action: 'tutorial', label: 'How to play', variant: 'ghost' },
     { action: 'practice', label: 'Practice with bots', variant: state.online ? 'ghost' : 'primary' },
@@ -241,7 +264,7 @@ export class Shell {
    */
   private results: {
     result: MatchResult;
-    rewards: Record<string, { coins: number; xp: number; achievements: string[] }>;
+    rewards: Record<string, RoundRewards>;
     localId: string;
   } | null = null;
   private notice = '';
@@ -382,6 +405,9 @@ export class Shell {
       case 'friends':
         this.element.append(this.friendsScreen());
         break;
+      case 'challenges':
+        this.element.append(this.challengesScreen());
+        break;
       case 'results':
         if (this.results) this.element.append(this.resultsScreen(this.results));
         break;
@@ -450,6 +476,7 @@ export class Shell {
         case 'tutorial':
         case 'players':
         case 'friends':
+        case 'challenges':
           this.show(action);
           return;
         default:
@@ -1715,10 +1742,85 @@ export class Shell {
     );
   }
 
+  /**
+   * Challenges: the running event (or the next one) and every achievement, with progress.
+   *
+   * Achievements were counted by the server and shown nowhere — the results screen said
+   * "1 achievement(s) unlocked" and there was no page listing what they were, what was left, or
+   * how close anything was. Events were worse: dated, with challenges, and read by nothing.
+   */
+  private challengesScreen(): HTMLElement {
+    const bundle = this.profile;
+    const coins = bundle?.profile.coins ?? 0;
+    const now = Date.now();
+    const panel = el('div', { class: 'kc-panel' });
+
+    if (!bundle) {
+      panel.append(
+        el('div', { class: 'kc-section' }, el('p', { class: 'kc-note' }, 'Progress is kept on the server — connect to see yours.')),
+      );
+    }
+
+    for (const event of bundle?.events ?? []) {
+      const section = el(
+        'div',
+        { class: 'kc-section' },
+        el('h3', {}, event.name),
+        el('p', { class: 'kc-note' }, event.active ? `Event · ${countdown(event.endsAt, now, 'ends')}` : `Next event · ${countdown(event.startsAt, now, 'starts')}`),
+      );
+      for (const { challenge, value, done } of event.challenges) {
+        section.append(
+          this.goalRow(challenge.name, challenge.description, progressLine(challenge.metric, value, challenge.threshold, false, done), challenge.rewardCoins, done, event.active),
+        );
+      }
+      if (!event.active) section.append(el('p', { class: 'kc-note' }, 'Only what you do while the event runs counts.'));
+      panel.append(section);
+    }
+
+    if (bundle && bundle.achievements.length > 0) {
+      const section = el('div', { class: 'kc-section' }, el('h3', {}, 'Achievements'));
+      const done = bundle.achievements.filter((a) => a.done).length;
+      section.append(el('p', { class: 'kc-note' }, `${done} of ${bundle.achievements.length} unlocked`));
+      for (const { def, value, done: reached } of bundle.achievements) {
+        if (def.hidden && !reached) continue;
+        section.append(this.goalRow(def.name, def.description, progressLine(def.metric, value, def.threshold, def.lowerIsBetter, reached), def.rewardCoins, reached, true));
+      }
+      panel.append(section);
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Challenges', `🪙 ${coins} · coins are spent on the season's coin shelf`),
+      panel,
+      this.noticeNode(),
+      el('div', { class: 'kc-row' }, button('Season pass', () => this.show('store')), button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  private goalRow(name: string, description: string, line: { text: string; fraction: number }, coins: number, done: boolean, live: boolean): HTMLElement {
+    return el(
+      'div',
+      { class: `kc-safety-row kc-goal${done ? ' kc-goal--done' : ''}` },
+      el('strong', {}, done ? `${name} ✓` : name),
+      el('span', { class: 'kc-note' }, description),
+      el(
+        'div',
+        { class: 'kc-xpbar' },
+        el('i', { style: { width: `${Math.round(line.fraction * 100)}%`, ...(live ? {} : { opacity: '0.35' }) } }),
+        el('span', {}, line.text),
+      ),
+      el('span', { class: 'kc-tag' }, done ? `Paid 🪙 ${coins}` : `Reward 🪙 ${coins}`),
+    );
+  }
+
   /** Results overlay shown after a round. */
-  showResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>, localId: string): void {
+  showResults(result: MatchResult, rewards: Record<string, RoundRewards>, localId: string): void {
     this.results = { result, rewards, localId };
     this.show('results');
+    // The round just paid coins, XP and maybe a challenge; without this the menu kept showing the
+    // balance from when the game was opened, and the coin shelf offered "Buy" by a stale number.
+    if (this.online) void this.refreshProfile();
   }
 
   private resultsScreen({
@@ -1727,7 +1829,7 @@ export class Shell {
     localId,
   }: {
     result: MatchResult;
-    rewards: Record<string, { coins: number; xp: number; achievements: string[] }>;
+    rewards: Record<string, RoundRewards>;
     localId: string;
   }): HTMLElement {
     const table = el('table');
@@ -1752,9 +1854,10 @@ export class Shell {
       { class: 'kc-screen' },
       this.header(result.winnerIds.includes(localId) ? 'You win!' : 'Round over'),
       el('div', { class: 'kc-panel kc-results' }, table),
-      reward
-        ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP${reward.achievements.length > 0 ? ` · ${reward.achievements.length} achievement(s) unlocked` : ''}`)
-        : null,
+      reward ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP`) : null,
+      // By name, with what each paid. A count ("1 achievement(s) unlocked") told the player that
+      // something happened and not what, and there was no screen to go and find out on.
+      ...unlockedLines(reward).map((line) => el('p', { class: 'kc-note kc-unlock' }, line)),
       el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onPlayAgain(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
       // Without a notice node here the element stays null on this screen, so the next setNotice
       // falls back to a full re-render — the very path that used to blank it.

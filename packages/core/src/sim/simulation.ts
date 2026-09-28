@@ -22,7 +22,7 @@ import { DEFAULT_MOVEMENT } from '../player/config.js';
 import type { LocomotionContext } from '../player/locomotion.js';
 import { stepPlayer } from '../player/locomotion.js';
 import type { PlayerState, PlayerRole } from '../player/state.js';
-import { createPlayerState, respawnPlayer } from '../player/state.js';
+import { createPlayerState, isGrabbing, respawnPlayer } from '../player/state.js';
 import type { LevelDef, SpawnPoint } from '../world/level.js';
 import { findSpawns } from '../world/level.js';
 import { SimEventQueue } from './events.js';
@@ -96,6 +96,15 @@ export class Simulation {
   private spawnCursor = 0;
   /** Previous button mask per player, so gadget use fires on the press rather than every tick. */
   private prevButtons = new Map<string, number>();
+  /**
+   * How far each player moved this round and how far they climbed, measured by the simulation.
+   *
+   * `climbMetres` and `distanceMetres` are profile stats with an achievement on one of them, and
+   * nothing had ever fed either: `addMetric` had no callers, so "Master Climber" could not be
+   * earned by any amount of climbing. Measured here rather than reported by a client, so the
+   * server's own simulation is the only account of what anybody did.
+   */
+  private travel = new Map<string, { distance: number; climb: number }>();
 
   constructor(options: SimulationOptions) {
     this.level = options.level;
@@ -192,7 +201,11 @@ export class Simulation {
       if (!player.active) continue;
       const intent = this.intents.get(player.id);
       if (!intent) continue;
+      const beforeX = player.position.x;
+      const beforeY = player.position.y;
+      const beforeZ = player.position.z;
       stepPlayer(player, intent, this.locomotion, TICK_DT);
+      if (player.alive) this.measureTravel(player, beforeX, beforeY, beforeZ);
       // After locomotion, so a gadget is aimed with the head pose it was fired from rather than
       // last tick's.
       this.handleGadgetButtons(player, intent);
@@ -291,7 +304,36 @@ export class Simulation {
   }
 
   results(): MatchResult {
-    return this.mode.results(this.modeCtx);
+    const result = this.mode.results(this.modeCtx);
+    // Rounded to a decimetre: this is a stat on a profile, and a float with fifteen digits of
+    // simulated jitter is noise in a save file.
+    const round = (value: number): number => Math.round(value * 10) / 10;
+    return {
+      ...result,
+      players: result.players.map((entry) => {
+        const travel = this.travel.get(entry.playerId);
+        return { ...entry, distanceMetres: round(travel?.distance ?? 0), climbMetres: round(travel?.climb ?? 0) };
+      }),
+    };
+  }
+
+  /**
+   * One tick of a player's travel: only what `stepPlayer` moved them. Every teleport — a respawn
+   * below, a kickoff or a mode's reset in `mode.step` — happens outside that window, which is what
+   * keeps a respawn across the map from counting as a sprint; `travel.test.ts` pins it on the real
+   * respawn path. Climbing is height gained while a hand or the climb state holds the body, so a
+   * hop is not a climb.
+   */
+  private measureTravel(player: PlayerState, x: number, y: number, z: number): void {
+    const step = Math.hypot(player.position.x - x, player.position.z - z);
+    const rise = player.position.y - y;
+    let entry = this.travel.get(player.id);
+    if (!entry) {
+      entry = { distance: 0, climb: 0 };
+      this.travel.set(player.id, entry);
+    }
+    entry.distance += step;
+    if (rise > 0 && isGrabbing(player)) entry.climb += rise;
   }
 
   finished(): boolean {

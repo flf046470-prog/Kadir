@@ -272,9 +272,53 @@ reward" button in the main menu paid out a number that bought nothing.
 - **`justify-content: safe center`** on `.kc-screen`: plain `center` overflows upwards too, and that
   half cannot be scrolled to — the season screen's title was cut off once the shelf made it taller
   than a 720 px window. `.kc-panel--natural` keeps a panel from being squeezed to a 36 px strip.
-- Not fixed, noted: `EVENTS` (festival, Halloween, winter, with challenges) is read by nothing, and
-  two achievements still name launch cosmetics (`hands_gloves`, `hat_crown`) as rewards everyone
-  already owns — they pay their coins, the cosmetic part is inert.
+- Events and the achievements' pre-owned cosmetic rewards: fixed, see the next section.
+
+## Achievements nobody could see, and a climb nobody measured
+
+Three separate halves of one feature, none connected to the next:
+
+- **`climbMetres` and `distanceMetres` were fed by nothing.** `addMetric` had no callers for
+  either, so "Master Climber" (1,000 m) could not be earned by any amount of climbing — in a game
+  whose VR locomotion *is* climbing. `Simulation.step` now measures each player across the
+  `stepPlayer` call only, which is the whole reason it needs no teleport guard: a kill-plane
+  respawn and a mode's kickoff both move the player *outside* that window (a guard that was
+  written first had its mutation survive, and was deleted as dead). Climb counts only rising while
+  `isGrabbing` — a hop is not a climb. Measured with six bots over a round on every map: 115–2,678 m
+  of distance, 0 m of climb (bots never grab), so `travel.test.ts` proves climbing on a wall rig.
+- **No screen listed achievements.** The results said "1 achievement(s) unlocked" and nothing
+  said which, what was left or how close. **Challenges** (main menu, not the pause menu) shows the
+  running event — or the next one, so the screen is never empty — and every achievement with a
+  bar in readable units (`ui/progress.ts`: hours, km; a best lap of `-1` means *no lap*, which
+  read as a number is the best lap anyone could run). The results screen names what unlocked.
+- **`EVENTS` was read by nothing**, and its `cosmeticIds` and `decoration` promised launch items
+  everyone owns and a decoration no renderer drew; both fields are gone. Challenges pay coins.
+
+Event rules (`progression/events.ts`), each mutation-tested:
+
+- **Progress is the rise since the player joined the event**, captured by `enterActiveEvents`. A
+  veteran with 40 km on the clock would otherwise be paid Snow Miles on login.
+- **The room joins the event *before* applying the round's stats** (`Room.finishRound`), so the
+  round that first touches an event counts. `/api/profile` joins it too, so the screen starts at 0
+  from the moment the game is opened rather than from the first round.
+- **Records are keyed by occurrence** (`halloween@2026`), and every shipped event is `yearly`.
+  Keyed by id, last October's paid challenges would still be "done" this October; and without
+  recurrence the whole system went dark after 5 January 2027, the last dated end.
+  `occurrencesNear` checks last year's occurrence too, because Frozen Canopy spans New Year.
+- A record carries its own `endsAt` and is dropped 30 days after it; `migrateProfile` keeps only
+  records with a numeric end and baseline, skips `__proto__`.
+- **Events only count totals.** `bestLapSeconds` is a best: "the rise since the event began" is
+  meaningless for it (a faster lap *lowers* it). A catalog test refuses a challenge on it.
+
+**Showing a bar exposed a goal that lied.** "Survivor — be the last survivor in Infection 10 times"
+counted `escapes`, which chase, hunt, freeze tag and the duel all increment: on the new screen an
+escape in Kangaroo Chase visibly moved a bar that names Infection. It has its own
+`infectionSurvivals` now. A description is a claim; once it is on screen next to a number, the two
+have to agree.
+
+**The menu's coins were stale for the whole session.** Every `getProfile` call site is boot, a
+claim or a purchase — never the end of a round, so everything a round paid was invisible until a reload — and the coin
+shelf offered "Buy" by the old balance. `showResults` refreshes it now.
 
 ## VR
 

@@ -38,11 +38,13 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
       server-verified purchase machinery retained and tested
 - [x] **14 · Economy** — coins/XP from server-computed match results, coin purchases
 - [x] **15 · Daily rewards** — 7-day cycle on the server clock, streaks
-- [x] **16 · Achievements** — 11 achievements incl. lower-is-better speedrun goal
+- [x] **16 · Achievements** — 11 achievements incl. lower-is-better speedrun goal; a Challenges
+      screen with progress; climb and distance measured by the simulation (they fed nothing)
 - [x] **17 · Private rooms** — KANG-XXXX codes, create/join, invite by code
 - [x] **18 · Voice chat** — WebRTC mesh, spatial panners, `proximityGainAt` falloff applied per
       peer, server relays signalling only, mute/block honoured on both chat and voice
-- [x] **19 · Events & seasons** — season track (both tiers free), event windows
+- [x] **19 · Events & seasons** — season track (both tiers free), yearly events whose challenges
+      count only what is played while they run, paid once per occurrence by the room
 - [x] **20 · Optimisation** — instanced level + props, quality tiers, adaptive frame governor
       with a headset floor, `sceneryDetail`, snapshot deltas, rest-state velocity snapping
 - [x] **21 · QA** — 1088 automated tests; browser smoke test on desktop and mobile viewports;

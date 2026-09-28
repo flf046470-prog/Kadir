@@ -27,7 +27,7 @@ import type {
   SimEvent,
 } from '@kc/core';
 import { InterpolationBuffer, PredictionBuffer } from '@kc/net';
-import type { IceServerConfig, LobbyPlayer, ModActionKind, ModReportView, Platform, RosterEntry, ServerMessage } from '@kc/net';
+import type { IceServerConfig, LobbyPlayer, ModActionKind, ModReportView, Platform, RosterEntry, RoundRewards, ServerMessage } from '@kc/net';
 import { TuningStore } from './TuningStore.js';
 import { AudioSystem } from '../audio/AudioSystem.js';
 import { VoiceChat } from '../audio/VoiceChat.js';
@@ -49,7 +49,7 @@ import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js'
 
 export interface GameCallbacks {
   onModeState(state: ModeStateView): void;
-  onResults(result: MatchResult, rewards: Record<string, { coins: number; xp: number; achievements: string[] }>): void;
+  onResults(result: MatchResult, rewards: Record<string, RoundRewards>): void;
   onNetStatus(status: NetStatus): void;
   /** Microphone state, every frame, for the HUD indicator. Optional: VR draws its own panels. */
   onMicState?(enabled: boolean, open: boolean, muted: boolean): void;

@@ -4,6 +4,7 @@ import { DEFAULT_LOADOUT, freeGadgetIds } from '../gadgets/catalog.js';
 import { listAnimals } from './../content/animals.js';
 import { isStarterCosmetic, listCosmetics } from './../content/cosmetics.js';
 import type { GadgetSlot } from '../gadgets/types.js';
+import type { EventRecord } from './events.js';
 
 export const SAVE_VERSION = 3;
 
@@ -72,6 +73,9 @@ export interface PlayerProfile {
   friendRequestsIn: string[];
   friendRequestsOut: string[];
 
+  /** Per-event progress, keyed by event id — see `progression/events.ts`. */
+  events: Record<string, EventRecord>;
+
   /**
    * Sanctions *on* this player, kept with the profile so a restart does not lift them. Unix ms;
    * absent or past = none. A permanent ban is `Number.MAX_SAFE_INTEGER`.
@@ -87,6 +91,7 @@ export function emptyStats(): StatBlock {
     wins: 0,
     rounds: 0,
     escapes: 0,
+    infectionSurvivals: 0,
     climbMetres: 0,
     parkourFinishes: 0,
     knockouts: 0,
@@ -129,6 +134,7 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     friendIds: [],
     friendRequestsIn: [],
     friendRequestsOut: [],
+    events: {},
   };
 }
 
