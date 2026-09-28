@@ -2,7 +2,7 @@ import type { CosmeticSlot } from '../content/cosmetics.js';
 import type { AchievementMetric } from '../content/achievements.js';
 import { DEFAULT_LOADOUT, freeGadgetIds } from '../gadgets/catalog.js';
 import { listAnimals } from './../content/animals.js';
-import { listCosmetics } from './../content/cosmetics.js';
+import { isStarterCosmetic, listCosmetics } from './../content/cosmetics.js';
 import type { GadgetSlot } from '../gadgets/types.js';
 
 export const SAVE_VERSION = 3;
@@ -106,10 +106,11 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     coins: 250,
     xp: 0,
     level: 1,
-    // Everything, from the moment the account exists. There is nothing to unlock and nothing to
-    // buy, so an inventory is a list of what the game contains rather than a record of spending.
+    // Everything, from the moment the account exists — every animal, every gadget and every
+    // starter cosmetic. Nothing is sold; the only things left to own are a season's own cosmetics,
+    // which are earned by playing (`isStarterCosmetic`).
     ownedAnimals: listAnimals().map((animal) => animal.id),
-    ownedCosmetics: listCosmetics().map((cosmetic) => cosmetic.id),
+    ownedCosmetics: listCosmetics().filter(isStarterCosmetic).map((cosmetic) => cosmetic.id),
     ownedGadgets: freeGadgetIds(),
     equipped: {
       animalId: 'kangaroo',

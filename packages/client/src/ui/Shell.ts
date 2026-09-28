@@ -775,18 +775,60 @@ export class Shell {
   private cosmeticCard(cosmetic: CosmeticDef, owned: boolean, equipped: boolean): HTMLElement {
     const swatch = el('div', { class: 'kc-swatch' });
     swatch.style.background = `#${cosmetic.visual.color.toString(16).padStart(6, '0')}`;
+    // A season cosmetic not yet earned says how to earn it, rather than a flat "Unavailable":
+    // the level that pays it out, and the coin price for anyone who would rather not wait.
+    const level = this.seasonLevelFor(cosmetic.id);
+    const shelf = this.shelfItemFor(cosmetic.id);
     return el(
       'div',
       { class: `kc-card${equipped ? ' kc-card--selected' : ''}` },
       swatch,
       el('h3', {}, cosmetic.name),
-      el('span', { class: 'kc-tag' }, cosmetic.rarity),
-      button(
-        equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
-        () => void this.equipCosmetic(cosmetic.slot, cosmetic.id),
-        equipped ? 'primary' : 'ghost',
-      ),
+      el('span', { class: 'kc-tag' }, cosmetic.seasonId && !owned ? `${cosmetic.rarity} · season` : cosmetic.rarity),
+      !owned && level !== null ? el('p', {}, `Season level ${level}${shelf ? `, or 🪙 ${shelf.priceCoins}` : ''}`) : null,
+      owned || !shelf
+        ? button(
+            equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
+            () => void this.equipCosmetic(cosmetic.slot, cosmetic.id),
+            equipped ? 'primary' : 'ghost',
+          )
+        : button(`Buy · 🪙 ${shelf.priceCoins}`, () => void this.buyWithCoins(shelf.id, cosmetic.name)),
     );
+  }
+
+  /** The season level whose reward is this cosmetic, if any. */
+  private seasonLevelFor(contentId: string): number | null {
+    for (const entry of this.profile?.season.season?.track ?? []) {
+      if (entry.free?.contentId === contentId || entry.premium?.contentId === contentId) return entry.level;
+    }
+    return null;
+  }
+
+  /** The coin-shelf item that sells this cosmetic, if any. */
+  private shelfItemFor(contentId: string): { id: string; priceCoins: number } | null {
+    const item = (this.content?.store ?? []).find((i) => i.priceCoins > 0 && i.grants.includes(contentId));
+    return item ? { id: item.id, priceCoins: item.priceCoins } : null;
+  }
+
+  /**
+   * Coins for a season cosmetic. The server decides — it holds the balance and the inventory — so
+   * the screen re-reads the profile afterwards rather than crediting itself.
+   */
+  private async buyWithCoins(itemId: string, name: string): Promise<void> {
+    try {
+      await this.options.api.purchaseWithCoins(itemId);
+      this.notice = `${name} is yours.`;
+      this.setProfile(await this.options.api.getProfile());
+    } catch (error) {
+      const code = (error as Error).message;
+      const coins = this.profile?.profile.coins ?? 0;
+      const price = (this.content?.store ?? []).find((i) => i.id === itemId)?.priceCoins ?? 0;
+      this.setNotice(
+        code === 'insufficient-coins'
+          ? `Not enough coins yet — ${price - coins} more. Every round pays some, win or lose.`
+          : `Could not buy ${name}: ${code}`,
+      );
+    }
   }
 
   /**
@@ -840,18 +882,22 @@ export class Shell {
 
     if (track.length > 0) {
       const rows = el('div', { class: 'kc-track' });
+      const claimedFree = this.profile?.profile.season.claimedFree ?? [];
+      const claimedPremium = this.profile?.profile.season.claimedPremium ?? [];
       for (const entry of track) {
         const reached = entry.level <= level;
+        const cell = (reward: Reward | undefined, claimed: boolean) =>
+          reward ? `${this.rewardName(reward)}${claimed ? ' ✓' : ''}` : '—';
         rows.append(
           el(
             'div',
             { class: `kc-track-row${reached ? ' kc-track-row--reached' : ''}` },
             el('span', { class: 'kc-track-level' }, `Lv ${entry.level}`),
-            el('span', { class: 'kc-track-free' }, entry.free ? rewardLabel(entry.free) : '—'),
+            el('span', { class: 'kc-track-free' }, cell(entry.free, claimedFree.includes(entry.level))),
             el(
               'span',
               { class: `kc-track-premium${owned ? '' : ' kc-track-premium--locked'}` },
-              entry.premium ? rewardLabel(entry.premium) : '—',
+              cell(entry.premium, claimedPremium.includes(entry.level)),
             ),
           ),
         );
@@ -874,15 +920,16 @@ export class Shell {
       );
     }
 
+    screen.append(this.coinShelf());
     screen.append(
       el(
         'p',
         { class: 'kc-note' },
         owned
-          ? 'Both tracks are already yours. The premium track is unlocked on every account from ' +
-            'the moment it is created — there is nothing to buy here, and nothing in this game ' +
-            'can be bought. Every reward on either track is a costume: no animal is faster, ' +
-            'jumps higher, or is tougher than any other.'
+          ? 'Both tracks are already yours, on every account from the moment it is created. ' +
+            'Nothing in this game is sold for money: the season\'s cosmetics are earned on the ' +
+            'track or with coins from your rounds, and every one is a look — no animal is ' +
+            'faster, jumps higher, or is tougher than any other.'
           : 'The premium track is not unlocked on this account. It is normally granted at sign-up ' +
             'and costs nothing; if it is missing, the profile predates that and the server will ' +
             'restore it.',
@@ -892,6 +939,50 @@ export class Shell {
       button('Back', () => this.show('menu')),
     );
     return screen;
+  }
+
+  /** A reward in words, using the catalog's own name for a cosmetic rather than its id. */
+  private rewardName(reward: Reward): string {
+    if (reward.kind === 'cosmetic' || reward.kind === 'animal') {
+      const pool: { id: string; name: string }[] = reward.kind === 'cosmetic' ? (this.content?.cosmetics ?? []) : (this.content?.animals ?? []);
+      const found = pool.find((c) => c.id === reward.contentId);
+      if (found) return found.name;
+    }
+    return rewardLabel(reward);
+  }
+
+  /**
+   * The season's cosmetics for coins — the other way to earn them, for anyone who missed a level.
+   * It is what makes coins worth anything: before it there was nothing to spend them on at all.
+   */
+  private coinShelf(): HTMLElement {
+    const items = (this.content?.store ?? []).filter((i) => i.priceCoins > 0);
+    const shelf = el('div', { class: 'kc-panel kc-panel--natural' }, el('h3', {}, 'Coin shelf'));
+    if (items.length === 0) {
+      shelf.append(el('p', { class: 'kc-note' }, 'Nothing on the shelf this season.'));
+      return shelf;
+    }
+    const ownedCosmetics = this.profile?.profile.ownedCosmetics ?? [];
+    const coins = this.profile?.profile.coins ?? 0;
+    for (const item of items) {
+      const owned = item.grants.every((id) => ownedCosmetics.includes(id));
+      shelf.append(
+        el(
+          'div',
+          { class: 'kc-safety-row' },
+          el('strong', {}, item.name),
+          el('span', { class: 'kc-note' }, ` ${item.description}`),
+          el(
+            'div',
+            { class: 'kc-row' },
+            owned
+              ? el('span', { class: 'kc-tag' }, 'Owned')
+              : button(`Buy · 🪙 ${item.priceCoins}`, () => void this.buyWithCoins(item.id, item.name), coins >= item.priceCoins ? 'primary' : 'ghost'),
+          ),
+        ),
+      );
+    }
+    return shelf;
   }
 
   private async claimSeason(): Promise<void> {

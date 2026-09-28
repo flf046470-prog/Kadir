@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LAUNCH_ANIMALS, getAnimal, listAnimals, registerAnimals } from '../content/animals.js';
-import { LAUNCH_COSMETICS, getCosmetic, listCosmetics } from '../content/cosmetics.js';
+import { LAUNCH_COSMETICS, getCosmetic, isStarterCosmetic, listCosmetics } from '../content/cosmetics.js';
 import { LAUNCH_STORE, PRICE_POINTS, registerStoreItems, validateCatalog } from '../content/store.js';
 import { DAILY_REWARDS } from '../content/rewards.js';
 import { applyFeelProfile, DEFAULT_MOVEMENT, FEEL_BAND, FEEL_FIELDS } from '../player/config.js';
@@ -377,7 +377,7 @@ describe('save system', () => {
     expect(profile.ownedAnimals).toContain('kangaroo');
     // The old inventory survives, and the rest of the game is granted alongside it.
     expect(profile.ownedCosmetics).toContain('hat_leaf');
-    expect(profile.ownedCosmetics.length).toBe(listCosmetics().length);
+    expect(profile.ownedCosmetics.length).toBe(listCosmetics().filter(isStarterCosmetic).length);
     expect(profile.level).toBe(levelForXp(4000));
   });
 
@@ -401,9 +401,29 @@ describe('save system', () => {
     const profile = migrateProfile(paid, 'p1');
 
     for (const animal of listAnimals()) expect(profile.ownedAnimals, animal.id).toContain(animal.id);
-    for (const cosmetic of listCosmetics()) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
+    for (const cosmetic of listCosmetics().filter(isStarterCosmetic)) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
     for (const id of freeGadgetIds()) expect(profile.ownedGadgets, id).toContain(id);
     expect(profile.season.premiumOwned).toBe(true);
+  });
+
+  /**
+   * A season's own cosmetics are what is left to earn, so no migration and no load may hand them
+   * out. The re-grant on load used to walk the whole catalog — which is exactly how every season
+   * reward became something every account already owned.
+   */
+  it('never grants a season cosmetic on creation, migration or load', () => {
+    const season = listCosmetics().filter((c) => !isStarterCosmetic(c));
+    expect(season.length).toBeGreaterThan(0);
+    for (const profile of [
+      createProfile('fresh', 'Fresh'),
+      migrateProfile({ version: 2, ownedCosmetics: [] }, 'old'),
+      migrateProfile({ version: 3, ownedCosmetics: ['hat_leaf'] }, 'current'),
+    ]) {
+      for (const cosmetic of season) expect(profile.ownedCosmetics, cosmetic.id).not.toContain(cosmetic.id);
+    }
+    // And one that was earned is kept.
+    const earned = migrateProfile({ version: 3, ownedCosmetics: [season[0]?.id] }, 'earned');
+    expect(earned.ownedCosmetics).toContain(season[0]?.id);
   });
 
   it('drops a gadget that no longer exists rather than leaving it in the loadout', () => {

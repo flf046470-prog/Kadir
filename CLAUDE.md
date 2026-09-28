@@ -240,6 +240,42 @@ follows the leader into a new private room on their own (measured 2.6–4.8 s; t
 
 
 
+## The economy paid out nothing
+
+When the game was made free (`5d88c05`) every account was given everything at creation — and the
+reward loop was left running on top of it. Measured on a fresh profile: **9 of the season pass's
+13 rewards and 4 of the 7 daily rewards were items the account already owned**, so claiming them
+granted nothing, and the coins the rest paid out had **no sink at all** (the only one was
+`purchaseWithCoins` against an empty store; the README even said so). A primary "Claim daily
+reward" button in the main menu paid out a number that bought nothing.
+
+- **Nothing is sold for money, still.** What changed is that a season brings cosmetics of its own
+  (`SEASON_ONE_COSMETICS`, `unlock: 'season'`) that are **earned** — on its reward track, or for
+  coins on `SEASON_SHELF` (900 / 1600 / 2600 by rarity). Every animal, gadget and launch cosmetic is
+  still owned from creation. If this is ever reversed, it is one line: grant non-starter cosmetics
+  in `createProfile`.
+- **`isStarterCosmetic` is the one rule** for what creation, the 2→3 migration and the re-grant on
+  every load hand out. The re-grant used to walk the whole catalog, which is exactly how every
+  season reward became pre-owned; `progression.test.ts` now asserts no season cosmetic is granted
+  by any of the three.
+- `validateCatalog` refuses a coin price on anything but a season cosmetic — a coin price on an
+  animal or gadget would be a price on something everyone owns, and on a gadget a price on play.
+- **`season-pass.test.ts` holds the defect itself**: every content reward on the track and in
+  `DAILY_REWARDS` must be something a *new* account does not own. Mutation: putting
+  `glasses_star` back on the track fails it.
+- **The server used to wear whatever a client claimed.** `hello.cosmetics` went straight into the
+  roster everyone else sees; harmless while everything was owned, a free reward the moment
+  anything is earned. `Room.join` filters it through `verifiedCosmetics` (owned, known, right slot);
+  `season-shelf.test.ts` proves a cheat's claimed propeller hat is dropped and a bought one shown.
+- Each season cosmetic is its own recipe in `render/cosmetics.ts` (`cosmetics.test.ts` refuses two
+  items with the same meshes) and was checked on a kangaroo, a wolf and a penguin in a render.
+- **`justify-content: safe center`** on `.kc-screen`: plain `center` overflows upwards too, and that
+  half cannot be scrolled to — the season screen's title was cut off once the shelf made it taller
+  than a 720 px window. `.kc-panel--natural` keeps a panel from being squeezed to a 36 px strip.
+- Not fixed, noted: `EVENTS` (festival, Halloween, winter, with challenges) is read by nothing, and
+  two achievements still name launch cosmetics (`hands_gloves`, `hat_crown`) as rewards everyone
+  already owns — they pay their coins, the cosmetic part is inert.
+
 ## VR
 
 There is no headset in CI and there never will be, so the VR entry path is exercised by
@@ -403,9 +439,11 @@ all three levels, 9 modes, 7 animals, 9 gadgets; `/.well-known/assetlinks.json` 
 joined, was put in a room and received **286 snapshots in 15 s (~19/s against the configured
 20 Hz)**, first one 707 ms after connecting.
 
-The storefront being empty is correct, not a regression: `LAUNCH_STORE` is `[]` and
-`validateCatalog` refuses any priced item at boot, which is the free-game rule enforced rather
-than remembered.
+Nothing on the storefront has a money price, and that is correct, not a regression:
+`LAUNCH_STORE` is `[]`, the only shelf is `SEASON_SHELF` (season cosmetics for coins), and
+`validateCatalog` refuses any price in cents at boot — the free-game rule enforced rather than
+remembered. (At the time of this deployment the shelf did not exist yet; see "The economy paid
+out nothing".)
 
 **Every deployment shipped with no art, and nothing said so.** `.gitignore` excluded
 `packages/client/public/models/` wholesale, so all 7 animal meshes and 46 prop meshes were absent

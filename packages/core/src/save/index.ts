@@ -1,6 +1,6 @@
 import { DEFAULT_LOADOUT, freeGadgetIds, getGadget } from '../gadgets/catalog.js';
 import { listAnimals } from '../content/animals.js';
-import { listCosmetics } from '../content/cosmetics.js';
+import { isStarterCosmetic, listCosmetics } from '../content/cosmetics.js';
 import type { PlayerProfile } from '../progression/profile.js';
 import { SAVE_VERSION, createProfile, emptyStats, levelForXp } from '../progression/profile.js';
 
@@ -39,7 +39,9 @@ export const MIGRATIONS: Record<number, Migration> = {
     ...raw,
     version: 3,
     ownedAnimals: listAnimals().map((animal) => animal.id),
-    ownedCosmetics: listCosmetics().map((cosmetic) => cosmetic.id),
+    // Starter cosmetics only: a season's own were never granted by this migration's decision, and
+    // granting them here would hand every returning account a reward nobody else could earn.
+    ownedCosmetics: listCosmetics().filter(isStarterCosmetic).map((cosmetic) => cosmetic.id),
     ownedGadgets: freeGadgetIds(),
     season: { ...(raw.season as Record<string, unknown>), premiumOwned: true },
   }),
@@ -91,7 +93,7 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
   // Re-granted on every load rather than only on migration: content added after this save was
   // written is free too, and a player should not have to wait for a migration bump to see it.
   for (const animal of listAnimals()) if (!profile.ownedAnimals.includes(animal.id)) profile.ownedAnimals.push(animal.id);
-  for (const item of listCosmetics()) if (!profile.ownedCosmetics.includes(item.id)) profile.ownedCosmetics.push(item.id);
+  for (const item of listCosmetics()) if (isStarterCosmetic(item) && !profile.ownedCosmetics.includes(item.id)) profile.ownedCosmetics.push(item.id);
   for (const id of freeGadgetIds()) if (!profile.ownedGadgets.includes(id)) profile.ownedGadgets.push(id);
   if (!profile.ownedAnimals.includes(profile.equipped.animalId)) profile.equipped.animalId = 'kangaroo';
   // Content removed from the catalog since this save was written would otherwise sit in the

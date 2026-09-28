@@ -23,11 +23,12 @@ starts: it drops into solo practice against bots.
 Seven animals at launch (Kangaroo and Human), nine more ready as data. Every animal moves
 identically within a ±3 % feel band that is clamped at load and enforced by a test.
 
-**Everything in the game is free.** Every animal, outfit and gadget is unlocked from the moment an
-account is created. There is no store, no currency to buy, no loot boxes and nothing to pay for —
-`validateCatalog()` and `validateGadgets()` refuse to boot the server if anything acquires a
-price, so the rule is enforced rather than remembered. Coins still accrue as a record of play;
-they have nothing to spend on.
+**Everything in the game is free.** Every animal, every gadget and every launch outfit is
+unlocked from the moment an account is created. Nothing is sold for money — no currency to buy, no
+loot boxes, nothing to pay for — and `validateCatalog()` and `validateGadgets()` refuse to boot the
+server if anything acquires a price, so the rule is enforced rather than remembered. What is left
+to earn is each season's own outfits: on the season track, or with the coins every round pays out.
+They are looks only, and a coin price on anything else is refused at boot too.
 
 ## How it fits together
 

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { SEASONS } from './rewards.js';
+import { DAILY_REWARDS, SEASONS } from './rewards.js';
+import type { Reward } from './rewards.js';
 import { listStoreItems, validateCatalog } from './store.js';
-import { getAnimal } from './animals.js';
+import { getAnimal, listAnimals } from './animals.js';
 import { getCosmetic } from './cosmetics.js';
 import { DEFAULT_MOVEMENT, applyFeelProfile } from '../player/config.js';
 import { createProfile } from '../progression/profile.js';
@@ -33,9 +34,47 @@ describe('season pass', () => {
 
   it('is on no shelf at all, at any price', () => {
     // Not even a coin price. A pass item was written and removed: every player already owns the
-    // track, so charging for it — in money or in coins — would remove something they have.
-    expect(listStoreItems()).toEqual([]);
+    // track, so charging for it — in money or in coins — would remove something they have. The
+    // shelf sells the season's cosmetics for coins; it never sells the pass.
+    for (const item of listStoreItems()) {
+      expect(item.kind, item.id).not.toBe('season');
+      expect(item.grants.some((g) => g.startsWith('season:')), item.id).toBe(false);
+    }
     expect(validateCatalog()).toEqual([]);
+  });
+
+  /**
+   * The defect this guards was measured, not imagined: 9 of the track's 13 rewards and 4 of the 7
+   * daily rewards were items every account already owned from creation, so claiming them granted
+   * nothing — and the coins the rest paid out bought nothing either. Held against a brand new
+   * profile, because that is who a reward has to mean something to.
+   */
+  it('pays out only things a new account does not already own', () => {
+    const fresh = createProfile('fresh', 'Tester');
+    const owned = (reward: Reward): boolean =>
+      reward.kind === 'cosmetic'
+        ? fresh.ownedCosmetics.includes(reward.contentId ?? '')
+        : reward.kind === 'animal'
+          ? fresh.ownedAnimals.includes(reward.contentId ?? '')
+          : false;
+    const track = (season?.track ?? []).flatMap((entry) => [entry.free, entry.premium]).filter((r): r is Reward => r !== undefined);
+    const pointless = [...track, ...DAILY_REWARDS].filter(owned).map((r) => r.contentId);
+    expect(pointless).toEqual([]);
+    // And the season's cosmetics are really on it, not only coins.
+    expect(track.filter((r) => r.kind === 'cosmetic').length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('can claim everything and end up owning every cosmetic it names', () => {
+    const profile = createProfile('grinder', 'Tester');
+    profile.season.xp = 1e9;
+    const coins = profile.coins;
+    claimSeasonRewards(profile);
+    for (const entry of season?.track ?? []) {
+      for (const reward of [entry.free, entry.premium]) {
+        if (reward?.kind === 'cosmetic') expect(profile.ownedCosmetics, reward.contentId).toContain(reward.contentId);
+      }
+    }
+    expect(profile.coins).toBeGreaterThan(coins);
   });
 
   it('gives away only costumes, coins and XP — on both tracks', () => {
@@ -49,13 +88,10 @@ describe('season pass', () => {
   });
 
   it('cannot hand out an animal that is better than any other', () => {
-    // The one reward kind that touches the simulation at all. Every animal the track can grant
-    // goes through the same clamp as every animal already in the game.
-    const animals = (season?.track ?? [])
-      .flatMap((entry) => [entry.free, entry.premium])
-      .filter((r) => r?.kind === 'animal')
-      .map((r) => getAnimal(r?.contentId ?? ''));
-
+    // The one reward kind that touches the simulation at all. The track grants no animal today —
+    // every animal is owned from creation — so the clamp is held over the whole roster, which is
+    // every animal a track could ever name.
+    const animals = listAnimals();
     expect(animals.length).toBeGreaterThan(0);
     for (const animal of animals) {
       const config = applyFeelProfile(DEFAULT_MOVEMENT, animal?.feel ?? {});

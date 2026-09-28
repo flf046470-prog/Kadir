@@ -146,6 +146,25 @@ export function equipAnimal(profile: PlayerProfile, animalId: string): EquipOutc
   return { ok: true };
 }
 
+/**
+ * The cosmetics a player may be shown wearing: what they claimed, cut down to what they own, each in
+ * its own slot.
+ *
+ * The claim arrives in `hello` from the client and is echoed to every other player in the room.
+ * While every cosmetic was owned by every account that did not matter; with a season's cosmetics
+ * earned, an unchecked claim is a client dressing itself in a reward it never earned — the same
+ * "never trust the client" rule the server already applies to the emote a cosmetic plays.
+ */
+export function verifiedCosmetics(claimed: Record<string, string>, profile: PlayerProfile): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [slot, id] of Object.entries(claimed)) {
+    const def = getCosmetic(id);
+    if (!def || def.slot !== slot || !profile.ownedCosmetics.includes(id)) continue;
+    out[slot] = id;
+  }
+  return out;
+}
+
 export function equipCosmetic(profile: PlayerProfile, slot: CosmeticSlot, cosmeticId: string | null): EquipOutcome {
   if (cosmeticId === null) {
     delete profile.equipped.cosmetics[slot];

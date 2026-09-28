@@ -49,14 +49,17 @@ describe('the content the client can serve itself', () => {
     expect(soloable.length, localContent().modes.map((m) => `${m.id}:${m.minPlayers}`).join(', ')).toBeGreaterThan(0);
   });
 
-  it('never advertises a price, offline or on', () => {
+  it('never advertises a price in money, offline or on', () => {
     // The offline path builds its own bundle, so it is its own opportunity to reintroduce the
-    // thing the whole catalogue was audited to remove.
+    // thing the whole catalogue was audited to remove. The shelf holds only a season's cosmetics,
+    // for coins won in play.
     for (const animal of localContent().animals) {
       expect(animal.priceCents, animal.id).toBe(0);
     }
     for (const item of localContent().store) {
-      expect(item, 'the store is meant to be empty').toBeUndefined();
+      expect(item.priceCents, item.id).toBe(0);
+      expect(item.priceCoins, item.id).toBeGreaterThan(0);
+      expect(item.tag, item.id).toBe('season');
     }
   });
 });

@@ -31,7 +31,11 @@ export const UI_CSS = `
 .kc-btn:disabled { opacity: .45; cursor: not-allowed; }
 
 .kc-screen {
-  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  /* safe center: centred while the content fits, top-aligned once it does not. Plain center
+     overflows *upwards* too, and that half cannot be scrolled to — measured, the season screen's
+     title was cut off at the top once its coin shelf made it taller than a 720 px window. The
+     second declaration is ignored by any browser that does not know "safe". */
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; justify-content: safe center;
   gap: 18px; background: radial-gradient(120% 80% at 50% 0%, rgba(24,48,28,.86), rgba(8,14,10,.95));
   padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
   overflow-y: auto;
@@ -88,6 +92,9 @@ export const UI_CSS = `
 /* A titled group inside a panel. flex: none for the same reason as the mic meter: the panel is an
    overflowing column, and a shrinkable section collapses instead of scrolling. */
 .kc-section { display: flex; flex-direction: column; gap: 4px; flex: none; }
+/* A panel that keeps its own height on a screen with other content: the screen scrolls instead
+   of squeezing the panel into an empty strip (measured: the coin shelf rendered 36 px tall). */
+.kc-panel--natural { flex: none; }
 .kc-section + .kc-section { border-top: 1px solid rgba(255,255,255,.12); padding-top: 10px; }
 .kc-section h3 { margin: 0 0 4px; font-size: 16px; }
 .kc-row--mod .kc-btn { min-height: 36px; font-size: 13px; }

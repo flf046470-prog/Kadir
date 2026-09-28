@@ -22,6 +22,7 @@ import {
   getCosmetic,
   resolveEquippedEmote,
   resolveLoadout,
+  verifiedCosmetics,
 } from '@kc/core';
 import type {
   InputIntent,
@@ -199,7 +200,9 @@ export class Room {
       socket,
       profile,
       platform,
-      cosmetics,
+      // Shown to everyone in the room, so only what this account owns: a season's cosmetics are
+      // earned, and a client naming one it has not earned must not wear it.
+      cosmetics: verifiedCosmetics(cosmetics, profile),
       crossPlay,
       moderation: createModerationState(profile.mutedPlayerIds, profile.blockedPlayerIds),
       baseline: null,

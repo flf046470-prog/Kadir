@@ -1,4 +1,4 @@
-import { LAUNCH_ANIMALS, LAUNCH_COSMETICS, SnapFlags, registerAnimals } from '@kc/core';
+import { LAUNCH_ANIMALS, LAUNCH_COSMETICS, SEASON_ONE_COSMETICS, SnapFlags, registerAnimals } from '@kc/core';
 import type { CosmeticDef, PlayerSnapshot } from '@kc/core';
 import * as THREE from 'three';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -14,7 +14,9 @@ import type { CosmeticBuild } from './cosmetics.js';
  * hands on every equip. See `cosmetics.ts`.
  */
 
-const VISUAL = LAUNCH_COSMETICS.filter((c) => c.slot !== 'emote');
+// Every visual item in the catalog, launch and season alike: a season cosmetic someone earned is
+// held to the same "its own object" rule as the ones everybody starts with.
+const VISUAL = [...LAUNCH_COSMETICS, ...SEASON_ONE_COSMETICS].filter((c) => c.slot !== 'emote');
 
 function standing(id: string, speed = 0): PlayerSnapshot {
   return {

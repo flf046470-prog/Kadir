@@ -4,21 +4,39 @@ import { freeGadgetIds, getGadget, listGadgets, validateGadgets } from '../gadge
 import { createProfile } from '../progression/profile.js';
 import { equipGadgets, grantContent } from '../progression/inventory.js';
 import { listAnimals } from './animals.js';
-import { listCosmetics } from './cosmetics.js';
+import { isStarterCosmetic, listCosmetics } from './cosmetics.js';
 import { LAUNCH_STORE, listStoreItems, validateCatalog } from './store.js';
 
 /**
  * Kangaroo Chase is free, and everything in it is free.
  *
- * These are the tests that hold that decision in place. They are deliberately blunt: there is no
- * balance to tune, no price point to argue about and no "cosmetic only" line to police, because
- * nothing is sold. If a price ever reappears anywhere in the content pipeline, one of these fails
- * before it reaches a build.
+ * These are the tests that hold that decision in place. They are deliberately blunt: nothing is
+ * sold for money, anywhere. The one thing coins buy is a season's own cosmetics — earned by
+ * playing, never bought — so a coin price on anything else, or a money price on anything at all,
+ * fails here before it reaches a build.
  */
 describe('nothing in this game is sold', () => {
-  it('has an empty storefront', () => {
+  it('puts nothing on the shelf but season cosmetics, for coins', () => {
     expect(LAUNCH_STORE).toEqual([]);
-    expect(listStoreItems()).toEqual([]);
+    const shelf = listStoreItems();
+    expect(shelf.length).toBeGreaterThan(0);
+    for (const item of shelf) {
+      expect(item.priceCents, item.id).toBe(0);
+      expect(item.priceCoins, item.id).toBeGreaterThan(0);
+      for (const id of item.grants) {
+        const cosmetic = listCosmetics().find((c) => c.id === id);
+        expect(cosmetic, `${item.id} grants ${id}`).toBeDefined();
+        expect(isStarterCosmetic(cosmetic!), `${item.id} sells ${id}, which every account owns`).toBe(false);
+      }
+    }
+  });
+
+  it('refuses a coin price on something every account already owns', () => {
+    const problems = validateCatalog([
+      { id: 'coin_crown', kind: 'cosmetic', name: 'Crown', description: '', priceCents: 0, priceCoins: 500, grants: ['hat_crown'] },
+      { id: 'coin_tiger', kind: 'animal', name: 'Tiger', description: '', priceCents: 0, priceCoins: 500, grants: ['tiger'] },
+    ]);
+    expect(problems.map((p) => p.itemId).toSorted()).toEqual(['coin_crown', 'coin_tiger']);
   });
 
   it('passes catalog validation', () => {
@@ -47,11 +65,15 @@ describe('nothing in this game is sold', () => {
     }
   });
 
-  it('prices every cosmetic at nothing', () => {
+  it('prices every cosmetic at nothing in money, and only a season cosmetic in coins', () => {
     for (const cosmetic of listCosmetics()) {
       expect(cosmetic.priceCents, cosmetic.id).toBe(0);
-      expect(cosmetic.priceCoins, cosmetic.id).toBe(0);
-      expect(cosmetic.unlock, cosmetic.id).toBe('free');
+      if (isStarterCosmetic(cosmetic)) expect(cosmetic.priceCoins, cosmetic.id).toBe(0);
+      else {
+        expect(cosmetic.unlock, cosmetic.id).toBe('season');
+        expect(cosmetic.seasonId, cosmetic.id).toBeDefined();
+        expect(cosmetic.priceCoins, cosmetic.id).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -76,9 +98,12 @@ describe('a new account owns everything', () => {
     for (const animal of listAnimals()) expect(profile.ownedAnimals, animal.id).toContain(animal.id);
   });
 
-  it('starts with every cosmetic', () => {
+  it('starts with every starter cosmetic, and none of a season\'s own', () => {
     const profile = createProfile('p1', 'Roo');
-    for (const cosmetic of listCosmetics()) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
+    for (const cosmetic of listCosmetics()) {
+      if (isStarterCosmetic(cosmetic)) expect(profile.ownedCosmetics, cosmetic.id).toContain(cosmetic.id);
+      else expect(profile.ownedCosmetics, cosmetic.id).not.toContain(cosmetic.id);
+    }
   });
 
   it('starts with every equippable gadget', () => {

@@ -516,6 +516,155 @@ const RECIPES: Record<string, Recipe> = {
       },
     };
   },
+
+  // --- Season 1: earned cosmetics, each its own object (cosmetics.test.ts holds that) ---
+
+  // A beanie with a two-blade propeller that idles on the ground and spins up in the air.
+  propeller: (kit, c) => {
+    const node = new THREE.Group();
+    const knit = kit.mat(c.main);
+    node.add(kit.mesh(kit.geo(new THREE.SphereGeometry(0.165, 14, 7, 0, Math.PI * 2, 0, Math.PI / 2)), knit, 0, -0.01, 0));
+    node.add(kit.mesh(kit.geo(new THREE.TorusGeometry(0.163, 0.022, 5, 18)), kit.mat(shade(c.main, -0.2)), 0, -0.005, 0));
+    node.children[1]?.rotation.set(Math.PI / 2, 0, 0);
+    const brass = kit.mat(c.accent, { roughness: 0.35, metalness: 0.5 });
+    node.add(kit.mesh(kit.geo(new THREE.CylinderGeometry(0.012, 0.012, 0.08, 6)), brass, 0, 0.19, 0));
+    const rotor = new THREE.Group();
+    rotor.position.set(0, 0.235, 0);
+    const blade = kit.geo(new THREE.BoxGeometry(0.2, 0.006, 0.045));
+    for (const side of [-1, 1]) {
+      const b = kit.mesh(blade, brass, side * 0.1, 0, 0);
+      b.rotation.x = side * 0.25;
+      rotor.add(b);
+    }
+    rotor.add(kit.mesh(kit.geo(new THREE.SphereGeometry(0.02, 6, 4)), brass));
+    node.add(rotor);
+    return {
+      node,
+      handNodes: [],
+      animate: ({ dt, speed, grounded }) => {
+        rotor.rotation.y += dt * (grounded ? 2 + speed * 1.5 : 22);
+      },
+    };
+  },
+
+  // Round swim goggles with a strap round the back of the head.
+  goggles: (kit, c) => {
+    const node = new THREE.Group();
+    const rubber = kit.mat(c.accent, { roughness: 0.8 });
+    const glass = kit.mat(c.main, { roughness: 0.1, metalness: 0.2, transparent: true, opacity: 0.8 });
+    const cup = kit.geo(new THREE.CylinderGeometry(0.058, 0.064, 0.045, 14, 1, true));
+    const lens = kit.geo(new THREE.CircleGeometry(0.056, 14));
+    const shell = kit.mat(c.accent, { roughness: 0.8, side: THREE.DoubleSide });
+    for (const side of [-1, 1]) {
+      const housing = kit.mesh(cup, shell, side * 0.075, 0.045, 0.035);
+      housing.rotation.x = Math.PI / 2;
+      node.add(housing, kit.mesh(lens, glass, side * 0.075, 0.045, 0.058));
+    }
+    const strap = kit.mesh(kit.geo(new THREE.TorusGeometry(0.2, 0.012, 4, 22, Math.PI)), rubber, 0, 0.045, -0.12);
+    strap.rotation.x = Math.PI / 2;
+    strap.rotation.z = Math.PI;
+    node.add(strap);
+    return { node, handNodes: [] };
+  },
+
+  // A wooden boomerang slung across the back, painted with two bands.
+  boomerang: (kit, c) => {
+    const node = new THREE.Group();
+    const wood = kit.mat(c.main, { roughness: 0.55 });
+    const paint = kit.mat(c.accent);
+    const arm = kit.geo(new THREE.BoxGeometry(0.3, 0.07, 0.025));
+    const band = kit.geo(new THREE.BoxGeometry(0.03, 0.075, 0.03));
+    const tip = kit.geo(new THREE.CylinderGeometry(0.035, 0.035, 0.025, 10));
+    for (const side of [-1, 1]) {
+      const limb = new THREE.Group();
+      limb.position.set(side * 0.1, 0.06, -0.04);
+      limb.rotation.z = side * -0.55;
+      limb.add(kit.mesh(arm, wood));
+      limb.add(kit.mesh(band, paint, side * 0.06, 0, 0), kit.mesh(band, paint, side * 0.1, 0, 0));
+      const end = kit.mesh(tip, wood, side * 0.15, 0, 0);
+      end.rotation.x = Math.PI / 2;
+      limb.add(end);
+      node.add(limb);
+    }
+    node.add(kit.mesh(kit.geo(new THREE.SphereGeometry(0.045, 8, 6)), wood, 0, -0.02, -0.04));
+    return { node, handNodes: [] };
+  },
+
+  // A dive mask over the eyes, with the snorkel tube rising beside the head.
+  snorkel: (kit, c) => {
+    const node = new THREE.Group();
+    const skirt = kit.mat(c.main, { roughness: 0.6 });
+    const frame = kit.mesh(kit.geo(new THREE.CylinderGeometry(0.13, 0.13, 0.05, 18)), skirt, 0, 0.04, 0.03);
+    frame.rotation.x = Math.PI / 2;
+    frame.scale.set(1, 1, 0.62);
+    node.add(frame);
+    const visor = kit.mesh(
+      kit.geo(new THREE.CircleGeometry(0.115, 18)),
+      kit.mat(0x9bd9f5, { roughness: 0.05, metalness: 0.3, transparent: true, opacity: 0.7 }),
+      0,
+      0.04,
+      0.057,
+    );
+    visor.scale.set(1, 0.62, 1);
+    node.add(visor);
+    const tube = kit.mat(c.accent, { roughness: 0.4 });
+    node.add(kit.mesh(kit.geo(new THREE.CylinderGeometry(0.018, 0.018, 0.34, 8)), tube, 0.16, 0.14, -0.02));
+    const bend = kit.mesh(kit.geo(new THREE.TorusGeometry(0.05, 0.018, 6, 10, Math.PI / 2)), tube, 0.11, -0.03, -0.02);
+    bend.rotation.z = Math.PI;
+    node.add(bend, kit.mesh(kit.geo(new THREE.BoxGeometry(0.05, 0.03, 0.04)), tube, 0.05, -0.08, 0.02));
+    return { node, handNodes: [] };
+  },
+
+  // A ribbon tied in a bow round the tail, loops either side so it reads from any angle.
+  bow: (kit, c) => {
+    const node = new THREE.Group();
+    const ribbon = kit.mat(c.main, { side: THREE.DoubleSide, roughness: 0.45 });
+    node.add(kit.mesh(kit.geo(new THREE.CylinderGeometry(0.128, 0.132, 0.06, 14, 1, true)), ribbon, 0, 0.3, 0));
+    node.add(kit.mesh(kit.geo(new THREE.SphereGeometry(0.045, 8, 6)), kit.mat(c.accent), 0.14, 0.3, 0));
+    const loop = kit.geo(new THREE.TorusGeometry(0.06, 0.016, 5, 12));
+    const end = kit.geo(new THREE.BoxGeometry(0.035, 0.13, 0.008));
+    for (const side of [-1, 1]) {
+      const l = kit.mesh(loop, ribbon, 0.16, 0.3, side * 0.065);
+      l.rotation.y = Math.PI / 2;
+      l.scale.set(1, 0.7, 1);
+      const e = kit.mesh(end, ribbon, 0.16, 0.37, side * 0.03);
+      e.rotation.x = side * 0.3;
+      node.add(l, e);
+    }
+    return { node, handNodes: [] };
+  },
+
+  // A crown of hibiscus flowers: petals round a gold heart, set in a ring on the head.
+  flowers: (kit, c) => {
+    const node = new THREE.Group();
+    const petal = kit.geo(new THREE.SphereGeometry(0.5, 7, 4));
+    const petals = [kit.mat(c.main, { roughness: 0.5 }), kit.mat(shade(c.main, 0.15), { roughness: 0.5 })];
+    const heart = kit.geo(new THREE.SphereGeometry(0.018, 6, 4));
+    const pollen = kit.mat(c.accent, { emissive: c.accent, emissiveIntensity: 0.25 });
+    const leaf = kit.geo(new THREE.ShapeGeometry(leafShape(0.08, 0.03)));
+    const green = kit.mat(0x16a34a, { side: THREE.DoubleSide });
+    const count = 6;
+    for (let i = 0; i < count; i++) {
+      const a = (i / count) * Math.PI * 2;
+      const flower = new THREE.Group();
+      flower.position.set(Math.sin(a) * 0.15, 0.03, Math.cos(a) * 0.15);
+      flower.rotation.set(-0.5, a, 0);
+      for (let k = 0; k < 5; k++) {
+        const p = kit.mesh(petal, petals[k % 2] as THREE.Material);
+        const pa = (k / 5) * Math.PI * 2;
+        // Sized for play distance, not for the probe camera: at 5 cm a petal was a speck from six metres.
+        p.position.set(Math.sin(pa) * 0.038, Math.cos(pa) * 0.038, 0);
+        p.scale.set(0.064, 0.064, 0.014);
+        flower.add(p);
+      }
+      flower.add(kit.mesh(heart, pollen, 0, 0, 0.01));
+      const l = kit.mesh(leaf, green, 0, -0.03, -0.005);
+      l.rotation.z = Math.PI + (i % 2 ? 0.5 : -0.5);
+      flower.add(l);
+      node.add(flower);
+    }
+    return { node, handNodes: [] };
+  },
 };
 
 /** The recipe a slot falls back to for a shape this client has never heard of (a CDN item). */

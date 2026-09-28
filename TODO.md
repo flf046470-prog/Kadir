@@ -64,6 +64,8 @@ These were Milestone B items in `ROADMAP.md` and are done:
   kit, hunter rifle, hunter net; entities rendered, audible and felt.
 - **Art: 16 animals + 47 props**, tracked, generated from tracked sources.
 - **Procedural PBR, ACES tone mapping, IBL sky, post-processing, music, animated water.**
+- **Season rewards that grant something** — six Season 1 cosmetics earned on the track or bought
+  with coins from play (the coin shelf); daily rewards are coins. Nothing sold for money.
 - **Friends and parties** — requests from the in-match Players screen, presence (`match` /
   `menu` / `offline`), joining a friend's public room, and parties of up to 8 that follow their
   leader into every room (quick play reserves seats for the whole party). Friendships persist on

@@ -107,4 +107,55 @@ export const LAUNCH_COSMETICS: CosmeticDef[] = [
   cosmetic('emote_victory', 'Victory Hop', 'emote', 'common', 'emote', 0xffffff, { emoteId: 7 }),
 ];
 
+/**
+ * What a new account owns: everything that shipped at launch, and every cosmetic marked `free`.
+ *
+ * The game is free and stays free — nothing here is sold, and nothing that affects play is ever
+ * locked. But a free game with nothing left to earn has a progression loop that pays out in
+ * nothing, and that is what shipped: measured, 9 of the season pass's 13 rewards and 4 of the 7
+ * daily rewards were items every account already owned from creation, and the coins the other
+ * rewards paid could buy nothing at all (the only coin sink was an empty store). So a season adds
+ * cosmetics of its own that are *earned* — by season level, or with coins won in matches — never
+ * bought with money, and never anything but a look.
+ */
+export function isStarterCosmetic(def: CosmeticDef): boolean {
+  return def.unlock === 'free';
+}
+
+/** Coins for a season cosmetic bought outright, by how showy it is. Earned in matches, never sold. */
+export const SEASON_COIN_PRICE: Record<'common' | 'rare' | 'epic', number> = { common: 900, rare: 1600, epic: 2600 };
+
+function seasonal(
+  id: string,
+  name: string,
+  slot: CosmeticSlot,
+  rarity: 'common' | 'rare' | 'epic',
+  shape: string,
+  color: number,
+  accent: number,
+): CosmeticDef {
+  return {
+    id,
+    name,
+    slot,
+    rarity,
+    unlock: 'season',
+    seasonId: 'season-1',
+    priceCents: 0,
+    priceCoins: SEASON_COIN_PRICE[rarity],
+    visual: { color, accent, shape },
+  };
+}
+
+/** Season 1's own cosmetics: on its reward track, and on the coin shelf for anyone who missed a level. */
+export const SEASON_ONE_COSMETICS: CosmeticDef[] = [
+  seasonal('glasses_goggles', 'Canopy Goggles', 'glasses', 'common', 'goggles', 0x38bdf8, 0x78350f),
+  seasonal('tail_bow', 'Ribbon Bow', 'tail', 'common', 'bow', 0xec4899, 0xfdf2f8),
+  seasonal('backpack_boomerang', 'Boomerang', 'backpack', 'rare', 'boomerang', 0xb45309, 0xfde68a),
+  seasonal('mask_snorkel', 'Reef Snorkel', 'mask', 'common', 'snorkel', 0xf97316, 0x0ea5e9),
+  seasonal('hat_propeller', 'Propeller Beanie', 'hat', 'rare', 'propeller', 0xef4444, 0xfacc15),
+  seasonal('hat_flower', 'Hibiscus Crown', 'hat', 'epic', 'flowers', 0xf43f5e, 0xfde047),
+];
+
 registerCosmetics(LAUNCH_COSMETICS);
+registerCosmetics(SEASON_ONE_COSMETICS);

@@ -10,15 +10,21 @@ export interface Reward {
   slot?: CosmeticSlot;
 }
 
-/** Seven-day cycle. Day 7 is a cosmetic so the week has a visible payoff. */
+/**
+ * Seven-day cycle, coins only, rising to the week's payoff on day 7.
+ *
+ * Four of these days used to be cosmetics — the Power Nap emote, the Leaf Cap, Leaf Swirl and the
+ * Striped Tail — every one of which a new account already owns, so four days in seven paid out
+ * nothing. Coins buy a season's cosmetics now, so a coin day is worth something.
+ */
 export const DAILY_REWARDS: Reward[] = [
   { kind: 'coins', amount: 150 },
-  { kind: 'cosmetic', contentId: 'emote_sleep', slot: 'emote' },
+  { kind: 'coins', amount: 200 },
   { kind: 'coins', amount: 250 },
-  { kind: 'cosmetic', contentId: 'hat_leaf', slot: 'hat' },
-  { kind: 'cosmetic', contentId: 'effect_leaves', slot: 'effect' },
+  { kind: 'coins', amount: 300 },
+  { kind: 'coins', amount: 350 },
   { kind: 'coins', amount: 400 },
-  { kind: 'cosmetic', contentId: 'tail_stripe', slot: 'tail' },
+  { kind: 'coins', amount: 700 },
 ];
 
 export interface SeasonTrackEntry {
@@ -47,14 +53,17 @@ export const SEASONS: SeasonDef[] = [
     endsAt: '2026-12-31T23:59:59.000Z',
     premiumPriceCents: 199,
     xpPerLevel: 1000,
+    // Every cosmetic here is one of the season's own (`SEASON_ONE_COSMETICS`), which no account
+    // owns until it earns it. The track used to name nine launch items and the tiger, all owned by
+    // every account from creation — claiming them granted nothing.
     track: [
-      { level: 1, free: { kind: 'coins', amount: 200 }, premium: { kind: 'cosmetic', contentId: 'glasses_star' } },
-      { level: 2, free: { kind: 'cosmetic', contentId: 'trail_dust' }, premium: { kind: 'coins', amount: 500 } },
-      { level: 3, free: { kind: 'coins', amount: 300 }, premium: { kind: 'cosmetic', contentId: 'mask_tribal' } },
-      { level: 4, premium: { kind: 'cosmetic', contentId: 'effect_sparkle' } },
-      { level: 5, free: { kind: 'cosmetic', contentId: 'emote_victory' }, premium: { kind: 'animal', contentId: 'tiger' } },
-      { level: 6, free: { kind: 'coins', amount: 500 }, premium: { kind: 'cosmetic', contentId: 'tail_glow' } },
-      { level: 7, free: { kind: 'cosmetic', contentId: 'glasses_round' }, premium: { kind: 'cosmetic', contentId: 'trail_rainbow' } },
+      { level: 1, free: { kind: 'coins', amount: 200 }, premium: { kind: 'cosmetic', contentId: 'glasses_goggles' } },
+      { level: 2, free: { kind: 'cosmetic', contentId: 'tail_bow' }, premium: { kind: 'coins', amount: 400 } },
+      { level: 3, free: { kind: 'coins', amount: 300 }, premium: { kind: 'cosmetic', contentId: 'backpack_boomerang' } },
+      { level: 4, free: { kind: 'cosmetic', contentId: 'mask_snorkel' }, premium: { kind: 'coins', amount: 500 } },
+      { level: 5, free: { kind: 'coins', amount: 400 }, premium: { kind: 'cosmetic', contentId: 'hat_propeller' } },
+      { level: 6, free: { kind: 'coins', amount: 500 }, premium: { kind: 'coins', amount: 600 } },
+      { level: 7, free: { kind: 'cosmetic', contentId: 'hat_flower' }, premium: { kind: 'coins', amount: 800 } },
     ],
   },
 ];
