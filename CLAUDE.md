@@ -1480,11 +1480,9 @@ The lesson is the one this file keeps relearning in new clothes: a negative resu
 that was never measuring the right thing looks exactly like a real limit. `which blender` returns
 nothing whether Blender is absent *or* installed as a library, and only one of those is a blocker.
 
-**Meshy was for environment props; the kangaroo is now the exception** (see "The hero kangaroo is a sculpted mesh"). `tools/meshy/props.json` is 16 entries — rock,
-boulder, log, stump, bush, fern, crystal, banner, canyon spire — and no animal. `characters.py`
-builds every animal procedurally from the body plan in `animals.json`, which is exactly why fox and
-wolf came out identical above: same declared `ears`/`tail`/`snout`, same generated shape. A Meshy
-key buys new scenery; it does not buy a new animal.
+**Every animal is a Meshy sculpt now** (see "Sixteen sculpted animals"). The procedural body plans
+in `characters.py` remain as the fallback when a source file is missing, and they are still what
+the client's procedural avatar draws before a model loads.
 
 `scripts/meshy-generate.mjs` handles its credential correctly and should stay that way: read from
 `process.env.MESHY_API_KEY`, never written anywhere, with the error message telling the caller to
@@ -2204,6 +2202,45 @@ tree — it reported byte-identical numbers for "before" and "after". Import
 
 Left alone: the canyon ramp's lower steps still run into the canyon's west wall, and the corner
 where its side meets the jungle's edge wall catches a bot now and then (15 bot-seconds in 16 rounds).
+
+## Sixteen sculpted animals
+
+All sixteen bodies are Meshy text-to-3D previews (`tools/meshy/animals.json`, `npm run assets:meshy
+-- --set animals`, 20 credits each, prompts and task ids in `assets/meshy/provenance.json`), rigged
+onto their own body plan's skeleton by `characters.SOURCE_MESHES`, so every clip, socket and bone
+name is the plan's. Measured: 16 models 5.72 MB → 4.95 MB at 3,900 triangles each.
+
+- **Ask for the pose the rig needs.** Legs apart and straight, arms clear of the body (`pose_mode:
+  a-pose` is accepted for bipeds), tail out behind. Even so, 3 of 15 came back wrong: the deer was a
+  centaur (regenerated with "four legs, centaur" in the negative), the dragon had wings the negative
+  prompt refused (kept, pinned — below), and the frog's forearms are moulded onto its belly
+  (`arm: None`: they ride the spine, and so do its hand sockets). Look at every one before rigging.
+- **`tools/blender/landmarks.py` proposes the joints**; an entry is art data checked on a gridded
+  render with the joints overlaid. It fills the mesh with 2 cm voxels by **ray parity voted across
+  three axes** — "the nearest face points away" put solid cells in the air, because Meshy fur has
+  flipped normals — and follows legs up from a ground slab until they merge into the body.
+  Traps it hit: a **tail on the ground is a leg** to the biggest-blobs rule (the fox's brush), so
+  legs are picked either side of the midline; **arms must be 3D blobs** (2D slices stopped the
+  human's hand at 0.30 m of a 0.56 m reach); a **plantigrade calf reads as a knee bend**; and the
+  raptor, shark, dragon, penguin and frog were measured by hand.
+- **Meshy symmetry is not a mirror.** The wolf's, tiger's and raptor's legs stand a pace apart, so a
+  limb is the left side mirrored *or* `{"L", "R"}` measured separately.
+- **`center_y`** puts the feet over the capsule. Meshy centres the bounding box, which for the raptor
+  is half way down its tail.
+- **Paint is first-match rules** (`_matches`: sphere, box, capsule, plane, normal, stripes; mirrored
+  unless `mirror: False`). The kangaroo's hand-written painter was converted to rules and proven
+  identical before anything else changed: per material 2956 / 210 / 663 / 71 triangles, both builds.
+- **`arm_rest`**: an A-pose sculpt stands at rest like a scarecrow, so the arms are posed down
+  through their own weights, baked, and made the rest pose (`rest_arms`); hand sockets move with them.
+- **`pins` cut faces out of the heat solve** onto one bone — the dragon's wings ride the spine. A
+  membrane that thin is the singular-solve case `skin_parts` already documents.
+- **Upright heads need a jaw from the nose.** Derived from the head bone, which points up at the
+  crown, the jaw sat behind the face: `animal-orientation.test.ts` read five animals as running tail
+  first (snout z −0.01 to −0.07). The renderer opens this bone to the speaker's voice.
+- **Every rig needs `tail1`**, a stub inside the back if the animal has no tail: tail cosmetics hang
+  on it and the orientation test measures the rump by it.
+- **Meshy is credited.** Its free tier licenses output under CC BY 4.0, and the props had shipped
+  with no credit at all; `BUNDLED_ASSET_CREDITS` names it and the animals' `credit` says so.
 
 ## How to find defects here
 

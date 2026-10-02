@@ -133,6 +133,15 @@ export const BUNDLED_ASSET_CREDITS: readonly Credit[] = [
     licence: 'CC0-1.0',
     sourceUrl: 'https://polyhaven.com/a/sunflowers_puresky',
   },
+  // Credited whatever the account's tier: Meshy licenses free-tier output under CC BY 4.0, and the
+  // props shipped for weeks without this line, which is exactly the attribution that licence asks for.
+  {
+    work: 'Animal sculpts and environment props',
+    author: 'Generated with Meshy AI',
+    licence: 'CC-BY-4.0',
+    sourceUrl: 'https://www.meshy.ai',
+    note: 'Text-to-3D previews (prompts and task ids in assets/meshy/provenance.json), rigged, painted and animated by the game\'s own Blender pipeline.',
+  },
   // Photographed surface sets, regraded to each map's palette (`public/textures/`).
   ...(
     [

@@ -5,12 +5,13 @@ character pack.
 
 ## Read this first: what Meshy is and is not for here
 
-**Characters: no.** The launch roster (kangaroo, wolf, fox, tiger, frog, penguin) needs skeletons
-and walk/run/jump/idle cycles. Meshy's auto-rig targets humanoids and is unreliable on quadrupeds
-and hoppers, and an unanimated character reads as a sliding statue. Those six come from
-**Quaternius "Ultimate Animated Animals"** — CC0, already rigged, already declared in
-`assets/packs.json` with exact filenames. The only character Meshy is a reasonable fit for is
-`human`, which is humanoid and rigs cleanly (Mixamo is an equally good free route).
+**Characters: yes, as sculpts — not as rigs.** Meshy's own auto-rig targets humanoids and is
+unreliable on quadrupeds and hoppers, so it is not used. Every animal's *body* is a Meshy preview
+(`tools/meshy/animals.json`), and `tools/blender/characters.py` rigs it onto the game's own body-plan
+skeleton, paints it from the animal's palette and keys every clip — see CLAUDE.md, "Sixteen
+sculpted animals". What the prompt has to buy is a pose that skeleton can be fitted to: legs
+straight and apart, arms clear of the body (`"pose": "a-pose"` for bipeds), tail out behind, no
+clothing or wings. Check every result before rigging it; one in five came back unusable.
 
 **Props and environment: yes.** Static geometry, no rig, no animation. This is what Meshy is good
 at, and it is a real gap — every prop in the world is procedural right now.

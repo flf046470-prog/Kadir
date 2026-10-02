@@ -25,7 +25,7 @@ import os
 
 import bpy
 import bmesh  # after bpy: the module only exists once Blender has initialised
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 import lib
 from lib import Clip, armature, box, cone, join, material, skin, sphere, wedge
@@ -670,37 +670,529 @@ type now and this table has no default, so neither renderer can invent one again
 # --------------------------------------------------------------------------------------------
 
 REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SOURCES = os.path.join(REPO, "assets", "meshy", "animals")
 
-# Joint positions measured on each source mesh after `_import_source` has normalised it (facing
-# +Y, feet on z = 0, 1.75 m to the ear tips, centred on x), read off gridded orthographic side
-# and front renders. They are art data, like the prompt that made the mesh: the skeleton, the
-# bone names and therefore every clip are the hopper plan's own, so a sculpted kangaroo moves
-# exactly as the primitive one did and every socket the client looks for still exists.
+"""
+A source entry is art data, like the prompt that made the mesh: where each joint of the body
+plan's skeleton sits on that particular sculpt, after `_import_source` has normalised it (facing
++Y, feet on z = 0, the animal's height to its highest point, centred on x and, with `center_y`, on
+the middle of its feet). The skeleton, the bone names and therefore every clip and socket are the
+plan's own, so a sculpted wolf moves exactly as the primitive one did.
+
+`tools/blender/landmarks.py` proposes the joints by filling the mesh with voxels and following its
+legs up from the ground; each entry was then checked on a gridded render with the joints overlaid
+and corrected by hand. The build never measures anything, so a rebuild cannot move a joint.
+
+Keys, all optional unless the plan needs them:
+
+    spine      (rump, mid, withers): the hips and spine bones
+    neck       a point: a neck bone from the withers to it, which the head then hangs from
+    head       (start, end); jaw (start, end), derived from the head when absent
+    tail       joints from the root to the tip
+    leg, arm   biped (hopper / upright / waddler): (hip, knee, ankle, toe) and (shoulder, hand).
+               `arm: None` means forelimbs moulded against the body, which no arm bone can lift
+               away (the frog's) — they ride the spine, and the hand sockets with them.
+    foreleg, hindleg   quadruped: (top, knee, wrist or hock, toe)
+    A limb is the left side, mirrored for the right, or {"L": ..., "R": ...} when the sculpt is not
+    symmetric — Meshy's symmetry is not a mirror, and a hind leg a pace behind its twin skins badly
+    onto a mirrored bone.
+    arm_rest   degrees from straight down the arms are lowered to before the rest pose is fixed: a
+               sculpt asked for in an A-pose so its armpits can be skinned stands, at rest, like a
+               scarecrow, which is the mannequin look the arm clips were written to get rid of.
+    crown, face, back   the hat, glasses and pack sockets; eyes (left side), nose
+    paint      first-match colour rules (`_matches`); body colour where none matches
+    pins       rules whose faces ride one bone rigidly: antlers, wings, a mane's outline
+"""
 SOURCE_MESHES = {
     "kangaroo": {
-        "path": os.path.join(REPO, "assets", "meshy", "animals", "kangaroo.glb"),
+        "path": os.path.join(SOURCES, "kangaroo.glb"),
         "plan": "hopper",
         "height": 1.75,
         "triangles": 3900,
-        "hip": (0.13, -0.10, 0.78),
-        "knee": (0.13, 0.12, 0.52),
-        "hock": (0.13, -0.04, 0.10),
-        "toe": (0.17, 0.46, 0.02),
         "spine": ((0, -0.10, 0.74), (0, 0.0, 0.92), (0, 0.26, 1.30)),
         "head": ((0, 0.31, 1.32), (0, 0.42, 1.62)),
         "jaw": ((0, 0.47, 1.47), (0, 0.66, 1.43)),
-        "shoulder": (0.12, 0.28, 1.15),
-        "paw": (0.07, 0.37, 0.87),
+        "leg": ((0.13, -0.10, 0.78), (0.13, 0.12, 0.52), (0.13, -0.04, 0.10), (0.17, 0.46, 0.02)),
+        "arm": ((0.12, 0.28, 1.15), (0.07, 0.37, 0.87)),
         # Down from the rump, then back along the ground: two bones for the part lying on it, or one
         # 0.4 m bone carries the whole ground run and the tail can only swing it as a stick.
         "tail": ((0, -0.17, 0.56), (0, -0.16, 0.30), (0, -0.22, 0.07), (0, -0.44, 0.03), (0, -0.64, 0.02)),
-        "eyes": ((0.055, 0.53, 1.53), (-0.055, 0.53, 1.53)),
-        "nose": (0, 0.665, 1.455),
         "crown": (0, 0.44, 1.60),
         "face": (0, 0.56, 1.53),
         "back": (0, -0.13, 1.08),
+        "paint": [
+            {"mat": "dark", "sphere": (0.055, 0.53, 1.53), "r": 0.028},
+            {"mat": "dark", "sphere": (0, 0.665, 1.455), "r": 0.035},
+            {"mat": "accent", "box": ((-9, -0.12, -9), (9, 9, 0.045))},  # soles and toes
+            {"mat": "accent", "box": ((-9, -9, -9), (9, -0.48, 0.1))},  # tail tip
+            {"mat": "accent", "sphere": (0.07, 0.37, 0.87), "r": 0.06},  # paws
+            # The arms lie against the chest, and a rule written for "front of the torso" paints
+            # them cream along with it.
+            {"mat": "body", "capsule": ((0.12, 0.28, 1.15), (0.07, 0.37, 0.87)), "r": 0.05},
+            # Chest and belly: the front of a torso that leans forward as it rises.
+            {"mat": "belly", "box": ((-0.12, -9, 0.6), (0.12, 9, 1.36)),
+             "plane": ((0, 0.10, 0.9), (0, 1, -0.57)), "normal": ((0, 1, 0), 0.45)},
+        ],
+    },
+    "wolf": {
+        "path": os.path.join(SOURCES, "wolf.glb"),
+        "plan": "quadruped",
+        "height": 1.58,
+        "triangles": 3900,
+        "center_y": -0.017,
+        "spine": ((0, -0.583, 0.895), (0, -0.103, 0.923), (0, 0.357, 0.973)),
+        "neck": (0, 0.702, 1.27),
+        "head": ((0, 0.702, 1.27), (0, 1.142, 1.15)),
+        # The sculpt's hind legs stand a pace apart, so each side is its own measurement.
+        "foreleg": {"L": ((0.127, 0.352, 0.78), (0.125, 0.355, 0.45), (0.123, 0.357, 0.12), (0.145, 0.517, 0.02)),
+                    "R": ((-0.122, 0.376, 0.78), (-0.118, 0.404, 0.45), (-0.113, 0.433, 0.12), (-0.13, 0.597, 0.02))},
+        "hindleg": {"L": ((0.141, -0.433, 0.82), (0.151, -0.423, 0.56), (0.13, -0.57, 0.28), (0.184, -0.323, 0.04)),
+                    "R": ((-0.142, -0.448, 0.8), (-0.155, -0.464, 0.56), (-0.127, -0.662, 0.3), (-0.182, -0.483, 0.04))},
+        "tail": ((0, -0.695, 0.906), (0, -0.779, 0.778), (0, -0.834, 0.538), (0, -0.931, 0.359), (0, -1.038, 0.218)),
+        "crown": (0, 0.82, 1.498),
+        "face": (0, 0.981, 1.38),
+        "back": (0, -0.056, 1.172),
+        "paint": [
+            {"mat": "dark", "sphere": (0.071, 0.981, 1.341), "r": 0.024},
+            {"mat": "dark", "sphere": (0, 1.142, 1.15), "r": 0.035},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},  # paws
+            {"mat": "accent", "sphere": (0, -1.038, 0.218), "r": 0.13},  # tail tip
+            {"mat": "accent", "box": ((0.05, 0.72, 1.44), (0.4, 0.98, 1.7))},  # ears
+            # Pale throat, chest and the underside of the muzzle and barrel: a grey wolf's markings.
+            {"mat": "belly", "box": ((0, 0.95, 1.0), (0.1, 1.3, 1.2)), "normal": ((0, 0, -1), 0.3)},
+            {"mat": "belly", "box": ((0, 0.35, 0.55), (0.13, 0.98, 1.25)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.55, 0.5), (0.2, 0.35, 0.95)), "normal": ((0, 0, -1), 0.5)},
+        ],
+    },
+    "fox": {
+        "path": os.path.join(SOURCES, "fox.glb"),
+        "plan": "quadruped",
+        "height": 1.58,
+        "triangles": 3900,
+        "center_y": 0.053,
+        "spine": ((0, -0.453, 0.809), (0, -0.033, 0.847), (0, 0.387, 0.888)),
+        "neck": (0, 0.662, 1.211),
+        "head": ((0, 0.662, 1.211), (0, 1.036, 1.177)),
+        "foreleg": {"L": ((0.096, 0.374, 0.74), (0.096, 0.357, 0.43), (0.095, 0.34, 0.12), (0.105, 0.467, 0.02)),
+                    "R": ((-0.114, 0.406, 0.74), (-0.112, 0.432, 0.43), (-0.11, 0.457, 0.12), (-0.11, 0.587, 0.02))},
+        "hindleg": {"L": ((0.101, -0.286, 0.78), (0.103, -0.261, 0.52), (0.12, -0.433, 0.28), (0.166, -0.273, 0.04)),
+                    "R": ((-0.123, -0.318, 0.78), (-0.124, -0.338, 0.54), (-0.123, -0.562, 0.3), (-0.155, -0.513, 0.02))},
+        "tail": ((0, -0.562, 0.798), (0, -0.648, 0.631), (0, -0.728, 0.44), (0, -0.88, 0.261), (0, -1.011, 0.114)),
+        "crown": (0, 0.685, 1.425),
+        "face": (0, 0.86, 1.36),
+        "back": (0, -0.006, 1.034),
+        "paint": [
+            {"mat": "dark", "sphere": (0.065, 0.84, 1.33), "r": 0.022},
+            {"mat": "dark", "sphere": (0, 1.036, 1.177), "r": 0.03},
+            # The white tip of the brush, and the dark "socks" and ears a red fox is drawn with.
+            {"mat": "belly", "sphere": (0, -1.011, 0.114), "r": 0.17},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.30))},
+            {"mat": "accent", "box": ((0.04, 0.6, 1.36), (0.4, 0.85, 1.7))},
+            {"mat": "belly", "box": ((0, 0.75, 1.05), (0.14, 1.1, 1.24)), "normal": ((0, 0.3, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.3, 0.5), (0.12, 0.85, 1.2)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.4, 0.45), (0.16, 0.35, 0.85)), "normal": ((0, 0, -1), 0.5)},
+        ],
+    },
+    "tiger": {
+        "path": os.path.join(SOURCES, "tiger.glb"),
+        "plan": "quadruped",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": 0.187,
+        "spine": ((0, -0.707, 0.926), (0, -0.187, 0.906), (0, 0.313, 0.965)),
+        "neck": (0, 0.562, 1.236),
+        "head": ((0, 0.562, 1.236), (0, 0.906, 1.169)),
+        "foreleg": {"L": ((0.15, 0.319, 0.7), (0.138, 0.356, 0.41), (0.127, 0.394, 0.12), (0.149, 0.573, 0.02)),
+                    "R": ((-0.145, 0.316, 0.7), (-0.133, 0.362, 0.41), (-0.122, 0.408, 0.12), (-0.142, 0.593, 0.04))},
+        "hindleg": {"L": ((0.143, -0.599, 0.78), (0.144, -0.607, 0.56), (0.122, -0.742, 0.28), (0.137, -0.547, 0.04)),
+                    "R": ((-0.146, -0.509, 0.78), (-0.152, -0.475, 0.52), (-0.116, -0.517, 0.26), (-0.149, -0.207, 0.06))},
+        "tail": ((0, -0.808, 0.94), (0, -0.892, 0.829), (0, -0.97, 0.541), (0, -1.089, 0.307), (0, -1.29, 0.297)),
+        "crown": (0, 0.578, 1.493),
+        "face": (0, 0.84, 1.36),
+        "back": (0, -0.173, 1.194),
+        "paint": [
+            {"mat": "dark", "sphere": (0.07, 0.839, 1.33), "r": 0.022},
+            {"mat": "dark", "sphere": (0, 0.9, 1.19), "r": 0.03},
+            {"mat": "accent", "sphere": (0, -1.29, 0.297), "r": 0.1},  # tail tip
+            # White chin, cheeks, chest and belly.
+            {"mat": "belly", "box": ((0, 0.65, 1.05), (0.16, 1.0, 1.3)), "normal": ((0, 0.3, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.25, 0.5), (0.14, 0.8, 1.2)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.7, 0.4), (0.2, 0.3, 0.85)), "normal": ((0, 0, -1), 0.35)},
+            # Stripes: rings round the tail and legs, vertical bands down the flanks and back.
+            {"mat": "accent", "box": ((-9, -1.4, 0.2), (9, -0.8, 1.1)), "stripes": ((0, -0.6, 0.8), 0.11, 0.35)},
+            {"mat": "accent", "box": ((0.04, -0.8, 0.7), (9, 0.35, 1.3)), "stripes": ((0, 1, 0.25), 0.13, 0.3)},
+            {"mat": "accent", "box": ((-9, -9, 0.08), (9, 9, 0.62)), "stripes": ((0, 0.2, 1), 0.12, 0.25)},
+        ],
+    },
+    "human": {
+        "path": os.path.join(SOURCES, "human.glb"),
+        "plan": "upright",
+        "height": 1.54,
+        "triangles": 3900,
+        "center_y": -0.121,
+        "arm_rest": 22,
+        "spine": ((0, 0.014, 0.7), (0, 0.029, 0.96), (0, 0.006, 1.26)),
+        "head": ((0, 0.006, 1.3), (0, 0.05, 1.538)),
+        "nose": (0, 0.148, 1.384),
+        "leg": ((0.083, 0.013, 0.7), (0.102, -0.015, 0.4), (0.122, -0.043, 0.1), (0.135, 0.121, 0.04)),
+        "arm": ((0.12, 0.029, 1.197), (0.503, 0.256, 1.097)),
+        # Over the middle of the skull rather than its highest vertex, which is the front of the hair:
+        # a person's head is only twenty centimetres deep, and a hat belongs on top of it, not on a fringe.
+        "crown": (0, 0.02, 1.532),
+        "face": (0, 0.125, 1.449),
+        # A stub inside the small of the back, where the plan's stub tail is: tail cosmetics hang on it.
+        "tail": ((0, -0.04, 0.76), (0, -0.10, 0.72)),
+        "back": (0, -0.065, 1.01),
+        # `body` is the shirt, `accent` the shorts, `belly` skin and `dark` eyes, hair and shoes.
+        "paint": [
+            {"mat": "dark", "sphere": (0.035, 0.114, 1.45), "r": 0.013},
+            {"mat": "dark", "box": ((-9, -9, 1.49), (9, 9, 9))},
+            {"mat": "dark", "box": ((-9, -9, 1.36), (9, 0.02, 9))},
+            {"mat": "belly", "box": ((-9, -9, 1.25), (9, 9, 9))},
+            {"mat": "belly", "box": ((0.27, -9, 0.9), (9, 9, 1.4))},
+            {"mat": "dark", "box": ((-9, -9, -9), (9, 9, 0.08))},
+            {"mat": "belly", "box": ((-9, -9, -9), (9, 9, 0.45))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.72))},
+        ],
+    },
+    "lion": {
+        "path": os.path.join(SOURCES, "lion.glb"),
+        "plan": "upright",
+        "height": 1.63,
+        "triangles": 3900,
+        "center_y": -0.06,
+        "arm_rest": 25,
+        "spine": ((0, 0.019, 0.64), (0, 0.011, 0.837), (0, -0.021, 1.06)),
+        "head": ((0, -0.021, 1.1), (0, 0.007, 1.629)),
+        "nose": (0, 0.39, 1.35),
+        "leg": ((0.127, 0.018, 0.64), (0.161, -0.017, 0.37), (0.194, -0.052, 0.1), (0.218, 0.12, 0.04)),
+        "arm": ((0.18, -0.013, 1.101), (0.512, 0.278, 1.092)),
+        "crown": (0, 0.0, 1.629),
+        "face": (0, 0.26, 1.45),
+        "tail": ((0, -0.10, 0.62), (0, -0.18, 0.58)),
+        "back": (0, -0.1, 0.884),
+        "paint": [
+            {"mat": "dark", "sphere": (0.07, 0.235, 1.45), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.39, 1.36), "r": 0.03},
+            # The face stays gold inside a brown mane that you can see from the far ridge.
+            {"mat": "body", "box": ((0, 0.2, 1.22), (0.15, 9, 1.56))},
+            {"mat": "accent", "box": ((0, -9, 1.12), (0.3, 9, 9))},
+            {"mat": "accent", "box": ((0, -9, 0.55), (0.3, 9, 0.9))},  # the hide round its hips
+        ],
+    },
+    "raccoon": {
+        "path": os.path.join(SOURCES, "raccoon.glb"),
+        "plan": "upright",
+        "height": 1.66,
+        "triangles": 3900,
+        "center_y": -0.01,
+        "arm_rest": 25,
+        "spine": ((0, -0.079, 0.3), (0, -0.076, 0.679), (0, -0.078, 1.08)),
+        "head": ((0, -0.078, 1.12), (0, -0.043, 1.604)),
+        "nose": (0, 0.348, 1.29),
+        "leg": ((0.165, -0.052, 0.3), (0.171, -0.071, 0.2), (0.176, -0.09, 0.1), (0.214, 0.13, 0.04)),
+        "arm": ((0.28, 0.168, 0.987), (0.468, 0.377, 1.041)),
+        "crown": (0, -0.05, 1.6),
+        "face": (0, 0.24, 1.43),
+        "tail": ((0, -0.30, 0.55), (0, -0.36, 0.40), (0, -0.40, 0.22), (0, -0.43, 0.08)),
+        "back": (0, -0.31, 0.76),
+        "paint": [
+            {"mat": "dark", "sphere": (0, 0.348, 1.29), "r": 0.03},
+            # The mask, a white muzzle under it, and the ringed tail the description promises.
+            {"mat": "accent", "box": ((0, 0.08, 1.37), (0.2, 9, 1.49)), "normal": ((0, 1, 0), 0.0)},
+            {"mat": "belly", "box": ((0, 0.2, 1.22), (0.12, 9, 1.37))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, -0.28, 0.65)), "stripes": ((0, 0.45, 1), 0.1, 0.4)},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},
+            {"mat": "accent", "sphere": (0.468, 0.377, 1.041), "r": 0.08},
+            {"mat": "belly", "box": ((0, 0.05, 0.4), (0.14, 9, 1.1)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "koala": {
+        "path": os.path.join(SOURCES, "koala.glb"),
+        "plan": "upright",
+        "height": 1.62,
+        "triangles": 3900,
+        "center_y": -0.071,
+        "arm_rest": 25,
+        "spine": ((0, -0.053, 0.42), (0, -0.054, 0.699), (0, -0.05, 1.02)),
+        "head": ((0, -0.05, 1.06), (0, -0.015, 1.555)),
+        "nose": (0, 0.315, 1.22),
+        "leg": ((0.145, -0.025, 0.42), (0.15, -0.027, 0.26), (0.155, -0.029, 0.1), (0.197, 0.091, 0.04)),
+        "arm": ((0.22, 0.164, 0.949), (0.388, 0.326, 0.992)),
+        "crown": (0, -0.011, 1.555),
+        "face": (0, 0.24, 1.38),
+        "tail": ((0, -0.15, 0.45), (0, -0.22, 0.42)),
+        "back": (0, -0.254, 0.9),
+        "paint": [
+            {"mat": "dark", "sphere": (0.08, 0.215, 1.38), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.315, 1.22), "r": 0.065},
+            {"mat": "belly", "box": ((0.18, -9, 1.3), (9, 9, 9)), "normal": ((0, 1, 0), 0.2)},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.06))},
+            {"mat": "accent", "sphere": (0.388, 0.326, 0.992), "r": 0.075},
+            {"mat": "belly", "box": ((0, 0.05, 0.5), (0.15, 9, 1.12)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "bear": {
+        "path": os.path.join(SOURCES, "bear.glb"),
+        "plan": "waddler",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": -0.047,
+        "arm_rest": 30,
+        "spine": ((0, -0.048, 0.32), (0, -0.005, 0.679), (0, -0.027, 1.04)),
+        "head": ((0, -0.027, 1.08), (0, -0.007, 1.517)),
+        "nose": (0, 0.311, 1.239),
+        "leg": ((0.153, -0.027, 0.32), (0.151, -0.043, 0.21), (0.148, -0.058, 0.1), (0.157, 0.167, 0.04)),
+        "arm": ((0.26, 0.115, 0.898), (0.501, 0.322, 0.834)),
+        "crown": (0, -0.03, 1.517),
+        "face": (0, 0.2, 1.38),
+        "tail": ((0, -0.22, 0.40), (0, -0.30, 0.36)),
+        "back": (0, -0.233, 0.784),
+        "paint": [
+            {"mat": "dark", "sphere": (0.08, 0.168, 1.38), "r": 0.02},
+            {"mat": "dark", "sphere": (0, 0.311, 1.239), "r": 0.04},
+            {"mat": "belly", "sphere": (0, 0.27, 1.24), "r": 0.09},  # the pale muzzle
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},
+            {"mat": "accent", "sphere": (0.501, 0.322, 0.834), "r": 0.09},
+        ],
+    },
+    "panda": {
+        "path": os.path.join(SOURCES, "panda.glb"),
+        "plan": "waddler",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": -0.015,
+        "arm_rest": 30,
+        # No neck to find — the skull sits straight on the shoulders — so the head pivots where they meet.
+        "spine": ((0, -0.016, 0.34), (0, 0.027, 0.799), (0, 0.04, 1.08)),
+        "head": ((0, 0.04, 1.12), (0, 0.021, 1.506)),
+        "nose": (0, 0.274, 1.354),
+        "leg": ((0.209, -0.022, 0.34), (0.216, -0.02, 0.22), (0.223, -0.018, 0.1), (0.236, 0.135, 0.06)),
+        "arm": ((0.32, 0.021, 0.87), (0.646, 0.165, 0.8)),
+        "crown": (0, 0.06, 1.506),
+        "face": (0, 0.23, 1.40),
+        "tail": ((0, -0.25, 0.52), (0, -0.36, 0.50)),
+        "back": (0, -0.194, 0.883),
+        # A white bear in black stockings, with a black saddle over the shoulders, black ears and
+        # the eye patches the flat face is recognised by.
+        "paint": [
+            {"mat": "dark", "sphere": (0, 0.274, 1.354), "r": 0.03},
+            {"mat": "accent", "sphere": (0.09, 0.205, 1.40), "r": 0.055},
+            {"mat": "accent", "box": ((0.12, -9, 1.45), (9, 9, 9))},
+            {"mat": "accent", "box": ((0.25, -9, 0.55), (9, 9, 1.15))},
+            {"mat": "accent", "box": ((-9, -9, 0.82), (9, 9, 1.05))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.42))},
+        ],
+    },
+    "deer": {
+        "path": os.path.join(SOURCES, "deer.glb"),
+        "plan": "upright",
+        "height": 1.79,
+        "triangles": 3900,
+        "center_y": -0.11,
+        "arm_rest": 22,
+        "spine": ((0, 0.009, 0.68), (0, 0.061, 0.917), (0, 0.094, 1.2)),
+        "head": ((0, 0.094, 1.24), (0, 0.125, 1.452)),
+        "nose": (0, 0.38, 1.318),
+        # Digitigrade: the knee forward, the hock behind, and the long bone below it is the foot.
+        "leg": ((0.101, -0.014, 0.68), (0.1, -0.052, 0.53), (0.1, -0.09, 0.38), (0.162, 0.07, 0.02)),
+        "arm": ((0.14, 0.145, 1.019), (0.476, 0.298, 1.13)),
+        "crown": (0, 0.128, 1.452),
+        "face": (0, 0.26, 1.40),
+        "tail": ((0, -0.08, 0.76), (0, -0.17, 0.76)),
+        "back": (0, -0.049, 0.983),
+        "paint": [
+            {"mat": "dark", "sphere": (0.059, 0.22, 1.40), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.38, 1.318), "r": 0.03},
+            {"mat": "accent", "box": ((-9, -9, 1.5), (9, 9, 9))},  # antlers
+            {"mat": "dark", "box": ((-9, -9, -9), (9, 9, 0.06))},  # hooves
+            {"mat": "belly", "box": ((0, 0.25, 1.24), (0.1, 9, 1.34)), "normal": ((0, 0, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.0, 0.6), (0.12, 9, 1.25)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "penguin": {
+        # Flippers asked for held out from the body, lowered to hang at rest.
+        "path": os.path.join(SOURCES, "penguin.glb"),
+        "plan": "waddler",
+        "height": 1.46,
+        "triangles": 3900,
+        "center_y": 0.12,
+        "arm_rest": 18,
+        "spine": ((0, -0.17, 0.3), (0, -0.12, 0.75), (0, -0.1, 1.08)),
+        "head": ((0, -0.1, 1.08), (0, -0.04, 1.46)),
+        "nose": (0, 0.28, 1.15),
+        "leg": ((0.15, -0.12, 0.28), (0.16, -0.1, 0.16), (0.17, -0.1, 0.06), (0.18, 0.16, 0.02)),
+        "arm": ((0.255, -0.08, 0.92), (0.64, -0.12, 0.545)),
+        "tail": ((0, -0.3, 0.35), (0, -0.42, 0.25), (0, -0.52, 0.18)),
+        "crown": (0, -0.06, 1.46),
+        "face": (0, 0.18, 1.27),
+        "back": (0, -0.312, 0.9),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.11, 0.095, 1.265), 'r': 0.018},
+            {'mat': 'belly', 'sphere': (0.11, 0.095, 1.265), 'r': 0.035},  # a pale ring, or a dark eye on a dark head is no eye
+            {'mat': 'accent', 'box': ((0, 0.16, 1.08), (0.07, 9, 1.24))},  # beak
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.06))},  # feet
+            {'mat': 'accent', 'sphere': (0.13, 0.0, 1.12), 'r': 0.06},  # an emperor's yellow ear patch
+            {'mat': 'belly', 'box': ((0, -0.12, 0.08), (0.24, 9, 1.16)), 'normal': ((0, 1, 0), 0.25)},
+        ],
+    },
+    "frog": {
+        # Its forearms are moulded against its belly, so no arm bone could lift them away: they ride the
+        # spine (`arm: None`), and so do the hand sockets.
+        "path": os.path.join(SOURCES, "frog.glb"),
+        "plan": "hopper",
+        "height": 1.48,
+        "triangles": 3900,
+        "center_y": -0.12,
+        "spine": ((0, 0.0, 0.62), (0, 0.04, 0.86), (0, 0.12, 1.08)),
+        "head": ((0, 0.12, 1.1), (0, 0.52, 1.3)),
+        "nose": (0, 0.563, 1.26),
+        "leg": ((0.15, 0.02, 0.6), (0.25, -0.01, 0.38), (0.22, -0.14, 0.12), (0.38, 0.14, 0.02)),
+        "arm": None,
+        "hand": (0.1, 0.2, 0.77),
+        "tail": ((0, -0.15, 0.62), (0, -0.24, 0.58)),
+        "crown": (0, 0.22, 1.425),
+        "face": (0, 0.46, 1.36),
+        "back": (0, -0.305, 0.95),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.12, 0.39, 1.42), 'r': 0.035},
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.04))},  # feet
+            {'mat': 'belly', 'box': ((0, 0.02, 0.45), (0.26, 9, 1.24)), 'normal': ((0, 1, 0), 0.3)},
+            {'mat': 'accent', 'box': ((-9, -9, 0.6), (9, -0.03, 1.35)), 'stripes': ((1, 0.3, 1), 0.15, 0.3)},
+            {'mat': 'accent', 'box': ((-9, -9, 0.05), (9, 9, 0.55)), 'stripes': ((0, 0.3, 1), 0.1, 0.3)},
+        ],
+    },
+    "shark": {
+        # Leans forward with its tail on the ground, more land shark than person in a costume. The fins
+        # are its arms and stay out: a shark with its fins at its sides is a fish in a bag.
+        "path": os.path.join(SOURCES, "shark.glb"),
+        "plan": "upright",
+        "height": 1.65,
+        "triangles": 3900,
+        "center_y": 0.06,
+        "spine": ((0, -0.06, 0.85), (0, 0.34, 1.0), (0, 0.69, 1.15)),
+        "head": ((0, 0.69, 1.18), (0, 1.174, 1.31)),
+        "leg": ((0.15, 0.19, 0.55), (0.27, 0.11, 0.3), (0.36, 0.0, 0.07), (0.38, 0.06, 0.02)),
+        "arm": ((0.28, 0.36, 1.05), (0.88, 0.06, 0.89)),
+        "tail": ((0, -0.01, 0.92), (0, -0.51, 0.68), (0, -0.91, 0.42), (0, -1.28, 0.18)),
+        "crown": (0, 0.64, 1.48),
+        "face": (0, 0.94, 1.42),
+        "back": (0, -0.36, 1.05),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.16, 0.825, 1.365), 'r': 0.025},
+            {'mat': 'accent', 'box': ((-9, -9, 1.55), (9, 9, 9))},  # dorsal fin tip
+            {'mat': 'accent', 'box': ((0.65, -9, -9), (9, 9, 9))},  # pectoral fin tips
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, -1.06, 9))},  # tail fin
+            {'mat': 'belly', 'box': ((0, -9, -9), (0.6, 9, 9)), 'normal': ((0, 0.3, -1), 0.35)},  # countershaded underside
+            {'mat': 'belly', 'box': ((0, 0.24, 0.3), (0.25, 9, 1.25)), 'normal': ((0, 1, 0), 0.5)},
+        ],
+    },
+    "dragon": {
+        # Meshy gave it wings the prompt said not to have. They stay — they read from across a map, which
+        # is the point of an epic animal — pinned to the spine, because a membrane that thin is what makes
+        # the heat solve fail. The tail curls to its left, so its joints are measured, not mirrored.
+        "path": os.path.join(SOURCES, "dragon.glb"),
+        "plan": "upright",
+        "height": 1.76,
+        "triangles": 3900,
+        "center_y": 0.5,
+        "arm_rest": 25,
+        "spine": ((0, -0.2, 0.56), (0, -0.1, 0.8), (0, -0.06, 1.04)),
+        "neck": (0, -0.05, 1.28),
+        "head": ((0, -0.05, 1.28), (0, 0.254, 1.3)),
+        "leg": ((0.15, -0.16, 0.56), (0.24, 0.04, 0.4), (0.22, -0.16, 0.16), (0.3, 0.19, 0.01)),
+        "arm": ((0.16, -0.04, 1.04), (0.46, 0.24, 0.8)),
+        "tail": ((0, -0.28, 0.55), (0.06, -0.62, 0.3), (0.25, -0.95, 0.22), (0.6, -1.28, 0.36)),
+        "crown": (0, -0.03, 1.554),
+        "face": (0, 0.16, 1.42),
+        "back": (0, -0.28, 0.9),
+        "pins": [
+            {'bone': 'spine', 'box': ((0.21, -0.8, 0.6), (9, -0.08, 9))},
+        ],
+        "paint": [
+            {'mat': 'belly', 'sphere': (0.07, 0.09, 1.4), 'r': 0.022},  # pale eyes: dark ones vanish on purple
+            {'mat': 'accent', 'box': ((-9, -9, 1.5), (9, 9, 9))},  # horns
+            {'mat': 'accent', 'box': ((0.21, -0.8, 0.6), (9, -0.08, 9))},  # wings
+            {'mat': 'accent', 'sphere': (0.46, 0.24, 0.8), 'r': 0.07},  # claws
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.05))},
+            {'mat': 'belly', 'box': ((0, -0.2, 0.3), (0.16, 9, 1.32)), 'normal': ((0, 1, 0), 0.5)},
+            {'mat': 'belly', 'box': ((-9, -9, 0.0), (9, -0.2, 0.6)), 'normal': ((0, 0, -1), 0.4), 'mirror': False},
+        ],
+    },
+    "raptor": {
+        # Its legs are a stride apart in the sculpt, so each side is its own measurement.
+        "path": os.path.join(SOURCES, "raptor.glb"),
+        "plan": "hopper",
+        "height": 1.6,
+        "triangles": 3900,
+        "center_y": 0.23,
+        "spine": ((0, -0.18, 0.92), (0, 0.17, 0.98), (0, 0.47, 1.08)),
+        # The head pivots half way up the neck: from the skull's own base, a hat on a skull this small
+        # and this flat would sit barely above the joint it turns on.
+        "neck": (0, 0.62, 1.22),
+        "head": ((0, 0.62, 1.22), (0, 1.191, 1.38)),
+        "leg": {'L': ((0.12, 0.02, 0.85), (0.15, -0.06, 0.52), (0.13, -0.36, 0.29), (0.1, -0.04, 0.01)), 'R': ((-0.12, 0.07, 0.85), (-0.15, 0.13, 0.55), (-0.15, 0.03, 0.2), (-0.15, 0.37, 0.08))},
+        "arm": ((0.15, 0.39, 1.02), (0.13, 0.49, 0.8)),
+        "tail": ((0, -0.28, 0.98), (0, -0.68, 0.88), (0, -1.08, 1.0), (0, -1.38, 1.35), (0, -1.68, 1.58)),
+        "crown": (0, 0.85, 1.45),
+        "face": (0, 1.02, 1.45),
+        "back": (0, 0.12, 1.15),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.135, 0.935, 1.43), 'r': 0.022},
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.05))},  # claws
+            {'mat': 'belly', 'box': ((-9, -9, -9), (9, 9, 9)), 'normal': ((0, 0.2, -1), 0.45)},  # pale underside
+            {'mat': 'accent', 'box': ((0.03, -1.83, 0.85), (9, 0.77, 1.6)), 'stripes': ((0, 1, 0.2), 0.16, 0.35)},  # back stripes
+        ],
     },
 }
+
+
+def _mirror(point):
+    return (-point[0], point[1], point[2])
+
+
+def _sided(limb):
+    """A limb as (left, right): given per side, or the left side mirrored."""
+    if isinstance(limb, dict):
+        return limb["L"], limb["R"]
+    return limb, tuple(_mirror(p) for p in limb)
+
+
+def _matches(rule, c, n):
+    """
+    Whether a face (centre `c`, normal `n`) is inside a paint or pin rule's region.
+
+    Every condition a rule names must hold. Mirrored by default — a rule describes the left side
+    and the right side is its reflection — unless it says `"mirror": False`.
+    """
+    if rule.get("mirror", True) and c.x < 0:
+        c = Vector((-c.x, c.y, c.z))
+        n = Vector((-n.x, n.y, n.z))
+    if "sphere" in rule and (c - Vector(rule["sphere"])).length > rule["r"]:
+        return False
+    if "box" in rule:
+        lo, hi = rule["box"]
+        if not all(lo[a] <= c[a] <= hi[a] for a in range(3)):
+            return False
+    if "capsule" in rule:
+        a, b = Vector(rule["capsule"][0]), Vector(rule["capsule"][1])
+        axis = b - a
+        t = max(0.0, min(1.0, (c - a).dot(axis) / axis.length_squared))
+        if (c - (a + axis * t)).length > rule["r"]:
+            return False
+    if "plane" in rule:
+        point, normal = rule["plane"]
+        if (c - Vector(point)).dot(Vector(normal)) <= 0:
+            return False
+    if "normal" in rule:
+        direction, least = rule["normal"]
+        if n.dot(Vector(direction).normalized()) <= least:
+            return False
+    if "stripes" in rule:
+        direction, period, duty = rule["stripes"]
+        if (c.dot(Vector(direction)) / period) % 1.0 >= duty:
+            return False
+    return True
 
 
 def _import_source(src):
@@ -741,7 +1233,10 @@ def _import_source(src):
     zs = [v.co.z for v in ob.data.vertices]
     ob.data.transform(Matrix.Scale(src["height"] / (max(zs) - min(zs)), 4))
     xs = [v.co.x for v in ob.data.vertices]
-    ob.data.transform(Matrix.Translation((-(max(xs) + min(xs)) / 2, 0, -min(v.co.z for v in ob.data.vertices))))
+    # Centred on its feet as well as on x: Meshy centres a model on its bounding box, which for a
+    # raptor is half way down its tail, and the capsule a player collides with is under the feet.
+    ob.data.transform(Matrix.Translation((-(max(xs) + min(xs)) / 2, -src.get("center_y", 0.0),
+                                          -min(v.co.z for v in ob.data.vertices))))
 
     bpy.context.view_layer.objects.active = ob
     decimate = ob.modifiers.new("decimate", "DECIMATE")
@@ -754,79 +1249,174 @@ def _import_source(src):
 
 def _paint_source(ob, src, mats):
     """
-    Colour by region from the animal's own palette: cream chest and belly, dark eyes and nose,
-    accent paws, feet and tail tip. The mesh arrives with no material at all, and the game's art
-    is flat palette colour rather than textures, so the regions are geometry, not an image.
+    Colour by region from the animal's own palette. The mesh arrives with no material at all, and
+    the game's art is flat palette colour rather than textures, so the regions are geometry — the
+    entry's `paint` rules, first match wins — not an image.
     """
-    for key in ("body", "belly", "accent", "dark"):
+    order = ("body", "belly", "accent", "dark")
+    for key in order:
         ob.data.materials.append(mats[key])
-    body, belly, accent, dark = 0, 1, 2, 3
-    eyes = [Vector(e) for e in src["eyes"]]
-    nose = Vector(src["nose"])
-    paw = Vector(src["paw"])
-    shoulder = Vector(src["shoulder"])
-
-    def near_arm(c, reach):
-        # Distance from the forearm segment on this side: the arms lie against the chest, and a
-        # rule written for "front of the torso" paints them cream along with it.
-        m = Vector((abs(c.x), c.y, c.z))
-        axis = paw - shoulder
-        t = max(0.0, min(1.0, (m - shoulder).dot(axis) / axis.length_squared))
-        return (m - (shoulder + axis * t)).length < reach
-
+    rules = src.get("paint", ())
     for poly in ob.data.polygons:
-        c, n = poly.center, poly.normal
-        index = body
-        # Where the torso's front surface is at this height: the back leans forward as it rises.
-        front = 0.10 + (c.z - 0.9) * 0.57
-        if any((c - e).length < 0.028 for e in eyes) or (c - nose).length < 0.035:
-            index = dark
-        elif c.z < 0.045 and c.y > -0.12:
-            index = accent  # soles and toes
-        elif c.y < -0.48 and c.z < 0.1:
-            index = accent  # tail tip
-        elif (Vector((abs(c.x), c.y, c.z)) - paw).length < 0.06:
-            index = accent  # paws
-        elif 0.6 < c.z < 1.36 and c.y > front and n.y > 0.45 and abs(c.x) < 0.12 and not near_arm(c, 0.05):
-            index = belly  # chest and belly, between the arms
-        poly.material_index = index
+        poly.material_index = 0
+        for rule in rules:
+            if _matches(rule, poly.center, poly.normal):
+                poly.material_index = order.index(rule["mat"])
+                break
+
+
+def _split_pins(ob, src):
+    """
+    The faces each `pins` rule claims, cut out into parts of their own and pinned to one bone.
+
+    Cut out rather than re-weighted afterwards, because a thin closed shell is exactly what makes
+    the heat solve singular (see `skin_parts`), and a dragon's wing membrane is the thinnest thing
+    in the roster. Pinned parts are joined back after the solve.
+    """
+    parts = []
+    for rule in src.get("pins", ()):
+        faces = [p.index for p in ob.data.polygons if _matches(rule, p.center, p.normal)]
+        if not faces:
+            raise AssertionError(f"{src['path']}: pin to {rule['bone']} matches no faces")
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bm.faces.ensure_lookup_table()
+        chosen = set(faces)
+        piece = bpy.data.meshes.new(f"{ob.name}_pin_{rule['bone']}")
+        copy = bm.copy()
+        copy.faces.ensure_lookup_table()
+        bmesh.ops.delete(copy, geom=[f for f in copy.faces if f.index not in chosen], context="FACES")
+        copy.to_mesh(piece)
+        copy.free()
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in chosen], context="FACES")
+        bm.to_mesh(ob.data)
+        bm.free()
+        for slot in ob.data.materials:
+            piece.materials.append(slot)
+        part = bpy.data.objects.new(piece.name, piece)
+        bpy.context.scene.collection.objects.link(part)
+        parts.append(lib.pin(part, rule["bone"]))
+    return parts
 
 
 def build_from_source(spec, mats, src):
-    """A source mesh on the body plan's skeleton, with sockets at its own measured landmarks."""
+    """A source mesh on its body plan's skeleton, with sockets at its own measured landmarks."""
     ob = _import_source(src)
     _paint_source(ob, src, mats)
-    hx, hy, hz = src["hip"]
-    kx, ky, kz = src["knee"]
-    ax, ay, az = src["hock"]
-    tx, ty, tz = src["toe"]
-    (h0, h1, s1) = src["spine"]
+    pinned = _split_pins(ob, src)
+    plan = src["plan"]
+
+    rump, mid, withers = src["spine"]
     bones = [
         ("root", (0, 0, 0.0), (0, 0, 0.12), None),
-        ("hips", h0, h1, "root"),
-        ("spine", h1, s1, "hips"),
-        ("head", src["head"][0], src["head"][1], "spine"),
-        ("jaw", src["jaw"][0], src["jaw"][1], "head"),
+        ("hips", rump, mid, "root"),
+        ("spine", mid, withers, "hips"),
     ]
-    tail = src["tail"]
+    head_parent = "spine"
+    if "neck" in src:
+        bones.append(("neck", withers, src["neck"], "spine"))
+        head_parent = "neck"
+    head = src["head"]
+    bones.append(("head", head[0], head[1], head_parent))
+    if "jaw" in src:
+        jaw = src["jaw"]
+    elif "nose" in src:
+        # Under the snout and out to its tip. On an upright head the head bone points up at the
+        # crown, so a jaw derived from it sat under the middle of the skull: behind the face, and
+        # driving the whole head when the renderer opens the mouth to a speaker's voice.
+        nose = Vector(src["nose"])
+        jaw = (tuple(nose + Vector((0, -0.14, -0.04))), tuple(nose + Vector((0, -0.01, -0.05))))
+    else:
+        # A head that points along the snout (a wolf's, a shark's): under its front half.
+        h0, h1 = Vector(head[0]), Vector(head[1])
+        jaw = (tuple(h0.lerp(h1, 0.55) - Vector((0, 0, 0.06))), tuple(h1 - Vector((0, 0.03, 0.06))))
+    bones.append(("jaw", jaw[0], jaw[1], "head"))
+    tail = src.get("tail", ())
     for i in range(len(tail) - 1):
         bones.append((f"tail.{i + 1}", tail[i], tail[i + 1], "hips" if i == 0 else f"tail.{i}"))
-    sx, sy, sz = src["shoulder"]
-    px, py, pz = src["paw"]
-    for side, sign in (("L", 1), ("R", -1)):
-        bones += [
-            (f"thigh.{side}", (hx * sign, hy, hz), (kx * sign, ky, kz), "hips"),
-            (f"shin.{side}", (kx * sign, ky, kz), (ax * sign, ay, az), f"thigh.{side}"),
-            (f"foot.{side}", (ax * sign, ay, az), (tx * sign, ty, tz), f"shin.{side}"),
-            (f"arm.{side}", (sx * sign, sy, sz), (px * sign, py, pz), "spine"),
-        ]
+
     sockets = {
         "socket_head": ("head", src["crown"]),
         "socket_face": ("head", src["face"]),
         "socket_back": ("spine", src["back"]),
     }
-    sockets.update(_hand_sockets("arm", lambda x: (x, py, pz), px))
-    return [ob], bones, src["plan"], sockets
+    if plan == "quadruped":
+        for tag, key, parent in (("front", "foreleg", "spine"), ("back", "hindleg", "hips")):
+            for side, (top, knee, low, toe) in zip("LR", _sided(src[key])):
+                bones += [
+                    (f"{tag}upper.{side}", top, knee, parent),
+                    (f"{tag}lower.{side}", knee, low, f"{tag}upper.{side}"),
+                    (f"{tag}paw.{side}", low, toe, f"{tag}lower.{side}"),
+                ]
+                if tag == "front":
+                    paw = Vector(low).lerp(Vector(toe), 0.5)
+                    sockets[f"socket_hand_{side}"] = (f"frontpaw.{side}", (paw.x, paw.y, 0.06))
+    else:
+        for side, (hip, knee, ankle, toe) in zip("LR", _sided(src["leg"])):
+            bones += [
+                (f"thigh.{side}", hip, knee, "hips"),
+                (f"shin.{side}", knee, ankle, f"thigh.{side}"),
+                (f"foot.{side}", ankle, toe, f"shin.{side}"),
+            ]
+        if src["arm"] is None:
+            for side, hand in zip("LR", (src["hand"], _mirror(src["hand"]))):
+                sockets[f"socket_hand_{side}"] = ("spine", hand)
+        else:
+            for side, (shoulder, hand) in zip("LR", _sided(src["arm"])):
+                bones.append((f"arm.{side}", shoulder, hand, "spine"))
+                sockets[f"socket_hand_{side}"] = (f"arm.{side}", hand)
+    return [ob] + pinned, bones, plan, sockets
+
+
+def rest_arms(mesh, arm, src, sockets):
+    """
+    Lower a sculpt's A-pose arms by `arm_rest` and make that the rest pose.
+
+    The pose is applied to the mesh through its own skin weights and then fixed as the skeleton's
+    rest, so every clip — keyed relative to rest — swings arms that hang at the sides. Hand sockets
+    move with their bones. Returns the sockets, with hands where the hands now are.
+    """
+    target = src.get("arm_rest")
+    if target is None or src.get("arm") is None:
+        return sockets
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    down = Vector((0, 0, -1))
+    moved = {}
+    for side in "LR":
+        bone = arm.data.bones[f"arm.{side}"]
+        pb = arm.pose.bones[f"arm.{side}"]
+        direction = (bone.tail_local - bone.head_local).normalized()
+        excess = direction.angle(down) - math.radians(target)
+        if excess <= 0:
+            continue
+        turn = Quaternion(direction.cross(down).normalized(), excess)
+        rest = bone.matrix_local.to_quaternion()
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = rest.inverted() @ turn @ rest
+        moved[bone.name] = pb
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy_update()
+    if not moved:
+        return sockets
+    out = dict(sockets)
+    for name, (bone_name, pos) in sockets.items():
+        if bone_name in moved:
+            delta = moved[bone_name].matrix @ arm.data.bones[bone_name].matrix_local.inverted()
+            out[name] = (bone_name, tuple(delta @ Vector(pos)))
+    # Bake the pose into the mesh, then make it the skeleton's rest, then bind again with the same
+    # weights (the vertex groups are untouched by both steps).
+    modifier = next(m for m in mesh.modifiers if m.type == "ARMATURE")
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.armature_apply(selected=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    modifier = mesh.modifiers.new("Armature", "ARMATURE")
+    modifier.object = arm
+    bpy_update()
+    return out
 
 
 PLANS = {
@@ -1258,6 +1848,8 @@ def build_animal(spec, out_path, capsule):
     left = lib.unweighted_vertices(mesh)
     if left:
         raise AssertionError(f"{spec['id']}: {left} vertices have no bone weight")
+    if source and os.path.exists(source["path"]):
+        sockets = rest_arms(mesh, arm, source, sockets)
 
     # Sockets go on before a single clip is keyed. `bone_socket` places each one in world space
     # against the bone's *current* pose, and once `animate` has run that is whatever frame of the

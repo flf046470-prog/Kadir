@@ -31,9 +31,10 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
       head/body hit split, KO + respawn; button-driven on PC/Mobile
 - [x] **9 · Parkour Race** — ordered checkpoints, lap timing, personal + world best
 - [x] **10 · Lobby** — menu, mode select, portals, practice-with-bots, results screen
-- [x] **11 · Animals** — **16 meshes on disk**, generated from `animals.json` by the Blender
-      pipeline and tracked; every one a distinct shape, enforced by hashing POSITION+NORMAL out of
-      the shipped `.glb`s; ±3 % feel clamp and a standing-height fairness bound enforced by test
+- [x] **11 · Animals** — **16 sculpted bodies** (Meshy text-to-3D, `assets/meshy/animals/`) rigged,
+      painted and animated onto their body plan's skeleton by the Blender pipeline and tracked; every
+      one a distinct shape, enforced by hashing POSITION+NORMAL out of the shipped `.glb`s; ±3 % feel
+      clamp and a standing-height fairness bound enforced by test
 - [x] **12 · Cosmetics** — 9 slots, 20 launch items, socket-based rendering, equip validation
 - [x] **13 · Store** — everything free; catalog validator refuses any price at boot,
       server-verified purchase machinery retained and tested

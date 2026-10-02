@@ -19,15 +19,18 @@
  * would attach a 1-2 MB texture per prop and clash with the flat-shaded art.
  *
  *   MESHY_API_KEY=... npm run assets:meshy [-- --budget 900] [-- --only rock] [-- --dry-run]
+ *   MESHY_API_KEY=... npm run assets:meshy -- --set animals [--only wolf]
+ *
+ * `--set animals` reads `tools/meshy/animals.json` instead and caches each animal's body in
+ * `assets/meshy/animals/<id>.glb`, asking for a symmetric mesh in the pose its rig is fitted to.
  *
  * The key is read from the environment and never written anywhere.
  */
 
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 
 const API = 'https://api.meshy.ai/openapi';
-const MANIFEST = 'tools/meshy/props.json';
 const CACHE = 'assets/meshy';
 const PROVENANCE = path.join(CACHE, 'provenance.json');
 /** Observed cost of one preview task. Used to refuse work we cannot pay for. */
@@ -51,6 +54,12 @@ const flag = (name, fallback) => {
 const budget = Number(flag('budget', '100000'));
 const only = flag('only', null);
 const dryRun = args.includes('--dry-run');
+const set = flag('set', 'props');
+if (set !== 'props' && set !== 'animals') {
+  console.error(`--set must be props or animals, not ${set}`);
+  process.exit(2);
+}
+const MANIFEST = `tools/meshy/${set}.json`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -74,25 +83,45 @@ const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
 mkdirSync(CACHE, { recursive: true });
 const provenance = existsSync(PROVENANCE) ? JSON.parse(readFileSync(PROVENANCE, 'utf8')) : { files: {} };
 
-/** Every (prop, variant) this manifest asks for, with the file it would land in. */
+/** Every file this manifest asks for, with where it would land and what to ask Meshy for. */
 const wanted = [];
-for (const prop of manifest.props) {
-  if (only && prop.id !== only) continue;
-  for (let v = 1; v <= prop.variants; v++) {
-    const name = `${prop.id}-${v}.glb`;
+if (set === 'animals') {
+  mkdirSync(path.join(CACHE, 'animals'), { recursive: true });
+  for (const animal of manifest.animals) {
+    if (only && animal.id !== only) continue;
+    const name = `animals/${animal.id}.glb`;
     wanted.push({
       name,
       file: path.join(CACHE, name),
-      polycount: prop.polycount,
-      prompt: `${prop.prompt}, ${manifest.style}`,
+      polycount: manifest.polycount,
+      prompt: `${animal.prompt}, ${manifest.style}`,
+      negative: animal.negative ?? manifest.negative,
+      // Symmetric, because the rig is: one side's joints are the other's mirrored. And the pose the
+      // skeleton is fitted to, where the model offers one, rather than whatever the prompt implies.
+      extra: { symmetry_mode: 'on', ...(animal.pose ? { pose_mode: animal.pose } : {}) },
     });
+  }
+} else {
+  for (const prop of manifest.props) {
+    if (only && prop.id !== only) continue;
+    for (let v = 1; v <= prop.variants; v++) {
+      const name = `${prop.id}-${v}.glb`;
+      wanted.push({
+        name,
+        file: path.join(CACHE, name),
+        polycount: prop.polycount,
+        prompt: `${prop.prompt}, ${manifest.style}`,
+        negative: manifest.negative,
+        extra: {},
+      });
+    }
   }
 }
 
 const cached = wanted.filter((w) => existsSync(w.file));
 const todo = wanted.filter((w) => !existsSync(w.file));
 
-console.log(`manifest: ${wanted.length} props — ${cached.length} cached, ${todo.length} to generate`);
+console.log(`manifest: ${wanted.length} ${set} — ${cached.length} cached, ${todo.length} to generate`);
 
 const { balance } = await api('/v1/balance');
 const affordable = Math.floor(Math.min(balance, budget) / CREDITS_PER_TASK);
@@ -119,11 +148,12 @@ async function generate(item) {
     body: JSON.stringify({
       mode: 'preview',
       prompt: item.prompt,
-      negative_prompt: manifest.negative,
+      negative_prompt: item.negative,
       art_style: 'realistic',
       should_remesh: true,
       target_polycount: item.polycount,
       topology: 'triangle',
+      ...item.extra,
     }),
   });
   const id = created.result;
@@ -144,8 +174,9 @@ async function generate(item) {
       provenance.files[item.name] = {
         taskId: id,
         prompt: item.prompt,
-        negativePrompt: manifest.negative,
+        negativePrompt: item.negative,
         targetPolycount: item.polycount,
+        ...(Object.keys(item.extra).length ? { options: item.extra } : {}),
         credits: CREDITS_PER_TASK,
         generatedAt: new Date().toISOString(),
         source: 'Meshy AI text-to-3d preview',
@@ -178,8 +209,8 @@ await Promise.all(
 );
 
 const after = await api('/v1/balance');
-const files = readdirSync(CACHE).filter((f) => f.endsWith('.glb'));
-console.log(`\n${files.length}/${wanted.length} props cached in ${CACHE}`);
+const files = wanted.filter((w) => existsSync(w.file));
+console.log(`\n${files.length}/${wanted.length} ${set} cached in ${CACHE}`);
 console.log(`balance: ${balance} → ${after.balance} (spent ${balance - after.balance})`);
 if (failures.length) {
   console.log(`\n${failures.length} failure(s) — re-run to retry only these:`);

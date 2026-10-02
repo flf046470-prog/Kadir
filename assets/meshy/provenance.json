@@ -423,6 +423,196 @@
       "credits": 20,
       "licence": "Generated with the project owner's Meshy API account; Meshy terms assign generated assets to the account holder (free tier: CC BY 4.0).",
       "use": "Hero kangaroo body, rigged onto the hopper skeleton by tools/blender/characters.py SOURCE_MESHES"
+    },
+    "animals/wolf.glb": {
+      "taskId": "01a0fdda-243e-74b7-b3ee-65eaaf0fe6e3",
+      "prompt": "a grey wolf standing still on all four legs in a neutral side stance, all four legs straight and vertical under the body and clearly separated, head raised looking straight forward, ears upright, thick tail held out straight behind, lean muscular build, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:23:11.591Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/fox.glb": {
+      "taskId": "01a0fddc-9c08-75ac-9d47-305c48d57b26",
+      "prompt": "a red fox standing still on all four legs in a neutral side stance, all four legs straight and vertical under the body and clearly separated, head raised looking straight forward, large pointed upright ears, very bushy tail held out straight behind, slender build, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:25:41.859Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/tiger.glb": {
+      "taskId": "01a0fddc-9bec-7593-932b-9923f44947a8",
+      "prompt": "a tiger standing still on all four legs in a neutral side stance, all four legs straight and vertical under the body and clearly separated, head raised looking straight forward, small round ears, long thick tail held out straight behind, powerful muscular build, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:25:42.029Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/penguin.glb": {
+      "taskId": "01a0fddc-9d0a-744d-a622-440063afb280",
+      "prompt": "an emperor penguin standing upright, both flippers held straight down and out from the body, short legs, both feet flat on the ground and apart, beak pointing straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:25:52.147Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/human.glb": {
+      "taskId": "01a0fddd-6ce2-70b7-9ac1-100e83c5e635",
+      "prompt": "an athletic adult person standing in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, plain fitted t-shirt, fitted trousers and trainers, short hair, neutral face looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple people, child, base, pedestal, ground plane, text, watermark, chibi, oversized head, armor, helmet, hat, backpack, weapon, cape, wings, long coat, skirt",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:26:45.384Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/panda.glb": {
+      "taskId": "01a0fddd-6c3b-7711-bda3-c21c064690d1",
+      "prompt": "a giant panda standing upright on its hind legs like a person, front legs held straight down and out from the body, short thick hind legs apart, round body, round ears, flat round face, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:26:45.567Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/bear.glb": {
+      "taskId": "01a0fddc-9c4c-737d-a195-ae8a3d183766",
+      "prompt": "a brown bear standing upright on its hind legs like a person, front legs held straight down and out from the body, short thick hind legs apart, heavy round body, small round ears, short muzzle, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:27:03.241Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/lion.glb": {
+      "taskId": "01a0fddd-9468-77fc-a41f-357cd3384fd1",
+      "prompt": "an anthropomorphic lion standing upright on two legs like a person in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, large full mane around the head, thin tail with a tuft hanging behind, muscular build, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:27:35.790Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/raccoon.glb": {
+      "taskId": "01a0fdde-65db-7093-87bf-4df88e378ba8",
+      "prompt": "an anthropomorphic raccoon standing upright on two legs like a person in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, pointed ears, short muzzle, bushy tail hanging behind, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:27:48.094Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/deer.glb": {
+      "taskId": "01a0fde3-5e06-7662-8ee3-ad1c57609146",
+      "prompt": "an anthropomorphic deer character standing upright on its two hind legs like a person in an A-pose, a human-like body with exactly two arms and two legs, arms held straight down and out from the body, long slender legs straight and slightly apart with hooves, deer head with a long muzzle, small branching antlers, large upright ears, short tail, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings, four legs, quadruped, centaur, taur, extra limbs",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:33:25.543Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/shark.glb": {
+      "taskId": "01a0fddf-2945-73cf-b1a3-324db40a5abe",
+      "prompt": "an anthropomorphic great white shark standing upright on two legs like a person in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, shark head with a flat snout, tall dorsal fin on its back, tail fin hanging behind, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:28:39.716Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/dragon.glb": {
+      "taskId": "01a0fddf-5951-747a-9bff-f13ac5d94af5",
+      "prompt": "an anthropomorphic dragon standing upright on two legs like a person in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, long neck, small horns, pointed ears, scaly body, long thin tail hanging behind, no wings, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:28:51.212Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/frog.glb": {
+      "taskId": "01a0fddf-81d8-73a2-9490-4a53a0faf5b6",
+      "prompt": "a large frog standing on its hind legs with its body leaning forward, long powerful hind legs folded under it with long feet flat on the ground, short front arms held clear in front of the chest, wide mouth, bulging eyes, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:29:01.525Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/koala.glb": {
+      "taskId": "01a0fdde-aa1e-7607-892f-9c1ccad8dc9a",
+      "prompt": "an anthropomorphic koala standing upright on two legs like a person in an A-pose, arms held straight down and out from the body, legs straight and slightly apart, large fluffy round ears, big flat nose, stocky body, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on",
+        "pose_mode": "a-pose"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:29:28.473Z",
+      "source": "Meshy AI text-to-3d preview"
+    },
+    "animals/raptor.glb": {
+      "taskId": "01a0fde0-22fc-71c7-860c-296462325c23",
+      "prompt": "a velociraptor dinosaur standing on two legs with its body leaning forward, long stiff tail held out straight behind, slender folded hind legs with feet flat on the ground, short arms held clear in front of the chest, long narrow snout, scaly skin, looking straight forward, full body, single animal, anatomically plausible proportions, clean game-ready model, one smooth closed surface, no base, no ground plane, no pedestal",
+      "negativePrompt": "multiple animals, baby, cub, base, pedestal, ground plane, text, watermark, chibi, oversized head, clothing, armor, accessories, saddle, weapon, wings",
+      "targetPolycount": 12000,
+      "options": {
+        "symmetry_mode": "on"
+      },
+      "credits": 20,
+      "generatedAt": "2026-10-02T18:29:42.297Z",
+      "source": "Meshy AI text-to-3d preview"
     }
   }
 }
