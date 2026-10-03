@@ -25,7 +25,7 @@ import os
 
 import bpy
 import bmesh  # after bpy: the module only exists once Blender has initialised
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Euler, Matrix, Quaternion, Vector
 
 import lib
 from lib import Clip, armature, box, cone, join, material, skin, sphere, wedge
@@ -1442,6 +1442,313 @@ def _legs(plan):
     return [("thigh.L", "shin.L"), ("thigh.R", "shin.R")]
 
 
+# --------------------------------------------------------------------------------------------
+# The hopper's run: a real bound
+# --------------------------------------------------------------------------------------------
+
+# Share of the hopper's run cycle spent with both feet planted. The client (`Avatar.ts`,
+# `BOUND_STANCE`) reads the same number: it drives the stance by distance and the flight by time.
+BOUND_STANCE = 1 / 3
+# Frames in the bound: 24 intervals, so the stance is exactly eight of them.
+BOUND_FRAMES = 25
+# How far the planted feet travel under the body during the stance, in model metres, at most:
+# sized to the kangaroo's reach (hip 0.68 m over its ankle on 0.79 m of leg). A rig with shorter
+# legs gets the longest stride it can reach, and the client measures it out of the clip.
+BOUND_STRIDE = 0.6
+# Height of the flight arc, and how far the body sinks over its feet in the stance, in model metres.
+BOUND_RISE = 0.2
+BOUND_SINK = 0.06
+# How far the feet tuck up under the body at the top of the flight.
+BOUND_TUCK = 0.12
+# How far the heel lifts as the toes push off, and how far the foot trails as it leaves the ground.
+BOUND_TOE_OFF = math.radians(30)
+# The flight lasts as long as a fall from `BOUND_RISE` under the game's gravity (24 m/s²,
+# `DEFAULT_MOVEMENT.gravity`), which is what the client plays it against: `BOUND_FLIGHT` there.
+BOUND_FLIGHT = 2 * math.sqrt(2 * BOUND_RISE / 24)
+# The ground speed the feet are matched to as they land and leave: the middle of a run. A foot that
+# stopped swinging just before touchdown arrived at the full speed of the body and skidded to a halt;
+# swung back at this speed instead, it lands at the difference — 2 m/s at 3 or at 7.2 m/s.
+BOUND_MATCH_SPEED = 5.0
+# Directions of a carried tail's bones in the side view, root first (180 degrees is straight back):
+# down and back from the rump, then flattening out behind. On the kangaroo the tip rides 6–32 cm off
+# the ground through the bound.
+TAIL_CARRY = [math.radians(a) for a in (-120.0, -145.0, -165.0, -175.0)]
+
+
+def _plane(v):
+    """An armature-space point in the side view: (forward, up). The bound happens in this plane."""
+    return (v.y, v.z)
+
+
+def _angle(a, b):
+    return math.atan2(b[1] - a[1], b[0] - a[0])
+
+
+def _wrap(a):
+    return (a + math.pi) % math.tau - math.pi
+
+
+def _pitch_sign(arm, bone):
+    """
+    Which way a positive local-X rotation turns `bone` in the side view: +1 or -1.
+
+    Measured by posing it rather than derived from its roll, because the rigs are built from
+    measured points and the sign is whatever the bone's frame came out as. A bone whose local X is
+    not across the body would not swing in the side view at all, and the bound refuses that.
+    """
+    pb = arm.pose.bones[bone]
+    pb.rotation_mode = "QUATERNION"
+    before = _angle(_plane(pb.head), _plane(pb.tail))
+    pb.rotation_quaternion = Euler((math.radians(10), 0, 0), "XYZ").to_quaternion()
+    bpy.context.view_layer.update()
+    after = _angle(_plane(pb.head), _plane(pb.tail))
+    pb.rotation_quaternion = Quaternion()
+    bpy.context.view_layer.update()
+    turned = math.degrees(_wrap(after - before))
+    if abs(turned) < 8:
+        raise ValueError(f"{bone} does not swing in the side view (turned {turned:.1f} degrees for 10)")
+    return 1 if turned > 0 else -1
+
+
+def _bound_pose(phase, stride=BOUND_STRIDE):
+    """
+    The bound at `phase` of its cycle (0..1): body height offset, how far the toes are from where
+    they stand at rest (forward, up), and how far the heel is lifted (radians, toe-down).
+
+    The toes are the contact: in the stance they travel back under the body at a constant rate —
+    which is what lets the client drive this half by distance and have them stay where they landed
+    — and the heel rises off the ground over its last third, so the foot leaves the ground the way
+    it pushed off it rather than snapping to point down at the first frame of the flight.
+    """
+    s = BOUND_STANCE
+    if phase < s:
+        u = phase / s
+        heel = BOUND_TOE_OFF * _smooth((u - 0.65) / 0.35)
+        return -BOUND_SINK * math.sin(math.pi * u), stride * (0.5 - u), 0.0, heel
+    u = (phase - s) / (1 - s)
+    # Ballistic: a parabola in time, which is what the client plays the flight against.
+    rise = BOUND_RISE * 4 * u * (1 - u)
+    # Forward through the air from behind to in front — a Hermite curve that leaves and lands moving
+    # back under the body at `BOUND_MATCH_SPEED`, as a planted foot does: trailing after the push-off,
+    # swung forward, then drawn back to meet the ground rather than slapped onto it.
+    m = -BOUND_MATCH_SPEED * BOUND_FLIGHT
+    travel = (
+        (2 * u**3 - 3 * u**2 + 1) * (-stride / 2)
+        + (u**3 - 2 * u**2 + u) * m
+        + (-2 * u**3 + 3 * u**2) * (stride / 2)
+        + (u**3 - u**2) * m
+    )
+    heel = BOUND_TOE_OFF * (1 - u) ** 2 - math.radians(6) * math.sin(math.pi * u)
+    return rise, travel, rise + BOUND_TUCK * math.sin(math.pi * u), heel
+
+
+def _smooth(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+def _ik(hip, ankle, l1, l2, rest_bend):
+    """Two-bone IK in the side view: the thigh's and shin's angles that put the ankle at `ankle`."""
+    reach = math.dist(hip, ankle)
+    span = min(max(reach, abs(l1 - l2) + 1e-3), l1 + l2 - 1e-3)
+    base = _angle(hip, ankle)
+    open_ = math.acos((l1**2 + span**2 - l2**2) / (2 * l1 * span))
+    for a1 in (base + open_, base - open_):
+        knee = (hip[0] + l1 * math.cos(a1), hip[1] + l1 * math.sin(a1))
+        a2 = _angle(knee, ankle)
+        bend = (knee[0] - hip[0]) * math.sin(a2) - (knee[1] - hip[1]) * math.cos(a2)
+        # The knee folds the way it does at rest: the other root is the same leg bent backwards.
+        if bend * rest_bend > 0:
+            return a1, a2
+    return base, base
+
+
+def _set_leg(arm, r, d):
+    pose = arm.pose.bones
+    for name, a in zip((r["upper"], r["lower"], r["foot"]), d):
+        pose[name].rotation_quaternion = Euler((math.radians(a), 0, 0), "XYZ").to_quaternion()
+    bpy.context.view_layer.update()
+    return _plane(pose[r["lower"]].tail), _plane(pose[r["foot"]].tail)
+
+
+def _solve_leg(arm, r, hip, ankle, a3):
+    """
+    Local-X rotations (degrees) for thigh, shin and foot that put the ankle at `ankle` and point the
+    foot along `a3`, refined against the rig's own forward kinematics.
+
+    The planar solution is exact only for a leg whose bones turn about an axis straight across the
+    body. A frog's legs splay, so their local X is not quite across it and the first answer misses
+    by centimetres; a few Newton steps on the posed rig close that, whatever the bones' frames are.
+    """
+    a1, a2 = _ik(hip, ankle, r["l1"], r["l2"], r["bend"])
+    s1, s2, s3 = r["signs"]
+    d1 = _wrap(a1 - r["a1"])
+    d2 = _wrap(a2 - r["a2"]) - d1
+    d3 = _wrap(a3 - r["a3"]) - d1 - d2
+    d = [s1 * math.degrees(d1), s2 * math.degrees(d2), s3 * math.degrees(d3)]
+    step = 0.5
+    for _ in range(12):
+        got, toe = _set_leg(arm, r, d)
+        err = (got[0] - ankle[0], got[1] - ankle[1])
+        if math.hypot(*err) < 0.002:
+            break
+        cols = []
+        for k in (0, 1):
+            trial = list(d)
+            trial[k] += step
+            moved, _ = _set_leg(arm, r, trial)
+            cols.append(((moved[0] - got[0]) / step, (moved[1] - got[1]) / step))
+        (j00, j10), (j01, j11) = cols
+        det = j00 * j11 - j01 * j10
+        if abs(det) < 1e-9:
+            break
+        d[0] -= (j11 * err[0] - j01 * err[1]) / det
+        d[1] -= (-j10 * err[0] + j00 * err[1]) / det
+    # Then the foot, alone: turn it until it points along `a3`.
+    for _ in range(8):
+        got, toe = _set_leg(arm, r, d)
+        miss = _wrap(_angle(got, toe) - a3)
+        if abs(miss) < math.radians(0.5):
+            break
+        trial = list(d)
+        trial[2] += step
+        moved_ankle, moved_toe = _set_leg(arm, r, trial)
+        rate = _wrap(_angle(moved_ankle, moved_toe) - _angle(got, toe)) / step
+        if abs(rate) < 1e-6:
+            break
+        d[2] -= miss / rate
+    return d
+
+
+def bound(arm, legs, arms, tail_bones):
+    """
+    The hopper's run, as the bound a kangaroo actually makes: both feet planted while the body
+    passes over them, then a ballistic flight with the feet swung forward to land.
+
+    It replaces a sine gait that was measured through three.js at 7.2 m/s: the foot nearest the
+    ground moved *forward* at up to 13.8 m/s — skating — and at the top of the hop the feet were at
+    their lowest, so the body stretched up and down and never left the ground.
+
+    The feet are placed by two-bone IK refined on the posed rig, and every frame is checked by
+    posing it and measuring where the ankle and toes landed. The stride is the longest of
+    `BOUND_STRIDE` and shorter that this rig's legs reach; the client reads it back out of the clip.
+
+    Returns None, keying nothing, for a rig whose feet cannot land together: the raptor's sculpt
+    stands mid-stride with one foot 8 cm off the ground, and its two legs measure 0.72 m and 0.67 m.
+    """
+    # Measure the rig with no clip driving it: an assigned action would overwrite a test pose.
+    arm.animation_data.action = None
+    pose = arm.pose.bones
+    # Unassigning the action leaves the last keyed values on the bones; the rest pose is identity.
+    for pb in pose:
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = Quaternion()
+        pb.location = (0, 0, 0)
+    bpy.context.view_layer.update()
+    rest = {}
+    for upper, lower in legs:
+        foot = lower.replace("shin", "foot")
+        hip, knee, ankle, toe = (
+            _plane(pose[upper].head), _plane(pose[upper].tail), _plane(pose[lower].tail), _plane(pose[foot].tail)
+        )
+        rest[upper] = {
+            "upper": upper, "lower": lower, "foot": foot, "hip": hip, "ankle": ankle, "toe": toe,
+            "l1": math.dist(hip, knee), "l2": math.dist(ankle, knee), "l3": math.dist(ankle, toe),
+            "bend": (knee[0] - hip[0]) * (ankle[1] - knee[1]) - (knee[1] - hip[1]) * (ankle[0] - knee[0]),
+            "a1": _angle(hip, knee), "a2": _angle(knee, ankle), "a3": _angle(ankle, toe),
+            "signs": (_pitch_sign(arm, upper), _pitch_sign(arm, lower), _pitch_sign(arm, foot)),
+        }
+    tails = {
+        tb: {"angle": _angle(_plane(pose[tb].head), _plane(pose[tb].tail)), "sign": _pitch_sign(arm, tb)}
+        for tb in tail_bones
+    }
+    # Both feet land together, so they share one track: a sculpt that stands with its feet a pace
+    # apart (the raptor) bounds with them side by side.
+    centre = sum(r["toe"][0] for r in rest.values()) / len(rest)
+    n = BOUND_FRAMES
+    phases = [(f - 1) / (n - 1) for f in range(1, n + 1)]
+
+    def targets(stride):
+        out = {}
+        for f, phase in zip(range(1, n + 1), phases):
+            rise, travel, lift, heel = _bound_pose(phase % 1.0, stride)
+            for upper, r in rest.items():
+                toe = (centre + travel, r["toe"][1] + lift)
+                a3 = r["a3"] - heel
+                ankle = (toe[0] - r["l3"] * math.cos(a3), toe[1] - r["l3"] * math.sin(a3))
+                out[(f, upper)] = (rise, (r["hip"][0], r["hip"][1] + rise), ankle, toe, a3)
+        return out
+
+    # The longest stride this rig's legs reach on every frame, with a little bend left in the knee.
+    stride = BOUND_STRIDE
+    while True:
+        plan = targets(stride)
+        if all(math.dist(hip, ankle) <= 0.97 * (rest[u]["l1"] + rest[u]["l2"]) for (_, u), (_, hip, ankle, _, _) in plan.items()):
+            break
+        stride = round(stride - 0.05, 2)
+        if stride < 0.2:
+            return None
+
+    root_rest = arm.data.bones["root"].matrix_local.to_3x3().inverted()
+    solved = {}
+    for f in range(1, n + 1):
+        rise = plan[(f, legs[0][0])][0]
+        pose["root"].location = root_rest @ Vector((0, 0, rise))
+        for upper, r in rest.items():
+            _, hip, ankle, _, a3 = plan[(f, upper)]
+            solved[(f, upper)] = _solve_leg(arm, r, hip, ankle, a3)
+
+    clip = Clip(arm, "run", n)
+    for f, phase in zip(range(1, n + 1), phases):
+        clip.key("root", f, (0, 0, 0), loc=(0, 0, plan[(f, legs[0][0])][0]))
+        for upper, r in rest.items():
+            for name, angle in zip((upper, r["lower"], r["foot"]), solved[(f, upper)]):
+                clip.key(name, f, (angle, 0, 0))
+        # Leaning into the run, and pitching a little further over the feet as they land.
+        clip.key("spine", f, (-8.0 - 3.0 * math.cos(math.tau * phase), 0, 0))
+        for bone in arms:
+            clip.key(bone, f, (-12.0 * math.sin(math.tau * phase), 0, 0))
+        # The tail is carried: a long tail (the kangaroo's runs down to the ground and back along it)
+        # is set to a gentle curve streaming back from the rump, its tip clear of the ground even as
+        # the body sinks into the stance, and swings a few degrees with the hop. Lifting only its
+        # root was the first attempt: the part that lay along the ground turned up into a hook.
+        # A stub tail just swings.
+        carried = len(tail_bones) >= 3
+        total = 0.0
+        for i, tb in enumerate(tail_bones):
+            r = tails[tb]
+            swing = math.radians(5.0) * math.sin(math.tau * phase - i * 0.5)
+            if carried:
+                want = TAIL_CARRY[min(i, len(TAIL_CARRY) - 1)] + swing
+                delta = _wrap(want - r["angle"]) - total
+            else:
+                delta = swing
+            total += delta
+            clip.key(tb, f, (r["sign"] * math.degrees(delta), 0, 0))
+
+    # Check every frame by playing the clip: the ankle where it was placed, and through the stance
+    # the toes on the ground and travelling exactly as planned — planted. (Their absolute place may
+    # differ by a centimetre or two on a splayed foot, whose length in the side view changes as it
+    # turns; what a viewer sees slide is the toes moving against the ground, and that is checked.)
+    first = {}
+    for f, phase in zip(range(1, n + 1), phases):
+        bpy.context.scene.frame_set(f)
+        for upper, r in rest.items():
+            _, _, ankle, toe, _ = plan[(f, upper)]
+            got = _plane(pose[r["lower"]].tail)
+            if math.dist(ankle, got) > 0.01:
+                raise ValueError(f"bound frame {f}: {r['foot']} ankle at {got}, wanted {ankle}")
+            if phase <= BOUND_STANCE * 0.65:
+                toes = _plane(pose[r["foot"]].tail)
+                start, planned = first.setdefault(upper, (toes, toe))
+                moved = (toes[0] - start[0] - (toe[0] - planned[0]), toes[1] - start[1])
+                # 1.5 cm across a stance is a few centimetres a second; the gait this replaced skated at 13.8 m/s.
+                if math.hypot(*moved) > 0.015:
+                    raise ValueError(f"bound frame {f}: {r['foot']} toes slide {math.hypot(*moved):.3f} m in the stance")
+    bpy.context.scene.frame_set(1)
+    return clip
+
+
 def animate(arm, plan, tail_bones):
     """
     Key the five clips.
@@ -1555,7 +1862,8 @@ def animate(arm, plan, tail_bones):
         return clip
 
     gait("walk", swing=22.0, lift=26.0, bob=0.035, lean=2.0)
-    gait("run", swing=38.0, lift=44.0, bob=0.075, lean=8.0)
+    if not (hopping and bound(arm, legs, arms, tail_bones)):
+        gait("run", swing=38.0, lift=44.0, bob=0.075, lean=8.0)
 
     # Idle: breathing, not stillness. A model that holds one pose exactly reads as frozen, which
     # is a state this game actually has, so idle must not look like it.

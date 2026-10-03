@@ -2288,6 +2288,50 @@ both ways, stuck 16.8 % on both. The chase is chaotic; a sign test on seven seed
 **Found while measuring and not fixed:** on the glacier, bots spend **29 % of bot-seconds stuck**,
 nearly all in two cells at (−40, −7, ±12) in the crevasse, and 47 % of the round is spent there.
 
+## The kangaroo bounds: planted feet, a ballistic flight, and a thump
+
+Measured through three.js on the shipped `kangaroo.glb` at 7.2 m/s, the old sine run moved the
+foot nearest the ground **forward at up to 13.8 m/s** — skating — and the feet were at their
+*lowest* at the top of the hop (hips 0.93 m, ankle 0.29 m): a body stretching up and down that
+never left the ground. `animal-motion.test.ts` passed throughout, because it asked whether the
+hips rose, never where the feet were.
+
+`characters.bound` keys the hopper's run as a real bound: the toes planted for the first
+`BOUND_STANCE` (⅓) of the cycle while the body passes over them, the heel lifting over the stance's
+last third, then a parabolic flight with the feet tucked, swung forward and **drawn back to meet the
+ground** (a Hermite swing matched to 5 m/s, `BOUND_MATCH_SPEED`). The feet are placed by two-bone IK
+refined by Newton steps on the posed rig, because a frog's splayed legs do not turn in the side view
+and the planar answer missed by centimetres. Every frame is then played and the ankle and the
+planted toes measured; the build refuses a bound that slides. The tail is carried as a curve
+(`TAIL_CARRY`): lifting only its root turned the part lying along the ground into a hook.
+
+`Avatar` plays it rather than running it: the stance advances by **distance** (`advanceBound`), so
+the toes stay where they landed at any speed, and the flight by **time** — the 0.258 s of a 0.2 m
+fall under the game's 24 m/s². Faster is a shorter stance and a quicker cadence: 2.4 hops a second
+at 3 m/s, 3.1 at 7.2. Each touchdown is a quiet recorded thump (`FOOTFALL_LEVEL`) and a puff of
+dust from the ground under it, found by a raycast because a run carries no surface on the wire.
+**The run had no sound at all before.** A headset player gets neither.
+
+- **The capsule does not bound and must not.** Bouncing it needs an exception in every grounded
+  rule `locomotion.ts` has (sprint, charge, jump, wall bounce, friction, step-up), bobs the camera,
+  and must never happen to a VR player. The avatar shows the whole of it alone.
+- **The stride is read out of the clip** (`measureBound`), never a constant: the generator shortens
+  `BOUND_STRIDE` (0.6 m) to what each rig reaches on every frame — the kangaroo 0.50 m, the frog
+  0.25 m. A run whose ankle is not on one height through the stance is not a bound, so the **raptor**
+  (its sculpt stands mid-stride with one foot 8 cm up, legs 0.72 m and 0.67 m) keeps the old run
+  with no flag saying so.
+- Measured after: planted-foot slip median 0.01–0.02 m/s, worst 0.06; touchdown 0.62 / 1.38 / 4.46
+  m/s at 3 / 5 / 7.2 (3.43 / 5.45 / 7.45 without the draw-back); feet 0.35 m off the ground at the
+  top. `Avatar.bound.test.ts`, mutation-tested six ways (stance by time, fixed stride, bound ignored,
+  sine run regenerated, no slide-to-zero, no draw-back) — each fails it.
+
+**Every looping clip held its first frame once a lap.** Clips are keyed from Blender frame 1; the
+exporter wrote their keys from 1/24 s while three.js starts a clip at 0, so every gait paused a
+frame per stride and any phase read off a clip was a frame out (the bound's sweep measured 6.6 cm
+off straight because of it). `export_anim_slide_to_zero` fixes it; `animal-motion.test.ts` checks
+every track of every clip starts at 0. All sixteen animals were rebuilt for it, with geometry
+identical as sorted vertex sets.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

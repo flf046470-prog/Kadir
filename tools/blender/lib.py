@@ -510,6 +510,11 @@ def export_glb(path: str, animated: bool = True, normals: bool = True, uvs: bool
         # no notion of Blender's interpolation curves, so an unsampled export can arrive linear
         # where it was meant to ease.
         export_force_sampling=animated,
+        # Every clip is keyed from frame 1, and without this its keys start at 1/24 s while three.js
+        # starts the clip at 0 — so a looping clip held its first pose for a frame on every lap, a
+        # hitch once per stride, and anything reading a clip's phase was a frame out. Measured on
+        # the run: first key at 0.0417 s, duration 0.667 s for 0.625 s of motion.
+        export_anim_slide_to_zero=animated,
         export_apply=True,
         export_yup=True,
         export_cameras=False,

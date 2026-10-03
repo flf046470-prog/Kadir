@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { AnimalDef, AnimalVisual, PlayerSnapshot } from '@kc/core';
-import { EMOTE_CLIPS, SnapFlags, emoteClip, getAnimal, getCosmetic } from '@kc/core';
+import { DEFAULT_MOVEMENT, EMOTE_CLIPS, SnapFlags, emoteClip, getAnimal, getCosmetic } from '@kc/core';
 import { AssetLibrary } from './AssetLibrary.js';
 import type { LoadedModel } from './AssetLibrary.js';
 import { buildCosmetic, disposeCosmetic } from './cosmetics.js';
@@ -152,6 +152,101 @@ export function locomotionBlend(speed: number): LocomotionBlend {
 export function strideRate(speed: number): number {
   const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
   return Math.min(1.8, Math.max(0.55, v / 4.6));
+}
+
+/**
+ * A hopper's run is a **bound** (`bound` in `tools/blender/characters.py`): both feet planted for
+ * the first `BOUND_STANCE` of the cycle while the body passes over them, then a ballistic flight
+ * with the feet swung forward to land. The generator keys it; this file plays it.
+ *
+ * It replaced a sine gait measured at 7.2 m/s with the foot nearest the ground moving *forward* at
+ * up to 13.8 m/s and the feet at their lowest at the top of the hop: a body stretching up and down
+ * over skating feet, never leaving the ground.
+ *
+ * The physics capsule does not bound — it glides, as it always has. Bouncing it would have needed
+ * an exception in every grounded rule `locomotion.ts` has (sprint, charge, jump, wall bounce,
+ * friction, step-up), would have bobbed the camera, and must never happen to a headset player; the
+ * avatar can show the whole of it alone.
+ */
+export const BOUND_STANCE = 1 / 3;
+/** How long a bound is in the air: a 0.2 m arc (`BOUND_RISE`) under the game's own gravity. */
+export const BOUND_FLIGHT = 2 * Math.sqrt((2 * 0.2) / DEFAULT_MOVEMENT.gravity);
+/** Below this, a hopper walks; by `BOUND_FULL` it is bounding outright. */
+export const BOUND_START = 1;
+export const BOUND_FULL = 1.8;
+
+/**
+ * Advance a bound by one frame.
+ *
+ * The stance goes by **distance**: the toes travel a fixed stride under the body, so moving the
+ * clip on by how far the body moved is what keeps them where they landed at every speed. The
+ * flight goes by **time**, because it is a fall and takes as long as a fall takes. Faster running
+ * is therefore a shorter stance and a quicker cadence — on the kangaroo's 0.5 m stride, 2.4 hops a
+ * second at 3 m/s and 3.1 at 7.2 — as a kangaroo's is. Standing still holds a stance and finishes a flight. `touchdown` is the frame
+ * the feet land.
+ */
+export function advanceBound(phase: number, speed: number, dt: number, stride: number): { phase: number; touchdown: boolean } {
+  const p = Number.isFinite(phase) ? Math.min(Math.max(phase, 0), 1) : 0;
+  if (p < BOUND_STANCE) {
+    if (!(speed > WALK_START) || !(stride > 0) || !(dt > 0)) return { phase: p, touchdown: false };
+    return { phase: Math.min(p + ((speed * dt) / stride) * BOUND_STANCE, 1 - 1e-6), touchdown: false };
+  }
+  const next = p + (Math.max(0, dt) / BOUND_FLIGHT) * (1 - BOUND_STANCE);
+  return next >= 1 ? { phase: 0, touchdown: true } : { phase: next, touchdown: false };
+}
+
+/** `locomotionBlend` for a bounding animal: it walks only while it is barely moving. */
+export function boundBlend(speed: number): LocomotionBlend {
+  const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  if (v <= WALK_START) return { idle: 1, walk: 0, run: 0 };
+  if (v < BOUND_START) {
+    const t = (v - WALK_START) / (BOUND_START - WALK_START);
+    return { idle: 1 - t, walk: t, run: 0 };
+  }
+  if (v < BOUND_FULL) {
+    const t = (v - BOUND_START) / (BOUND_FULL - BOUND_START);
+    return { idle: 0, walk: 1 - t, run: t };
+  }
+  return { idle: 0, walk: 0, run: 1 };
+}
+
+/**
+ * The stride of a bound, read out of the clip: how far the left ankle travels back through the
+ * flat-footed part of the stance, scaled to the whole stance. Null for a clip that is not a bound
+ * — an ankle that is not on one height there is a foot that is not planted — which is how a rig
+ * the generator could not bound (the raptor) keeps its old run without a flag saying so.
+ *
+ * The clip is the only source of the number: the generator shortens the stride for legs that
+ * cannot reach the longest one, so a constant here would be right for one animal.
+ */
+export function measureBound(root: THREE.Object3D, clip: THREE.AnimationClip): number | null {
+  const foot = root.getObjectByName('footL');
+  if (!foot) return null;
+  const saved: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
+  root.traverse((node) => saved.push([node, node.position.clone(), node.quaternion.clone(), node.scale.clone()]));
+  const mixer = new THREE.AnimationMixer(root);
+  mixer.clipAction(clip).play();
+  // The heel starts to lift 65 % of the way through the stance; up to 60 % the foot is flat.
+  const flat = 0.6;
+  const samples: THREE.Vector3[] = [];
+  for (let i = 0; i <= 6; i++) {
+    mixer.setTime(((i / 6) * flat * BOUND_STANCE) * clip.duration);
+    root.updateWorldMatrix(true, true);
+    samples.push(root.worldToLocal(foot.getWorldPosition(new THREE.Vector3())));
+  }
+  mixer.stopAllAction();
+  mixer.uncacheRoot(root);
+  for (const [node, position, quaternion, scale] of saved) {
+    node.position.copy(position);
+    node.quaternion.copy(quaternion);
+    node.scale.copy(scale);
+  }
+  root.updateWorldMatrix(true, true);
+  const heights = samples.map((p) => p.y);
+  if (Math.max(...heights) - Math.min(...heights) > 0.01) return null;
+  for (let i = 1; i < samples.length; i++) if ((samples[i] as THREE.Vector3).z >= (samples[i - 1] as THREE.Vector3).z) return null;
+  const travel = (samples[0] as THREE.Vector3).z - (samples[samples.length - 1] as THREE.Vector3).z;
+  return travel > 0.05 ? travel / flat : null;
 }
 
 /**
@@ -425,6 +520,12 @@ export class Avatar {
   private modelJawRest: THREE.Quaternion | null = null;
   /** Seconds left on the one-shot hit reaction. */
   private hitTimer = 0;
+  /** The bound's stride in model metres, measured from the run clip; null when the run is not a bound. */
+  private boundStride: number | null = null;
+  /** Where in the bound this avatar is, 0..1, the stance first. */
+  private boundPhase = 0;
+  /** Touchdowns since the last `takeFootfalls`. */
+  private footfalls = 0;
   private wasTagged = false;
   private emotePhase = 0;
 
@@ -481,6 +582,8 @@ export class Avatar {
         }
         this.actions.set(name, action);
       }
+      const run = AssetLibrary.findClip(loaded.clips, 'run');
+      this.boundStride = run ? measureBound(loaded.scene, run) : null;
       const idle = this.actions.get('idle');
       if (idle) {
         idle.play();
@@ -758,9 +861,10 @@ export class Avatar {
    * Anything that is not one of the three is faded out rather than stopped, so coming back from a
    * punch or a hop rejoins the gait instead of snapping to it.
    */
-  private blendLocomotion(speed: number): void {
+  private blendLocomotion(speed: number, dt: number): void {
     if (!this.mixer) return;
-    const weights = locomotionBlend(speed);
+    const bounding = this.boundStride !== null && this.actions.has('run');
+    const weights = bounding ? boundBlend(speed) : locomotionBlend(speed);
     const rate = strideRate(speed);
 
     for (const [name, action] of this.actions) {
@@ -787,7 +891,18 @@ export class Avatar {
       }
       action.enabled = true;
       action.setEffectiveWeight(weight);
-      action.timeScale = name === 'idle' ? 1 : rate;
+      action.timeScale = name === 'idle' ? 1 : name === 'run' && bounding ? 0 : rate;
+    }
+
+    if (bounding && run) {
+      // The bound is placed rather than played: its clock is how far the body moved.
+      const step = advanceBound(this.boundPhase, speed, dt, (this.boundStride as number) * this.bodyScale.scale.z);
+      this.boundPhase = step.phase;
+      if (step.touchdown && weights.run >= 0.5) this.footfalls++;
+      run.time = this.boundPhase * run.getClip().duration;
+      if (walk && weights.walk > 0.001) walk.time = this.boundPhase * walk.getClip().duration;
+      this.currentClip = weights.run >= weights.walk && weights.run >= weights.idle ? 'run' : weights.walk >= weights.idle ? 'walk' : 'idle';
+      return;
     }
 
     // Phase lock. The two gaits are authored at different lengths — a stride of walk is 24 frames
@@ -814,6 +929,13 @@ export class Avatar {
       : weights.walk >= weights.idle
         ? 'walk'
         : 'idle';
+  }
+
+  /** Bound touchdowns since the last call — each one a thump and a puff of dust where it landed. */
+  takeFootfalls(): number {
+    const n = this.footfalls;
+    this.footfalls = 0;
+    return n;
   }
 
   private playClip(name: ClipName): void {
@@ -1414,8 +1536,10 @@ export class Avatar {
     speed: number,
   ): void {
     const clip = clipFor({ grounded, speed, hitTimer: this.hitTimer, emoteId: snapshot.emoteId });
-    if (clip === 'idle' || clip === 'walk' || clip === 'run') this.blendLocomotion(speed);
+    if (clip === 'idle' || clip === 'walk' || clip === 'run') this.blendLocomotion(speed, dt);
     else this.playClip(clip);
+    // A real jump lands on its own; the bound picks up from a fresh stance after it.
+    if (!grounded) this.boundPhase = 0;
     (this.mixer as THREE.AnimationMixer).update(dt);
 
     // Crouch is a state the clips do not cover, and it changes the player's actual capsule

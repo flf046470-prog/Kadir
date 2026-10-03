@@ -268,6 +268,13 @@ function range(rand: Rand, lo: number, hi: number): number {
 }
 
 /** A ring of ground kick around a point, scaled by impact speed. */
+/** A footfall's dust: a landing's kick at a third of the size, as a bound lands at ~3 m/s. */
+export function footfallRecipe(at: Vec3, material: SurfaceMaterial | undefined, rand: Rand): Recipe {
+  const out: Recipe = { soft: [], glow: [] };
+  groundKick(at, material, 3, rand, out, 0.35);
+  return out;
+}
+
 function groundKick(at: Vec3, material: SurfaceMaterial | undefined, speed: number, rand: Rand, out: Recipe, scale = 1): void {
   const kick = GROUND_KICKS[material ?? 'dirt'] ?? GROUND_KICKS.dirt;
   const strength = Math.min(2.2, speed / 8);
@@ -607,6 +614,20 @@ export class WorldEffects {
       this.seenGadgetHits.add(key);
     }
     const recipe = recipeFor(event, this.rand, this.ground.get(event.playerId));
+    const keep = Math.min(1, this.scale);
+    for (const p of recipe.soft) if (keep >= 1 || this.rand() < keep) this.soft.spawn(p);
+    for (const p of recipe.glow) if (keep >= 1 || this.rand() < keep) this.glow.spawn(p);
+  }
+
+  /** A bound's footfall: a small puff from the ground the feet landed on. */
+  footfall(at: Vec3, material: SurfaceMaterial | undefined, camera?: Vec3): void {
+    if (camera) {
+      const dx = at.x - camera.x;
+      const dy = at.y - camera.y;
+      const dz = at.z - camera.z;
+      if (dx * dx + dy * dy + dz * dz > FX_RANGE * FX_RANGE) return;
+    }
+    const recipe = footfallRecipe(at, material, this.rand);
     const keep = Math.min(1, this.scale);
     for (const p of recipe.soft) if (keep >= 1 || this.rand() < keep) this.soft.spawn(p);
     for (const p of recipe.glow) if (keep >= 1 || this.rand() < keep) this.glow.spawn(p);

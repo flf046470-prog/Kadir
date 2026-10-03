@@ -145,6 +145,9 @@ export function landingKickFor(magnitude: number): number {
  * player is drawn from the interpolation buffer. Offline it drops into a solo practice match
  * with bots — the exact same code path, minus the socket.
  */
+/** Straight down, for asking what is under a player. */
+const DOWN = { x: 0, y: -1, z: 0 };
+
 export class GameClient {
   readonly renderer: Renderer;
   readonly audio = new AudioSystem();
@@ -213,6 +216,7 @@ export class GameClient {
    */
   private landingKick = 0;
   private raycastResult = makeRaycastResult();
+  private footfallRay = makeRaycastResult();
   private tmpVec = new THREE.Vector3();
   private tmpVec2 = new THREE.Vector3();
   private bots: Bot[] = [];
@@ -1098,6 +1102,19 @@ export class GameClient {
     this.prediction.decaySmoothing();
   }
 
+  /**
+   * A bounding avatar's feet landed (`Avatar.takeFootfalls`): a quiet thump and a puff of dust from
+   * whatever is under it. The ground is asked of the level's own physics, because a run carries no
+   * surface on the wire and the last landing's may be a long way back.
+   */
+  private footfall(at: { x: number; y: number; z: number }, camera: THREE.Vector3): void {
+    this.sim.world.raycast(this.footfallRay, { x: at.x, y: at.y + 0.5, z: at.z }, DOWN, 1.5);
+    const material = this.footfallRay.hit ? this.footfallRay.surface.material : undefined;
+    const ground = this.footfallRay.hit ? { x: at.x, y: this.footfallRay.point.y, z: at.z } : at;
+    this.audio.footfall(ground, material);
+    this.effects.footfall(ground, material, camera);
+  }
+
   private updateAvatars(dt: number): void {
     const cameraPosition = this.renderer.camera.getWorldPosition(this.tmpVec2);
     const local = this.localPlayer;
@@ -1108,6 +1125,8 @@ export class GameClient {
       snapshot.y += this.prediction.smoothingOffset.y;
       snapshot.z += this.prediction.smoothingOffset.z;
       this.localAvatar.update(snapshot, dt, cameraPosition);
+      // A headset player's body is not drawn and they are not hopping: no thump under them.
+      if (this.localAvatar.takeFootfalls() > 0 && this.input.kind !== 'vr') this.footfall(snapshot, cameraPosition);
       this.localAvatar.setRole(local.role, this.settings.colorblindSafe);
       // In VR the player *is* the avatar, so the body is hidden — but only the body. Hiding the
       // whole group took the tracked hands and the role ring with it, and in a headset those are
@@ -1128,6 +1147,7 @@ export class GameClient {
         }
         remote.avatar.group.visible = true;
         remote.avatar.update(sample, dt, cameraPosition);
+        if (remote.avatar.takeFootfalls() > 0) this.footfall(sample, cameraPosition);
         remote.avatar.setRole(sample.role, this.settings.colorblindSafe);
         remote.avatar.setDetailed(rendered++ < detailBudget);
         voicePositions.set(id, { x: sample.x, y: sample.y + 1.2, z: sample.z });
@@ -1137,7 +1157,9 @@ export class GameClient {
         const player = this.sim.players.get(id);
         if (!player) continue;
         remote.avatar.group.visible = true;
-        remote.avatar.update(snapshotPlayer(player), dt, cameraPosition);
+        const snapshot = snapshotPlayer(player);
+        remote.avatar.update(snapshot, dt, cameraPosition);
+        if (remote.avatar.takeFootfalls() > 0) this.footfall(snapshot, cameraPosition);
         remote.avatar.setRole(player.role, this.settings.colorblindSafe);
         remote.avatar.setDetailed(rendered++ < detailBudget);
       }

@@ -92,6 +92,17 @@ describe('every generated animal', () => {
     expect(loose, `vertices that stay behind when the body moves: ${loose.join(', ')}`).toEqual([]);
   });
 
+  it('starts every clip on its first key, so a loop does not hold a frame each lap', () => {
+    // Keyed from Blender frame 1 and exported without sliding to zero, every clip's keys began at
+    // 1/24 s while three.js starts a clip at 0: each lap of a looping gait held its first pose for
+    // a frame — a hitch once per stride — and any phase read off a clip was a frame out.
+    for (const model of models) {
+      for (const clip of model.clips) {
+        for (const track of clip.tracks) expect(track.times[0], `${model.id} ${clip.name} ${track.name}`).toBe(0);
+      }
+    }
+  });
+
   it('bounces up through its run, not along the floor', () => {
     for (const model of models) {
       const rest = sample(model, 'idle', 0, 'hips');

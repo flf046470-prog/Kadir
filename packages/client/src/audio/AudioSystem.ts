@@ -596,6 +596,19 @@ export class AudioSystem {
     this.impact(at, 0.25 + strength * 0.75, 60 + materialPitch(material));
   }
 
+  /**
+   * A bounding animal's feet landing — the thump of a kangaroo's run, once a hop.
+   *
+   * The same recordings as a landing, much quieter and a little brighter: at 2.4–2.9 hops a second
+   * from every bounding player in earshot, a landing's level would be a drum roll, and the run had
+   * no sound at all before this.
+   */
+  footfall(at: { x: number; y: number; z: number }, material?: SurfaceMaterial): void {
+    const family = landingFamily(material, 0);
+    if (family && this.playSample(family, at, FOOTFALL_LEVEL, 1.12)) return;
+    this.impact(at, FOOTFALL_LEVEL, 80 + materialPitch(material));
+  }
+
   /** Play one variant of a recorded family at a position. False if nothing is loaded yet. */
   private playSample(family: SampleFamily, at: { x: number; y: number; z: number }, level: number, rate: number): boolean {
     const ctx = this.ctx;
@@ -749,6 +762,9 @@ export class AudioSystem {
     this.buses = null;
   }
 }
+
+/** A bound's footfall against an ordinary landing's 0.3–1: present under the music, never a drum roll. */
+export const FOOTFALL_LEVEL = 0.16;
 
 export function materialPitch(material?: SurfaceMaterial): number {
   switch (material) {
