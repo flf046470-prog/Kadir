@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { Rand } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
-import { heightfieldHeight } from '../physics/heightfield.js';
+import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
 import { makeRaycastResult } from '../physics/types.js';
 import type { HeightfieldCollider } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
 import { LevelBuilder, TERRAIN_BLEND, TERRAIN_CLEARANCE } from './builder.js';
 import { buildJungleWorld } from './jungle.js';
+import { buildOutbackWorld } from './outback.js';
 import { levelFingerprint } from './level.js';
 
 /** A 60 m square of ground with one of everything built on it, then a big uniform rise. */
@@ -116,5 +117,46 @@ describe('the jungle floor', () => {
   it('is part of the fingerprint the server sends, heights and all', () => {
     const copy = { ...level, colliders: level.colliders.map((c) => (c === ground ? { ...ground, heights: ground.heights.map((h, i) => (i === 700 ? h + 0.5 : h)) } : c)) };
     expect(levelFingerprint(copy)).not.toBe(levelFingerprint(level));
+  });
+});
+
+describe("the outback's apron", () => {
+  const level = buildOutbackWorld();
+  const terrain = level.colliders.filter((c): c is HeightfieldCollider => c.kind === 'heightfield');
+  const at = (x: number, z: number): number => {
+    const hf = terrain.find((t) => x >= t.minX && x <= heightfieldMaxX(t) && z >= t.minZ && z <= heightfieldMaxZ(t));
+    if (!hf) throw new Error(`no apron at ${x},${z}`);
+    return heightfieldHeight(hf, x, z);
+  };
+
+  it('meets the flat at the flat’s own height, all along the inner edge', () => {
+    expect(terrain.length).toBe(4);
+    for (let x = -56; x <= 64; x += 4) {
+      expect(Math.abs(at(x, 66.5)), `north edge at x=${x}`).toBeLessThan(0.05);
+      expect(Math.abs(at(x, -66.5)), `south edge at x=${x}`).toBeLessThan(0.05);
+    }
+  });
+
+  it('keeps its swells shallow near the play area, where a hollow would be a place to hide', () => {
+    let deepest = 0;
+    // Beside the play area, 4–24 m out from it — not the corners, which belong to the rise.
+    for (let x = -86; x <= 110; x += 2) {
+      for (const z of [70, 80, 90, -70, -80, -90]) deepest = Math.max(deepest, Math.abs(at(x, z)));
+    }
+    expect(deepest).toBeLessThan(1.6);
+  });
+
+  it('rises towards the edge of the world, and has no flat valley along the seams between its pieces', () => {
+    let sum = 0;
+    let n = 0;
+    for (let x = -140; x <= 148; x += 4) {
+      sum += at(x, 146) + at(x, -146);
+      n += 2;
+    }
+    expect(sum / n).toBeGreaterThan(2.5);
+    // Where the north strip meets the east one, 26 m out from the station and 10 m in from the edge.
+    // Counting the other strip as something "built on the plane" flattened both sides of every seam.
+    expect(at(140, 66.5)).toBeGreaterThan(1.5);
+    expect(Math.abs(at(140, 66.5) - at(140, 65.5))).toBeLessThan(0.1);
   });
 });

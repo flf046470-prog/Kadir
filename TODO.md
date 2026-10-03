@@ -132,9 +132,9 @@ These were Milestone B items in `ROADMAP.md` and are done:
   a lie about a cheat. Enforcing it means putting the server in the audio path.
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
 - **Moderation** has the model, rate limiting and a report log, but no review tooling.
-- **Terrain is on one map.** `HeightfieldCollider` exists and the jungle floor uses it; the
-  glacier's rink is ice (flat by nature) and the outback's flat is open by design, so neither was
-  given relief. The outback's outer frame of empty ground is the next candidate.
+- **Terrain is on two maps.** The jungle floor rolls; the outback's apron (the frame of empty
+  ground round the play area) rolls in metre-high swells and rises 4 m to the edge. The glacier's
+  rink is ice (flat by nature) and the outback's flat is open by design, so neither has relief.
 - **`LevelDef.grips`/`GripKind`** (`branch`/`ledge`/`vine`/`rock`/`root`) are authored into every
   map and read only by a test's level-stats count. All five climb identically, keyed on
   `SurfaceFlags.Climbable`; the promised per-grip feel and highlighting do not exist.

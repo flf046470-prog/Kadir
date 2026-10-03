@@ -2332,6 +2332,26 @@ off straight because of it). `export_anim_slide_to_zero` fixes it; `animal-motio
 every track of every clip starts at 0. All sixteen animals were rebuilt for it, with geometry
 identical as sorted vertex sets.
 
+## The outback's apron is terrain
+
+The frame of ground round the outback's play area was four flat slabs running to a straight wall,
+and from the flat it read as a car park with a fence. It is four heightfields now (cell 4 m),
+sculpted after everything else (`apronHeight`): flat where it meets the play area, swells of about a
+metre — a quarter of a kangaroo, because on a map about being seen a hollow deep enough to lie in is
+a hiding place — and a 4 m rise over the last 30 m to the edge, so the boundary stands on a slope.
+
+Two `sculpt` rules had to change, and both were silent at one terrain per map:
+
+- **Other terrain is not something built on the plane.** `sculpt` flattened ground round every
+  collider in the floor band, and a neighbouring heightfield is one — so two pieces of terrain were
+  each flattened along their shared seam, a straight valley neither was shaped to have (measured at
+  the north/east seam: 0 m where the function asks ~3).
+- **`flatEdges: false`** for an edge nothing meets but `enclose`'s cliff. The default still treats
+  a footprint's edge as a feature, which is right for the jungle, whose edges meet slabs.
+
+Jungle and glacier fingerprints are unchanged; outback `version` 6. Six bots × 16 seeds: falls 0,
+tags 195 → 193, stuck 16.2 % → 16.9 %, zone shares unchanged — bots never reach the apron.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

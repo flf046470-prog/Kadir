@@ -277,7 +277,11 @@ export class LevelBuilder {
    * Then every prop that sat on the old flat ground, or is now inside the new one, is set down on
    * the surface. Call it after everything is placed and before `enclose`, which measures floors.
    */
-  sculpt(hf: HeightfieldCollider, height: (x: number, z: number, free: number) => number): void {
+  sculpt(
+    hf: HeightfieldCollider,
+    height: (x: number, z: number, free: number) => number,
+    options: { flatEdges?: boolean } = {},
+  ): void {
     const base = hf.heights[0] as number;
     const maxX = heightfieldMaxX(hf);
     const maxZ = heightfieldMaxZ(hf);
@@ -290,7 +294,9 @@ export class LevelBuilder {
     }
     const box = makeAabb();
     for (const c of this.colliders) {
-      if (c === hf) continue;
+      // Other terrain is not something built on the plane, it is the plane: counting it flattened two
+      // pieces of ground along every seam between them, as a valley neither was shaped to have.
+      if (c.kind === 'heightfield') continue;
       colliderAabb(box, c);
       // Standing on the ground, or reaching down into it: anything whose span crosses the floor band.
       if (box.minY > base + 1 || box.maxY < base - 0.5) continue;
@@ -303,8 +309,9 @@ export class LevelBuilder {
       for (let i = 0; i < hf.cols; i++) {
         const x = hf.minX + i * hf.cellSize;
         const z = hf.minZ + j * hf.cellSize;
-        // The footprint's own edge is a feature too: whatever meets the terrain there met a plane.
-        let nearest = Math.min(x - hf.minX, maxX - x, z - hf.minZ, maxZ - z);
+        // The footprint's own edge is a feature too: whatever meets the terrain there met a plane —
+        // unless the caller says nothing does, as at the outer edge of the world.
+        let nearest = options.flatEdges === false ? Infinity : Math.min(x - hf.minX, maxX - x, z - hf.minZ, maxZ - z);
         for (const k of keep) {
           const dx = Math.max(k.minX - x, 0, x - k.maxX);
           const dz = Math.max(k.minZ - z, 0, z - k.maxZ);

@@ -1,5 +1,7 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
+import { fractalNoise2 } from '../math/noise.js';
+import type { HeightfieldCollider } from '../physics/types.js';
 import { LOG_HALF_LENGTH, LOG_RADIUS, LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
 import type { LevelDef } from './level.js';
@@ -38,7 +40,7 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   const rand = new Rand(seed);
   const b = new LevelBuilder(rand);
 
-  buildApron(b, rand);
+  const apron = buildApron(b, rand);
   buildGumFlat(b, rand);
   buildGorge(b, rand);
   buildStation(b, rand);
@@ -63,6 +65,10 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   b.zone('cave', vec3(-65.5, -7, 22), 14, 'cave', 0.72);
   b.zone('station', vec3(76, 0, 0), 38, 'village', 0.06);
 
+  // The apron is shaped last, against everything that now stands at its inner edge. Its outer edges
+  // are left free to rise: nothing meets them but the cliff `enclose` puts there next.
+  for (const ground of apron) b.sculpt(ground, (x, z, free) => apronHeight(x, z, free, seed), { flatEdges: false });
+
   // Last, so it measures every floor that exists: wall off each edge that drops straight to the
   // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
   const killPlaneY = -40;
@@ -75,7 +81,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     // 3: walled edges; the bed reaches the west wall and the scree is solid.
     // 4: loose balls in the lobby.
     // 5: the station's scrub logs are solid, and the fallen gum is drawn as a log.
-    version: 5,
+    // 6: the apron is terrain that rolls and rises to the edge, instead of a flat sheet to a wall.
+    version: 6,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -110,13 +117,14 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
  * under you out there, the ridge and the station fence only have to say "the game is behind you",
  * so they can be knee- and chest-height instead of four metres of grey.
  */
-function buildApron(b: LevelBuilder, rand: Rand): void {
+function buildApron(b: LevelBuilder, rand: Rand): HeightfieldCollider[] {
   // A frame, not a slab: the middle is left to the flat, the station and the gorge, which sit at
-  // three different heights and would otherwise be fighting one enormous box for the same space.
-  b.box(vec3(4, -1, 108), vec3(146, 1, 42), 'redEarth', 0, 'flat');
-  b.box(vec3(4, -1, -108), vec3(146, 1, 42), 'redEarth', 0, 'flat');
-  b.box(vec3(132, -1, 0), vec3(18, 1, 66), 'redEarth', 0, 'flat');
-  b.box(vec3(-120, -1, 0), vec3(30, 1, 66), 'redEarth', 0, 'flat');
+  // three different heights and would otherwise be fighting one enormous ground for the same space.
+  // Terrain, shaped once everything is on it (`sculptApron`): a plain that was a flat red sheet to
+  // a straight wall reads as a car park with a fence round it.
+  const strip = (minX: number, maxX: number, minZ: number, maxZ: number): HeightfieldCollider =>
+    b.terrain({ minX, maxX, minZ, maxZ, cellSize: 4, base: 0, bottom: -2, surface: 'redEarth', zone: 'flat' });
+  const apron = [strip(-142, 150, 66, 150), strip(-142, 150, -150, -66), strip(114, 150, -66, 66), strip(-150, -90, -66, 66)];
   // The two corners either side of the gorge's ends, which none of the above reaches.
   b.box(vec3(-74, -1, 55), vec3(16, 1, 11), 'redEarth', 0, 'flat');
   b.box(vec3(-74, -1, -55), vec3(16, 1, 11), 'redEarth', 0, 'flat');
@@ -132,6 +140,32 @@ function buildApron(b: LevelBuilder, rand: Rand): void {
     if (x > -92 && x < -56 && Math.abs(z) < 46) continue;
     b.prop('bush', vec3(x, 0, z), rand.range(0, Math.PI * 2), rand.range(0.5, 1.1), rand.bool(0.5) ? 0 : 1);
   }
+  return apron;
+}
+
+/** Keeps the apron's relief out of `levelFingerprint`'s way of every other map's random stream. */
+const APRON_SALT = 0x6a70726e;
+
+/**
+ * The apron's ground: flat where it meets the play area, rolling into low swells further out, and
+ * rising towards the edge of the world so the boundary stands on a slope rather than on a sheet.
+ *
+ * The swells stay low on purpose — about a metre, a quarter of a kangaroo — because on a map whose
+ * subject is being seen, a hollow deep enough to lie in would be a hiding place, and the apron is
+ * meant to be distance, not cover. The rise is the part that changes the view.
+ */
+function apronHeight(x: number, z: number, free: number, seed: number): number {
+  // How far out from the play area — the flat, the gorge and the station — and how far in from the edge.
+  const out = Math.hypot(Math.max(0, x - 114, -90 - x), Math.max(0, Math.abs(z) - 66));
+  const inside = Math.min(150 - Math.abs(z), 150 - x, x + 150);
+  const swell = 1.1 * smooth01(out / 25) * fractalNoise2(seed ^ APRON_SALT, x, z, 40, 3, 0.45);
+  const rise = 4 * (1 - smooth01(inside / 30));
+  return free * (swell + rise);
+}
+
+function smooth01(t: number): number {
+  const c = Math.min(1, Math.max(0, t));
+  return c * c * (3 - 2 * c);
 }
 
 /**
