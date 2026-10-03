@@ -2438,10 +2438,18 @@ event, which is not a role, has its own toast.
 **Offline, two of the three maps could not be played.** Practice played whatever map was loaded.
 The only map picker was on the private-room screen, which is shown only online. So an offline
 player, which today means every Steam install, could only ever play the jungle. The Game modes
-screen now shows the picker as well, and `practiceLevelFor` turns its value into a map: an id,
-`''` for "Surprise me", or the current map for an id this build does not know. The last rule
-matters because `buildLevel` falls back to the jungle for an unknown id, which would make a stale
-choice look like it had worked. Restarting the round keeps the map.
+screen now shows the picker as well, and `practiceLevelFor` turns its value into a map: a known id
+switches to it, and anything else keeps the loaded map — `''` (nothing picked) as well as an id
+this build does not know. That last rule matters because `buildLevel` falls back to the jungle for
+an unknown id, which would make a stale choice look like it had worked. Restarting the round keeps
+the map.
+
+**`''` briefly meant "a different map each time", as it does for a private room, and turned CI's
+`check:smoke` red.** The main menu's "Practice with bots" sends the picker's value, which is `''`
+by default, so every press rebuilt the world — level (measured 0.70 s jungle, 0.51 s outback),
+renderer and textures — synchronously inside the click handler, and under swiftshader Playwright's
+click had not returned after 30 s. Change a map when a player asks for one, never as a side effect
+of pressing Play; `practice.test.ts` pins it, mutation-tested by making `''` pick another map.
 
 **The trailer (`npm run pack:trailer`) films the game one stepped frame at a time.** Under
 swiftshader the game draws about a frame a second, and `GameClient.frame` caps a frame's step at

@@ -629,7 +629,7 @@ export class Shell {
       { class: 'kc-field kc-field-stack' },
       el('span', {}, 'Map'),
       row,
-      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'A different map each time a room or a practice round opens.'),
+      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'Rooms open on a different map each time; practice stays on the map you are on.'),
     );
   }
 
