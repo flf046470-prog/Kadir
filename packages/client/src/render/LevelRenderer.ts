@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
 import type { BoxCollider, Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import { terrainGeometry } from './Terrain.js';
+import { cliffGeometry } from './Cliffs.js';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
 import type { AssetLibrary } from './AssetLibrary.js';
@@ -373,6 +374,7 @@ export class LevelRenderer {
   private buildColliders(): void {
     const buckets = new Map<string, { collider: Collider; index: number }[]>();
     const logs: BoxCollider[] = [];
+    const cliffs = new Map<SurfaceMaterial, BoxCollider[]>();
     this.level.colliders.forEach((collider, index) => {
       if (collider.kind === 'heightfield') {
         this.buildTerrain(collider);
@@ -380,6 +382,13 @@ export class LevelRenderer {
       }
       if (collider.kind === 'box' && collider.drawAs === 'log') {
         logs.push(collider);
+        return;
+      }
+      // `enclose` only ever builds them square to the axes; a turned one is drawn as the box it is.
+      if (collider.kind === 'box' && collider.drawAs === 'cliff' && collider.yaw === 0) {
+        const list = cliffs.get(collider.surface.material) ?? [];
+        list.push(collider);
+        cliffs.set(collider.surface.material, list);
         return;
       }
       const key = `${collider.kind}:${collider.surface.material}`;
@@ -421,6 +430,18 @@ export class LevelRenderer {
       }
     }
     if (logs.length > 0) this.buildLogs(logs);
+    for (const [material, walls] of cliffs) this.buildCliffs(material, walls);
+  }
+
+  /** The walls round the map, as one mesh of carved rock per surface. See `Cliffs.ts`. */
+  private buildCliffs(material: SurfaceMaterial, walls: BoxCollider[]): void {
+    const geometry = cliffGeometry(walls, this.level.seed);
+    this.disposables.push(geometry);
+    const mesh = new THREE.Mesh(geometry, this.material(material));
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'cliff';
+    this.group.add(mesh);
   }
 
   /**

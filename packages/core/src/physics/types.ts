@@ -96,8 +96,11 @@ export interface BoxCollider extends ColliderBase {
    * is the log, and the renderer stretches the log's body over it — one set of numbers, so the log
    * a player sees is the one they stand on. A log used to be a decorative prop over a *vertical*
    * cylinder collider, drawn as a 4 m wooden post beside it.
+   *
+   * `cliff` is a boundary wall `LevelBuilder.enclose` put up: drawn as carved rock with a ragged
+   * crest (`render/Cliffs.ts`), never in front of the box and never lower than its top.
    */
-  drawAs?: 'log';
+  drawAs?: 'log' | 'cliff';
 }
 
 export interface SphereCollider extends ColliderBase {

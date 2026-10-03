@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { describe, expect, it } from 'vitest';
 import { buildLevel, colliderReach, listLevels } from '@kc/core';
+import type { BoxCollider } from '@kc/core';
+import { cliffCrest } from './Cliffs.js';
 import { DISTANT_LAND_STYLES, DistantLand, distantLandFrame, distantLandGeometry } from './DistantLand.js';
 
 describe('the land beyond the map', () => {
@@ -40,11 +42,16 @@ describe('the land beyond the map', () => {
       const sector = (x: number, z: number): number =>
         Math.floor(((Math.atan2(x - frame.centreX, z - frame.centreZ) / (Math.PI * 2) + 1) % 1) * SECTORS);
       const wall: number[] = Array.from({ length: SECTORS }, () => 0);
+      // Against the crest that is drawn (`Cliffs.ts`), which stands up to `CREST` over the walls' tops
+      // and is raised beside a taller wall, rather than the tops of the boxes the physics uses.
+      const cliffs = level.colliders.filter((c): c is BoxCollider => c.kind === 'box' && c.drawAs === 'cliff');
+      const crest = cliffCrest(cliffs, level.seed);
       for (const c of level.colliders) {
         if (c.zone !== 'edge' || c.kind !== 'box') continue;
         const d = Math.max(1, Math.hypot(c.center.x - frame.centreX, c.center.z - frame.centreZ));
         const k = sector(c.center.x, c.center.z);
-        wall[k] = Math.max(wall[k]!, Math.atan2(c.center.y + c.half.y - frame.floorY, d));
+        const top = c.drawAs === 'cliff' ? crest(c.center.x, c.center.z) : c.center.y + c.half.y;
+        wall[k] = Math.max(wall[k]!, Math.atan2(top - frame.floorY, d));
       }
       const hill: number[] = Array.from({ length: SECTORS }, () => 0);
       const p = land.mesh.geometry.getAttribute('position');

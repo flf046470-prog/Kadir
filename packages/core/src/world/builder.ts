@@ -831,7 +831,9 @@ export class LevelBuilder {
       const half = (b - a) / 2;
       const center = alongI ? vec3(centreAlong, (bottom + topY) / 2, middle) : vec3(middle, (bottom + topY) / 2, centreAlong);
       const halves = alongI ? vec3(half, (topY - bottom) / 2, depth / 2) : vec3(depth / 2, (topY - bottom) / 2, half);
-      this.box(center, halves, surface, 0, zone);
+      const wall = this.box(center, halves, surface, 0, zone);
+      // A plug is floor; only a wall is drawn as cliff rock.
+      if (!first.crack && wall.kind === 'box') wall.drawAs = 'cliff';
       made++;
       a = b;
     }

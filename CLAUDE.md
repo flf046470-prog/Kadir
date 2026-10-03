@@ -2352,6 +2352,30 @@ Two `sculpt` rules had to change, and both were silent at one terrain per map:
 Jungle and glacier fingerprints are unchanged; outback `version` 6. Six bots × 16 seeds: falls 0,
 tags 195 → 193, stuck 16.2 % → 16.9 %, zone shares unchanged — bots never reach the apron.
 
+## The walls round every map are drawn as rock
+
+`enclose`'s cliffs — runs of thin boxes 8–14 m long, each with its own random height — were drawn as
+the boxes they are: a flat slab with a crenellated top, a castle wall round the jungle, the glacier
+and the outback, and in view from nearly everywhere. Measured, their tops step by more than 3 m
+in half a metre on every map. `enclose` marks them `drawAs: 'cliff'` (plugs, which are floor, are not)
+and `render/Cliffs.ts` draws them as one mesh of carved rock per surface:
+
+- **Carved, never built out.** Faces only move *into* their box, so the rock never stands in front
+  of what you collide with. At most a third of the wall's thickness: `enclose` leaves slivers 1 cm
+  wide at the ends of runs, and a full-depth carve went through one and out the far side.
+- **Never lower than the wall.** The crest only rises (`CREST`, 2.5 m ragged edge) over a skyline
+  that follows the tallest wall nearby and falls away at most `SKYLINE_FALL` (35°) — no steps. Rock
+  below the box top would leave an invisible wall above the visible one.
+- **Joins are flush.** Carving fades out at each end of a face; carved right up to a join, the next
+  wall's uncarved end stood proud of the hollow and every join showed as a thin vertical fin. Rows sit
+  at fixed *world* heights, so two walls side by side share their edge's vertices.
+- Wound so (along × up) is outward, and checked by raycasting front faces only — a face wound
+  backwards is culled and the ray goes through.
+
+Cost: +6k / +13k / +17k triangles (glacier / jungle / outback) and one draw call per map; the test
+holds each under 40k. Collision is untouched and so are the fingerprints — no version bump. The
+distant land's "clears the walls" test now measures against the drawn crest, not the box tops.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:
