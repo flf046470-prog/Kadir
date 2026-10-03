@@ -1,0 +1,1921 @@
+import { ACHIEVEMENTS, COSMETIC_SLOTS, CUSTOM_BASES, DEFAULT_MODE_CONFIG, EVENTS, listCredits } from '@kc/core';
+import type {
+  ModeConfig,
+  AnimalDef,
+  CosmeticDef,
+  CosmeticSlot,
+  Credit,
+  GameModeDef,
+  LicenceId,
+  MatchResult,
+  PlayerProfile,
+  ReportReason,
+  Reward,
+  Settings,
+} from '@kc/core';
+import { button, clear, el } from './dom.js';
+import { countdown, progressLine } from './progress.js';
+import type { TuningStore } from '../game/TuningStore.js';
+import type { SafetyAction, SafetyPlayer } from '../game/GameClient.js';
+import type { FriendView, ModActionKind, ModReportView, RoundRewards, SocialView } from '@kc/net';
+import type { Api, ContentBundle, ProfileBundle, SocialActionPath } from '../net/Api.js';
+
+export type ScreenId =
+  | 'name'
+  | 'menu'
+  | 'modes'
+  | 'room'
+  | 'houseRules'
+  | 'customize'
+  | 'store'
+  | 'settings'
+  | 'results'
+  | 'tutorial'
+  | 'credits'
+  | 'players'
+  | 'friends'
+  | 'challenges'
+  | 'none';
+
+export interface ShellCallbacks {
+  onQuickPlay(modeId: string): void;
+  /** `levelId` is the map picker's value: a level id, or `''` for "Surprise me". */
+  onPractice(modeId: string, levelId: string): void;
+  onJoinRoom(code: string): void;
+  /**
+   * Create a private room. `modeConfig` carries house rules when the host set any; the server
+   * sanitises it, so the shape sent here is a suggestion rather than a contract.
+   */
+  onCreatePrivate(modeConfig?: unknown, levelId?: string, modeId?: string): void;
+  onAnimalChanged(animalId: string): void;
+  onCosmeticsChanged(cosmetics: Record<string, string>): void;
+  onSettingsChanged(settings: Settings): void;
+  onNameChanged(name: string): void;
+  /** The results screen's "Play again": start another round, not merely close a menu. */
+  onPlayAgain(): void;
+  /** Go back into the round this menu is sitting on top of. */
+  onResume(): void;
+  onLeaveMatch(): void;
+  onVoiceToggle(enabled: boolean): void;
+  /** The microphones this browser admits to; labels are blank until permission is granted once. */
+  listMicDevices(): Promise<{ deviceId: string; label: string }[]>;
+  /** Swap input device without dropping the call. '' means the system default. */
+  onMicDeviceChanged(deviceId: string): void;
+  /** Live microphone state, polled while the settings panel is open, for the test meter. */
+  micState(): { level: number; open: boolean; enabled: boolean };
+  /** Everyone else in the room, and — for a moderator — the report queue. */
+  safety(): { players: SafetyPlayer[]; isModerator: boolean; reports: readonly ModReportView[] };
+  onSafetyAction(action: SafetyAction): void;
+  /** Friends, requests and party as the server last described them; null before the first answer. */
+  social(): SocialView | null;
+  /** Perform a friend or party action; resolves to the server's message for the notice line. */
+  onSocialAction(path: SocialActionPath, body: { playerId?: string; partyId?: string }): Promise<string>;
+  /** Join a friend's public room. Mid-match that means leaving this one first, which the label says. */
+  onJoinFriend(roomCode: string): void;
+  /** This player's own id, so the party list can tell "me" from everyone else. */
+  localId(): string;
+}
+
+export interface ShellOptions {
+  root: HTMLElement;
+  api: Api;
+  callbacks: ShellCallbacks;
+  platform: 'pc' | 'mobile' | 'vr';
+  /**
+   * Read as a function, not a snapshot: on desktop the look control depends on whether the
+   * browser granted pointer lock, and that is only known after the player's first click — which
+   * happens after this screen already exists.
+   */
+  controlHints: () => { action: string; hint: string }[];
+  devPurchases: boolean;
+  tuning: TuningStore;
+  /** True only in solo practice; tuning is refused elsewhere because the server owns movement. */
+  canTune(): boolean;
+  /** Push the current values into the running simulation. */
+  onTuningChanged(): void;
+}
+
+/**
+ * A reward, in a few words.
+ *
+ * Content ids are what the track stores and they are not written for people — `trail_rainbow`,
+ * `glasses_star` — so they are tidied into something readable rather than shown raw.
+ */
+function rewardLabel(reward: Reward): string {
+  if (reward.kind === 'coins') return `🪙 ${reward.amount ?? 0}`;
+  if (reward.kind === 'xp') return `${reward.amount ?? 0} XP`;
+  const id = reward.contentId ?? '';
+  if (reward.kind === 'animal') return `${id.replace(/[_-]/g, ' ')} (animal)`;
+  // `glasses_star` reads as "Star glasses", not "Star". Stripping the category left a column of
+  // single adjectives — Star, Dust, Tribal, Victory — that named nothing a player could picture.
+  const split = id.indexOf('_');
+  if (split <= 0) return id.replace(/[_-]/g, ' ');
+  return `${id.slice(split + 1).replace(/[_-]/g, ' ')} ${id.slice(0, split)}`;
+}
+
+/**
+ * What a round unlocked, by name. Looked up in the catalog the client already holds; an id it
+ * does not know (content newer than this build) is shown as the id rather than dropped.
+ */
+export function unlockedLines(reward: RoundRewards | undefined): string[] {
+  if (!reward) return [];
+  const lines: string[] = [];
+  for (const id of reward.achievements) {
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    lines.push(`🏆 Achievement: ${def?.name ?? id}${def ? ` · +${def.rewardCoins} coins` : ''}`);
+  }
+  for (const id of reward.challenges ?? []) {
+    const event = EVENTS.find((e) => e.challenges.some((c) => c.id === id));
+    const challenge = event?.challenges.find((c) => c.id === id);
+    lines.push(`⭐ ${event ? `${event.name}: ` : ''}${challenge?.name ?? id}${challenge ? ` · +${challenge.rewardCoins} coins` : ''}`);
+  }
+  return lines;
+}
+
+function presenceLabel(presence: 'offline' | 'menu' | 'match'): string {
+  return presence === 'match' ? 'In a match' : presence === 'menu' ? 'Online' : 'Offline';
+}
+
+/** Compile-time proof that a switch covered every case. Never reached at runtime. */
+function assertNever(value: never): never {
+  throw new Error(`unhandled screen: ${String(value)}`);
+}
+
+/** Report reasons, in the words a player would pick; values are the server's `ReportReason`. */
+const REPORT_REASONS: [ReportReason, string][] = [
+  ['voice-abuse', 'Abusive voice'],
+  ['harassment', 'Harassment'],
+  ['cheating', 'Cheating'],
+  ['inappropriate-name', 'Inappropriate name'],
+  ['griefing', 'Griefing'],
+  ['other', 'Other'],
+];
+
+export type MenuAction =
+  | 'resume'
+  | 'play'
+  | 'modes'
+  | 'room'
+  | 'customize'
+  | 'store'
+  | 'settings'
+  | 'tutorial'
+  | 'practice'
+  | 'players'
+  | 'friends'
+  | 'challenges'
+  | 'leave';
+
+export interface MenuEntry {
+  action: MenuAction;
+  label: string;
+  variant: 'primary' | 'ghost' | 'danger';
+}
+
+/** Actions that abandon whatever round is running, silently, the moment they are pressed. */
+const STARTS_A_ROUND: ReadonlySet<MenuAction> = new Set<MenuAction>(['play', 'practice', 'modes', 'room']);
+
+/**
+ * What the main menu offers, decided before any of it is drawn.
+ *
+ * Split out from the rendering because the rule that matters here is not visual, and the bug it
+ * fixes was invisible on desktop. Opening the menu mid-round showed the *same nine buttons as the
+ * title screen* — Play, Game modes, Private room, Customise, Store, Settings, How to play,
+ * Practice with bots — and not one of them went back to the round. On a PC that was survivable
+ * because Escape closes the menu. On a phone there is no Escape key, so a thumb that found the
+ * Menu button had no way back into a match that was still running: the player stood still in a
+ * live game of tag, visible and catchable, reading a menu. Measured on a 390x844 viewport before
+ * the fix: nine buttons on screen, zero ways to resume.
+ *
+ * So an in-match menu is a pause menu. It resumes, it adjusts, it leaves — and it deliberately
+ * does *not* offer the four entries that would throw the round away without asking, which is the
+ * other half of the same bug: pressing Play mid-match reconnected over a live match with no
+ * warning. Leaving first, then choosing, costs one tap and can never be an accident.
+ */
+export function menuEntries(state: { inMatch: boolean; online: boolean }): MenuEntry[] {
+  if (state.inMatch) {
+    return [
+      { action: 'resume', label: 'Resume', variant: 'primary' },
+      { action: 'players', label: 'Players & safety', variant: 'ghost' },
+      ...(state.online ? [{ action: 'friends' as const, label: 'Friends & party', variant: 'ghost' as const }] : []),
+      { action: 'customize', label: 'Customise', variant: 'ghost' },
+      { action: 'settings', label: 'Settings', variant: 'ghost' },
+      { action: 'tutorial', label: 'How to play', variant: 'ghost' },
+      { action: 'leave', label: 'Leave match', variant: 'danger' },
+    ];
+  }
+  return [
+    ...(state.online ? [{ action: 'play' as const, label: 'Play', variant: 'primary' as const }] : []),
+    { action: 'modes', label: 'Game modes', variant: 'ghost' },
+    { action: 'room', label: 'Private room', variant: 'ghost' },
+    ...(state.online ? [{ action: 'friends' as const, label: 'Friends & party', variant: 'ghost' as const }] : []),
+    { action: 'customize', label: 'Customise', variant: 'ghost' },
+    { action: 'store', label: 'Season pass', variant: 'ghost' },
+    { action: 'challenges', label: 'Challenges', variant: 'ghost' },
+    { action: 'settings', label: 'Settings', variant: 'ghost' },
+    { action: 'tutorial', label: 'How to play', variant: 'ghost' },
+    { action: 'practice', label: 'Practice with bots', variant: state.online ? 'ghost' : 'primary' },
+  ];
+}
+
+export const MENU_STARTS_A_ROUND = STARTS_A_ROUND;
+
+/** The same compile-time exhaustiveness proof, for menu actions. */
+function assertNeverAction(value: never): never {
+  throw new Error(`unhandled menu action: ${String(value)}`);
+}
+
+/**
+ * Menus for PC and Mobile (VR gets world-space panels instead — see `VRPanels`).
+ *
+ * One responsive layout serves both: the same markup, sized by CSS, with 44 px minimum touch
+ * targets everywhere so nothing needs a mouse.
+ */
+export class Shell {
+  readonly element: HTMLElement;
+  private screen: ScreenId = 'none';
+  private options: ShellOptions;
+  private content: ContentBundle | null = null;
+  private profile: ProfileBundle | null = null;
+  private settings: Settings;
+  private currentModeId = 'kangaroo-chase';
+  /**
+   * Whether the client has a real server session.
+   *
+   * Everything that needs matchmaking is refused while this is false. Without it the menu
+   * happily starts an online match that can never fill: the player waits on
+   * "Waiting for players (0/2)" until they think to press Menu, with nothing on screen saying
+   * it will never succeed.
+   */
+  private online = true;
+  /**
+   * Whether a round is running behind this menu.
+   *
+   * Told by the bootstrap rather than inferred from the socket: a solo practice round has no
+   * socket at all and is just as abandonable, and an online match that is mid-reconnect is still
+   * a match the player wants to go back to.
+   */
+  private inMatch = false;
+  /**
+   * The last round's results, kept so the screen can be rebuilt like any other.
+   *
+   * `showResults` used to append its DOM directly and `render` had no case for it, so any
+   * re-render while results were up fell through to `default` and left a blank page with the
+   * scoreboard gone. Storing the data makes results an ordinary screen.
+   */
+  private results: {
+    result: MatchResult;
+    rewards: Record<string, RoundRewards>;
+    localId: string;
+  } | null = null;
+  private notice = '';
+  private noticeElement: HTMLElement | null = null;
+  /**
+   * The house rules being edited, kept on the shell so a re-render — which the base and gadget
+   * buttons trigger — does not reset sliders someone just moved.
+   */
+  private houseRules: ModeConfig = { ...DEFAULT_MODE_CONFIG };
+  /**
+   * The map a new private room will play, for the same reason: the picker re-renders itself to
+   * move the highlight, and a choice stored in the button would be lost each time.
+   *
+   * Empty means "whatever the server would have picked", which is the rotation. That is the right
+   * default rather than naming a map here — the client would then be asserting which map is the
+   * main one, and it is the server that decides.
+   */
+  private levelId = '';
+
+  constructor(options: ShellOptions, settings: Settings) {
+    this.options = options;
+    this.settings = settings;
+    this.element = el('div', { class: 'kc-root' });
+    options.root.append(this.element);
+  }
+
+  setContent(content: ContentBundle): void {
+    this.content = content;
+    if (this.screen !== 'none') this.render();
+  }
+
+  setProfile(profile: ProfileBundle): void {
+    this.profile = profile;
+    if (this.screen !== 'none') this.render();
+  }
+
+  setSettings(settings: Settings): void {
+    this.settings = settings;
+  }
+
+  /**
+   * The social view changed. Only the two screens that show it are redrawn, and only when what
+   * they show actually differs: the poll answers every five seconds, and rebuilding a screen under
+   * a finger that is halfway through a tap loses the tap.
+   */
+  socialChanged(): void {
+    if (this.screen !== 'friends' && this.screen !== 'players') return;
+    const key = JSON.stringify(this.options.callbacks.social());
+    if (key === this.socialDrawn) return;
+    this.render();
+  }
+
+  private socialDrawn = '';
+
+  private async socialAct(path: SocialActionPath, body: { playerId?: string; partyId?: string }): Promise<void> {
+    const message = await this.options.callbacks.onSocialAction(path, body);
+    this.notice = message;
+    if (this.screen === 'friends' || this.screen === 'players') this.render();
+  }
+
+  /** Told by the bootstrap: false when guest creation failed and we are running standalone. */
+  setOnline(online: boolean): void {
+    if (this.online === online) return;
+    this.online = online;
+    if (this.screen !== 'none') this.render();
+  }
+
+  /** Told by the bootstrap when a round starts or ends, so the menu knows to become a pause menu. */
+  setInMatch(inMatch: boolean): void {
+    if (this.inMatch === inMatch) return;
+    this.inMatch = inMatch;
+    if (this.screen !== 'none') this.render();
+  }
+
+  /**
+   * Update the status line in place rather than re-rendering the screen. A background event
+   * (reconnect, room update) must never rebuild the DOM under a player's finger mid-tap.
+   */
+  setNotice(text: string): void {
+    if (this.notice === text) return;
+    this.notice = text;
+    if (this.screen === 'none') return;
+    if (this.noticeElement) {
+      this.noticeElement.textContent = text;
+      this.noticeElement.classList.toggle('kc-hidden', text === '');
+    } else {
+      this.render();
+    }
+  }
+
+  show(screen: ScreenId): void {
+    this.screen = screen;
+    this.render();
+  }
+
+  get currentScreen(): ScreenId {
+    return this.screen;
+  }
+
+  private render(): void {
+    clear(this.element);
+    this.noticeElement = null;
+    if (this.screen === 'none') return;
+    switch (this.screen) {
+      case 'name':
+        this.element.append(this.nameScreen());
+        break;
+      case 'menu':
+        this.element.append(this.menuScreen());
+        break;
+      case 'modes':
+        this.element.append(this.modesScreen());
+        break;
+      case 'room':
+        this.element.append(this.roomScreen());
+        break;
+      case 'houseRules':
+        this.element.append(this.houseRulesScreen());
+        break;
+      case 'customize':
+        this.element.append(this.customizeScreen());
+        break;
+      case 'store':
+        this.element.append(this.storeScreen());
+        break;
+      case 'settings':
+        this.element.append(this.settingsScreen());
+        break;
+      case 'credits':
+        this.element.append(this.creditsScreen());
+        break;
+      case 'tutorial':
+        this.element.append(this.tutorialScreen());
+        break;
+      case 'players':
+        this.element.append(this.playersScreen());
+        break;
+      case 'friends':
+        this.element.append(this.friendsScreen());
+        break;
+      case 'challenges':
+        this.element.append(this.challengesScreen());
+        break;
+      case 'results':
+        if (this.results) this.element.append(this.resultsScreen(this.results));
+        break;
+      default:
+        // Deliberately not `default: break`. Every ScreenId is listed above, so adding one to the
+        // union without a case here fails to compile — which is exactly how the results screen
+        // came to render nothing: it was in the union, `show('results')` set it, and the switch
+        // fell quietly through to a blank page.
+        assertNever(this.screen);
+    }
+  }
+
+  private header(title: string, subtitle?: string): HTMLElement {
+    return el('div', {}, el('h1', { class: 'kc-title' }, title), subtitle ? el('p', { class: 'kc-subtitle' }, subtitle) : null);
+  }
+
+  private noticeNode(): HTMLElement {
+    const node = el('p', { class: `kc-note${this.notice ? '' : ' kc-hidden'}` }, this.notice);
+    this.noticeElement = node;
+    return node;
+  }
+
+  private nameScreen(): HTMLElement {
+    const input = el('input', { type: 'text', value: '', placeholder: 'Your name', maxLength: 16 }) as HTMLInputElement;
+    const submit = (): void => {
+      const name = input.value.trim() || 'Roo';
+      this.options.callbacks.onNameChanged(name);
+    };
+    input.addEventListener('keydown', (event) => {
+      if ((event as KeyboardEvent).key === 'Enter') submit();
+    });
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Kangaroo Chase', 'Hop, climb, chase. Pick a name to get started.'),
+      el('div', { class: 'kc-panel' }, el('div', { class: 'kc-field' }, el('span', {}, 'Name'), input), button('Start', submit, 'primary')),
+      this.noticeNode(),
+    );
+  }
+
+  private menuScreen(): HTMLElement {
+    const coins = this.profile?.profile.coins ?? 0;
+    const level = this.profile?.profile.level ?? 1;
+    const claimable = this.profile?.daily.some((d) => d.claimable) ?? false;
+
+    const run = (action: MenuAction): void => {
+      switch (action) {
+        case 'resume':
+          this.options.callbacks.onResume();
+          return;
+        case 'play':
+          this.options.callbacks.onQuickPlay(this.currentModeId);
+          return;
+        case 'practice':
+          this.options.callbacks.onPractice(this.currentModeId, this.levelId);
+          return;
+        case 'leave':
+          this.options.callbacks.onLeaveMatch();
+          return;
+        case 'modes':
+        case 'room':
+        case 'customize':
+        case 'store':
+        case 'settings':
+        case 'tutorial':
+        case 'players':
+        case 'friends':
+        case 'challenges':
+          this.show(action);
+          return;
+        default:
+          assertNeverAction(action);
+      }
+    };
+
+    const menu = el('div', { class: 'kc-menu' });
+    for (const entry of menuEntries({ inMatch: this.inMatch, online: this.online })) {
+      menu.append(button(entry.label, () => run(entry.action), entry.variant));
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.inMatch
+        ? this.header('Menu', 'The round is still running — you can still be tagged.')
+        : this.header('Kangaroo Chase'),
+      this.inMatch
+        ? null
+        : el(
+            'div',
+            { class: 'kc-row' },
+            el('span', { class: 'kc-pill kc-currency' }, `🪙 ${coins}`),
+            el('span', { class: 'kc-pill' }, `Lv ${level}`),
+            claimable ? button('Claim daily reward', () => void this.claimDaily(), 'primary') : null,
+          ),
+      menu,
+      this.noticeNode(),
+      el('p', { class: 'kc-note' }, 'No loot boxes. No pay-to-win. Every animal moves exactly the same.'),
+    );
+  }
+
+  private modesScreen(): HTMLElement {
+    const modes = this.content?.modes ?? [];
+    const grid = el('div', { class: 'kc-grid' });
+    for (const mode of modes) {
+      grid.append(this.modeCard(mode));
+    }
+    // The map picker sits here as well as on the room screen, and is shown offline too: practice is
+    // the only way into a map without a server, and with the picker only on the online room screen
+    // two of the three maps could not be reached offline at all.
+    return el('div', { class: 'kc-screen' }, this.header('Game modes'), this.mapPicker(), grid, button('Back', () => this.show('menu')));
+  }
+
+  private modeCard(mode: GameModeDef): HTMLElement {
+    const selected = mode.id === this.currentModeId;
+    return el(
+      'div',
+      { class: `kc-card${selected ? ' kc-card--selected' : ''}` },
+      el('h3', {}, mode.name),
+      el('p', {}, mode.description),
+      el('span', { class: 'kc-tag' }, `${mode.minPlayers}-${mode.maxPlayers} players · ${Math.round(mode.roundSeconds / 60)} min`),
+      button(
+        // Offline there is no online match to start, so a selected card offers the thing that
+        // does work rather than a button that leads to an empty lobby.
+        selected ? (this.online ? 'Play now' : 'Practice this mode') : 'Select',
+        () => {
+          this.currentModeId = mode.id;
+          if (!selected) this.render();
+          else if (this.online) this.options.callbacks.onQuickPlay(mode.id);
+          else this.options.callbacks.onPractice(mode.id, this.levelId);
+        },
+        selected ? 'primary' : 'ghost',
+      ),
+    );
+  }
+
+  private modeName(modeId: string): string {
+    return this.content?.modes.find((m) => m.id === modeId)?.name ?? modeId.replace(/-/g, ' ');
+  }
+
+  private roomScreen(): HTMLElement {
+    const input = el('input', { type: 'text', placeholder: 'KANG-1234', maxLength: 9 }) as HTMLInputElement;
+    input.addEventListener('input', () => {
+      const cleaned = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      input.value = cleaned.length > 4 ? `${cleaned.slice(0, 4)}-${cleaned.slice(4, 8)}` : cleaned;
+    });
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Private room', 'Play with friends only. Share the code and they can hop straight in.'),
+      el(
+        'div',
+        { class: 'kc-panel' },
+        el('div', { class: 'kc-field' }, el('span', {}, 'Room code'), input),
+        // A private room is a server object, so all three of these need a session. Offline they
+        // are replaced by one line saying so, rather than three buttons that lead to an empty
+        // lobby with no way to tell it will stay empty.
+        this.online
+          ? button('Join room', () => this.options.callbacks.onJoinRoom(input.value.trim()), 'primary')
+          : null,
+        el('hr', { style: { opacity: '0.15', width: '100%' } }),
+        this.online ? this.mapPicker() : null,
+        // The mode picked on the Game modes screen. It used to be dropped here — every private room
+        // opened as Kangaroo Chase whatever the player had selected — and nothing on this screen
+        // said which mode was coming, so there was no way to notice.
+        this.online ? el('p', { class: 'kc-note' }, `Mode: ${this.modeName(this.currentModeId)} — change it under Game modes.`) : null,
+        this.online
+          ? button('Create a private room', () => this.options.callbacks.onCreatePrivate(undefined, this.levelId, this.currentModeId))
+          : null,
+        this.online
+          ? button('Create with your own rules', () => this.show('houseRules'))
+          : el(
+              'p',
+              { class: 'kc-note' },
+              'Private rooms need the server. While it is unreachable, ' +
+                'Practice with bots is the way to play — house rules included.',
+            ),
+      ),
+      this.noticeNode(),
+      button('Back', () => this.show('menu')),
+    );
+  }
+
+  /**
+   * Which map a new private room plays.
+   *
+   * The maps come from the content bundle rather than a list in this file, so a level that
+   * registers itself is offered here without the menu knowing it exists — which is the whole
+   * point of the level registry. With one map registered the picker hides itself: a row with a
+   * single button and no alternative is a control that asks a question with one answer.
+   *
+   * "Surprise me" is first and is the default, because it maps onto what the server already does
+   * for public rooms — the rotation — rather than adding a second idea of what "no choice" means.
+   */
+  private mapPicker(): HTMLElement | null {
+    const levels = this.content?.levels ?? [];
+    if (levels.length < 2) return null;
+
+    const row = el('div', { class: 'kc-row' });
+    const pick = (id: string, label: string): HTMLElement =>
+      button(
+        label,
+        () => {
+          this.levelId = id;
+          this.render();
+        },
+        this.levelId === id ? 'primary' : 'ghost',
+      );
+
+    row.append(pick('', 'Surprise me'));
+    for (const level of levels) row.append(pick(level.id, level.name));
+
+    const chosen = levels.find((l) => l.id === this.levelId);
+    return el(
+      'div',
+      { class: 'kc-field kc-field-stack' },
+      el('span', {}, 'Map'),
+      row,
+      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'A different map each time a room or a practice round opens.'),
+    );
+  }
+
+  /**
+   * House rules — a player-authored mode.
+   *
+   * Every control is bounded here *and* on the server, and the two are allowed to disagree: this
+   * screen's job is to make a sensible config easy to build, the server's job is to make an
+   * insensible one harmless. What the panel deliberately does not offer is anything that changes
+   * how a body moves; that is what keeps a friend's room the same game as everyone else's.
+   */
+  private houseRulesScreen(): HTMLElement {
+    const rules = { ...this.houseRules };
+    const summary = el('p', { class: 'kc-note' }, '');
+
+    const refresh = (): void => {
+      const base = (this.content?.modes ?? []).find((m) => m.id === rules.base);
+      summary.textContent = `${base?.name ?? rules.base} · ${Math.round(rules.roundSeconds / 60)} min · ${Math.round(
+        rules.chaserRatio * 100,
+      )}% chasers${rules.gadgetsEnabled ? '' : ' · no gadgets'}`;
+    };
+
+    const baseRow = el('div', { class: 'kc-row' });
+    for (const id of CUSTOM_BASES) {
+      const mode = (this.content?.modes ?? []).find((m) => m.id === id);
+      if (!mode) continue;
+      const btn = button(mode.name, () => {
+        rules.base = id;
+        this.houseRules = { ...rules };
+        this.render();
+      }, rules.base === id ? 'primary' : 'ghost');
+      baseRow.append(btn);
+    }
+
+    const slider = (
+      label: string,
+      value: number,
+      min: number,
+      max: number,
+      step: number,
+      format: (v: number) => string,
+      apply: (v: number) => void,
+    ): HTMLElement => {
+      const readout = el('span', { class: 'kc-tag' }, format(value));
+      const range = el('input', { type: 'range', min: String(min), max: String(max), step: String(step) }) as HTMLInputElement;
+      range.value = String(value);
+      range.addEventListener('input', () => {
+        const next = Number(range.value);
+        apply(next);
+        readout.textContent = format(next);
+        refresh();
+      });
+      return el('div', { class: 'kc-field' }, el('span', {}, label), range, readout);
+    };
+
+    const gadgetToggle = button(
+      rules.gadgetsEnabled ? 'Gadgets: on' : 'Gadgets: off',
+      () => {
+        rules.gadgetsEnabled = !rules.gadgetsEnabled;
+        this.houseRules = { ...rules };
+        this.render();
+      },
+      rules.gadgetsEnabled ? 'primary' : 'ghost',
+    );
+
+    refresh();
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Your rules', 'Set up a room the way you want it. Only you and the people you invite play it.'),
+      el(
+        'div',
+        { class: 'kc-panel' },
+        el('span', {}, 'Based on'),
+        baseRow,
+        slider('Round length', rules.roundSeconds, 60, 900, 30, (v) => `${Math.round(v / 60)} min`, (v) => {
+          rules.roundSeconds = v;
+        }),
+        slider('Countdown', rules.countdownSeconds, 3, 30, 1, (v) => `${v}s`, (v) => {
+          rules.countdownSeconds = v;
+        }),
+        slider('Chasers', rules.chaserRatio, 0.05, 0.5, 0.05, (v) => `${Math.round(v * 100)}%`, (v) => {
+          rules.chaserRatio = v;
+        }),
+        gadgetToggle,
+        summary,
+      ),
+      el(
+        'div',
+        { class: 'kc-row' },
+        button(
+          'Create room',
+          () => {
+            this.houseRules = { ...rules };
+            this.options.callbacks.onCreatePrivate({ ...rules, name: 'House Rules' });
+          },
+          'primary',
+        ),
+        button('Back', () => this.show('room')),
+      ),
+      this.noticeNode(),
+    );
+  }
+
+  private customizeScreen(): HTMLElement {
+    const profile = this.profile?.profile;
+    const animals = this.content?.animals ?? [];
+    const grid = el('div', { class: 'kc-grid' });
+
+    for (const animal of animals) {
+      grid.append(this.animalCard(animal, profile));
+    }
+
+    const slotRow = el('div', { class: 'kc-row' });
+    for (const slot of COSMETIC_SLOTS) {
+      slotRow.append(button(slot, () => this.showCosmeticSlot(slot)));
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Customise'),
+      el('p', { class: 'kc-subtitle' }, 'Animals and cosmetics are looks only — they never change how you move.'),
+      grid,
+      el('h3', {}, 'Cosmetics'),
+      slotRow,
+      el('div', { id: 'kc-cosmetic-list', class: 'kc-grid' }),
+      button('Back', () => this.show('menu')),
+    );
+  }
+
+  private animalCard(animal: AnimalDef, profile: PlayerProfile | undefined): HTMLElement {
+    const owned = profile?.ownedAnimals.includes(animal.id) ?? animal.unlock === 'free';
+    const equipped = profile?.equipped.animalId === animal.id;
+    const swatch = el('div', { class: 'kc-swatch' });
+    swatch.style.background = `linear-gradient(135deg, #${animal.visual.body.toString(16).padStart(6, '0')}, #${animal.visual.accent
+      .toString(16)
+      .padStart(6, '0')})`;
+
+    return el(
+      'div',
+      { class: `kc-card${equipped ? ' kc-card--selected' : ''}` },
+      swatch,
+      el('h3', {}, animal.name),
+      el('p', {}, animal.description),
+      // Everything is owned, so there is no third state. `owned` is still consulted rather than
+      // assumed: a save that predates a newly added animal is repaired on load, not here.
+      button(
+        equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
+        () => void this.equipAnimal(animal.id),
+        equipped ? 'primary' : 'ghost',
+      ),
+    );
+  }
+
+  private showCosmeticSlot(slot: CosmeticSlot): void {
+    const list = this.element.querySelector('#kc-cosmetic-list') as HTMLElement | null;
+    if (!list) return;
+    clear(list);
+
+    const owned = this.profile?.profile.ownedCosmetics ?? [];
+    const equipped = this.profile?.profile.equipped.cosmetics ?? {};
+    const items = (this.content?.cosmetics ?? []).filter((c) => c.slot === slot);
+
+    list.append(
+      el('div', { class: 'kc-card' }, el('h3', {}, 'None'), button('Clear slot', () => void this.equipCosmetic(slot, null))),
+    );
+    for (const cosmetic of items) {
+      list.append(this.cosmeticCard(cosmetic, owned.includes(cosmetic.id), equipped[slot] === cosmetic.id));
+    }
+  }
+
+  private cosmeticCard(cosmetic: CosmeticDef, owned: boolean, equipped: boolean): HTMLElement {
+    const swatch = el('div', { class: 'kc-swatch' });
+    swatch.style.background = `#${cosmetic.visual.color.toString(16).padStart(6, '0')}`;
+    // A season cosmetic not yet earned says how to earn it, rather than a flat "Unavailable":
+    // the level that pays it out, and the coin price for anyone who would rather not wait.
+    const level = this.seasonLevelFor(cosmetic.id);
+    const shelf = this.shelfItemFor(cosmetic.id);
+    return el(
+      'div',
+      { class: `kc-card${equipped ? ' kc-card--selected' : ''}` },
+      swatch,
+      el('h3', {}, cosmetic.name),
+      el('span', { class: 'kc-tag' }, cosmetic.seasonId && !owned ? `${cosmetic.rarity} · season` : cosmetic.rarity),
+      !owned && level !== null ? el('p', {}, `Season level ${level}${shelf ? `, or 🪙 ${shelf.priceCoins}` : ''}`) : null,
+      owned || !shelf
+        ? button(
+            equipped ? 'Equipped' : owned ? 'Equip' : 'Unavailable',
+            () => void this.equipCosmetic(cosmetic.slot, cosmetic.id),
+            equipped ? 'primary' : 'ghost',
+          )
+        : button(`Buy · 🪙 ${shelf.priceCoins}`, () => void this.buyWithCoins(shelf.id, cosmetic.name)),
+    );
+  }
+
+  /** The season level whose reward is this cosmetic, if any. */
+  private seasonLevelFor(contentId: string): number | null {
+    for (const entry of this.profile?.season.season?.track ?? []) {
+      if (entry.free?.contentId === contentId || entry.premium?.contentId === contentId) return entry.level;
+    }
+    return null;
+  }
+
+  /** The coin-shelf item that sells this cosmetic, if any. */
+  private shelfItemFor(contentId: string): { id: string; priceCoins: number } | null {
+    const item = (this.content?.store ?? []).find((i) => i.priceCoins > 0 && i.grants.includes(contentId));
+    return item ? { id: item.id, priceCoins: item.priceCoins } : null;
+  }
+
+  /**
+   * Coins for a season cosmetic. The server decides — it holds the balance and the inventory — so
+   * the screen re-reads the profile afterwards rather than crediting itself.
+   */
+  private async buyWithCoins(itemId: string, name: string): Promise<void> {
+    try {
+      await this.options.api.purchaseWithCoins(itemId);
+      this.notice = `${name} is yours.`;
+      this.setProfile(await this.options.api.getProfile());
+    } catch (error) {
+      const code = (error as Error).message;
+      const coins = this.profile?.profile.coins ?? 0;
+      const price = (this.content?.store ?? []).find((i) => i.id === itemId)?.priceCoins ?? 0;
+      this.setNotice(
+        code === 'insufficient-coins'
+          ? `Not enough coins yet — ${price - coins} more. Every round pays some, win or lose.`
+          : `Could not buy ${name}: ${code}`,
+      );
+    }
+  }
+
+  /**
+   * The former store.
+   *
+   * Kept as a screen rather than deleted, because "Store" was a menu button people learned and a
+   * dead end is worse than a page that explains itself. It now says what is true: there is
+   * nothing to buy, and everything is already yours.
+   */
+  /**
+   * The season pass.
+   *
+   * All of this existed and none of it was reachable: the track, the levels, the free and premium
+   * rewards, `getSeasonProgress`, a server-validated `/api/season/claim`, and an `Api.claimSeason`
+   * on the client. The only screen that could have led here said "there is no store" and offered a
+   * button to the wardrobe. A player could earn season XP for a whole season and never be shown a
+   * level, a reward, or a way to collect one.
+   *
+   * The premium track is unlocked with coins, never with money. That is not a softening of the
+   * no-pay-to-win rule but the same rule: `validateCatalog` refuses outright to register an item
+   * with a price in cents and the server will not boot if one exists, so the pass *cannot* be
+   * sold. And what a reward can contain is bounded below the UI — an animal's feel is clamped to
+   * a ±3% band and its health, damage and hitbox cannot change at all — so no track, paid or not,
+   * can hand anyone an advantage.
+   */
+  private storeScreen(): HTMLElement {
+    const coins = this.profile?.profile.coins ?? 0;
+    const season = this.profile?.season;
+    const track = season?.season?.track ?? [];
+    const owned = season?.premiumOwned ?? false;
+    const level = season?.level ?? 1;
+    const claimable = season?.claimable.length ?? 0;
+
+    const screen = el(
+      'div',
+      { class: 'kc-screen' },
+      this.header(season?.season?.name ?? 'Season pass', `Level ${level} · 🪙 ${coins}`),
+    );
+
+    if (season) {
+      const pct = Math.max(0, Math.min(100, (season.xpIntoLevel / Math.max(1, season.xpPerLevel)) * 100));
+      screen.append(
+        el(
+          'div',
+          { class: 'kc-xpbar' },
+          el('i', { style: { width: `${pct}%` } }),
+          el('span', {}, `${season.xpIntoLevel} / ${season.xpPerLevel} XP`),
+        ),
+      );
+    }
+
+    if (track.length > 0) {
+      const rows = el('div', { class: 'kc-track' });
+      const claimedFree = this.profile?.profile.season.claimedFree ?? [];
+      const claimedPremium = this.profile?.profile.season.claimedPremium ?? [];
+      for (const entry of track) {
+        const reached = entry.level <= level;
+        const cell = (reward: Reward | undefined, claimed: boolean) =>
+          reward ? `${this.rewardName(reward)}${claimed ? ' ✓' : ''}` : '—';
+        rows.append(
+          el(
+            'div',
+            { class: `kc-track-row${reached ? ' kc-track-row--reached' : ''}` },
+            el('span', { class: 'kc-track-level' }, `Lv ${entry.level}`),
+            el('span', { class: 'kc-track-free' }, cell(entry.free, claimedFree.includes(entry.level))),
+            el(
+              'span',
+              { class: `kc-track-premium${owned ? '' : ' kc-track-premium--locked'}` },
+              cell(entry.premium, claimedPremium.includes(entry.level)),
+            ),
+          ),
+        );
+      }
+      screen.append(
+        el(
+          'div',
+          { class: 'kc-track-head' },
+          el('span', { class: 'kc-track-level' }, ''),
+          el('span', { class: 'kc-track-free' }, 'Free'),
+          el('span', { class: 'kc-track-premium' }, owned ? 'Premium ✓' : 'Premium 🔒'),
+        ),
+        rows,
+      );
+    }
+
+    if (claimable > 0) {
+      screen.append(
+        button(`Claim ${claimable} reward${claimable === 1 ? '' : 's'}`, () => void this.claimSeason(), 'primary'),
+      );
+    }
+
+    screen.append(this.coinShelf());
+    screen.append(
+      el(
+        'p',
+        { class: 'kc-note' },
+        owned
+          ? 'Both tracks are already yours, on every account from the moment it is created. ' +
+            'Nothing in this game is sold for money: the season\'s cosmetics are earned on the ' +
+            'track or with coins from your rounds, and every one is a look — no animal is ' +
+            'faster, jumps higher, or is tougher than any other.'
+          : 'The premium track is not unlocked on this account. It is normally granted at sign-up ' +
+            'and costs nothing; if it is missing, the profile predates that and the server will ' +
+            'restore it.',
+      ),
+      button('Pick an animal or an outfit', () => this.show('customize')),
+      this.noticeNode(),
+      button('Back', () => this.show('menu')),
+    );
+    return screen;
+  }
+
+  /** A reward in words, using the catalog's own name for a cosmetic rather than its id. */
+  private rewardName(reward: Reward): string {
+    if (reward.kind === 'cosmetic' || reward.kind === 'animal') {
+      const pool: { id: string; name: string }[] = reward.kind === 'cosmetic' ? (this.content?.cosmetics ?? []) : (this.content?.animals ?? []);
+      const found = pool.find((c) => c.id === reward.contentId);
+      if (found) return found.name;
+    }
+    return rewardLabel(reward);
+  }
+
+  /**
+   * The season's cosmetics for coins — the other way to earn them, for anyone who missed a level.
+   * It is what makes coins worth anything: before it there was nothing to spend them on at all.
+   */
+  private coinShelf(): HTMLElement {
+    const items = (this.content?.store ?? []).filter((i) => i.priceCoins > 0);
+    const shelf = el('div', { class: 'kc-panel kc-panel--natural' }, el('h3', {}, 'Coin shelf'));
+    if (items.length === 0) {
+      shelf.append(el('p', { class: 'kc-note' }, 'Nothing on the shelf this season.'));
+      return shelf;
+    }
+    const ownedCosmetics = this.profile?.profile.ownedCosmetics ?? [];
+    const coins = this.profile?.profile.coins ?? 0;
+    for (const item of items) {
+      const owned = item.grants.every((id) => ownedCosmetics.includes(id));
+      shelf.append(
+        el(
+          'div',
+          { class: 'kc-safety-row' },
+          el('strong', {}, item.name),
+          el('span', { class: 'kc-note' }, ` ${item.description}`),
+          el(
+            'div',
+            { class: 'kc-row' },
+            owned
+              ? el('span', { class: 'kc-tag' }, 'Owned')
+              : button(`Buy · 🪙 ${item.priceCoins}`, () => void this.buyWithCoins(item.id, item.name), coins >= item.priceCoins ? 'primary' : 'ghost'),
+          ),
+        ),
+      );
+    }
+    return shelf;
+  }
+
+  private async claimSeason(): Promise<void> {
+    try {
+      await this.options.api.claimSeason();
+      // Re-read the profile rather than patching the local copy: the server decides what was
+      // actually claimed, and a screen that credited itself would drift from it on any refusal.
+      this.setProfile(await this.options.api.getProfile());
+    } catch (error) {
+      this.setNotice(`Could not claim: ${(error as Error).message}`);
+    }
+  }
+
+
+  /**
+   * Live movement tuning.
+   *
+   * The same values the VR panel edits, with the two things a headset cannot do well: the full
+   * list, and a copy button. Exporting belongs here because the destination is a source file on
+   * this machine — reading twelve numbers off a floating quad and retyping them is how they get
+   * transcribed wrong.
+   */
+  private tuningRows(): HTMLElement[] {
+    const store = this.options.tuning;
+    const rows: HTMLElement[] = [];
+    // Declared before the sliders because each one refreshes it: a box showing values from
+    // before the last drag is worse than no box, since it looks authoritative.
+    const output = el('textarea', { rows: 6, readOnly: true }) as HTMLTextAreaElement;
+    output.style.width = '100%';
+
+    if (!this.options.canTune()) {
+      rows.push(
+        el(
+          'p',
+          { class: 'kc-note' },
+          'Available in solo practice. In a match the server owns movement, so a tuned client ' +
+            'would only mispredict its own position.',
+        ),
+      );
+    }
+
+    // A slider that cannot move anything is worse than an absent one: it invites the player to
+    // spend a tuning session on it and conclude the game ignores them. Palm shove is the only
+    // field that needs real tracked hands, so off a headset it is simply not offered.
+    const tunables = store.tunables.filter((tunable) => this.options.platform === 'vr' || !tunable.vrOnly);
+
+    for (const tunable of tunables) {
+      const readout = el('span', {}, String(store.value(tunable.field)));
+      const input = el('input', {
+        type: 'range',
+        min: String(tunable.min),
+        max: String(tunable.max),
+        step: String(tunable.step),
+        value: String(store.value(tunable.field)),
+        disabled: !this.options.canTune(),
+      }) as HTMLInputElement;
+
+      input.addEventListener('input', () => {
+        store.set(tunable.field, Number(input.value));
+        // Read back rather than echoing the input: the store clamps and quantises, and the
+        // number shown has to be the number in effect.
+        readout.textContent = String(store.value(tunable.field));
+        output.value = store.exportText();
+        this.options.onTuningChanged();
+      });
+
+      rows.push(
+        el(
+          'div',
+          { class: 'kc-field' },
+          el('span', {}, tunable.label),
+          input,
+          readout,
+        ),
+        el('p', { class: 'kc-note' }, tunable.effect),
+      );
+    }
+
+    output.value = store.exportText();
+
+    rows.push(
+      el(
+        'div',
+        { class: 'kc-row' },
+        button('Copy values', () => {
+          output.value = store.exportText();
+          output.select();
+          void navigator.clipboard?.writeText(output.value).catch(() => {
+            // Clipboard access needs permission the page may not have; the textarea is
+            // selected either way, so Ctrl+C still works.
+          });
+        }),
+        button('Reset all', () => {
+          store.reset();
+          this.options.onTuningChanged();
+          this.render();
+        }),
+      ),
+      output,
+    );
+    return rows;
+  }
+
+  /** The moving part of the microphone test meter, while the settings panel is open. */
+  private micMeterFill: HTMLElement | null = null;
+  private micStatusNote: HTMLElement | null = null;
+
+  /**
+   * The microphone controls, with a meter you can actually speak into.
+   *
+   * The meter is the part that earns its place. "Nobody can hear me" is the single most common
+   * thing that goes wrong with voice chat in a game, and without a local readout a player has no
+   * way to tell the difference between the wrong input device, a threshold set too high, a muted
+   * track, and a peer connection that never formed — four different problems with one symptom.
+   * A bar that moves when you talk separates the first three from the fourth in two seconds.
+   */
+  private micSection(s: Settings): HTMLElement[] {
+    const rows: HTMLElement[] = [];
+
+    const modeRow = el('label', { class: 'kc-field' }, el('span', {}, 'Microphone'));
+    const modeSelect = el('select', {}) as HTMLSelectElement;
+    for (const [value, label] of [
+      ['push', 'Push to talk'],
+      ['open', 'Open mic'],
+    ] as const) {
+      const option = el('option', { value }, label);
+      if (s.audio.micMode === value) option.selected = true;
+      modeSelect.append(option);
+    }
+    modeSelect.addEventListener('change', () => {
+      s.audio.micMode = modeSelect.value === 'open' ? 'open' : 'push';
+      this.options.callbacks.onSettingsChanged(this.settings);
+      this.render();
+    });
+    modeRow.append(modeSelect);
+    rows.push(modeRow);
+
+    rows.push(
+      el(
+        'p',
+        { class: 'kc-note' },
+        s.audio.micMode === 'push'
+          ? 'Nobody hears you until you hold the talk control, and the microphone closes the ' +
+              'instant you let go. PC: V. VR: click the left thumbstick. Mobile: hold the mic button.'
+          : 'Your microphone opens by itself when you speak and closes shortly after you stop. ' +
+              'Holding the talk control still works, for when you are speaking too quietly to ' +
+              'trip the gate.',
+      ),
+    );
+
+    const meter = el('div', { class: 'kc-mic-meter' });
+    const fill = el('div', { class: 'kc-mic-fill' });
+    meter.append(fill);
+    this.micMeterFill = fill;
+
+    // The threshold only exists in open mic; push-to-talk still gets the meter, because "is my
+    // microphone working at all" is a question in both modes.
+    if (s.audio.micMode === 'open') {
+      const thresholdRow = el('label', { class: 'kc-field' }, el('span', {}, 'Voice activation'));
+      const thresholdInput = el('input', {
+        type: 'range',
+        min: '0',
+        max: '0.4',
+        step: '0.005',
+        value: String(s.audio.micThreshold),
+      }) as HTMLInputElement;
+      const marker = el('span', { class: 'kc-mic-marker' });
+      const setMarker = (value: number) => {
+        // 0.4 is the slider's ceiling, so the marker shares the meter's scale and a player can
+        // line the threshold up against how loud they actually are.
+        marker.style.left = `${Math.min(100, (value / 0.4) * 100)}%`;
+      };
+      setMarker(s.audio.micThreshold);
+      thresholdInput.addEventListener('input', () => {
+        s.audio.micThreshold = Number(thresholdInput.value);
+        setMarker(s.audio.micThreshold);
+        this.options.callbacks.onSettingsChanged(this.settings);
+      });
+      thresholdRow.append(thresholdInput);
+      rows.push(thresholdRow);
+      meter.append(marker);
+    }
+    rows.push(meter);
+
+    rows.push(
+      el(
+        'p',
+        { class: 'kc-note kc-mic-status' },
+        'Turn voice chat on and speak — the bar should move.',
+      ),
+    );
+    this.micStatusNote = rows[rows.length - 1] as HTMLElement;
+
+    const deviceRow = el('label', { class: 'kc-field' }, el('span', {}, 'Input device'));
+    const deviceSelect = el('select', {}) as HTMLSelectElement;
+    deviceSelect.append(el('option', { value: '' }, 'System default'));
+    deviceSelect.addEventListener('change', () => {
+      s.audio.micDeviceId = deviceSelect.value;
+      this.options.callbacks.onSettingsChanged(this.settings);
+      this.options.callbacks.onMicDeviceChanged(deviceSelect.value);
+    });
+    deviceRow.append(deviceSelect);
+    rows.push(deviceRow);
+
+    // Labels are blank until the microphone has been granted once, so this fills in after the
+    // fact rather than blocking the panel on a permission the player may never give.
+    void this.options.callbacks.listMicDevices().then((devices) => {
+      if (!deviceSelect.isConnected) return;
+      for (const device of devices) {
+        if (!device.deviceId) continue;
+        const option = el('option', { value: device.deviceId }, device.label);
+        if (device.deviceId === s.audio.micDeviceId) option.selected = true;
+        deviceSelect.append(option);
+      }
+    });
+
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => this.pumpMicMeter());
+    return rows;
+  }
+
+  /**
+   * Drive the microphone meter from the frame loop.
+   *
+   * Called by the client each frame while the menu is open; does nothing when it is not, so a
+   * closed panel costs one null check.
+   */
+  private pumpMicMeter(): void {
+    const fill = this.micMeterFill;
+    if (!fill) return;
+    // Stops itself when the panel goes away: `render()` replaces the element, so the one this
+    // closure captured is no longer in the document and the loop has nothing left to drive.
+    if (!fill.isConnected) {
+      if (this.micMeterFill === fill) this.micMeterFill = null;
+      return;
+    }
+    const state = this.options.callbacks.micState();
+    this.updateMicMeter(state.level, state.open, state.enabled);
+    requestAnimationFrame(() => this.pumpMicMeter());
+  }
+
+  updateMicMeter(level: number, open: boolean, enabled: boolean): void {
+    if (!this.micMeterFill) return;
+    this.micMeterFill.style.width = `${Math.min(100, (level / 0.4) * 100)}%`;
+    // Green only while audio is genuinely leaving the machine. The difference between "the bar
+    // moves" and "the bar moves and it is green" is exactly the difference between a microphone
+    // that works and one the room can hear, and a player debugging this needs to see both.
+    this.micMeterFill.classList.toggle('is-live', open);
+    if (this.micStatusNote) {
+      this.micStatusNote.textContent = !enabled
+        ? 'Voice chat is off — switch it on above to test your microphone.'
+        : open
+          ? 'Live — the room can hear you.'
+          : 'Microphone open, not transmitting.';
+    }
+  }
+
+  private settingsScreen(): HTMLElement {
+    const s = this.settings;
+    const panel = el('div', { class: 'kc-panel' });
+
+    const slider = (label: string, value: number, min: number, max: number, step: number, apply: (v: number) => void): HTMLElement => {
+      const input = el('input', { type: 'range', min: String(min), max: String(max), step: String(step), value: String(value) }) as HTMLInputElement;
+      const readout = el('span', {}, value.toFixed(2));
+      input.addEventListener('input', () => {
+        const v = Number.parseFloat(input.value);
+        readout.textContent = v.toFixed(2);
+        apply(v);
+        this.options.callbacks.onSettingsChanged(this.settings);
+      });
+      return el('label', { class: 'kc-field' }, el('span', {}, label), input, readout);
+    };
+
+    const toggle = (label: string, value: boolean, apply: (v: boolean) => void): HTMLElement => {
+      const input = el('input', { type: 'checkbox', checked: value }) as HTMLInputElement;
+      input.addEventListener('change', () => {
+        apply(input.checked);
+        this.options.callbacks.onSettingsChanged(this.settings);
+      });
+      return el('label', { class: 'kc-field' }, el('span', {}, label), input);
+    };
+
+    const select = (label: string, value: string, options: string[], apply: (v: string) => void): HTMLElement => {
+      const node = el('select', {}) as HTMLSelectElement;
+      for (const option of options) {
+        const opt = el('option', { value: option }, option);
+        if (option === value) opt.selected = true;
+        node.append(opt);
+      }
+      node.addEventListener('change', () => {
+        apply(node.value);
+        this.options.callbacks.onSettingsChanged(this.settings);
+      });
+      return el('label', { class: 'kc-field' }, el('span', {}, label), node);
+    };
+
+    panel.append(
+      el('h3', {}, 'Graphics'),
+      select('Quality', s.graphics.quality, ['auto', 'low', 'medium', 'high'], (v) => {
+        s.graphics.quality = v as Settings['graphics']['quality'];
+      }),
+      toggle('Shadows', s.graphics.shadows, (v) => {
+        s.graphics.shadows = v;
+      }),
+      slider('Render scale', s.graphics.renderScale, 0.5, 1.5, 0.05, (v) => {
+        s.graphics.renderScale = v;
+      }),
+      slider('Scenery', s.graphics.sceneryDetail, 0.25, 1, 0.05, (v) => {
+        s.graphics.sceneryDetail = v;
+      }),
+
+      el('h3', {}, 'Audio'),
+      slider('Master', s.audio.master, 0, 1, 0.05, (v) => {
+        s.audio.master = v;
+      }),
+      slider('Effects', s.audio.sfx, 0, 1, 0.05, (v) => {
+        s.audio.sfx = v;
+      }),
+      slider('Voice', s.audio.voice, 0, 1, 0.05, (v) => {
+        s.audio.voice = v;
+      }),
+      toggle('Voice chat', s.voiceEnabled, (v) => {
+        s.voiceEnabled = v;
+        this.options.callbacks.onVoiceToggle(v);
+      }),
+      ...this.micSection(s),
+
+      el('h3', {}, 'Comfort (VR)'),
+      // First in the section because it decides what the other comfort options are even for:
+      // arms-only has no artificial locomotion to be uncomfortable about.
+      select('Locomotion', s.comfort.vrLocomotion, ['arms', 'assisted'], (v) => {
+        s.comfort.vrLocomotion = v as Settings['comfort']['vrLocomotion'];
+      }),
+      el(
+        'p',
+        { class: 'kc-note' },
+        'arms — hands only, no stick and no hop button. How the game is meant to be played, and ' +
+          'the reason it does not make people sick. assisted — adds the stick and the hop for ' +
+          'seated play or limited reach.',
+      ),
+      toggle('Snap turn', s.comfort.snapTurn, (v) => {
+        s.comfort.snapTurn = v;
+      }),
+      slider('Snap angle', s.comfort.snapAngleDegrees, 15, 90, 5, (v) => {
+        s.comfort.snapAngleDegrees = v;
+      }),
+      slider('Smooth turn speed (deg/s, off while snap turn is on)', s.comfort.smoothTurnSpeed, 60, 240, 10, (v) => {
+        s.comfort.smoothTurnSpeed = v;
+      }),
+      slider('Comfort vignette', s.comfort.vignette, 0, 1, 0.05, (v) => {
+        s.comfort.vignette = v;
+      }),
+      slider('Height calibration (m, 0 = auto)', s.comfort.heightCalibration, 0, 2.2, 0.01, (v) => {
+        s.comfort.heightCalibration = v;
+      }),
+      toggle('Seated mode', s.comfort.seated, (v) => {
+        s.comfort.seated = v;
+      }),
+      select('Handedness', s.comfort.handedness, ['right', 'left'], (v) => {
+        s.comfort.handedness = v as Settings['comfort']['handedness'];
+      }),
+      slider('Grab sensitivity (higher = lighter squeeze grabs)', s.comfort.grabSensitivity, 0.2, 3, 0.1, (v) => {
+        s.comfort.grabSensitivity = v;
+      }),
+
+      el('h3', {}, 'Controls'),
+      slider('Look sensitivity', s.controls.lookSensitivity, 0.1, 4, 0.1, (v) => {
+        s.controls.lookSensitivity = v;
+      }),
+      toggle('Invert Y', s.controls.invertY, (v) => {
+        s.controls.invertY = v;
+      }),
+      slider('Joystick size', s.controls.joystickSize, 60, 220, 5, (v) => {
+        s.controls.joystickSize = v;
+      }),
+      toggle('Gamepad', s.controls.gamepadEnabled, (v) => {
+        s.controls.gamepadEnabled = v;
+      }),
+
+      el('h3', {}, 'Movement tuning'),
+      ...this.tuningRows(),
+
+      el('h3', {}, 'Match'),
+      toggle('Cross-play (mobile / PC / VR together)', s.crossPlay, (v) => {
+        s.crossPlay = v;
+      }),
+      toggle('Reduce motion', s.reduceMotion, (v) => {
+        s.reduceMotion = v;
+      }),
+      // Named for what it sends rather than for the word "telemetry", which tells a player
+      // nothing about what they are agreeing to. What it sends is in telemetry/errors.ts: the
+      // error, the build, the platform and the route — no name, no chat, no voice, no position.
+      toggle('Send crash reports (no personal data)', s.errorReports, (v) => {
+        s.errorReports = v;
+      }),
+    );
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Settings'),
+      panel,
+      el('div', { class: 'kc-row' }, button('Credits & licences', () => this.show('credits')), button('Back', () => this.show('menu'))),
+    );
+  }
+
+  /**
+   * Credits screen.
+   *
+   * Generated from the credit registry rather than hand-written: CC-BY assets and MIT libraries
+   * may only ship if they are attributed, so the list has to be derived from what the build
+   * actually contains. `credits.test.ts` fails the build if a pack in `assets/packs.json`
+   * requires attribution and has no entry here.
+   */
+  private creditsScreen(): HTMLElement {
+    const panel = el('div', { class: 'kc-panel' });
+    const grouped = new Map<LicenceId, Credit[]>();
+    for (const credit of listCredits()) {
+      const bucket = grouped.get(credit.licence) ?? [];
+      bucket.push(credit);
+      grouped.set(credit.licence, bucket);
+    }
+
+    for (const [licence, entries] of [...grouped].sort((a, b) => a[0].localeCompare(b[0]))) {
+      panel.append(el('h3', {}, licence));
+      for (const credit of entries) {
+        panel.append(
+          el(
+            'div',
+            { class: 'kc-credit' },
+            el('strong', {}, credit.work),
+            el('span', {}, credit.author ? ` — ${credit.author}` : ''),
+            credit.note ? el('p', { class: 'kc-note' }, credit.note) : null,
+            credit.sourceUrl ? el('p', { class: 'kc-note' }, credit.sourceUrl) : null,
+          ),
+        );
+      }
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Credits & licences', 'Everyone whose work ships inside this build.'),
+      panel,
+      el('p', { class: 'kc-note' }, 'Art packs are optional; the game renders procedurally when none are installed.'),
+      button('Back', () => this.show('settings')),
+    );
+  }
+
+  /**
+   * Players & safety: mute, block and report anyone in the room — and, for a moderator, act on
+   * them and read the report queue.
+   *
+   * The server has accepted reports, mutes and blocks since the first multiplayer build, and the
+   * client never offered any of them. In a game with open proximity voice that is the one screen
+   * a player being harassed needs, and it did not exist.
+   */
+  private playersScreen(): HTMLElement {
+    const { players, isModerator, reports } = this.options.callbacks.safety();
+    this.socialDrawn = JSON.stringify(this.options.callbacks.social());
+    const act = (action: SafetyAction): void => {
+      this.options.callbacks.onSafetyAction(action);
+      // Mute and block change the row's own buttons; redraw so the toggle shows its new state.
+      if (action.kind !== 'report') this.render();
+    };
+    const list = el('div', { class: 'kc-panel' });
+    if (players.length === 0) {
+      list.append(el('p', { class: 'kc-note' }, 'Nobody else is here. In practice the other players are bots.'));
+    }
+    for (const player of players) {
+      const reason = el(
+        'select',
+        { class: 'kc-select', ariaLabel: `Why report ${player.name}` },
+        ...REPORT_REASONS.map(([value, label]) => el('option', { value }, label)),
+      ) as HTMLSelectElement;
+      const row = el(
+        'div',
+        { class: 'kc-safety-row' },
+        el('strong', {}, player.name),
+        player.moderator ? el('span', { class: 'kc-tag kc-tag--mod' }, 'MOD') : null,
+        el('span', { class: 'kc-note' }, ` ${player.animalId}`),
+        el(
+          'div',
+          { class: 'kc-row' },
+          this.friendButton(player.id),
+          button(player.muted ? 'Unmute' : 'Mute', () => act({ kind: player.muted ? 'unmute' : 'mute', id: player.id })),
+          button(player.blocked ? 'Unblock' : 'Block', () => act({ kind: player.blocked ? 'unblock' : 'block', id: player.id }), 'danger'),
+          reason,
+          button('Report', () => act({ kind: 'report', id: player.id, reason: reason.value as ReportReason })),
+        ),
+        isModerator && !player.moderator ? this.moderatorButtons(player.id, act) : null,
+      );
+      list.append(row);
+    }
+
+    const sections: HTMLElement[] = [list];
+    if (isModerator) {
+      const queue = el('div', { class: 'kc-panel' }, el('h3', {}, 'Reports'));
+      queue.append(button('Refresh', () => act({ kind: 'mod-refresh' })));
+      if (reports.length === 0) queue.append(el('p', { class: 'kc-note' }, 'No reports.'));
+      for (const report of reports.slice(0, 30)) {
+        const when = new Date(report.at).toLocaleTimeString();
+        queue.append(
+          el(
+            'div',
+            { class: 'kc-safety-row' },
+            el('strong', {}, report.targetName),
+            el(
+              'span',
+              { class: 'kc-note' },
+              ` ${report.reason} — by ${report.reporterName}, ${when}, room ${report.roomCode || '?'} · ${report.reporters} reporter${report.reporters === 1 ? '' : 's'}${report.autoMuted ? ' · auto-muted' : ''}`,
+            ),
+            this.moderatorButtons(report.targetId, act),
+          ),
+        );
+      }
+      sections.push(queue);
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Players & safety', 'Mute or block anyone for yourself, instantly. Reports go to the moderators.'),
+      this.noticeNode(),
+      ...sections,
+      el('div', { class: 'kc-row' }, button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  /**
+   * "Add friend" on somebody you are playing with — the one place two players who have just met
+   * both have each other's id. The button says where things stand, so a second tap is never a
+   * second request.
+   */
+  private friendButton(playerId: string): HTMLElement | null {
+    const social = this.options.callbacks.social();
+    if (!social || !this.online) return null;
+    if (social.friends.some((f) => f.id === playerId)) return el('span', { class: 'kc-tag' }, 'Friends');
+    if (social.outgoing.some((r) => r.id === playerId)) return el('span', { class: 'kc-tag' }, 'Request sent');
+    if (social.incoming.some((r) => r.id === playerId)) {
+      return button('Accept friend', () => void this.socialAct('friends/accept', { playerId }), 'primary');
+    }
+    return button('Add friend', () => void this.socialAct('friends/request', { playerId }));
+  }
+
+  /**
+   * Friends, requests and the party.
+   *
+   * Everything on it is the server's answer to the last poll or action; no button changes what is
+   * shown by itself, so the screen can never claim a friendship the server did not record.
+   */
+  private friendsScreen(): HTMLElement {
+    const social = this.options.callbacks.social();
+    this.socialDrawn = JSON.stringify(social);
+    const me = this.options.callbacks.localId();
+    const sections: HTMLElement[] = [];
+
+    if (!social) {
+      sections.push(el('div', { class: 'kc-section' }, el('p', { class: 'kc-note' }, 'Asking the server…')));
+    } else {
+      const party = social.party;
+      const leading = party?.leaderId === me;
+      if (party) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, `Your party (${party.members.length}/${party.max})`));
+        for (const member of party.members) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, member.id === me ? `${member.name} (you)` : member.name),
+              member.leader ? el('span', { class: 'kc-tag kc-tag--mod' }, 'LEADER') : null,
+              el('span', { class: 'kc-note' }, ` ${presenceLabel(member.presence)}`),
+              leading && member.id !== me
+                ? el('div', { class: 'kc-row' }, button('Remove', () => void this.socialAct('party/kick', { playerId: member.id }), 'danger'))
+                : null,
+            ),
+          );
+        }
+        if (party.invited.length > 0) {
+          panel.append(el('p', { class: 'kc-note' }, `Waiting for ${party.invited.map((i) => i.name).join(', ')} to answer.`));
+        }
+        panel.append(
+          el(
+            'p',
+            { class: 'kc-note' },
+            leading
+              ? 'Wherever you play, your party follows — quick play finds a room with space for all of you.'
+              : 'You follow the leader: when they join a room, you join it too.',
+          ),
+          el('div', { class: 'kc-row' }, button('Leave party', () => void this.socialAct('party/leave', {}), 'danger')),
+        );
+        sections.push(panel);
+      }
+
+      if (social.invites.length > 0) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, 'Party invites'));
+        for (const invite of social.invites) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, invite.fromName),
+              el('span', { class: 'kc-note' }, ` invited you · party of ${invite.size}`),
+              el(
+                'div',
+                { class: 'kc-row' },
+                button('Join party', () => void this.socialAct('party/accept', { partyId: invite.partyId }), 'primary'),
+                button('Decline', () => void this.socialAct('party/decline', { partyId: invite.partyId })),
+              ),
+            ),
+          );
+        }
+        sections.push(panel);
+      }
+
+      if (social.incoming.length > 0 || social.outgoing.length > 0) {
+        const panel = el('div', { class: 'kc-section' }, el('h3', {}, 'Friend requests'));
+        for (const request of social.incoming) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, request.name),
+              el('span', { class: 'kc-note' }, ' wants to be friends'),
+              el(
+                'div',
+                { class: 'kc-row' },
+                button('Accept', () => void this.socialAct('friends/accept', { playerId: request.id }), 'primary'),
+                button('Decline', () => void this.socialAct('friends/remove', { playerId: request.id })),
+              ),
+            ),
+          );
+        }
+        for (const request of social.outgoing) {
+          panel.append(
+            el(
+              'div',
+              { class: 'kc-safety-row' },
+              el('strong', {}, request.name),
+              el('span', { class: 'kc-note' }, ' — waiting for an answer'),
+              el('div', { class: 'kc-row' }, button('Cancel', () => void this.socialAct('friends/remove', { playerId: request.id }))),
+            ),
+          );
+        }
+        sections.push(panel);
+      }
+
+      const list = el('div', { class: 'kc-section' }, el('h3', {}, `Friends (${social.friends.length})`));
+      if (social.friends.length === 0) {
+        list.append(
+          el('p', { class: 'kc-note' }, 'No friends yet. In a match, open Players & safety and press Add friend on someone you played with.'),
+        );
+      }
+      for (const friend of social.friends) list.append(this.friendRow(friend, party?.id ?? null, leading || !party));
+      sections.push(list);
+    }
+
+    // One scrolling panel with sections, not a panel per section: `.kc-screen` shrinks each panel
+    // to fit the viewport, and four panels on a 640 px screen became four scroll boxes a row tall —
+    // measured in a real browser, the second party member and every friend's buttons were cut off.
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Friends & party', 'Friends see which public room you are in. A party follows its leader into every room.'),
+      this.noticeNode(),
+      el('div', { class: 'kc-panel' }, ...sections),
+      el('div', { class: 'kc-row' }, button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  private friendRow(friend: FriendView, partyId: string | null, canInvite: boolean): HTMLElement {
+    const room = friend.room;
+    const where =
+      friend.presence === 'match' && room
+        ? room.isPrivate
+          ? `In a private room · ${this.modeName(room.modeId)}`
+          : `In ${this.modeName(room.modeId)} · ${room.players}/${room.max}`
+        : presenceLabel(friend.presence);
+    const actions: HTMLElement[] = [];
+    // Joining by code goes through the same matchmaking as typing it, so a full room still says so.
+    if (room?.code && !friend.inParty) {
+      actions.push(button(this.inMatch ? 'Leave & join' : 'Join', () => this.options.callbacks.onJoinFriend(room.code as string), 'primary'));
+    }
+    if (canInvite && !friend.inParty && friend.presence !== 'offline') {
+      actions.push(button(partyId ? 'Invite to party' : 'Start a party', () => void this.socialAct('party/invite', { playerId: friend.id })));
+    }
+    actions.push(button('Remove', () => void this.socialAct('friends/remove', { playerId: friend.id }), 'danger'));
+    return el(
+      'div',
+      { class: 'kc-safety-row' },
+      el('strong', {}, friend.name),
+      friend.inParty ? el('span', { class: 'kc-tag kc-tag--mod' }, 'PARTY') : null,
+      el('span', { class: 'kc-note' }, ` ${where}`),
+      el('div', { class: 'kc-row' }, ...actions),
+    );
+  }
+
+  private moderatorButtons(targetId: string, act: (action: SafetyAction) => void): HTMLElement {
+    const mod = (action: ModActionKind, minutes?: number) => () =>
+      act({ kind: 'mod', action, id: targetId, ...(minutes === undefined ? {} : { minutes }) });
+    return el(
+      'div',
+      { class: 'kc-row kc-row--mod' },
+      button('Kick', mod('kick'), 'danger'),
+      button('Mute 10 min', mod('mute', 10)),
+      button('Unmute', mod('unmute')),
+      button('Ban 1 day', mod('ban', 24 * 60), 'danger'),
+      button('Ban forever', mod('ban', 0), 'danger'),
+      button('Unban', mod('unban')),
+    );
+  }
+
+  private tutorialScreen(): HTMLElement {
+    const list = el('div', { class: 'kc-panel' });
+    for (const hint of this.options.controlHints()) {
+      list.append(el('div', { class: 'kc-field' }, el('span', {}, hint.action), el('strong', {}, hint.hint)));
+    }
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('How to play', 'Chasers tag runners. Get tagged and you become the chaser.'),
+      list,
+      el(
+        'p',
+        { class: 'kc-note' },
+        this.options.platform === 'vr'
+          ? 'In VR you move with your hands: grab a surface and pull, or shove off a wall. Momentum is kept when you let go.'
+          : 'Hold the hop button to charge a longer jump. Hold grab near a wall, branch or rock to climb it.',
+      ),
+      button('Got it', () => this.show('menu'), 'primary'),
+    );
+  }
+
+  /**
+   * Challenges: the running event (or the next one) and every achievement, with progress.
+   *
+   * Achievements were counted by the server and shown nowhere — the results screen said
+   * "1 achievement(s) unlocked" and there was no page listing what they were, what was left, or
+   * how close anything was. Events were worse: dated, with challenges, and read by nothing.
+   */
+  private challengesScreen(): HTMLElement {
+    const bundle = this.profile;
+    const coins = bundle?.profile.coins ?? 0;
+    const now = Date.now();
+    const panel = el('div', { class: 'kc-panel' });
+
+    if (!bundle) {
+      panel.append(
+        el('div', { class: 'kc-section' }, el('p', { class: 'kc-note' }, 'Progress is kept on the server — connect to see yours.')),
+      );
+    }
+
+    for (const event of bundle?.events ?? []) {
+      const section = el(
+        'div',
+        { class: 'kc-section' },
+        el('h3', {}, event.name),
+        el('p', { class: 'kc-note' }, event.active ? `Event · ${countdown(event.endsAt, now, 'ends')}` : `Next event · ${countdown(event.startsAt, now, 'starts')}`),
+      );
+      for (const { challenge, value, done } of event.challenges) {
+        section.append(
+          this.goalRow(challenge.name, challenge.description, progressLine(challenge.metric, value, challenge.threshold, false, done), challenge.rewardCoins, done, event.active),
+        );
+      }
+      if (!event.active) section.append(el('p', { class: 'kc-note' }, 'Only what you do while the event runs counts.'));
+      panel.append(section);
+    }
+
+    if (bundle && bundle.achievements.length > 0) {
+      const section = el('div', { class: 'kc-section' }, el('h3', {}, 'Achievements'));
+      const done = bundle.achievements.filter((a) => a.done).length;
+      section.append(el('p', { class: 'kc-note' }, `${done} of ${bundle.achievements.length} unlocked`));
+      for (const { def, value, done: reached } of bundle.achievements) {
+        if (def.hidden && !reached) continue;
+        section.append(this.goalRow(def.name, def.description, progressLine(def.metric, value, def.threshold, def.lowerIsBetter, reached), def.rewardCoins, reached, true));
+      }
+      panel.append(section);
+    }
+
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header('Challenges', `🪙 ${coins} · coins are spent on the season's coin shelf`),
+      panel,
+      this.noticeNode(),
+      el('div', { class: 'kc-row' }, button('Season pass', () => this.show('store')), button('Back', () => this.show('menu'), 'primary')),
+    );
+  }
+
+  private goalRow(name: string, description: string, line: { text: string; fraction: number }, coins: number, done: boolean, live: boolean): HTMLElement {
+    return el(
+      'div',
+      { class: `kc-safety-row kc-goal${done ? ' kc-goal--done' : ''}` },
+      el('strong', {}, done ? `${name} ✓` : name),
+      el('span', { class: 'kc-note' }, description),
+      el(
+        'div',
+        { class: 'kc-xpbar' },
+        el('i', { style: { width: `${Math.round(line.fraction * 100)}%`, ...(live ? {} : { opacity: '0.35' }) } }),
+        el('span', {}, line.text),
+      ),
+      el('span', { class: 'kc-tag' }, done ? `Paid 🪙 ${coins}` : `Reward 🪙 ${coins}`),
+    );
+  }
+
+  /** Results overlay shown after a round. */
+  showResults(result: MatchResult, rewards: Record<string, RoundRewards>, localId: string): void {
+    this.results = { result, rewards, localId };
+    this.show('results');
+    // The round just paid coins, XP and maybe a challenge; without this the menu kept showing the
+    // balance from when the game was opened, and the coin shelf offered "Buy" by a stale number.
+    if (this.online) void this.refreshProfile();
+  }
+
+  private resultsScreen({
+    result,
+    rewards,
+    localId,
+  }: {
+    result: MatchResult;
+    rewards: Record<string, RoundRewards>;
+    localId: string;
+  }): HTMLElement {
+    const table = el('table');
+    table.append(
+      el('tr', {}, el('th', {}, '#'), el('th', {}, 'Player'), el('th', {}, 'Score'), el('th', {}, 'Tags')),
+    );
+    for (const player of result.players) {
+      const row = el(
+        'tr',
+        { class: player.playerId === localId ? 'me' : '' },
+        el('td', {}, String(player.placement)),
+        el('td', {}, player.name),
+        el('td', {}, String(player.score)),
+        el('td', {}, String(player.tags)),
+      );
+      table.append(row);
+    }
+
+    const reward = rewards[localId];
+    return el(
+      'div',
+      { class: 'kc-screen' },
+      this.header(result.winnerIds.includes(localId) ? 'You win!' : 'Round over'),
+      el('div', { class: 'kc-panel kc-results' }, table),
+      reward ? el('p', { class: 'kc-note' }, `+${reward.coins} coins · +${reward.xp} XP`) : null,
+      // By name, with what each paid. A count ("1 achievement(s) unlocked") told the player that
+      // something happened and not what, and there was no screen to go and find out on.
+      ...unlockedLines(reward).map((line) => el('p', { class: 'kc-note kc-unlock' }, line)),
+      el('div', { class: 'kc-row' }, button('Play again', () => this.options.callbacks.onPlayAgain(), 'primary'), button('Menu', () => this.options.callbacks.onLeaveMatch())),
+      // Without a notice node here the element stays null on this screen, so the next setNotice
+      // falls back to a full re-render — the very path that used to blank it.
+      this.noticeNode(),
+    );
+  }
+
+  hide(): void {
+    this.screen = 'none';
+    clear(this.element);
+  }
+
+  private async equipAnimal(animalId: string): Promise<void> {
+    try {
+      await this.options.api.equipAnimal(animalId);
+      if (this.profile) this.profile.profile.equipped.animalId = animalId;
+      this.options.callbacks.onAnimalChanged(animalId);
+      this.notice = '';
+    } catch (error) {
+      this.notice = `Could not equip: ${(error as Error).message}`;
+    }
+    this.render();
+  }
+
+  private async equipCosmetic(slot: CosmeticSlot, cosmeticId: string | null): Promise<void> {
+    try {
+      const response = await this.options.api.equipCosmetic(slot, cosmeticId);
+      if (this.profile) this.profile.profile.equipped = response.equipped;
+      this.options.callbacks.onCosmeticsChanged(response.equipped.cosmetics as Record<string, string>);
+      this.notice = '';
+    } catch (error) {
+      this.notice = `Could not equip: ${(error as Error).message}`;
+    }
+    this.render();
+    this.showCosmeticSlot(slot);
+  }
+
+  private async claimDaily(): Promise<void> {
+    try {
+      const response = await this.options.api.claimDaily();
+      this.notice = response.claim.ok ? `Day ${response.claim.streak} reward claimed!` : 'Already claimed today.';
+      await this.refreshProfile();
+    } catch (error) {
+      this.notice = `Could not claim: ${(error as Error).message}`;
+      this.render();
+    }
+  }
+
+  private async refreshProfile(): Promise<void> {
+    try {
+      this.profile = await this.options.api.getProfile();
+    } catch {
+      // Keep the cached profile; the notice already explains what happened.
+    }
+    this.render();
+  }
+}

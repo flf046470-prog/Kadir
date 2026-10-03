@@ -1,0 +1,149 @@
+import type { CosmeticSlot } from '../content/cosmetics.js';
+import type { AchievementMetric } from '../content/achievements.js';
+import { DEFAULT_LOADOUT, freeGadgetIds } from '../gadgets/catalog.js';
+import { listAnimals } from './../content/animals.js';
+import { isStarterCosmetic, listCosmetics } from './../content/cosmetics.js';
+import type { GadgetSlot } from '../gadgets/types.js';
+import type { EventRecord } from './events.js';
+
+export const SAVE_VERSION = 3;
+
+export type StatBlock = Record<AchievementMetric, number>;
+
+export interface EquippedLoadout {
+  animalId: string;
+  cosmetics: Partial<Record<CosmeticSlot, string>>;
+  /** Chosen before the round. The server re-validates it against `ownedGadgets` every time. */
+  gadgets: Partial<Record<GadgetSlot, string>>;
+}
+
+export interface PurchaseRecord {
+  itemId: string;
+  priceCents: number;
+  /** Store transaction id from the platform receipt (or "coins" for soft-currency buys). */
+  transactionId: string;
+  at: number;
+}
+
+export interface DailyState {
+  /** Days since epoch of the last claim; -1 when never claimed. */
+  lastClaimDay: number;
+  streak: number;
+}
+
+export interface SeasonState {
+  seasonId: string;
+  xp: number;
+  premiumOwned: boolean;
+  claimedFree: number[];
+  claimedPremium: number[];
+}
+
+export interface PlayerProfile {
+  version: number;
+  playerId: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+
+  coins: number;
+  xp: number;
+  level: number;
+
+  ownedAnimals: string[];
+  ownedCosmetics: string[];
+  ownedGadgets: string[];
+  equipped: EquippedLoadout;
+
+  stats: StatBlock;
+  achievements: Record<string, number>;
+  daily: DailyState;
+  season: SeasonState;
+  purchases: PurchaseRecord[];
+
+  /** Moderation state kept with the profile so it survives reconnects. */
+  mutedPlayerIds: string[];
+  blockedPlayerIds: string[];
+
+  /**
+   * Friends and pending requests, by player id. Mutual and written on both profiles together —
+   * see `social/friends.ts`, which is the only thing that should edit them.
+   */
+  friendIds: string[];
+  friendRequestsIn: string[];
+  friendRequestsOut: string[];
+
+  /** Per-event progress, keyed by event id — see `progression/events.ts`. */
+  events: Record<string, EventRecord>;
+
+  /**
+   * Sanctions *on* this player, kept with the profile so a restart does not lift them. Unix ms;
+   * absent or past = none. A permanent ban is `Number.MAX_SAFE_INTEGER`.
+   */
+  banUntil?: number;
+  muteUntil?: number;
+  sanctionReason?: string;
+}
+
+export function emptyStats(): StatBlock {
+  return {
+    tags: 0,
+    wins: 0,
+    rounds: 0,
+    escapes: 0,
+    infectionSurvivals: 0,
+    climbMetres: 0,
+    parkourFinishes: 0,
+    knockouts: 0,
+    playSeconds: 0,
+    distanceMetres: 0,
+    bestLapSeconds: -1,
+  };
+}
+
+export function createProfile(playerId: string, name: string, now = Date.now()): PlayerProfile {
+  return {
+    version: SAVE_VERSION,
+    playerId,
+    name,
+    createdAt: now,
+    updatedAt: now,
+    coins: 250,
+    xp: 0,
+    level: 1,
+    // Everything, from the moment the account exists — every animal, every gadget and every
+    // starter cosmetic. Nothing is sold; the only things left to own are a season's own cosmetics,
+    // which are earned by playing (`isStarterCosmetic`).
+    ownedAnimals: listAnimals().map((animal) => animal.id),
+    ownedCosmetics: listCosmetics().filter(isStarterCosmetic).map((cosmetic) => cosmetic.id),
+    ownedGadgets: freeGadgetIds(),
+    equipped: {
+      animalId: 'kangaroo',
+      cosmetics: {},
+      gadgets: { ...DEFAULT_LOADOUT },
+    },
+    stats: emptyStats(),
+    achievements: {},
+    daily: { lastClaimDay: -1, streak: 0 },
+    // The premium track is free like everything else; the flag stays so the two reward
+    // tracks remain distinguishable in the season data.
+    season: { seasonId: 'season-1', xp: 0, premiumOwned: true, claimedFree: [], claimedPremium: [] },
+    purchases: [],
+    mutedPlayerIds: [],
+    blockedPlayerIds: [],
+    friendIds: [],
+    friendRequestsIn: [],
+    friendRequestsOut: [],
+    events: {},
+  };
+}
+
+/** XP curve: gentle and predictable — no paywall shaped like a difficulty spike. */
+export function levelForXp(xp: number): number {
+  return Math.max(1, Math.floor(Math.sqrt(xp / 250)) + 1);
+}
+
+export function xpForLevel(level: number): number {
+  const l = Math.max(1, level) - 1;
+  return l * l * 250;
+}

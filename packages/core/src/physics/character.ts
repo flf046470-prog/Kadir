@@ -1,0 +1,370 @@
+import type { Vec3 } from '../math/vec3.js';
+import { v3copy, v3dot, v3set, v3zero } from '../math/vec3.js';
+import { closestPointSegmentCollider, colliderTop } from './geometry.js';
+import type { Collider, RaycastResult, SurfaceProps } from './types.js';
+import { DEFAULT_SURFACE, SurfaceFlags, hasFlag, makeRaycastResult } from './types.js';
+import type { PhysicsWorld } from './world.js';
+
+export interface CapsuleShape {
+  radius: number;
+  /** Total standing height, feet at `position`. */
+  height: number;
+}
+
+export interface MoveParams {
+  /** Cosine of the steepest walkable slope (≈0.6 → 53°). */
+  minGroundNormalY: number;
+  /** Contact tolerance; keeps the capsule from jittering between touching and not. */
+  skin: number;
+  /** Vertical distance probed below the feet for ground contact. */
+  groundProbe: number;
+  /** Maximum ledge height that is climbed automatically while grounded. */
+  stepOffset: number;
+  /** Max depenetration passes per substep. */
+  maxIterations: number;
+}
+
+export const DEFAULT_MOVE_PARAMS: MoveParams = {
+  minGroundNormalY: 0.6,
+  skin: 0.02,
+  groundProbe: 0.12,
+  stepOffset: 0.45,
+  maxIterations: 4,
+};
+
+export interface MoveResult {
+  grounded: boolean;
+  groundNormal: Vec3;
+  groundColliderIndex: number;
+  groundSurface: SurfaceProps;
+  touchedWall: boolean;
+  wallNormal: Vec3;
+  wallColliderIndex: number;
+  wallSurface: SurfaceProps;
+  /** Speed removed by the wall contact this move — drives wall-bounce and impact audio. */
+  wallImpactSpeed: number;
+  /** Downward speed removed by the ground contact — drives landing audio/animation. */
+  landImpactSpeed: number;
+  touchedCeiling: boolean;
+}
+
+export function makeMoveResult(): MoveResult {
+  return {
+    grounded: false,
+    groundNormal: { x: 0, y: 1, z: 0 },
+    groundColliderIndex: -1,
+    groundSurface: DEFAULT_SURFACE,
+    touchedWall: false,
+    wallNormal: { x: 0, y: 0, z: 0 },
+    wallColliderIndex: -1,
+    wallSurface: DEFAULT_SURFACE,
+    wallImpactSpeed: 0,
+    landImpactSpeed: 0,
+    touchedCeiling: false,
+  };
+}
+
+const _p0: Vec3 = { x: 0, y: 0, z: 0 };
+const _p1: Vec3 = { x: 0, y: 0, z: 0 };
+const _onSeg: Vec3 = { x: 0, y: 0, z: 0 };
+const _onCol: Vec3 = { x: 0, y: 0, z: 0 };
+const _normal: Vec3 = { x: 0, y: 0, z: 0 };
+const _probePos: Vec3 = { x: 0, y: 0, z: 0 };
+const _savedPos: Vec3 = { x: 0, y: 0, z: 0 };
+const _savedVel: Vec3 = { x: 0, y: 0, z: 0 };
+const _stepRay: RaycastResult = makeRaycastResult();
+const _stepFrom: Vec3 = { x: 0, y: 0, z: 0 };
+const _down: Vec3 = { x: 0, y: -1, z: 0 };
+
+function capsuleSegment(position: Vec3, shape: CapsuleShape): void {
+  v3set(_p0, position.x, position.y + shape.radius, position.z);
+  v3set(_p1, position.x, position.y + Math.max(shape.height - shape.radius, shape.radius), position.z);
+}
+
+/**
+ * Kinematic capsule move: integrate, then resolve penetration and slide.
+ *
+ * Discrete-with-substeps rather than continuous sweeps: hop speeds stay under
+ * `radius * 0.75` per substep so tunnelling can't happen, and the maths stays simple enough to
+ * run identically (bit-for-bit within float tolerance) on server and client.
+ *
+ * `position` and `velocity` are mutated in place; `out` receives the contact summary.
+ */
+export function moveCapsule(
+  world: PhysicsWorld,
+  position: Vec3,
+  velocity: Vec3,
+  shape: CapsuleShape,
+  dt: number,
+  params: MoveParams,
+  out: MoveResult,
+  wasGrounded: boolean,
+): MoveResult {
+  out.grounded = false;
+  out.groundColliderIndex = -1;
+  out.touchedWall = false;
+  out.wallColliderIndex = -1;
+  out.wallImpactSpeed = 0;
+  out.landImpactSpeed = 0;
+  out.touchedCeiling = false;
+  v3set(out.groundNormal, 0, 1, 0);
+  v3zero(out.wallNormal);
+
+  const entryVelocityY = velocity.y;
+  const speed = Math.hypot(velocity.x, velocity.y, velocity.z);
+  const maxStepDistance = shape.radius * 0.75;
+  const substeps = Math.max(1, Math.min(8, Math.ceil((speed * dt) / maxStepDistance)));
+  const subDt = dt / substeps;
+
+  for (let s = 0; s < substeps; s++) {
+    v3copy(_savedPos, position);
+    v3copy(_savedVel, velocity);
+
+    position.x += velocity.x * subDt;
+    position.y += velocity.y * subDt;
+    position.z += velocity.z * subDt;
+
+    const blocked = resolve(world, position, velocity, shape, params, out);
+
+    // Auto step-up: if a low obstacle blocked us while grounded, lift and retry once.
+    if (blocked && (wasGrounded || out.grounded) && params.stepOffset > 0) {
+      v3copy(_probePos, _savedPos);
+      _probePos.y += params.stepOffset;
+      _probePos.x += _savedVel.x * subDt;
+      _probePos.z += _savedVel.z * subDt;
+      const top = overlaps(world, _probePos, shape, params) ? Number.NEGATIVE_INFINITY : stepTop(world, _probePos, _savedPos.y, _savedVel, shape, params);
+      if (top > Number.NEGATIVE_INFINITY) {
+        v3copy(position, _probePos);
+        // Onto the step, not a full `stepOffset` above it: a 10 cm kerb lifts you 10 cm.
+        position.y = top;
+        velocity.x = _savedVel.x;
+        velocity.z = _savedVel.z;
+        if (velocity.y < 0) velocity.y = 0;
+        resolve(world, position, velocity, shape, params, out);
+      }
+    }
+  }
+
+  probeGround(world, position, velocity, shape, params, out, wasGrounded);
+  // Landing speed is taken from the velocity we entered the tick with: a capsule that comes to
+  // rest exactly on the surface registers no penetration, yet the player still just landed.
+  if (out.grounded && !wasGrounded && entryVelocityY < 0) {
+    out.landImpactSpeed = Math.max(out.landImpactSpeed, -entryVelocityY);
+  }
+  return out;
+}
+
+/**
+ * The top of the step a lifted capsule would stand on, or −∞ when there is none.
+ *
+ * The step-up used to accept any lift that did not overlap, whether or not there was anything to
+ * stand on up there. Walking along a wall is "blocked" every substep, and lifting the capsule a full
+ * `stepOffset` beside a wall overlaps nothing — so it was committed, the body hung 0.45 m in the air
+ * and fell back, over and over. Measured walking the glacier with the stick: 41 such snaps in 38 s,
+ * each one a 45 cm jolt of the view in a headset. A step is somewhere to put your feet: something
+ * walkable under the lifted capsule, above where you were standing and no higher than the lift.
+ */
+function stepTop(world: PhysicsWorld, lifted: Vec3, fromY: number, velocity: Vec3, shape: CapsuleShape, params: MoveParams): number {
+  let best = Number.NEGATIVE_INFINITY;
+  const run = Math.hypot(velocity.x, velocity.z);
+  // Just past the front of the capsule: the step is what the capsule has run into.
+  const reach = run > 1e-6 ? shape.radius * 1.3 : 0;
+  // The centre, and a point towards where you were going, since a step is met with the toes first.
+  for (let k = 0; k < 2; k++) {
+    const ox = k === 0 ? 0 : (velocity.x / (run || 1)) * reach;
+    const oz = k === 0 ? 0 : (velocity.z / (run || 1)) * reach;
+    v3set(_stepFrom, lifted.x + ox, lifted.y + shape.radius, lifted.z + oz);
+    world.raycast(_stepRay, _stepFrom, _down, shape.radius + params.stepOffset + params.skin);
+    if (!_stepRay.hit || _stepRay.normal.y < params.minGroundNormalY) continue;
+    const y = _stepRay.point.y;
+    if (y > fromY + params.skin && y <= lifted.y + params.skin) best = Math.max(best, y);
+  }
+  return best;
+}
+
+/** One depenetration pass set. Returns true when a wall-like contact blocked horizontal motion. */
+function resolve(
+  world: PhysicsWorld,
+  position: Vec3,
+  velocity: Vec3,
+  shape: CapsuleShape,
+  params: MoveParams,
+  out: MoveResult,
+): boolean {
+  let blocked = false;
+  for (let iter = 0; iter < params.maxIterations; iter++) {
+    capsuleSegment(position, shape);
+    let deepest = 0;
+    let hitIndex = -1;
+    let hitSurface: SurfaceProps = DEFAULT_SURFACE;
+    let hitTerrain = false;
+    let nx = 0;
+    let ny = 0;
+    let nz = 0;
+
+    world.queryCapsule(_p0, _p1, shape.radius, (index, collider) => {
+      if (!shouldCollide(collider, position, velocity, shape)) return;
+      const res = closestPointSegmentCollider(_onSeg, _onCol, _normal, _p0, _p1, collider);
+      const penetration = shape.radius - res.distance;
+      if (penetration <= params.skin * 0.5) return;
+      if (penetration > deepest) {
+        deepest = penetration;
+        hitIndex = index;
+        hitSurface = collider.surface;
+        hitTerrain = collider.kind === 'heightfield';
+        nx = _normal.x;
+        ny = _normal.y;
+        nz = _normal.z;
+      }
+    });
+
+    if (hitIndex < 0) break;
+
+    let push = deepest + params.skin * 0.5;
+    // Terrain too steep to stand on is a wall, not a ramp. Resolved along its real normal, every
+    // contact lifts the capsule by `ny` of the push and the slide keeps `ny` of the speed going up:
+    // measured, a capsule walking into a 60° slope climbed 10 m of it in four seconds. A box never
+    // showed this because its walls are vertical. Pushed straight out instead, it is as far as a
+    // capsule gets, and gravity slides it back down. Only terrain: an oblique contact on a boulder
+    // or a box edge is how the game has always rolled a player up over a lip.
+    if (hitTerrain && ny < params.minGroundNormalY && ny > -0.5) {
+      const flat = Math.hypot(nx, nz);
+      if (flat > 1e-6) {
+        push /= flat;
+        nx /= flat;
+        nz /= flat;
+        ny = 0;
+      }
+    }
+    position.x += nx * push;
+    position.y += ny * push;
+    position.z += nz * push;
+
+    const into = velocity.x * nx + velocity.y * ny + velocity.z * nz;
+    if (into < 0) {
+      if (ny >= params.minGroundNormalY) {
+        out.grounded = true;
+        v3set(out.groundNormal, nx, ny, nz);
+        out.groundColliderIndex = hitIndex;
+        out.groundSurface = hitSurface;
+        out.landImpactSpeed = Math.max(out.landImpactSpeed, -into);
+      } else if (ny < -0.5) {
+        out.touchedCeiling = true;
+      } else {
+        blocked = true;
+        out.touchedWall = true;
+        v3set(out.wallNormal, nx, ny, nz);
+        out.wallColliderIndex = hitIndex;
+        out.wallSurface = hitSurface;
+        out.wallImpactSpeed = Math.max(out.wallImpactSpeed, -into);
+      }
+      // Remove the component going into the surface: this is what makes the capsule slide.
+      velocity.x -= nx * into;
+      velocity.y -= ny * into;
+      velocity.z -= nz * into;
+    }
+  }
+  return blocked;
+}
+
+function overlaps(world: PhysicsWorld, position: Vec3, shape: CapsuleShape, params: MoveParams): boolean {
+  capsuleSegment(position, shape);
+  let hit = false;
+  world.queryCapsule(_p0, _p1, shape.radius, (_index, collider) => {
+    if (hit) return;
+    if (hasFlag(collider.surface, SurfaceFlags.OneWay)) return;
+    const res = closestPointSegmentCollider(_onSeg, _onCol, _normal, _p0, _p1, collider);
+    if (shape.radius - res.distance > params.skin) hit = true;
+  });
+  return hit;
+}
+
+/**
+ * Ground probe. Extending the capsule downward by `groundProbe` keeps `grounded` stable while
+ * hopping down slopes and stairs, which is what stops the "floaty kangaroo" feel.
+ */
+function probeGround(
+  world: PhysicsWorld,
+  position: Vec3,
+  velocity: Vec3,
+  shape: CapsuleShape,
+  params: MoveParams,
+  out: MoveResult,
+  wasGrounded: boolean,
+): void {
+  // Rising fast and not on the ground last tick: a jump, a bounce or a launch — never snapped down.
+  if (velocity.y > 0.5 && !wasGrounded) return;
+  const probe = wasGrounded ? params.groundProbe + params.stepOffset * 0.5 : params.groundProbe;
+  v3set(_p0, position.x, position.y + shape.radius - probe, position.z);
+  v3set(_p1, position.x, position.y + Math.max(shape.height - shape.radius, shape.radius), position.z);
+
+  let bestNy = out.grounded ? out.groundNormal.y : 0;
+  let bestIndex = out.groundColliderIndex;
+  let bestSurface = out.groundSurface;
+  let bestNormalX = out.groundNormal.x;
+  let bestNormalZ = out.groundNormal.z;
+  let snapY = Number.NEGATIVE_INFINITY;
+
+  world.queryCapsule(_p0, _p1, shape.radius, (index, collider) => {
+    if (!shouldCollide(collider, position, velocity, shape)) return;
+    const res = closestPointSegmentCollider(_onSeg, _onCol, _normal, _p0, _p1, collider);
+    if (shape.radius - res.distance <= 0) return;
+    if (_normal.y < params.minGroundNormalY) return;
+    if (_normal.y > bestNy) {
+      bestNy = _normal.y;
+      bestNormalX = _normal.x;
+      bestNormalZ = _normal.z;
+      bestIndex = index;
+      bestSurface = collider.surface;
+    }
+    snapY = Math.max(snapY, _onCol.y);
+  });
+
+  if (bestIndex >= 0 && bestNy >= params.minGroundNormalY) {
+    // Rising while grounded last tick is either walking up a slope or being launched off the ground
+    // (a punch's knockback, a palm push). The ground's own slope says which: speed along it explains
+    // `along` of rise, and anything past that is a launch. Without this, every tick up a slope that
+    // did not quite touch it read as airborne — measured on a 17° hill, grounded and airborne
+    // alternated tick by tick the whole way up, each "landing" a landing sound and a jump pose.
+    if (velocity.y > 0.5) {
+      const along = -(bestNormalX * velocity.x + bestNormalZ * velocity.z) / bestNy;
+      if (velocity.y > Math.max(0, along) + 0.5) return;
+    }
+    out.grounded = true;
+    v3set(out.groundNormal, bestNormalX, bestNy, bestNormalZ);
+    out.groundColliderIndex = bestIndex;
+    out.groundSurface = bestSurface;
+    if (wasGrounded && velocity.y <= 0 && snapY > Number.NEGATIVE_INFINITY) {
+      // Snap in both directions. Correcting only downwards leaves a grounded player sinking a
+      // few millimetres per tick (too shallow for the depenetration pass to notice), which both
+      // looks wrong and makes every idle player dirty in the network delta.
+      const target = snapY;
+      if (Math.abs(position.y - target) <= probe + params.skin) {
+        position.y = target;
+        if (velocity.y < 0) velocity.y = 0;
+      }
+    }
+  }
+}
+
+/** One-way platforms only block a capsule that is above them and descending. */
+function shouldCollide(collider: Collider, position: Vec3, velocity: Vec3, shape: CapsuleShape): boolean {
+  if (!hasFlag(collider.surface, SurfaceFlags.OneWay)) return true;
+  if (velocity.y > 0.01) return false;
+  return position.y >= colliderTop(collider) - shape.radius * 0.25;
+}
+
+/** Test whether a capsule at `position` would be free of geometry — used for spawn selection. */
+export function capsuleFits(
+  world: PhysicsWorld,
+  position: Vec3,
+  shape: CapsuleShape,
+  params: MoveParams = DEFAULT_MOVE_PARAMS,
+): boolean {
+  return !overlaps(world, position, shape, params);
+}
+
+/** Signed slope angle (radians) of a ground normal. */
+export function slopeAngle(normal: Vec3): number {
+  return Math.acos(Math.min(1, Math.max(-1, v3dot(normal, { x: 0, y: 1, z: 0 }))));
+}

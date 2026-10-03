@@ -1,0 +1,99 @@
+{
+  "$comment": [
+    "Generated with ElevenLabs Sound Effects v2 through the project owner's account (flow \"Kangaroo Chase SFX\", 2026-09-26).",
+    "Licence: ElevenLabs grants commercial use of generated sound effects on paid plans; free-plan output requires attribution and is non-commercial.",
+    "Confirm the account was on a paid plan at generation time before a commercial release, or regenerate on one.",
+    "These files are the source: generation is not deterministic, so they are committed rather than rebuilt."
+  ],
+  "files": {
+    "packages/client/public/audio/land-dirt-1.mp3": {
+      "prompt": "A single kangaroo landing on dry red dirt: a deep soft thud of two large hind feet hitting packed earth at once, a short scatter of grit, close perspective, dry, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "6M8fJVmP2u1Nv0YNK6QD",
+      "duration_s": 2
+    },
+    "packages/client/public/audio/land-dirt-2.mp3": {
+      "prompt": "A single kangaroo landing on dry red dirt: a deep soft thud of two large hind feet hitting packed earth at once, a short scatter of grit, close perspective, dry, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "3N4ney0sW3ngv0urW71d",
+      "duration_s": 2
+    },
+    "packages/client/public/audio/land-leaves-1.mp3": {
+      "prompt": "A single kangaroo landing in dense jungle undergrowth: a soft muffled thud of heavy feet on damp soil with a quick rustle of leaves and ferns, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "1nwJXd9dyeLk5EPkJTZU",
+      "duration_s": 2
+    },
+    "packages/client/public/audio/land-leaves-2.mp3": {
+      "prompt": "A single kangaroo landing in dense jungle undergrowth: a soft muffled thud of heavy feet on damp soil with a quick rustle of leaves and ferns, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "DieYQ6ALAtvFrMLks2pR",
+      "duration_s": 2
+    },
+    "packages/client/public/audio/land-snow-1.mp3": {
+      "prompt": "A single heavy animal landing on packed snow over ice: a crisp crunch of snow compressing with a hard icy thump underneath, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "H1QWlAlRqEP8OCm7cE6S",
+      "duration_s": 1
+    },
+    "packages/client/public/audio/land-snow-2.mp3": {
+      "prompt": "A single heavy animal landing on packed snow over ice: a crisp crunch of snow compressing with a hard icy thump underneath, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "CFmbCrFxVJxdnR1aaV7d",
+      "duration_s": 1
+    },
+    "packages/client/public/audio/land-hard-1.mp3": {
+      "prompt": "A heavy animal landing hard after a big fall onto rocky ground: a powerful low body impact thump with a grunt-less exhale of air, pebbles skittering away, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "42djYYBcMRWioS3oSdnm",
+      "duration_s": 3
+    },
+    "packages/client/public/audio/land-hard-2.mp3": {
+      "prompt": "A heavy animal landing hard after a big fall onto rocky ground: a powerful low body impact thump with a grunt-less exhale of air, pebbles skittering away, close perspective, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "TvvUeZiLleocAwsndKiW",
+      "duration_s": 1
+    },
+    "packages/client/public/audio/tag-1.mp3": {
+      "prompt": "Arcade game tag moment: a punchy soft body bump followed by a bright playful whoosh-pop sting, short and satisfying, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "generation": "fSqXo9rRJtP0ISNWe1fW",
+      "duration_s": 2
+    },
+    "packages/client/public/audio/loop-outback.mp3": {
+      "prompt": "Seamless looping ambience of the Australian outback at midday: warm dry wind through sparse eucalyptus leaves and dry grass, distant magpie and galah calls, cicadas faintly, wide open space, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "duration_s": 20,
+      "loop": true,
+      "prompt_influence": 0.45
+    },
+    "packages/client/public/audio/loop-jungle.mp3": {
+      "prompt": "Seamless looping ambience of a humid rainforest: dense insect hum, varied tropical bird calls near and far, leaves dripping, a distant stream, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "duration_s": 20,
+      "loop": true,
+      "prompt_influence": 0.45
+    },
+    "packages/client/public/audio/loop-glacier.mp3": {
+      "prompt": "Seamless looping ambience on a glacier: cold steady wind over open ice with gusts, faint creaks of shifting ice, powder snow hiss, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "duration_s": 20,
+      "loop": true,
+      "prompt_influence": 0.45
+    },
+    "packages/client/public/audio/loop-cave.mp3": {
+      "prompt": "Seamless looping ambience inside a rock cave: slow irregular water drips echoing into a pool, low hollow air rumble, reverberant, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "duration_s": 20,
+      "loop": true,
+      "prompt_influence": 0.45
+    },
+    "packages/client/public/audio/loop-gorge.mp3": {
+      "prompt": "Seamless looping ambience at the bottom of a sandstone gorge: a shallow creek trickling over stones, soft wind high above, occasional distant bird echoing off the walls, no voice, no music",
+      "model": "eleven_text_to_sound_v2",
+      "duration_s": 20,
+      "loop": true,
+      "prompt_influence": 0.45
+    }
+  }
+}
