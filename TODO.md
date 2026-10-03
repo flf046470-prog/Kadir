@@ -127,7 +127,11 @@ These were Milestone B items in `ROADMAP.md` and are done:
 - **Electron cannot host WebXR.** `enable_vr=false` is compiled into the Electron binary, so the
   Steam window is flat-only and "Play in VR" hands off to Chrome/Edge against the same local
   server. A Steam *VR* listing has to say so.
-- **Voice chat** is a mesh — fine to `KC_MAX_PLAYERS` (16), needs an SFU beyond that. Proximity
+- **A Steam or Epic player cannot meet another player.** The flip side of needing no origin: each
+  install runs its own server and the client connects to `location.host`, so the PC build is
+  practice against bots and nothing else. One hosted server for online play is the first item of
+  `ROADMAP.md`'s twelve months, and Epic's crossplay rule depends on it.
+- **Voice chat** is a mesh bounded by distance (`MAX_VOICE_PEERS`, `audio/voiceRange.ts`). Proximity
   falloff is applied client-side and is therefore **not enforceable**; saying otherwise would be
   a lie about a cheat. Enforcing it means putting the server in the audio path.
 - **Analytics** has an abstraction and a buffered implementation, but no backend sink.
@@ -162,9 +166,12 @@ the live server for something only the new commit has — a `hello` at the curre
 
 ## Next up (in order)
 
-1. Hardware VR pass: comfort defaults, haptics, hand tracking without controllers.
-2. Content: map, character and animation work — new sections, the nine roadmap animals,
-   richer locomotion clips.
-3. Capacitor shell for Play / App Store.
-4. Server: region sharding.
-5. Ranked mode and tournaments on top of the existing mode registry.
+The dated plan is `ROADMAP.md` → "The next twelve months". In order:
+
+1. One hosted server for every store: online play leaves `127.0.0.1` (blocks the PC release).
+2. Steam and Epic Coming Soon pages: art from `npm run pack:pc:listing`, the trailer from
+   `npm run pack:trailer`, copy from `docs/PC_LISTINGS.md` (accounts and fees are the account
+   holder's).
+3. The glacier crevasse bot wedge (measured: 29 % of bot-seconds stuck).
+4. Hardware pass: VR on a real headset, system requirements on real PCs, real-machine footage.
+5. Capacitor shell for Play / App Store; region sharding when festival numbers ask for it.

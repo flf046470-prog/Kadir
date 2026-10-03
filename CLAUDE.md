@@ -2376,6 +2376,67 @@ Cost: +6k / +13k / +17k triangles (glacier / jungle / outback) and one draw call
 holds each under 40k. Collision is untouched and so are the fingerprints — no version bump. The
 distant land's "clears the walls" test now measures against the drawn crest, not the box tops.
 
+## Steam and Epic: Coming Soon, and the twelve months after it
+
+`npm run pack:pc:listing` draws both stores' art; `docs/PC_LISTINGS.md` has the copy;
+`ROADMAP.md` → "The next twelve months" is the dated plan. Three things found doing it, and
+each one would have shipped:
+
+- **A Steam or Epic player cannot meet another player.** Each install runs its own server on
+  `127.0.0.1`, and the client connects to `ws://${location.host}/ws` (`main.ts`), which is that
+  same local server. So the PC build is practice against bots, and nothing more, until online play
+  goes to one hosted server. The "Steam needs no origin" section is still right about offline
+  play. It is also why every multiplayer line in the store copy is a promise for release, not a
+  description of the build today. Epic's rule that online play must cross-play with every other PC
+  store depends on fixing it too.
+- **The Meta long description was 27 characters over Meta's limit**: 1527 against 1500, with
+  "1424" written beside it. It also said "up to sixteen people per room" while the spec list
+  further down said 32. `scripts/lib/copy.test.ts` now parses every fenced block under a
+  `## heading` in `docs/META_LISTING.md` and `docs/PC_LISTINGS.md`. It holds each block to its
+  stated limit and to its stated count, and holds every number the copy claims (modes, animals,
+  worlds, gadgets, players per room, the feel band) to the code. A line break counts as two,
+  because a form submits CRLF and no store says what it counts. Mutation-tested: put "sixteen"
+  back, or lengthen the Steam short description, and it fails.
+- **Every Meta cover drew the kangaroo in a dark box.** The keyed glyph went through
+  `encodePngRGB`. That drops the alpha `keyOut` had just cleared, and `keyOut` leaves the colour
+  under a cleared pixel unchanged. Measured on the square cover: (29, 58, 36) inside the glyph's
+  rectangle, (42, 96, 54) just outside it. Fixed in `glyphDataUri` with RGBA. The PC art no longer
+  uses the icon at all: `renderModel` poses the shipped `kangaroo.glb` from its own run clip, on a
+  page served with `three` from `node_modules`.
+
+How the shared capture code behaves (`scripts/lib/listing.mjs`, used by both store scripts):
+
+- **Drive the menus at 1280x720 and grow the window only to capture.** At 3840x1240 under
+  swiftshader the page is too busy drawing to take a click. "Got it" timed out after 30 s while
+  visible, enabled and stable.
+- Steam capsules carry the name and artwork only. `renderCover` takes `tagline: null` for Steam,
+  and the library hero is a gameplay frame with the interface hidden (`hideInterface`).
+- Epic's offer images need "the product logo … in the center of the image", so they are
+  `renderLogo` centred over a frame, not covers.
+- Playwright's bundled ffmpeg encodes VP8 only. `pip install imageio-ffmpeg` brings a static
+  ffmpeg 7 that has libx264 and AAC, and `findFfmpeg` asks each candidate for both encoders
+  instead of trusting the name.
+
+**Offline, two of the three maps could not be played.** Practice played whatever map was loaded.
+The only map picker was on the private-room screen, which is shown only online. So an offline
+player, which today means every Steam install, could only ever play the jungle. The Game modes
+screen now shows the picker as well, and `practiceLevelFor` turns its value into a map: an id,
+`''` for "Surprise me", or the current map for an id this build does not know. The last rule
+matters because `buildLevel` falls back to the jungle for an unknown id, which would make a stale
+choice look like it had worked. Restarting the round keeps the map.
+
+**The trailer (`npm run pack:trailer`) films the game one stepped frame at a time.** Under
+swiftshader the game draws about a frame a second, and `GameClient.frame` caps a frame's step at
+100 ms, so footage recorded in real time is slow motion. `timeControlSource` replaces
+`performance.now` and `requestAnimationFrame`. Once held, every `step(ms)` runs exactly one game
+frame `ms` later, however long it takes to draw. A callback that asks for the next frame waits for
+the next step (`trailer.test.ts`; a mutation that reads the real clock fails it). The countdown
+is rolled past at 1280x720 in unfilmed 100 ms steps, and only the filmed frames are drawn at
+1920x1080. The score is `scheduleBar` (extracted from `MusicPlayer` so an `OfflineAudioContext`
+can render it) bundled with esbuild into the page. The recorded effects are left out because of
+their ElevenLabs licence. The captions live in `docs/PC_LISTINGS.md`, so `copy.test.ts` checks
+their numbers.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

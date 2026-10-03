@@ -82,64 +82,9 @@ export class MusicPlayer {
     // four hundred bars into a context whose clock ran on without it.
     for (let guard = 0; this.nextBarAt < horizon && guard < 8; guard++) {
       if (this.nextBarAt < this.ctx.currentTime) this.nextBarAt = this.ctx.currentTime + 0.05;
-      const mood = this.mood;
-      const beat = secondsPerBeat(mood);
-      for (const note of composeBar(mood, this.bar)) {
-        this.play(note, this.nextBarAt + note.beat * beat, note.length * beat);
-      }
-      this.nextBarAt += BEATS_PER_BAR * beat;
+      this.nextBarAt += scheduleBar(this.ctx, this.out, this.mood, this.bar, this.nextBarAt);
       this.bar++;
     }
-  }
-
-  private play(note: Note, at: number, seconds: number): void {
-    const ctx = this.ctx;
-    const gain = ctx.createGain();
-    const frequency = frequencyOf(note.semitone);
-
-    // One envelope shape per voice. The pad breathes in, the bass thumps, the lead plucks — which
-    // is most of what makes three oscillators sound like three instruments.
-    const attack = note.voice === 'pad' ? 0.35 : note.voice === 'bass' ? 0.01 : 0.008;
-    const release = note.voice === 'pad' ? 0.9 : note.voice === 'bass' ? 0.18 : 0.25;
-    const peak = Math.max(0.0002, note.velocity * (note.voice === 'pad' ? 0.35 : 1));
-
-    gain.gain.setValueAtTime(0.0001, at);
-    gain.gain.exponentialRampToValueAtTime(peak, at + attack);
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + Math.max(attack + 0.05, seconds) + release);
-
-    const voices: OscillatorNode[] = [];
-    const make = (type: OscillatorType, detune: number): void => {
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = frequency;
-      osc.detune.value = detune;
-      voices.push(osc);
-    };
-
-    if (note.voice === 'pad') {
-      // Two saws a few cents apart: the beating between them is the whole character of the pad,
-      // and it costs one extra oscillator rather than a reverb.
-      make('sawtooth', -6);
-      make('sawtooth', 6);
-    } else if (note.voice === 'bass') {
-      make('triangle', 0);
-    } else {
-      make('square', 0);
-    }
-
-    // Rolled off hard. Square and saw at full bandwidth are fatiguing over a five-minute round,
-    // and on a headset's speakers they are the first thing a player turns down.
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = note.voice === 'lead' ? 2600 : note.voice === 'pad' ? 1200 : 420;
-    filter.Q.value = 0.7;
-
-    for (const osc of voices) {
-      osc.connect(filter);
-      osc.start(at);
-      osc.stop(at + Math.max(attack + 0.05, seconds) + release + 0.05);
-    }
-    filter.connect(gain).connect(this.out);
   }
 
   /** Free the graph. The scheduled notes stop themselves; this stops anything new reaching the bus. */
@@ -147,4 +92,68 @@ export class MusicPlayer {
     this.stop();
     this.out.disconnect();
   }
+}
+
+/**
+ * Queue one composed bar starting at `at` on `ctx`, into `out`, and return how long the bar lasts.
+ *
+ * Takes a `BaseAudioContext` rather than the live `AudioContext` so an `OfflineAudioContext` can
+ * render the same music to a file: the store trailer's soundtrack is this function, not a second
+ * arrangement of it.
+ */
+export function scheduleBar(ctx: BaseAudioContext, out: AudioNode, mood: Mood, bar: number, at: number): number {
+  const beat = secondsPerBeat(mood);
+  for (const note of composeBar(mood, bar)) {
+    playNote(ctx, out, note, at + note.beat * beat, note.length * beat);
+  }
+  return BEATS_PER_BAR * beat;
+}
+
+function playNote(ctx: BaseAudioContext, out: AudioNode, note: Note, at: number, seconds: number): void {
+  const gain = ctx.createGain();
+  const frequency = frequencyOf(note.semitone);
+
+  // One envelope shape per voice. The pad breathes in, the bass thumps, the lead plucks — which
+  // is most of what makes three oscillators sound like three instruments.
+  const attack = note.voice === 'pad' ? 0.35 : note.voice === 'bass' ? 0.01 : 0.008;
+  const release = note.voice === 'pad' ? 0.9 : note.voice === 'bass' ? 0.18 : 0.25;
+  const peak = Math.max(0.0002, note.velocity * (note.voice === 'pad' ? 0.35 : 1));
+
+  gain.gain.setValueAtTime(0.0001, at);
+  gain.gain.exponentialRampToValueAtTime(peak, at + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, at + Math.max(attack + 0.05, seconds) + release);
+
+  const voices: OscillatorNode[] = [];
+  const make = (type: OscillatorType, detune: number): void => {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = frequency;
+    osc.detune.value = detune;
+    voices.push(osc);
+  };
+
+  if (note.voice === 'pad') {
+    // Two saws a few cents apart: the beating between them is the whole character of the pad,
+    // and it costs one extra oscillator rather than a reverb.
+    make('sawtooth', -6);
+    make('sawtooth', 6);
+  } else if (note.voice === 'bass') {
+    make('triangle', 0);
+  } else {
+    make('square', 0);
+  }
+
+  // Rolled off hard. Square and saw at full bandwidth are fatiguing over a five-minute round,
+  // and on a headset's speakers they are the first thing a player turns down.
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = note.voice === 'lead' ? 2600 : note.voice === 'pad' ? 1200 : 420;
+  filter.Q.value = 0.7;
+
+  for (const osc of voices) {
+    osc.connect(filter);
+    osc.start(at);
+    osc.stop(at + Math.max(attack + 0.05, seconds) + release + 0.05);
+  }
+  filter.connect(gain).connect(out);
 }

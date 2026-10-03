@@ -39,7 +39,8 @@ export type ScreenId =
 
 export interface ShellCallbacks {
   onQuickPlay(modeId: string): void;
-  onPractice(modeId: string): void;
+  /** `levelId` is the map picker's value: a level id, or `''` for "Surprise me". */
+  onPractice(modeId: string, levelId: string): void;
   onJoinRoom(code: string): void;
   /**
    * Create a private room. `modeConfig` carries house rules when the host set any; the server
@@ -463,7 +464,7 @@ export class Shell {
           this.options.callbacks.onQuickPlay(this.currentModeId);
           return;
         case 'practice':
-          this.options.callbacks.onPractice(this.currentModeId);
+          this.options.callbacks.onPractice(this.currentModeId, this.levelId);
           return;
         case 'leave':
           this.options.callbacks.onLeaveMatch();
@@ -516,7 +517,10 @@ export class Shell {
     for (const mode of modes) {
       grid.append(this.modeCard(mode));
     }
-    return el('div', { class: 'kc-screen' }, this.header('Game modes'), grid, button('Back', () => this.show('menu')));
+    // The map picker sits here as well as on the room screen, and is shown offline too: practice is
+    // the only way into a map without a server, and with the picker only on the online room screen
+    // two of the three maps could not be reached offline at all.
+    return el('div', { class: 'kc-screen' }, this.header('Game modes'), this.mapPicker(), grid, button('Back', () => this.show('menu')));
   }
 
   private modeCard(mode: GameModeDef): HTMLElement {
@@ -535,7 +539,7 @@ export class Shell {
           this.currentModeId = mode.id;
           if (!selected) this.render();
           else if (this.online) this.options.callbacks.onQuickPlay(mode.id);
-          else this.options.callbacks.onPractice(mode.id);
+          else this.options.callbacks.onPractice(mode.id, this.levelId);
         },
         selected ? 'primary' : 'ghost',
       ),
@@ -625,7 +629,7 @@ export class Shell {
       { class: 'kc-field kc-field-stack' },
       el('span', {}, 'Map'),
       row,
-      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'A different map each time a room opens.'),
+      el('p', { class: 'kc-note' }, chosen ? chosen.description : 'A different map each time a room or a practice round opens.'),
     );
   }
 

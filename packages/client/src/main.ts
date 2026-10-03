@@ -166,7 +166,7 @@ async function main(): Promise<void> {
       onTuningChanged: () => game?.applyTuning(),
       callbacks: {
         onQuickPlay: (modeId) => void startMatch({ modeId }),
-        onPractice: (modeId) => startPractice(modeId),
+        onPractice: (modeId, levelId) => startPractice(modeId, levelId),
         onJoinRoom: (code) => void startMatch({ roomCode: code }),
         onCreatePrivate: (modeConfig, levelId, modeId) =>
           void startMatch({
@@ -600,14 +600,14 @@ async function main(): Promise<void> {
     }
   }
 
-  function startPractice(modeId: string): void {
+  function startPractice(modeId: string, levelId?: string): void {
     if (!game) return;
     shell.hide();
     hud?.setVisible(true);
     setInMatch(true);
     resumeInput();
     void game.audio.resume();
-    game.startSoloPractice(modeId);
+    game.startSoloPractice(modeId, undefined, levelId);
     // Tag the round, so an issue says where it happened rather than only that it did. After the
     // call, because that is what settles which level is loaded.
     void setRoundContext(game.currentLevelId, modeId, renderer.tier);

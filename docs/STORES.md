@@ -143,6 +143,32 @@ See `packaging/steam/README.md`. The short version: Electron is compiled with `e
 The desktop shell therefore serves flat play, and VR launches a Chromium-class browser in app
 mode against the local server, where SteamVR's OpenXR runtime drives WebXR.
 
+**The PC build cannot put two players in one match yet.** Every install runs its own server on
+`127.0.0.1`, and the client connects to the host that served it — so it is offline practice with
+bots and nothing else until online play is pointed at one hosted server (`ROADMAP.md`, Q4 2026).
+
+### The Store listing (Steam and Epic)
+
+```bash
+npm run build:client && npm run pack:pc:listing   # packaging/steam/listing/ and packaging/epic/listing/
+npm run pack:pc:listing -- --check                # the spec table and the shortcut icon, no browser
+```
+
+`docs/PC_LISTINGS.md` has the copy for both stores, the Steam tags, the release-date rules and
+everything an account holder still has to do. The art is drawn from the game itself: the kangaroo
+is `kangaroo.glb` posed from its own run clip, every backdrop is a frame of the built game, and
+Steam's capsules carry the name and nothing else, as its rules require. `scripts/lib/copy.test.ts`
+holds the copy in that file — and in `docs/META_LISTING.md` — to each store's limits and to the
+game's own numbers.
+
+## Epic Games Store
+
+The same Electron build as Steam; Epic has no packaging requirement of its own for it. What Epic
+adds is in its distribution rules, and both are answered by design rather than by code: online
+multiplayer must cross-play with every other PC store the game is on (one hosted server for every
+build), and achievements on another PC store require Epic achievements too (none are integrated
+anywhere, so none are required). Listing copy and art: `docs/PC_LISTINGS.md`.
+
 ---
 
 ## Receipt verification

@@ -10,6 +10,7 @@ import {
   buildLevel,
   createIntent,
   getAnimal,
+  listLevels,
   makeRaycastResult,
   snapshotPlayer,
   zoneAt,
@@ -43,6 +44,7 @@ import { Vignette } from '../render/Vignette.js';
 import { easeRigHeight, isTeleport } from '../platform/vr/comfort.js';
 import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
+import { practiceLevelFor } from './practice.js';
 import { Renderer } from '../render/Renderer.js';
 import { worldNeedsRebuild } from '../render/surfaces.js';
 import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js';
@@ -623,8 +625,16 @@ export class GameClient {
     this.renderer.scene.add(this.levelRenderer.group);
   }
 
-  /** Solo practice: the same simulation, filled with bots, no socket required. */
-  startSoloPractice(modeId = this.modeId, botCount = 5): void {
+  /**
+   * Solo practice: the same simulation, filled with bots, no socket required.
+   *
+   * `levelId` is the map picker's value (`''` is "Surprise me"); leaving it out keeps the map
+   * that is loaded, which is what a restart of the same round wants.
+   */
+  startSoloPractice(modeId = this.modeId, botCount = 5, levelId?: string): void {
+    if (levelId !== undefined) {
+      this.useLevel(practiceLevelFor(levelId, listLevels().map((l) => l.id), this.level.id));
+    }
     this.modeId = modeId;
     this.sim = new Simulation({ level: this.level, modeId, seed: 1234 });
     this.bots = [];

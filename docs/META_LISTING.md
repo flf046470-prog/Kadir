@@ -31,35 +31,33 @@ faster, jumps higher, or hits harder.
 
 ## Long description
 
-1424 of a maximum 1500 characters.
+1485 of a maximum 1500 characters (line breaks counted as two — see `scripts/lib/copy.mjs`).
 
 ```
 Kangaroo Chase is a physical-movement social game: in VR your hands and body are the controller,
 not a joystick standing in for one. Climb a ledge by reaching for it, throw a punch by throwing
-one, and cover ground the way a kangaroo does — leaning into a hop instead of pressing a button
-for one.
+one, and cover ground the way a kangaroo does — leaning into a hop, not pressing a button.
 
-Ten modes, one shared world:
-- Kangaroo Chase — the tag mode the game is named for. Hop, climb and wall-bounce across jungle
-  parkour to escape the chaser, or close the gap if you are it.
+Ten modes across three worlds:
+- Kangaroo Chase — the tag mode the game is named for. Hop, climb and wall-bounce through the
+  jungle to escape the chaser, or close the gap if you are it.
 - The Hunt — one armed hunter, several survivors racing the clock. Earn cash mid-round for traps,
   smoke and armour.
 - Conversion Duel — a fistfight for keeps. Lose, and you convert to the winner's species.
-- Roo Ball — two teams, one giant ball, no hands. Hop into it to kick it through the other side's
-  goal.
+- Roo Ball — two teams, one giant ball, no hands. Hop into it to score.
 - Freeze Tag, King of the Hill, Infection, Parkour Race, VR Boxing and a Training Room round out
-  the roster, plus a mode editor for your own rules.
+  the roster, and private rooms take house rules.
 
-Play with up to sixteen people per room, voice chat included with proximity falloff so you hear
-who is actually near you. Cross-play means a friend on a phone or PC can share a match with you
+Play with up to 32 people per room, with voice chat that fades with distance so you hear who is
+actually near you. Cross-play means a friend on a phone or PC can share a match with you
 in a headset.
 
-Fairness is a hard rule: every animal and every cosmetic is free, and nothing purchasable moves
-faster, jumps higher, deals more damage, or has more health. The server checks every purchase,
+Fairness is a hard rule: every animal and gadget is free, season cosmetics are earned by playing,
+and nothing for sale moves faster, jumps higher, deals more damage, or has more health. The server checks every purchase,
 win and round result — never the client.
 
-Comfort options: snap or smooth turning, a motion vignette that scales with how much you turn,
-seated play, and adjustable height calibration.
+Comfort: snap or smooth turning, a vignette that scales with how much you turn, seated play and
+height calibration.
 ```
 
 Every claim in it is checkable against this repository rather than aspirational: ten mode files
