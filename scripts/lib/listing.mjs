@@ -12,7 +12,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { decodePng, encodePng, keyOut, trim } from './png.mjs';
+import { decodePng, encodePng, keyOut, resize, trim } from './png.mjs';
 
 /** The game's own ground green. Every drawn asset in every store listing sits on this. */
 export const BACKGROUND = '#1d3a24';
@@ -167,8 +167,12 @@ export async function pinStoreQuality(context) {
  * failure. `map` is a map's display name on the Game modes screen's picker ("Glacier World"); left
  * out, the round plays whatever the picker defaults to.
  */
-export async function enterMatch(page, base, mode, problem, map = null) {
+export async function enterMatch(page, base, mode, problem, map = null, { held = false } = {}) {
   await page.goto(base, { waitUntil: 'load' });
+  // Held (see `timeControlSource`), the game draws nothing until it is stepped, so the menus are
+  // driven on an idle page. Measured: getting into a round with the clock running took 92 s at the
+  // high tier, the page busy drawing the world behind the menus.
+  if (held) await page.evaluate(() => window.__kcTime.hold());
   await page.waitForTimeout(2000);
   await page.locator('input[type=text]').first().fill('Roo');
   await page.locator('button', { hasText: 'Start' }).first().click();
@@ -206,8 +210,71 @@ export async function enterMatch(page, base, mode, problem, map = null) {
     break;
   }
   if (!found) problem(`no game mode card named "${mode}"`);
-  // Long enough for the world to stream in, the bots to spread out and the round to start.
-  await page.waitForTimeout(9000);
+  // Long enough for the world to stream in, the bots to spread out and the round to start. A held
+  // game does none of that in real time; `rollPastCountdown` steps it there instead.
+  await page.waitForTimeout(held ? 1500 : 9000);
+}
+
+/**
+ * Step a held game past the round's countdown, in 100 ms steps nothing films.
+ *
+ * Waits for the bell, not a stopwatch (`capture-trailer.mjs` learned that a fixed wait films a
+ * frozen field). The bell is the HUD timer turning into a clock: it shows the phase's name until
+ * the round is `playing`. It used to be the role badge leaving WARM-UP, which never happened in a
+ * Hunt — the badge had no label for the Hunt's roles (`ui/roles.ts`) — so the capture waited out
+ * its whole budget on a round that had long started. Returns false if the round never started.
+ */
+export async function rollPastCountdown(page, maxSteps = 200) {
+  for (let i = 0; i < maxSteps; i++) {
+    await page.evaluate(() => window.__kcTime.step(100));
+    if (i % 5 === 4) {
+      const timer = await page.evaluate(() => document.querySelector('.kc-timer')?.textContent?.trim() ?? '');
+      if (/^\d+:\d\d$/.test(timer)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * The held-clock version of `captureBestFrame`: run, turn and hop through `candidates` stretches of
+ * real game time at 1280x720, grow the window to `size` for one frame at the top of each hop, and
+ * keep the one that shows the most (`frameScore`). Every candidate is 0.8 s of play apart, so they differ — in real time under
+ * swiftshader the game advances a tenth of a second per drawn frame, and seven candidates were
+ * seven near-copies of one moment.
+ */
+export async function captureBestHeldFrame(page, size, candidates = 6) {
+  const small = page.viewportSize();
+  const step = (ms) => page.evaluate((t) => window.__kcTime.step(t), ms);
+  let best = null;
+  let x = small.width / 2;
+  const y = small.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.keyboard.down('ShiftLeft');
+  await page.keyboard.down('KeyW');
+  try {
+    for (let c = 0; c < candidates; c++) {
+      for (let f = 0; f < 24; f++) {
+        // Take off 10 frames before the shot: about the top of a hop at the game's gravity.
+        if (f === 14) await page.keyboard.down('Space');
+        if (f === 17) await page.keyboard.up('Space');
+        x += 3;
+        await page.mouse.move(x, y);
+        await step(1000 / 30);
+      }
+      await page.setViewportSize(size);
+      await step(1000 / 30);
+      const frame = await page.screenshot({ animations: 'disabled' });
+      const score = frameScore(frame);
+      if (!best || score > best.score) best = { frame, score };
+      await page.setViewportSize(small);
+    }
+  } finally {
+    await page.keyboard.up('KeyW').catch(() => {});
+    await page.keyboard.up('ShiftLeft').catch(() => {});
+    await page.mouse.up().catch(() => {});
+  }
+  return best?.frame ?? null;
 }
 
 /** Swing the view. Dragging rather than nudging, so this works whether or not pointer lock took. */
@@ -222,10 +289,31 @@ export async function lookAround(page, dx, dy = 0) {
 }
 
 /**
- * Walk the map, look around, and keep the busiest frame — the one with the most going on, by
- * compressed size. See `pack-msstore-listing.mjs` for the measurement behind that proxy: an
- * empty-field frame deflates to a fraction of the size a frame with terrain, props and other
- * players does, and the ranking it produces matches picking by eye.
+ * How much a frame shows, as the spread of its brightness once shrunk to 96x54: sky against
+ * ground, near against far, a player against a field.
+ *
+ * It replaced "the biggest PNG", which ranks fine detail, and the most fine detail in this game is
+ * a photographed rock wall a metre from the camera. Measured on the five Steam screenshots that
+ * proxy chose: the one facing a canyon wall was the largest file (5.4 MB against 2.8–3.4 MB) and
+ * the lowest score here (18.7 against 31.8–54.6) — at 96x54 a wall is one grey, and a view is not.
+ */
+export function frameScore(pngBytes) {
+  const small = resize(decodePng(pngBytes), 96, 54);
+  const n = 96 * 54;
+  const lum = new Float64Array(n);
+  let sum = 0;
+  for (let i = 0; i < n; i++) {
+    lum[i] = 0.2126 * small.data[i * 4] + 0.7152 * small.data[i * 4 + 1] + 0.0722 * small.data[i * 4 + 2];
+    sum += lum[i];
+  }
+  const mean = sum / n;
+  let variance = 0;
+  for (let i = 0; i < n; i++) variance += (lum[i] - mean) ** 2;
+  return Math.sqrt(variance / n);
+}
+
+/**
+ * Walk the map, look around, and keep the frame that shows the most (`frameScore`).
  */
 export async function captureBestFrame(page, candidates = 7) {
   let best = null;
@@ -243,9 +331,10 @@ export async function captureBestFrame(page, candidates = 7) {
     await page.waitForTimeout(210);
 
     const frame = await page.screenshot({ animations: 'disabled' });
-    if (!best || frame.length > best.length) best = frame;
+    const score = frameScore(frame);
+    if (!best || score > best.score) best = { frame, score };
   }
-  return best;
+  return best?.frame ?? null;
 }
 
 /**

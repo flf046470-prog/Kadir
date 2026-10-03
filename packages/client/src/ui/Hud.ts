@@ -3,6 +3,7 @@ import type { ModeStateView, PlayerState, SimEvent } from '@kc/core';
 import { clear, el, formatTime } from './dom.js';
 import type { MobileButtonState, MobileInput } from '../platform/mobile/MobileInput.js';
 import { ChatPanel } from './ChatPanel.js';
+import { roleBadge, roleBadgeClass } from './roles.js';
 
 export interface HudOptions {
   root: HTMLElement;
@@ -274,8 +275,8 @@ export class Hud {
     this.updateBout(state);
 
     const role = local?.role ?? 'idle';
-    this.role.textContent = roleLabel(role);
-    this.role.className = `kc-role kc-role--${role === 'chaser' || role === 'infected' ? 'chaser' : role === 'runner' ? 'runner' : 'other'}`;
+    this.role.textContent = roleBadge(role).label;
+    this.role.className = roleBadgeClass(role);
 
     // Short screens (landscape phones) only have room for a few rows.
     const limit = globalThis.innerHeight < 480 ? 4 : 6;
@@ -621,8 +622,11 @@ export class Hud {
               : `Converted to ${species}`,
             2600,
           );
+        } else if (data === 'down') {
+          // The Hunt's survivor going down: not a role, the end of their round.
+          if (event.playerId === localId) this.showToast("You're down — the hunter got you", 2600);
         } else if (event.playerId === localId) {
-          this.showToast(`You are now ${roleLabel(data)}`);
+          this.showToast(`You are now ${roleBadge(data).label}`);
         }
         break;
       }
@@ -652,27 +656,6 @@ export class Hud {
 
   dispose(): void {
     this.element.remove();
-  }
-}
-
-function roleLabel(role: string): string {
-  switch (role) {
-    case 'chaser':
-      return 'CHASER';
-    case 'infected':
-      return 'INFECTED';
-    case 'runner':
-      return 'RUNNER';
-    case 'racer':
-      return 'RACER';
-    case 'fighter':
-      return 'FIGHTER';
-    case 'red':
-      return 'RED TEAM';
-    case 'blue':
-      return 'BLUE TEAM';
-    default:
-      return 'WARM-UP';
   }
 }
 

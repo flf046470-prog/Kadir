@@ -2406,9 +2406,19 @@ each one would have shipped:
 
 How the shared capture code behaves (`scripts/lib/listing.mjs`, used by both store scripts):
 
-- **Drive the menus at 1280x720 and grow the window only to capture.** At 3840x1240 under
-  swiftshader the page is too busy drawing to take a click. "Got it" timed out after 30 s while
-  visible, enabled and stable.
+- **Hold the clock for every store capture, not only the trailer.** With the clock running at the
+  fixed high tier, a 2560x1440 screenshot took 29.6 s (Playwright's default timeout is 30 s), each
+  click or key waited behind a drawn frame, and the game advanced 0.1 s per frame. So "seven
+  candidate frames" were seven copies of one moment. Getting into a round took 92 s. Held
+  (`enterMatch(..., { held: true })`, `captureBestHeldFrame`), the menus run on an idle page,
+  every candidate is 0.8 s of real play apart, and the window grows only for the frame kept.
+- **Choose frames by `frameScore`, not by file size.** "The biggest PNG" ranks fine detail, and
+  the most fine detail in this game is a photographed rock wall a metre from the camera. Of the
+  five Steam screenshots it chose, the one staring at a canyon wall was the largest file (5.4 MB
+  against 2.8–3.4 MB). `frameScore` is the spread of brightness at 96x54, where a wall is one
+  grey: it gave that frame 18.7 against 31.8–54.6 for the rest.
+- **Detect the round's start from the HUD timer turning into a clock**, not from the role badge.
+  The badge waited for the role to leave WARM-UP, which in the Hunt it never did (next point).
 - Steam capsules carry the name and artwork only. `renderCover` takes `tagline: null` for Steam,
   and the library hero is a gameplay frame with the interface hidden (`hideInterface`).
 - Epic's offer images need "the product logo … in the center of the image", so they are
@@ -2416,6 +2426,14 @@ How the shared capture code behaves (`scripts/lib/listing.mjs`, used by both sto
 - Playwright's bundled ffmpeg encodes VP8 only. `pip install imageio-ffmpeg` brings a static
   ffmpeg 7 that has libx264 and AAC, and `findFfmpeg` asks each candidate for both encoders
   instead of trusting the name.
+
+**The Hunt was played with its role badge reading WARM-UP.** The HUD's `roleLabel` was a `switch`
+ending in `default: return 'WARM-UP'`, and the Hunt's `hunter` and `survivor` were never added. A
+store screenshot showed it at 3:44 left with four survivors standing. The hunter was never told
+they were the hunter, and the role-change toast said "You are now WARM-UP". `ui/roles.ts` is a
+`Record<PlayerRole, …>` now, so a role without a badge is a type error, and `roles.test.ts` walks
+the wire's `ROLES`. Mutation: deleting `hunter` fails both the test and `tsc`. The Hunt's `down`
+event, which is not a role, has its own toast.
 
 **Offline, two of the three maps could not be played.** Practice played whatever map was loaded.
 The only map picker was on the private-room screen, which is shown only online. So an offline

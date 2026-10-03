@@ -35,6 +35,7 @@ import {
   renderCover,
   renderLogo,
   renderModel,
+  rollPastCountdown,
   serveDist,
 } from './lib/listing.mjs';
 import { FPS, HEIGHT, MAX_BYTES, WIDTH, findFfmpeg, readCaptions, timeControlSource, timeline } from './lib/trailer.mjs';
@@ -154,7 +155,7 @@ async function film(shot, index) {
   let firstFrame = null;
   let repeats = 0;
   try {
-    await enterMatch(page, server.base, shot.mode, problem, shot.map);
+    await enterMatch(page, server.base, shot.mode, problem, shot.map, { held: true });
     await hideInterface(page);
     // Hold the mouse down from here on: without pointer lock, look is a drag (`PCInput`), and a
     // drag past a few pixels stops counting as a punch, so the shot never swings at anyone.
@@ -162,19 +163,7 @@ async function film(shot, index) {
     const cursorY = 360;
     await page.mouse.move(cursorX, cursorY);
     await page.mouse.down();
-    await page.evaluate(() => window.__kcTime.hold());
-
-    // Past the countdown, in 100 ms steps the camera never sees. The role badge reads WARM-UP
-    // until the bell — `capture-trailer.mjs` learned that a fixed wait films a frozen field.
-    let live = false;
-    for (let i = 0; i < 200 && !live; i++) {
-      await page.evaluate(() => window.__kcTime.step(100));
-      if (i % 5 === 4) {
-        const label = await page.evaluate(() => document.querySelector('.kc-role')?.textContent?.trim() ?? '');
-        live = label !== '' && label !== 'WARM-UP';
-      }
-    }
-    if (!live) problem(`${shot.mode}: the round never left its countdown`);
+    if (!(await rollPastCountdown(page))) problem(`${shot.mode}: the round never left its countdown`);
     // Two more seconds for the bots to spread out and the player to get moving. All of this runs
     // at 1280x720: none of it is filmed, and every step is a frame drawn in software.
     await page.keyboard.down('ShiftLeft');

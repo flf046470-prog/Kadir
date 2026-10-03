@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   BACKGROUND,
-  captureBestFrame,
+  captureBestHeldFrame,
   enterMatch,
   hideInterface,
   imageDataUri,
@@ -52,9 +52,11 @@ import {
   renderCover,
   renderLogo,
   renderModel,
+  rollPastCountdown,
   serveDist,
   toJpeg,
 } from './lib/listing.mjs';
+import { timeControlSource } from './lib/trailer.mjs';
 import { compose, decodePng, encodePng, encodePngRGB, keyOut, trim } from './lib/png.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -209,6 +211,7 @@ const browser = await chromium.launch({
 async function withPage(size, fn) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1 });
   await pinStoreQuality(context);
+  await context.addInitScript(timeControlSource());
   const page = await context.newPage();
   // At the fixed high tier a 2560x1440 frame takes swiftshader longer than Playwright's default
   // 30 s to draw, and a screenshot waits for one.
@@ -235,18 +238,18 @@ const roo = imageDataUri(await renderModel(browser, server.base, { clip: 'run', 
 /**
  * A frame of the real game with the interface hidden, at `size`.
  *
- * The menus are driven at 1280x720 and the window grown only for the capture. Measured: at
- * 3840x1240 under swiftshader the page is too busy drawing to take a click, and "Got it" timed out
- * after 30 s with the button visible, enabled and stable.
+ * Held clock, menus driven at 1280x720, the window grown only for the frame itself. Measured with
+ * the clock running: at 3840x1240 the page was too busy drawing to take a click ("Got it" timed
+ * out with the button visible, enabled and stable), and at the fixed high tier one 2560x1440
+ * screenshot took 29.6 s.
  */
 async function cleanFrame(size, mode, map) {
   try {
     return await withPage({ width: 1280, height: 720 }, async (page) => {
-      await enterMatch(page, server.base, mode, problem, map);
+      await enterMatch(page, server.base, mode, problem, map, { held: true });
       await hideInterface(page);
-      await page.setViewportSize(size);
-      await page.waitForTimeout(2500);
-      return await captureBestFrame(page, 5);
+      if (!(await rollPastCountdown(page))) problem(`${mode} on ${map}: the round never left its countdown`);
+      return await captureBestHeldFrame(page, size, 5);
     });
   } catch (error) {
     problem(`gameplay frame ${size.width}x${size.height}: ${String(error).split('\n')[0]}`);
@@ -294,10 +297,9 @@ for (const shot of SHOTS) {
   console.log(`pack:pc:listing — screenshot: ${shot.mode}${shot.map ? ` on ${shot.map}` : ''}`);
   try {
     const frame = await withPage({ width: 1280, height: 720 }, async (page) => {
-      await enterMatch(page, server.base, shot.mode, problem, shot.map);
-      await page.setViewportSize(SHOT_SIZE);
-      await page.waitForTimeout(2500);
-      return captureBestFrame(page);
+      await enterMatch(page, server.base, shot.mode, problem, shot.map, { held: true });
+      if (!(await rollPastCountdown(page))) problem(`${shot.mode} on ${shot.map}: the round never left its countdown`);
+      return captureBestHeldFrame(page, SHOT_SIZE);
     });
     const png = await save('steam', `screenshots/${shot.name}.png`, encodePngRGB(decodePng(frame)));
     written.push({ ...(await verify('steam', png, SHOT_SIZE)), note: shot.mode });
