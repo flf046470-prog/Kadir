@@ -154,7 +154,10 @@ describe('a Roo Ball match', () => {
     // over the same six matches, so the bounds sit well clear of both.
     expect(kicks).toBeGreaterThan(180);
     expect(goals).toBeGreaterThanOrEqual(8);
-  });
+    // Six two-minute matches are 43,200 ticks with bots: measured 2.4 s alone, 4.1 s inside a full
+    // `npm run verify` and 5.7 s in one beside a browser capture, against vitest's 5 s default. A
+    // limit that close fails on how busy the machine is, not on anything the match did.
+  }, 30_000);
 
   it('draws its goals and pitch on the broadcast view, and nothing before the round', () => {
     const { sim, bots } = match('outback-station', 2);

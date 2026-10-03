@@ -2435,6 +2435,16 @@ they were the hunter, and the role-change toast said "You are now WARM-UP". `ui/
 the wire's `ROLES`. Mutation: deleting `hunter` fails both the test and `tsc`. The Hunt's `down`
 event, which is not a role, has its own toast.
 
+**Neither store page can be put up from here, so do not offer to "upload and publish" it.**
+Epic's Developer Portal has no API for store pages: it is a dashboard behind the account holder's
+own login. Onboarding means accepting the Distribution Agreement as a named person, paying $100
+and passing trader, tax and payout checks. Pushing to Live makes the page public and indexable.
+Steamworks is the same. Nothing that would let a session act for the account holder exists here,
+and a password must never be asked for. `docs/PC_LISTINGS.md` →
+"Putting the Epic page up, in the portal's own order" maps every portal step to a file or a block
+of copy. For Coming Soon, choose *Launch date unknown*: *Specific* needs a release binary, and
+the PC build has no online play to release yet.
+
 **Offline, two of the three maps could not be played.** Practice played whatever map was loaded.
 The only map picker was on the private-room screen, which is shown only online. So an offline
 player, which today means every Steam install, could only ever play the jungle. The Game modes

@@ -200,6 +200,61 @@ Up to 32 players
 Coming soon. No loot boxes, no pay-to-win.
 ```
 
+## Putting the Epic page up, in the portal's own order
+
+Nothing in this repository can do these steps, and that is not a gap a tool closes. The Developer
+Portal (dev.epicgames.com/portal) has no API for store pages; it is a dashboard behind the account
+holder's own Epic login. Onboarding is a contract (the Distribution Agreement, accepted by a named
+person), a payment and identity, tax and payout checks. Publishing makes the page public and
+indexable on the web. So every step below is the account holder's, and the numbering is Epic's
+own (Get Started steps 1 and 2, read on 2026-10-03).
+
+**1. Onboarding.** Expect up to 10 business days, mostly verification.
+
+- Create the account and organization, then *Your products → Create Product*. The name is
+  "Kangaroo Chase".
+- Under *Epic Games Store*:
+  - accept the Distribution Agreement (required);
+  - pay the $100 per-product fee;
+  - answer the questionnaire, which is non-binding.
+- Complete trader verification, the tax profile (W-9 or W-8BEN) and the payout account.
+
+**2. Product home page ("Coming Soon").** Epic estimates a week for this step, plus a review of
+two days or more.
+
+- **A. Store Settings.**
+  - *Product configuration*: the name, *Short description* above, and genres and features as in
+    *Tags (Steam)* above.
+  - *Regions and ratings*: choose the regions. An IARC rating is recommended, not required.
+- **B. Offers.** The base product offer already exists, with type *Game*.
+  - Fill its required information.
+  - Offer images: `offer_landscape.png` (2560x1440) and `offer_portrait.png` (1200x1600).
+  - Logo: `logo.png` (960x540, transparent).
+  - The price is a decision, not a fact this file can supply (see *Tags*: no "Free to Play" until
+    it is made).
+- **C. Dates.**
+  - Previously released on PC: no.
+  - Discoverable: as soon as the offer is pushed to Live.
+  - Pre-purchase: no.
+  - Launch: **Launch date unknown**, which is what shows "Coming Soon". Do not choose
+    *Specific*: it needs a release-ready binary, and there is no release build while the blocker
+    at the top of this file stands. Any choice other than *Specific* means a second review later,
+    once a real date is set.
+  - Expiry: no.
+- **D. Pages → Product home.**
+  - *Carousel*: `carousel/00-trailer.mp4` first, then `carousel/01`–`05`.
+  - *About*: *About this game* above.
+  - *Social preview*: `social_preview.jpg`.
+- **E. Localization** is optional. Epic will translate the text for free on request.
+- **F. Release Management.**
+  - In *Dev*, choose *Push To Stage*.
+  - Tick *Product configuration*, *Product home*, *Regions and ratings* and the offer.
+  - Tick nothing under *Artifact data*: a Coming Soon page has no build.
+  - In *Stage*, choose *Submit for Review*.
+- **G. After approval.**
+  - In *Stage*, choose *Push To Live* with the same entities.
+  - The page is public from this moment.
+
 ## What this cannot produce, said plainly
 
 - **A trailer filmed in a headset, or with the game's sound effects.** The trailer above is the
