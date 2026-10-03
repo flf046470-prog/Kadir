@@ -89,6 +89,15 @@ export interface BoxCollider extends ColliderBase {
    * up. `collider-render-agreement.test.ts` holds the two sides together.
    */
   yaw: number;
+  /**
+   * Drawn as this model fitted to the box, rather than as a box. Physics never reads it.
+   *
+   * A fallen log is solid, and a box is the only shape the solver has that lies down. So the box
+   * is the log, and the renderer stretches the log's body over it — one set of numbers, so the log
+   * a player sees is the one they stand on. A log used to be a decorative prop over a *vertical*
+   * cylinder collider, drawn as a 4 m wooden post beside it.
+   */
+  drawAs?: 'log';
 }
 
 export interface SphereCollider extends ColliderBase {

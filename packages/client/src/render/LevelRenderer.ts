@@ -1,7 +1,7 @@
 import { DistantLand } from './DistantLand.js';
 import * as THREE from 'three';
 import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
-import type { Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
+import type { BoxCollider, Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import { terrainGeometry } from './Terrain.js';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
@@ -18,7 +18,6 @@ import type { AssetLibrary } from './AssetLibrary.js';
 const MODEL_PROPS: Record<string, { base: string; variants: number }> = {
   rock: { base: 'rock', variants: 4 },
   boulder: { base: 'boulder-tall', variants: 2 },
-  log: { base: 'log', variants: 3 },
   bush: { base: 'bush', variants: 4 },
   flower: { base: 'flower', variants: 3 },
   mushroom: { base: 'mushroom', variants: 3 },
@@ -69,7 +68,6 @@ const PROP_SURFACES: Record<string, SurfaceMaterial> = {
   rock: 'rock',
   boulder: 'rock',
   stalagmite: 'stone',
-  log: 'wood',
   banner: 'wood',
   torch: 'wood',
   crystal: 'ice',
@@ -143,6 +141,8 @@ export class LevelRenderer {
   private proceduralProps: THREE.InstancedMesh[] = [];
   /** Rock sphere colliders drawn as smooth balls until the rock models arrive. */
   private rockSpheres: { mesh: THREE.InstancedMesh; colliders: Collider[]; seeds: number[] }[] = [];
+  /** Fallen logs (`BoxCollider.drawAs`), drawn as plain wooden cylinders until the log model arrives. */
+  private logs: { mesh: THREE.InstancedMesh; colliders: BoxCollider[] } | null = null;
   private disposed = false;
 
   constructor(
@@ -160,6 +160,7 @@ export class LevelRenderer {
     if (this.assets) {
       void this.upgradeProps(this.assets);
       void this.upgradeRockSpheres(this.assets);
+      void this.upgradeLogs(this.assets);
     }
   }
 
@@ -371,9 +372,14 @@ export class LevelRenderer {
   /** One mesh per (material × shape), instanced across every collider that uses it. */
   private buildColliders(): void {
     const buckets = new Map<string, { collider: Collider; index: number }[]>();
+    const logs: BoxCollider[] = [];
     this.level.colliders.forEach((collider, index) => {
       if (collider.kind === 'heightfield') {
         this.buildTerrain(collider);
+        return;
+      }
+      if (collider.kind === 'box' && collider.drawAs === 'log') {
+        logs.push(collider);
         return;
       }
       const key = `${collider.kind}:${collider.surface.material}`;
@@ -414,6 +420,77 @@ export class LevelRenderer {
         });
       }
     }
+    if (logs.length > 0) this.buildLogs(logs);
+  }
+
+  /**
+   * Fallen logs, as round logs rather than as the boxes that collide.
+   *
+   * Until the model loads — and for good without one — a cylinder lying along the box's local X,
+   * which is inscribed in it: its top is the box's top and its sides are the box's sides, so a
+   * player standing on one is standing on what they see. Only the box's four long edges are not
+   * drawn, where a capsule's rounded foot meets the corner of a solid it cannot see by at most a
+   * few centimetres.
+   */
+  private buildLogs(colliders: BoxCollider[]): void {
+    const geometry = new THREE.CylinderGeometry(1, 1, 2, 10, 1);
+    geometry.rotateZ(Math.PI / 2);
+    this.disposables.push(geometry);
+    const mesh = new THREE.InstancedMesh(geometry, this.material('wood'), colliders.length);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'log';
+    this.placeLogs(mesh, colliders);
+    this.group.add(mesh);
+    this.instanced.push(mesh);
+    this.logs = { mesh, colliders };
+  }
+
+  /** One instance per log: the unit shape (±1 on every axis) scaled to the box's half extents. */
+  private placeLogs(mesh: THREE.InstancedMesh, colliders: BoxCollider[]): void {
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    colliders.forEach((c, i) => {
+      position.set(c.center.x, c.center.y, c.center.z);
+      quaternion.setFromAxisAngle(UP, c.yaw);
+      scale.set(c.half.x, c.half.y, c.half.z);
+      mesh.setMatrixAt(i, matrix.compose(position, quaternion, scale));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The log model, fitted to each fallen log's box by its *body* (`fitLogBody`), with the bark and
+   * moss baked into its vertex colours — the same look the decorative log props had.
+   */
+  private async upgradeLogs(assets: AssetLibrary): Promise<void> {
+    if (!this.logs) return;
+    const source = await assets.loadGeometry(`/models/props/${LOG_MODEL}.glb`);
+    if (!source || this.disposed || !this.logs) return;
+    const geometry = fitLogBody(source);
+    // Same material as every other prop: see `upgradeProps` for why `flatShading` is load-bearing.
+    const material = createSurfaceMaterial('wood', surfaceQualityFor(this.profile), {
+      color: 0xffffff,
+      vertexColors: true,
+      detailOnly: true,
+      flatShading: true,
+    });
+    this.disposables.push(geometry, material);
+    const { mesh: old, colliders } = this.logs;
+    const mesh = new THREE.InstancedMesh(geometry, material, colliders.length);
+    mesh.castShadow = old.castShadow;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'log';
+    this.placeLogs(mesh, colliders);
+    this.group.add(mesh);
+    this.instanced.push(mesh);
+    // The cylinder goes only once the model is in, so a slow download never blinks logs out.
+    old.removeFromParent();
+    old.dispose();
+    this.instanced = this.instanced.filter((m) => m !== old);
+    this.logs = { mesh, colliders };
   }
 
   /**
@@ -775,8 +852,6 @@ function propGeometry(kind: string): THREE.BufferGeometry | null {
       return new THREE.DodecahedronGeometry(1, 0);
     case 'mushroom':
       return new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
-    case 'log':
-      return new THREE.CylinderGeometry(0.55, 0.55, 3.2, 6);
     case 'stalagmite':
       return new THREE.ConeGeometry(0.8, 3, 5, 1);
     case 'crystal':
@@ -808,7 +883,6 @@ function propColor(kind: string, tint: number): number {
       return 0xef476f;
     case 'crystal':
       return 0x6ee7ff;
-    case 'log':
     case 'vine':
       return 0x7a5230;
     case 'banner':
@@ -844,6 +918,66 @@ function rockSphereSites(level: LevelDef): Set<string> {
  * scaling it by a sphere collider's radius makes its extremes the sphere's. Vertex colours are
  * dropped: the collider's material colours it.
  */
+/** The model a fallen log is drawn with. Its siblings have root flares and stubs a box cannot follow. */
+export const LOG_MODEL = 'log-1';
+
+/**
+ * A log model normalised so its **body** spans ±1 on every axis: its length along X, the ground
+ * it lies on to the top of its bark along Y, and its girth along Z. Scaled by a fallen log's half
+ * extents it then lies in that log's box, top to top.
+ *
+ * Not the bounding box, which is what `fillUnitCube` fits: `log-1` carries a knot and a broken
+ * stub that reach 1.03 m and ±0.58 m where the bark is at 0.96 m and ±0.48 m, so fitted by its
+ * bounds the bark sat inside the box and a player stood on air over it. Nor the highest vertex
+ * along each stretch, which was the first fit: those are the bumps, and the bark a foot meets is
+ * below them — measured 1.5–11 % of the radius low on top and 5–21 % narrow at the sides.
+ *
+ * So the bark is found the way a player meets it: rays down onto the centreline, and in from both
+ * sides at mid-height, at sixteen stations along the length. The median of each is the body, so a
+ * stub under one ray cannot move it, and a regenerated model still fits.
+ */
+export function fitLogBody(source: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geometry = source.clone();
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox as THREE.Box3;
+  const length = Math.max(box.max.x - box.min.x, 1e-6);
+  const centreZ = (box.min.z + box.max.z) / 2;
+  const bottom = box.min.y;
+  const probe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  const ray = new THREE.Raycaster();
+  const stations = Array.from({ length: 16 }, (_, k) => box.min.x + ((k + 0.5) / 16) * length);
+  const median = (values: number[], fallback: number): number => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length ? (sorted[sorted.length >> 1] as number) : fallback;
+  };
+
+  const tops: number[] = [];
+  for (const x of stations) {
+    ray.set(new THREE.Vector3(x, box.max.y + 1, centreZ), new THREE.Vector3(0, -1, 0));
+    const hit = ray.intersectObject(probe)[0];
+    if (hit) tops.push(hit.point.y);
+  }
+  const top = median(tops, box.max.y);
+  const middle = (bottom + top) / 2;
+  const sides: number[] = [];
+  const reach = box.max.z - box.min.z + 1;
+  for (const x of stations) {
+    for (const side of [-1, 1]) {
+      ray.set(new THREE.Vector3(x, middle, centreZ + side * reach), new THREE.Vector3(0, 0, -side));
+      const hit = ray.intersectObject(probe)[0];
+      if (hit) sides.push(Math.abs(hit.point.z - centreZ));
+    }
+  }
+  const halfWidth = median(sides, (box.max.z - box.min.z) / 2);
+  (probe.material as THREE.Material).dispose();
+
+  geometry.translate(-(box.min.x + box.max.x) / 2, -(bottom + top) / 2, -centreZ);
+  geometry.scale(2 / length, 2 / Math.max(top - bottom, 1e-6), 1 / Math.max(halfWidth, 1e-6));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
 export function fillUnitCube(source: THREE.BufferGeometry): THREE.BufferGeometry {
   const geometry = source.clone();
   geometry.deleteAttribute('color');

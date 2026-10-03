@@ -1,6 +1,6 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
-import { LevelBuilder } from './builder.js';
+import { LOG_HALF_LENGTH, LOG_RADIUS, LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
 import type { LevelDef } from './level.js';
 import { LOBBY_MODE_IDS } from './level.js';
@@ -73,7 +73,9 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     name: 'Outback Station',
     // 2: yawed boxes collide where they are drawn, and tree branches run out of their trunks.
     // 3: walled edges; the bed reaches the west wall and the scree is solid.
-    version: 4,
+    // 4: loose balls in the lobby.
+    // 5: the station's scrub logs are solid, and the fallen gum is drawn as a log.
+    version: 5,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -218,8 +220,9 @@ function buildGumFlat(b: LevelBuilder, rand: Rand): void {
   b.rocks(-20, 22, 7, 3.2, 'flat');
   b.rocks(44, -46, 6, 3.6, 'flat');
   // A fallen gum: a low run-up that gets you high enough to reach the first branch of its neighbour.
-  b.box(vec3(20, 1.1, 24), vec3(7, 1.1, 1.1), 'wood', 0.7, 'flat');
-  b.prop('log', vec3(20, 0.2, 24), 0.7, 2.2, 0);
+  // The same box it always was; it used to be drawn as a box with a 9 m log prop lying inside it,
+  // 2.6 m short of each end.
+  b.fallenLog(20, 0, 24, 0.7, 7, 1.1, 'flat');
 
   // Scrub. Visual only — the flat needs to read as bush rather than as a car park, and a collider
   // here would give exactly the ankle-height cover the map is designed not to have.
@@ -420,13 +423,14 @@ function buildStation(b: LevelBuilder, rand: Rand): void {
   // Scatter: a dead ute-sized crate, troughs, and dry scrub against the fence.
   b.box(vec3(60, 0.9, -24), vec3(2.6, 0.9, 1.4), 'corrugatedIron', 0.4, 'station');
   for (let i = 0; i < 16; i++) {
-    b.prop(
-      rand.bool(0.4) ? 'log' : 'bush',
-      vec3(76 + rand.range(-34, 34), 0, rand.range(-34, 34)),
-      rand.range(0, Math.PI * 2),
-      rand.range(0.6, 1.3),
-      0,
-    );
+    const log = rand.bool(0.4);
+    const x = 76 + rand.range(-34, 34);
+    const z = rand.range(-34, 34);
+    const yaw = rand.range(0, Math.PI * 2);
+    const size = rand.range(0.6, 1.3);
+    // A log is solid; one refused by what is already standing there is simply not laid.
+    if (log) b.fallenLog(x, 0, z, yaw, LOG_HALF_LENGTH * size, LOG_RADIUS * size, 'station');
+    else b.prop('bush', vec3(x, 0, z), yaw, size, 0);
   }
 }
 

@@ -103,7 +103,6 @@ export type PropKind =
   | 'boulder'
   | 'mushroom'
   | 'vine'
-  | 'log'
   | 'stalagmite'
   | 'crystal'
   | 'banner'

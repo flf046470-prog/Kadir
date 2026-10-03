@@ -47,6 +47,8 @@ what you would guess, and defects that were found by measuring rather than by re
   `node_modules/.bin/tsx`.
 - `LevelDef` is **pure data built from a seed**. A level must not import gameplay modules; that is
   what lets the server, every client and a future map editor agree without downloading anything.
+- **A fallen log is `LevelBuilder.fallenLog`, never a prop.** It returns `false` and places nothing
+  where it does not fit; see "Fallen logs were posts, boxes and ghosts".
 - `LevelBuilder.box(center, half, …)` takes **half extents**, like the collider it makes. Reading
   `vec3(2.2, 0.35, 2.4)` as a full size "proved" the canyon ledges hung 1 m off their walls; they
   overlap them by 1.6 m. Check against `level.colliders`, never against the call site.
@@ -2241,6 +2243,50 @@ name is the plan's. Measured: 16 models 5.72 MB → 4.95 MB at 3,900 triangles e
   on it and the orientation test measures the rump by it.
 - **Meshy is credited.** Its free tier licenses output under CC BY 4.0, and the props had shipped
   with no credit at all; `BUNDLED_ASSET_CREDITS` names it and the animals' `credit` says so.
+
+## Fallen logs were posts, boxes and ghosts
+
+Every log in the game was wrong in one of three ways, and a render showed all three at once:
+
+- **The jungle's six "fallen logs" collided as posts.** `b.cylinder(vec3(x, 0.55, z), 0.55, 3.4)`
+  is a *vertical* cylinder (the only kind there is), so each was a 6.8 m pole — drawn by the
+  renderer, which draws every collider, as a 4 m wooden post standing out of the log prop at its
+  foot.
+- **The outback's fallen gum was a box with a log inside it.** A 14 m box (drawn) and a 9 m log
+  prop at scale 2.2, 2.6 m short of each end.
+- **The undergrowth's 37 logs and the station's 7 had no collider at all** — a 1.4 m log you
+  walked through.
+
+`LevelBuilder.fallenLog(x, y, z, yaw, halfLength, radius, zone)` is now the only way to lay one: a
+yawed box, long along its local X, marked `BoxCollider.drawAs = 'log'`. **`'log'` is no longer a
+`PropKind`** — a log is solid or it does not exist. `LevelRenderer` skips those boxes and draws
+`log-1.glb` fitted to them (`fitLogBody`), with a horizontal cylinder inscribed in the box until it
+loads, so a player stands on what they see. Same idea as the rock spheres: the collider is drawn
+as the model, never the model with a collider somewhere near it.
+
+- **Fit by the bark, not the bounds or the bumps.** `log-1` has a knot reaching 1.03 m over bark at
+  0.96, so `fillUnitCube` sank the bark inside the box; the first fit, by the highest vertex of each
+  stretch, measured 1.5–11 % of the radius low and 5–21 % narrow. `fitLogBody` casts rays down onto
+  the centreline and in at mid-height at sixteen stations and takes the medians: −7…+2 % on top,
+  −13…+5 % at the sides, which is the log's own irregularity. `log-2`/`log-3` have root flares and
+  stubs a box cannot follow and are not used.
+- **Placement is measured, and refuses rather than floats.** Rays down the footprint (0.25 m along,
+  five across): the log rests on the lowest ground, turned in 45° steps to lie flattest; refused
+  where ground rises more than a third of its radius into it, over a drop, in water, on top of
+  something standing on its ground (it stacked one log on another until that rule), through any
+  solid (2-D rectangle tests against spheres, cylinders and yawed boxes), or on a site's pad —
+  `LevelBuilder.sites()`, now the one list `sculpt` uses too. 30 of 37 undergrowth logs are laid.
+- `scatter` takes `'log'` in its kinds and calls `fallenLog`; a refused log costs the same random
+  draws, so nothing after it moves. Jungle `version` 7, outback 5; the glacier has no logs and its
+  fingerprint is unchanged.
+
+Measured with six bots × 16 seeds × 90 s, HEAD against the change: jungle falls 0 → 0, stuck
+9.6 % → 7.8 %, tags 200 → 197. The outback's first 16 seeds read 264 → 195 tags with all seven
+changed seeds lower — which looked systematic, so 48 fresh seeds were run: **952 → 942**, changes
+both ways, stuck 16.8 % on both. The chase is chaotic; a sign test on seven seeds is not evidence.
+
+**Found while measuring and not fixed:** on the glacier, bots spend **29 % of bot-seconds stuck**,
+nearly all in two cells at (−40, −7, ±12) in the crevasse, and 47 % of the round is spent there.
 
 ## How to find defects here
 

@@ -2,7 +2,7 @@ import type { Rand } from '../math/rand.js';
 import type { Vec3 } from '../math/vec3.js';
 import { vec3 } from '../math/vec3.js';
 import type { Collider, HeightfieldCollider, RaycastResult, SurfaceMaterial, SurfaceProps } from '../physics/types.js';
-import { SurfaceFlags } from '../physics/types.js';
+import { SurfaceFlags, makeRaycastResult } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
 import { colliderAabb, colliderBottom, colliderReach, colliderTop, makeAabb } from '../physics/geometry.js';
 import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
@@ -24,6 +24,15 @@ export interface SurfacePreset {
  * height the ramp asked for.
  */
 const MIN_STEP_THICKNESS = 0.6;
+
+/**
+ * A fallen log at scale 1: half its length and its radius. The body of `log-1.glb`, which is what
+ * draws it, measured: 4.0 m long, top 0.93–0.98 m, ±0.48 m wide at mid-height.
+ */
+export const LOG_HALF_LENGTH = 2;
+export const LOG_RADIUS = 0.48;
+/** How far ground may rise into a resting log, as a share of its radius: a log settles, it does not perch. */
+const LOG_MAX_SINK = 1 / 3;
 
 /** How far inside an edge `enclose` looks for something to stand on, in 1 m cells. */
 const CLIFF_REACH = 8;
@@ -164,8 +173,17 @@ export class LevelBuilder {
   readonly zones: ZoneDef[] = [];
   readonly portals: PortalDef[] = [];
   private nextId = 0;
+  /** Raycasts against what is built so far, rebuilt when something is added. */
+  private probe: { world: PhysicsWorld; count: number } | null = null;
 
   constructor(readonly rand: Rand) {}
+
+  private probeWorld(): PhysicsWorld {
+    if (!this.probe || this.probe.count !== this.colliders.length) {
+      this.probe = { world: new PhysicsWorld(this.colliders), count: this.colliders.length };
+    }
+    return this.probe.world;
+  }
 
   private surface(name: SurfaceName, zone?: string): SurfaceProps {
     const preset = SURFACES[name];
@@ -267,18 +285,8 @@ export class LevelBuilder {
 
     // What was built on the flat ground, as XZ rectangles (points are zero-size rectangles).
     const keep: { minX: number; maxX: number; minZ: number; maxZ: number; pad: number }[] = [];
-    const point = (p: Vec3, pad: number): void => {
-      keep.push({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, pad });
-    };
-    for (const s of this.spawns) if (Math.abs(s.position.y - base) < 2) point(s.position, 2);
-    for (const p of this.portals) if (Math.abs(p.position.y - base) < 2) point(p.position, p.radius + 1.5);
-    for (const c of this.checkpoints) if (Math.abs(c.position.y - base) < 2) point(c.position, Math.min(c.radius, 3));
-    for (const body of this.bodies) point(body.position, 1);
-    for (const zone of this.zones) {
-      for (const exit of zone.exits ?? []) {
-        point(exit.foot, 2);
-        point(exit.top, 2);
-      }
+    for (const { position: p, pad, anyHeight } of this.sites()) {
+      if (anyHeight || Math.abs(p.y - base) < 2) keep.push({ minX: p.x, maxX: p.x, minZ: p.z, maxZ: p.z, pad });
     }
     const box = makeAabb();
     for (const c of this.colliders) {
@@ -320,6 +328,133 @@ export class LevelBuilder {
       const ground = heightfieldHeight(hf, x, z);
       if (Math.abs(y - base) < 0.02 || (y < ground && y > hf.bottom)) prop.position = vec3(x, ground, z);
     }
+  }
+
+  /**
+   * Places that need clear ground round them, and how wide a pad: a spawn, a door, a checkpoint, a
+   * ball, a pit's way out. `anyHeight` marks the ones that count wherever they are, rather than
+   * only on the ground being shaped. One list, so terrain and logs keep clear of the same things.
+   */
+  private sites(): { position: Vec3; pad: number; anyHeight: boolean }[] {
+    const out: { position: Vec3; pad: number; anyHeight: boolean }[] = [];
+    for (const s of this.spawns) out.push({ position: s.position, pad: 2, anyHeight: false });
+    for (const p of this.portals) out.push({ position: p.position, pad: p.radius + 1.5, anyHeight: false });
+    for (const c of this.checkpoints) out.push({ position: c.position, pad: Math.min(c.radius, 3), anyHeight: false });
+    for (const body of this.bodies) out.push({ position: body.position, pad: 1, anyHeight: true });
+    for (const zone of this.zones) {
+      for (const exit of zone.exits ?? []) {
+        out.push({ position: exit.foot, pad: 2, anyHeight: true });
+        out.push({ position: exit.top, pad: 2, anyHeight: true });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * A fallen log: solid, lying down, long along the box's local X, and drawn as `log-1.glb` fitted
+   * to the box (`BoxCollider.drawAs`), so the log a player sees is the one they stand on.
+   *
+   * It rests on the lowest ground under it, turned in 45° steps from `yaw` to whichever way lies
+   * flattest, so it never hangs over a hollow. It is refused — and nothing is placed — where the
+   * ground rises more than a third of its radius into it, where it would run into anything solid,
+   * where it would overhang a drop or lie in water, and on the pad round a spawn, a door, a
+   * checkpoint, a ball or a pit's way out. Returns whether it was placed.
+   *
+   * `y` is the ground it is meant for; anything more than a metre off it is not that ground.
+   */
+  fallenLog(x: number, y: number, z: number, yaw: number, halfLength: number, radius: number, zone = 'jungle'): boolean {
+    const world = this.probeWorld();
+    const fits: { yaw: number; ground: number; spread: number }[] = [];
+    for (let k = 0; k < 4; k++) {
+      const turn = yaw + (k * Math.PI) / 4;
+      const fit = this.logGround(world, x, y, z, turn, halfLength, radius);
+      if (fit && fit.spread <= radius * LOG_MAX_SINK) fits.push({ yaw: turn, ...fit });
+    }
+    fits.sort((a, b) => a.spread - b.spread);
+    const fit = fits.find((f) => !this.logBlocked(x, z, f.yaw, halfLength, radius, f.ground));
+    if (!fit) return false;
+    const log = this.box(vec3(x, fit.ground + radius, z), vec3(halfLength, radius, radius), 'wood', fit.yaw, zone);
+    if (log.kind === 'box') log.drawAs = 'log';
+    return true;
+  }
+
+  /** The ground under a log lying at `yaw`: its lowest point and how far it rises. Null if unsupported. */
+  private logGround(world: PhysicsWorld, x: number, y: number, z: number, yaw: number, halfLength: number, radius: number): { ground: number; spread: number } | null {
+    const ax = Math.cos(yaw);
+    const az = -Math.sin(yaw);
+    const sx = Math.sin(yaw);
+    const sz = Math.cos(yaw);
+    // From just over where the log's top would be, so only what the log itself would occupy is met.
+    const from = y + radius * 2 + 0.5;
+    const reach = from - (y - 1);
+    const ray = makeRaycastResult();
+    const origin = vec3();
+    const down = vec3(0, -1, 0);
+    // Terrain is flat between grid points and turns at them, so a dip between two samples is
+    // missed by at most the slope times half the spacing — a few millimetres at these spacings.
+    const steps = 2 * Math.max(2, Math.ceil(halfLength / 0.25));
+    let low = Infinity;
+    let high = -Infinity;
+    for (let i = 0; i <= steps; i++) {
+      const t = -halfLength + (i / steps) * halfLength * 2;
+      for (const u of [-radius * 0.9, -radius * 0.45, 0, radius * 0.45, radius * 0.9]) {
+        origin.x = x + ax * t + sx * u;
+        origin.y = from;
+        origin.z = z + az * t + sz * u;
+        world.raycast(ray, origin, down, reach);
+        if (!ray.hit || ray.surface.flags & SurfaceFlags.Water) return null;
+        low = Math.min(low, ray.point.y);
+        high = Math.max(high, ray.point.y);
+      }
+    }
+    // Resting on top of something standing on the ground meant for it — another log, a rock — is
+    // not lying on that ground.
+    if (low > y + radius * LOG_MAX_SINK) return null;
+    return { ground: low, spread: high - low };
+  }
+
+  /** Whether a log resting on `ground` would run into a solid or onto a site's pad. */
+  private logBlocked(x: number, z: number, yaw: number, halfLength: number, radius: number, ground: number): boolean {
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    // A world point in the log's own frame: local +X is (cos, 0, −sin), local +Z is (sin, 0, cos).
+    const local = (px: number, pz: number): [number, number] => {
+      const dx = px - x;
+      const dz = pz - z;
+      return [dx * cos - dz * sin, dx * sin + dz * cos];
+    };
+    const distance = (px: number, pz: number): number => {
+      const [lx, lz] = local(px, pz);
+      return Math.hypot(Math.max(Math.abs(lx) - halfLength, 0), Math.max(Math.abs(lz) - radius, 0));
+    };
+    const top = ground + radius * 2;
+    const margin = 0.05;
+    for (const c of this.colliders) {
+      if (c.kind === 'heightfield') continue;
+      // Ground it rests on, or sinks into no deeper than the terrain may, is not in the way.
+      if (colliderTop(c) <= ground + radius * LOG_MAX_SINK || colliderBottom(c) >= top) continue;
+      if (c.kind === 'sphere' || c.kind === 'cylinder') {
+        if (distance(c.center.x, c.center.z) < c.radius + margin) return true;
+        continue;
+      }
+      // Two yawed rectangles overlap unless one of their four edge directions separates them.
+      const ccos = Math.cos(c.yaw);
+      const csin = Math.sin(c.yaw);
+      const dx = c.center.x - x;
+      const dz = c.center.z - z;
+      const separated = ([[cos, -sin], [sin, cos], [ccos, -csin], [csin, ccos]] as const).some(([nx, nz]) => {
+        const gap = Math.abs(dx * nx + dz * nz);
+        const mine = halfLength * Math.abs(cos * nx - sin * nz) + radius * Math.abs(sin * nx + cos * nz);
+        const theirs = c.half.x * Math.abs(ccos * nx - csin * nz) + c.half.z * Math.abs(csin * nx + ccos * nz);
+        return gap >= mine + theirs + margin;
+      });
+      if (!separated) return true;
+    }
+    for (const site of this.sites()) {
+      if (Math.abs(site.position.y - ground) > 3) continue;
+      if (distance(site.position.x, site.position.z) < site.pad) return true;
+    }
+    return false;
   }
 
   prop(kind: PropKind, position: Vec3, yaw = 0, scale = 1, tint = 0): void {

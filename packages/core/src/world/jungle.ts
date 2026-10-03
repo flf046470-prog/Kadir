@@ -1,7 +1,7 @@
 import { Rand, hashString } from '../math/rand.js';
 import { vec3 } from '../math/vec3.js';
 import { fractalNoise2 } from '../math/noise.js';
-import { LevelBuilder } from './builder.js';
+import { LOG_HALF_LENGTH, LOG_RADIUS, LevelBuilder } from './builder.js';
 import { registerLevel } from './registry.js';
 import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
 import type { BoxCollider, HeightfieldCollider } from '../physics/types.js';
@@ -70,7 +70,8 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 5: loose balls in the lobby.
     // 6: the floor is terrain. It rolls, it slopes down into the cave instead of dropping four
     // metres at its mouth, the river runs in a bed, and the canyon approach has no lip.
-    version: 6,
+    // 7: fallen logs are solid and lie down — six were posts, and the undergrowth's could be walked through.
+    version: 7,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -180,7 +181,8 @@ function scatter(
   b: LevelBuilder,
   rand: Rand,
   options: {
-    kinds: [PropKind, number][];
+    /** `log` is not a prop: a log is solid, and placed with `LevelBuilder.fallenLog`. */
+    kinds: [PropKind | 'log', number][];
     count: number;
     /** Ground rectangle: [minX, maxX, minZ, maxZ]. */
     area: [number, number, number, number];
@@ -188,6 +190,8 @@ function scatter(
     y: number;
     scale: [number, number];
     tint?: number;
+    /** Collider zone for the logs. */
+    zone?: string;
   },
 ): number {
   const { kinds, count, area, y, scale } = options;
@@ -258,7 +262,7 @@ function scatter(
     if (!ok) continue;
 
     let roll = rand.range(0, total);
-    let kind: PropKind = (kinds[0] as [PropKind, number])[0];
+    let kind = (kinds[0] as [PropKind | 'log', number])[0];
     for (const [candidate, weight] of kinds) {
       roll -= weight;
       if (roll <= 0) {
@@ -266,7 +270,14 @@ function scatter(
         break;
       }
     }
-    b.prop(kind, vec3(x, at, z), rand.range(0, Math.PI * 2), rand.range(scale[0], scale[1]), options.tint ?? i % 4);
+    const yaw = rand.range(0, Math.PI * 2);
+    const size = rand.range(scale[0], scale[1]);
+    if (kind === 'log') {
+      // Solid, so it may still be refused here: by ground too uneven to lie on, or by what is in its way.
+      if (!b.fallenLog(x, at, z, yaw, LOG_HALF_LENGTH * size, LOG_RADIUS * size, options.zone)) continue;
+    } else {
+      b.prop(kind, vec3(x, at, z), yaw, size, options.tint ?? i % 4);
+    }
     placed++;
   }
   return placed;
@@ -302,13 +313,13 @@ function buildJungleDistrict(b: LevelBuilder, rand: Rand): void {
   b.rocks(-22, 24, 6, 1.8);
   b.rocks(6, -32, 4, 2.6);
 
-  // Fallen logs — low obstacles that reward the auto step-up.
+  // Fallen logs: knee-high obstacles to hop, or to run along. They used to be a log prop over a
+  // *vertical* cylinder collider — a 4 m post nobody could see the log in.
   for (let i = 0; i < 6; i++) {
     const x = rand.range(-40, 40);
     const z = rand.range(-40, 40);
     const yaw = rand.range(0, Math.PI);
-    b.cylinder(vec3(x, 0.55, z), 0.55, 3.4, 'wood', 'jungle');
-    b.prop('log', vec3(x, 0, z), yaw, 1, 0);
+    b.fallenLog(x, 0, z, yaw, LOG_HALF_LENGTH, LOG_RADIUS, 'jungle');
   }
 
   // Tree village: linked one-way platforms high in the canopy.
@@ -518,7 +529,9 @@ function dressWorld(b: LevelBuilder, rand: Rand): void {
     y: -4,
     scale: [0.6, 1.25],
     tint: 1,
-  });}
+    zone: 'canyon',
+  });
+}
 
 registerLevel({
   id: 'jungle-world',

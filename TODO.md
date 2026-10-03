@@ -21,7 +21,8 @@ file claimed 107 tests and 6 animals for a long time after both had moved.
 - [x] **4 · Maps** — **3 worlds**, each deterministic from a seed: `jungle-world` (jungle, cave,
       canyon, tree village), `glacier-world` (shelf, seracs, crevasse), `outback-station`
       (gum flat, gorge, cave, station). Grips, spawns, zones and parkour routes indexed;
-      the jungle floor is heightfield terrain that slopes into the cave and the canyon
+      the jungle floor is heightfield terrain that slopes into the cave and the canyon; every
+      fallen log is solid, lies on its ground and is drawn as the box it collides as
 - [x] **5 · Multiplayer** — authoritative rooms, binary intents (**protocol 3**), delta
       snapshots, interest management, prediction + rewind/replay reconciliation, interpolation
       (players *and* gadget entities on one clock)
@@ -136,6 +137,9 @@ These were Milestone B items in `ROADMAP.md` and are done:
 - **`LevelDef.grips`/`GripKind`** (`branch`/`ledge`/`vine`/`rock`/`root`) are authored into every
   map and read only by a test's level-stats count. All five climb identically, keyed on
   `SurfaceFlags.Climbable`; the promised per-grip feel and highlighting do not exist.
+- **Bots wedge in the glacier's crevasse.** Measured, six bots × 16 seeds × 90 s: 29 % of
+  bot-seconds stuck, almost all in two cells at (−40, −7, ±12), and 47 % of the round spent down
+  there. The jungle is 8 % and the outback 16 %.
 - **No i18n.** `Settings.locale` was removed rather than left as a control that configures
   nothing; it comes back with a translation system.
 
