@@ -277,6 +277,20 @@ export function steerPixels(target, { offset = 0.14, maxTurn = 0.06, radPerPx = 
   return -turn / radPerPx;
 }
 
+/**
+ * The vertical drag, in pixels, that brings the view's pitch back to `level`. Pitch is positive
+ * looking up, and dragging down lowers it (`PCInput`: pitch -= movementY × sensitivity).
+ *
+ * Needed because the first drag after the button goes down carries a stale delta from wherever
+ * the pointer last was — a menu button, usually — and its vertical half went straight into the
+ * pitch. Nothing turned it back, so each shot inherited whatever tilt its last menu click left:
+ * the Roo Ball screenshot looked up a tree trunk from below the kangaroo.
+ */
+export function levelPixels(pitch, { level = 0, maxTurn = 0.08, radPerPx = LOOK_RAD_PER_PX } = {}) {
+  const turn = Math.max(-maxTurn, Math.min(maxTurn, pitch - level));
+  return turn / radPerPx;
+}
+
 /** How many other players a frame shows: in sight, in the middle of the view and near enough to read. */
 export function playersInShot(view) {
   return inSight(view, 2.5, 22).filter((o) => Math.abs(o.bearing) < 0.5).length;
@@ -335,6 +349,7 @@ export class Steering {
     const target = pickTarget(view, this.targetId, { anyone });
     this.targetId = target?.id ?? null;
     this.x += target ? steerPixels(target, { maxTurn, radPerPx: this.radPerPx }) : drift;
+    if (view) this.y += levelPixels(view.pitch, { radPerPx: this.radPerPx });
     await this.page.mouse.move(this.x, this.y);
     return { view, target };
   }

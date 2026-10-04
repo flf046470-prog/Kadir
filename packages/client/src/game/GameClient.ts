@@ -355,6 +355,11 @@ export class GameClient {
     return this.sim.players.get(this.localId);
   }
 
+  /** Another player's name, from the roster that also labels their avatar. Bots included. */
+  nameOf(id: string): string | undefined {
+    return this.remotes.get(id)?.entry.name;
+  }
+
   /** Everyone else as the camera sees them — for the store-capture scripts only (`captureView.ts`). */
   captureView(): CaptureView | null {
     return captureViewOf(this.sim.players.values(), this.localId, this.cameraYaw, this.sim.world);

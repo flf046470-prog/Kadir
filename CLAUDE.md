@@ -2456,6 +2456,18 @@ nine shots.
   the stale delta read as a gain. The bad gain made the camera crawl, and four candidate frames
   in a row lost a player it had found. `Steering.calibrate` now drags twice and measures the
   second drag.
+- **The stale delta has a vertical half, and it went into the pitch.** Measured on Roo Ball:
+  **0.724 rad** (41° up) after calibration, so the camera sat below the kangaroo looking up a
+  tree trunk, and the ball and the goals were out of frame. Every shot inherited whatever tilt
+  its last menu click left. `steer` now levels the pitch too (`levelPixels`, read from
+  `CaptureView.pitch`): 0.000 after twelve steps, and the same shot then had the ball, a goal,
+  the corner flags and four players in it.
+
+**The scoreboard printed ids, not names.** `Hud` showed `shortId(id)`: `bot0`…`bot4` in practice,
+beside avatars whose name tags said Bounce and Digger, and seven characters of an account id
+online. The Steam screenshots showed it. `ui/scores.ts` takes the name from the roster that labels
+the avatar (`GameClient.nameOf`), and keeps the short id only for a player the roster has not
+reached yet.
 - **`Bot` stores its id as `playerId`, not `id`.** A probe that looked bots up by `bot.id` got
   `undefined`, skipped every `think`, and measured a round of bots standing still. Its first
   numbers said seeking never met anybody on the glacier; with the bots driven, it took 1.8 s.

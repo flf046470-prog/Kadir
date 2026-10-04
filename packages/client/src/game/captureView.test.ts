@@ -65,6 +65,12 @@ describe('what the store capture can see', () => {
     expect(by.behind!.visible).toBe(true);
   });
 
+  it('reports the pitch the camera follows', () => {
+    const sim = rig();
+    sim.players.get('me')!.pitch = 0.4;
+    expect(captureViewOf(sim.players.values(), 'me', 0, sim.world)!.pitch).toBe(0.4);
+  });
+
   it('has nothing to say without a local player', () => {
     const sim = rig();
     expect(captureViewOf(sim.players.values(), 'nobody', 0, sim.world)).toBeNull();

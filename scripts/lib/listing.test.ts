@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain .mjs modules with no type declarations, like png.mjs.
 import { encodePng } from './png.mjs';
 // @ts-expect-error — see above.
-import { LOOK_RAD_PER_PX, frameScore, pickTarget, playersInShot, steerPixels } from './listing.mjs';
+import { LOOK_RAD_PER_PX, frameScore, levelPixels, pickTarget, playersInShot, steerPixels } from './listing.mjs';
 
 /** A 384x216 frame filled by `shade(x, y)`, as PNG bytes the way a screenshot arrives. */
 function frame(shade: (x: number, y: number) => number): Uint8Array {
@@ -70,6 +70,18 @@ describe('pointing the camera at somebody', () => {
     let bearing = -2.5;
     for (let i = 0; i < 200; i++) bearing += steerPixels({ bearing } as never) * LOOK_RAD_PER_PX;
     expect(bearing).toBeCloseTo(0.14, 6);
+  });
+
+  it('levels a tilted view, a little at a time', () => {
+    // Looking up (positive pitch) needs a drag down (positive pixels), and the reverse.
+    expect(levelPixels(0.4)).toBeGreaterThan(0);
+    expect(levelPixels(-0.4)).toBeLessThan(0);
+    expect(levelPixels(0)).toBe(0);
+    expect(levelPixels(1.2, { maxTurn: 0.08 })).toBeCloseTo(0.08 / LOOK_RAD_PER_PX, 6);
+    // Replayed the way PCInput applies a drag, the pitch settles on level.
+    let pitch = 0.9;
+    for (let i = 0; i < 100; i++) pitch -= levelPixels(pitch) * LOOK_RAD_PER_PX;
+    expect(pitch).toBeCloseTo(0, 6);
   });
 
   it('counts only the players a frame actually shows', () => {

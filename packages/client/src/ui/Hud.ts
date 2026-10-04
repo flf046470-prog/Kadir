@@ -4,11 +4,14 @@ import { clear, el, formatTime } from './dom.js';
 import type { MobileButtonState, MobileInput } from '../platform/mobile/MobileInput.js';
 import { ChatPanel } from './ChatPanel.js';
 import { roleBadge, roleBadgeClass } from './roles.js';
+import { scoreRows } from './scores.js';
 
 export interface HudOptions {
   root: HTMLElement;
   platform: 'pc' | 'mobile' | 'vr';
   localId: string;
+  /** A player's name, as drawn over their head. The scoreboard prints it instead of their id. */
+  nameOf?(id: string): string | undefined;
   onMenu(): void;
   onEmote(): void;
   /** Say whether this player is ready. Absent where there is no server to tell. */
@@ -280,13 +283,9 @@ export class Hud {
 
     // Short screens (landscape phones) only have room for a few rows.
     const limit = globalThis.innerHeight < 480 ? 4 : 6;
-    const entries = Object.entries(state.scores)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit);
     clear(this.scores);
-    for (const [id, score] of entries) {
-      const name = id === this.options.localId ? 'You' : shortId(id);
-      this.scores.append(el('div', {}, el('span', {}, name), el('span', {}, String(score))));
+    for (const row of scoreRows(state.scores, this.options.localId, (id) => this.options.nameOf?.(id), limit)) {
+      this.scores.append(el('div', {}, el('span', {}, row.label), el('span', {}, String(row.score))));
     }
 
     if (local) {
@@ -668,6 +667,3 @@ function statusLabel(g: PlayerState['gadgets']): string {
   return '';
 }
 
-function shortId(id: string): string {
-  return id.length > 8 ? `${id.slice(0, 7)}…` : id;
-}

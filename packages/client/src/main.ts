@@ -353,6 +353,7 @@ async function main(): Promise<void> {
       root: shellRoot,
       platform: device.kind,
       localId: session.playerId,
+      nameOf: (id) => game?.nameOf(id),
       onMenu: () => openMenu(),
       onEmote: () => undefined,
       onReady: (ready) => game?.setReady(ready),

@@ -16,6 +16,8 @@ export interface CaptureTarget {
 export interface CaptureView {
   /** The camera's heading: the local player's yaw, which the third-person camera follows. */
   yaw: number;
+  /** The local player's look pitch, radians, positive looking up; the camera follows it. */
+  pitch: number;
   others: CaptureTarget[];
 }
 
@@ -63,5 +65,5 @@ export function captureViewOf(
     others.push({ id: p.id, role: p.role, distance, bearing, visible: !_ray.hit });
   }
   others.sort((a, b) => a.distance - b.distance);
-  return { yaw: cameraYaw, others };
+  return { yaw: cameraYaw, pitch: self.pitch, others };
 }
