@@ -29,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   enterMatch,
+  frameUp,
   growTo,
   hideInterface,
   imageDataUri,
@@ -57,13 +58,20 @@ const CROSSFADE = 0.5;
 /**
  * Five shots, three maps, five modes. `turn` is how far the camera swings across the shot, in
  * mouse pixels; alternating its sign keeps consecutive shots from all drifting the same way.
+ *
+ * Each mode is filmed on the map where its players are most often close: the share of
+ * player-seconds with somebody within 12 m and in sight, six bots, 4 seeds × 90 s
+ * (`captureViewOf`). The Hunt was on the jungle, its worst map at 17 %, and its shot never found
+ * anybody; on the glacier it is 31 %. Chase: outback 33 %. Duel: glacier 44 %. King of the Hill:
+ * outback 62 %. Roo Ball is 96–98 % anywhere, so it carries the jungle. Consecutive shots change
+ * map, and the third — the end card's backdrop — is the one sure to have players in it.
  */
 const SHOTS = [
-  { mode: 'Kangaroo Chase', map: 'Jungle World', seconds: 6.5, turn: 240 },
-  { mode: 'King of the Hill', map: 'Glacier World', seconds: 6.5, turn: -200 },
-  { mode: 'Roo Ball', map: 'Outback Station', seconds: 6.5, turn: 180 },
-  { mode: 'Conversion Duel', map: 'Glacier World', seconds: 6.5, turn: -160 },
-  { mode: 'The Hunt', map: 'Jungle World', seconds: 6.5, turn: 220 },
+  { mode: 'Kangaroo Chase', map: 'Outback Station', seconds: 6.5, turn: 240 },
+  { mode: 'Conversion Duel', map: 'Glacier World', seconds: 6.5, turn: -200 },
+  { mode: 'Roo Ball', map: 'Jungle World', seconds: 6.5, turn: 180 },
+  { mode: 'King of the Hill', map: 'Outback Station', seconds: 6.5, turn: -160 },
+  { mode: 'The Hunt', map: 'Glacier World', seconds: 6.5, turn: 220 },
 ];
 
 // Filming takes about two hours under swiftshader, and one run was killed at that mark during its
@@ -178,6 +186,8 @@ async function film(shot, index) {
     log(`  found somebody ${found === null ? 'never' : `after ${found.toFixed(1)} s`}`);
     await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
+    const framed = await frameUp(page, steering);
+    log(`  framed somebody near ${framed === null ? 'never' : `after ${framed.toFixed(1)} s more`}`);
     await growTo(page, { width: WIDTH, height: HEIGHT });
     for (let i = 0; i < 3; i++) await page.evaluate(() => window.__kcTime.step(1000 / 30));
 

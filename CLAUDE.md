@@ -2560,6 +2560,14 @@ can render it) bundled with esbuild into the page. The recorded effects are left
 their ElevenLabs licence. The captions live in `docs/PC_LISTINGS.md`, so `copy.test.ts` checks
 their numbers.
 
+**The first full trailer filmed rock.** Shots 1, 2, 4 and 5 opened on a canyon wall or a boulder
+and mostly showed nobody; the Hunt's never found anyone in 30 s. Two causes, each measured:
+filming began the moment `seekPlayers` saw anybody within 20 m, often behind the camera, which
+then turns at 1 rad/s — so `frameUp` now runs and turns unfilmed until `inFrame` (within 12 m,
+in the middle of the view); and the maps were chosen for variety alone, the Hunt on the jungle at
+17 % close-and-in-sight against 31 % on the glacier. Each trailer shot is on its mode's best map now
+(the table is in `pack-trailer.mjs`).
+
 **A trailer run takes about two hours, and a background job here is killed at two.** One died in
 its fifth shot with nothing kept: the finished shots' videos were in `dist/trailer-work/`, but their
 first frames — which the title and end cards are drawn over — were only ever in memory. Each

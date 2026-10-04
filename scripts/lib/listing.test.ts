@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain .mjs modules with no type declarations, like png.mjs.
 import { encodePng } from './png.mjs';
 // @ts-expect-error — see above.
-import { LOOK_RAD_PER_PX, frameScore, levelPixels, pickTarget, playersInShot, shotScore, steerPixels } from './listing.mjs';
+import { LOOK_RAD_PER_PX, frameScore, inFrame, levelPixels, pickTarget, playersInShot, shotScore, steerPixels } from './listing.mjs';
 
 /** A 384x216 frame filled by `shade(x, y)`, as PNG bytes the way a screenshot arrives. */
 function frame(shade: (x: number, y: number) => number): Uint8Array {
@@ -95,6 +95,17 @@ describe('pointing the camera at somebody', () => {
     // With nobody in it, contrast alone decides.
     expect(shotScore(view(), 30)).toBe(30);
     expect(shotScore(null, 30)).toBe(30);
+  });
+
+  it('starts filming only with somebody near and in the middle of the view', () => {
+    expect(inFrame(view({ id: 'fox', distance: 8, bearing: 0.2 }))).toBe(true);
+    // In sight but behind the camera, or off to the side: what a shot used to start on.
+    expect(inFrame(view({ id: 'fox', distance: 8, bearing: 2.4 }))).toBe(false);
+    expect(inFrame(view({ id: 'fox', distance: 8, bearing: -0.4 }))).toBe(false);
+    // In the middle but a speck, or behind rock.
+    expect(inFrame(view({ id: 'fox', distance: 19, bearing: 0.1 }))).toBe(false);
+    expect(inFrame(view({ id: 'fox', distance: 8, bearing: 0.1, visible: false }))).toBe(false);
+    expect(inFrame(null)).toBe(false);
   });
 
   it('counts only the players a frame actually shows', () => {

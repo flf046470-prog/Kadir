@@ -300,6 +300,37 @@ function shownPlayers(view) {
   return inSight(view, 2.5, 22).filter((o) => Math.abs(o.bearing) < 0.5);
 }
 
+/**
+ * Somebody near and in the middle of the view: the moment a filmed shot can start. `steerPixels`
+ * aims 0.14 rad to the player's left of them, so the middle is measured from there.
+ */
+export function inFrame(view, within = CLOSE_SHOT) {
+  return shownPlayers(view).some((o) => o.distance <= within && Math.abs(o.bearing - 0.14) < 0.35);
+}
+
+/**
+ * Keep running and turning, unfilmed, until `inFrame`, for at most `maxSeconds` of game time; the
+ * caller holds the run keys. Returns the seconds it took, or null.
+ *
+ * `seekPlayers` stops at somebody in sight within 20 m, wherever they are, and the trailer used to
+ * start filming there: with them behind the camera, which turns at a camera operator's pace while
+ * filming, a shot spent its first seconds on whatever was in front — a canyon wall, a boulder.
+ */
+export async function frameUp(page, steering, { maxSeconds = 15, within = CLOSE_SHOT } = {}) {
+  try {
+    for (let i = 0; i < maxSeconds * 10; i++) {
+      if (i % 16 === 0) await page.keyboard.down('Space');
+      if (i % 16 === 2) await page.keyboard.up('Space');
+      const { view } = await steering.steer({ maxTurn: 0.2, anyone: true });
+      if (inFrame(view, within)) return i / 10;
+      await page.evaluate(() => window.__kcTime.step(100));
+    }
+    return null;
+  } finally {
+    await page.keyboard.up('Space').catch(() => {});
+  }
+}
+
 /** Near enough that a player reads as somebody, not a speck, in a 1920x1080 frame. */
 export const CLOSE_SHOT = 12;
 
