@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain .mjs modules with no type declarations, like png.mjs.
 import { encodePng } from './png.mjs';
 // @ts-expect-error — see above.
-import { LOOK_RAD_PER_PX, frameScore, levelPixels, pickTarget, playersInShot, steerPixels } from './listing.mjs';
+import { LOOK_RAD_PER_PX, frameScore, levelPixels, pickTarget, playersInShot, shotScore, steerPixels } from './listing.mjs';
 
 /** A 384x216 frame filled by `shade(x, y)`, as PNG bytes the way a screenshot arrives. */
 function frame(shade: (x: number, y: number) => number): Uint8Array {
@@ -82,6 +82,19 @@ describe('pointing the camera at somebody', () => {
     let pitch = 0.9;
     for (let i = 0; i < 100; i++) pitch -= levelPixels(pitch) * LOOK_RAD_PER_PX;
     expect(pitch).toBeCloseTo(0, 6);
+  });
+
+  it('ranks a frame by who is in it, then by how near they are, then by contrast', () => {
+    const near = view({ id: 'fox', distance: 6, bearing: 0.1 });
+    const far = view({ id: 'penguin', distance: 20, bearing: 0.1 });
+    const two = view({ id: 'a', distance: 20, bearing: 0.1 }, { id: 'b', distance: 21, bearing: -0.2 });
+    // A near player beats a far one even in a flatter frame…
+    expect(shotScore(near, 20)).toBeGreaterThan(shotScore(far, 50));
+    // …but a second player in the frame beats nearness.
+    expect(shotScore(two, 20)).toBeGreaterThan(shotScore(near, 50));
+    // With nobody in it, contrast alone decides.
+    expect(shotScore(view(), 30)).toBe(30);
+    expect(shotScore(null, 30)).toBe(30);
   });
 
   it('counts only the players a frame actually shows', () => {

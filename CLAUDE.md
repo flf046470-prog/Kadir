@@ -2470,6 +2470,11 @@ backdrop is taken with `__kcHideSelf` (webdriver only, like `__kcView`; it chang
 draws and nothing the simulation knows). `pack:pc:listing -- --art` redraws the key art and
 icons without re-shooting the five screenshots, which are most of a run's hour.
 
+**A speck counted as a player.** Candidates were ranked by how many players were in the middle of
+the frame, and one 20 m away counted as much as one at 6 m: the Conversion Duel screenshot was a
+field of red earth with a penguin on the horizon. `shotScore` adds nearness under the count, and a
+candidate is cut early only for somebody within `CLOSE_SHOT` (12 m), or for anybody after 24 frames.
+
 **Roo Ball's score broke across lines.** A goal flash ("BLUE SCORES — Joey · RED 0 – 1 BLUE")
 wrapped in the HUD's 520 px headline with "BLUE" alone on the second line. The score is written
 with no-break spaces now, as ` ` escapes: an Edit wrote the literal character the first

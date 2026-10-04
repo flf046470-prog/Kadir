@@ -293,7 +293,26 @@ export function levelPixels(pitch, { level = 0, maxTurn = 0.08, radPerPx = LOOK_
 
 /** How many other players a frame shows: in sight, in the middle of the view and near enough to read. */
 export function playersInShot(view) {
-  return inSight(view, 2.5, 22).filter((o) => Math.abs(o.bearing) < 0.5).length;
+  return shownPlayers(view).length;
+}
+
+function shownPlayers(view) {
+  return inSight(view, 2.5, 22).filter((o) => Math.abs(o.bearing) < 0.5);
+}
+
+/** Near enough that a player reads as somebody, not a speck, in a 1920x1080 frame. */
+export const CLOSE_SHOT = 12;
+
+/**
+ * How a candidate frame ranks: how many other players it shows, then how near the nearest of them
+ * is, then `contrast` (`frameScore`). Counting alone ranked a penguin 20 m off as well as a fox at
+ * 6 m, and the Conversion Duel screenshot was a field of red earth with a speck on it.
+ */
+export function shotScore(view, contrast) {
+  const shown = shownPlayers(view);
+  if (shown.length === 0) return contrast;
+  const nearest = Math.min(...shown.map((o) => o.distance));
+  return Math.min(shown.length, 3) * 100 + (22 - nearest) * 3 + contrast;
 }
 
 /**
@@ -420,12 +439,15 @@ export async function captureBestHeldFrame(page, size, candidates = 6, log = () 
         if (f % 16 === 3) await page.keyboard.up('Space');
         await steering.steer({ maxTurn: 0.08, drift: 3, anyone: true });
         await step(1000 / 30);
-        if (f >= 8 && playersInShot(await readView(page)) > 0) break;
+        // Somebody close, or after a while anybody at all: waiting longer for a close one costs
+        // the shot whenever the nearest player is running away.
+        const shown = shownPlayers(await readView(page));
+        if ((f >= 8 && shown.some((o) => o.distance <= CLOSE_SHOT)) || (f >= 24 && shown.length > 0)) break;
       }
       const frame = await snapAt(page, size);
       const view = await readView(page);
       const players = playersInShot(view);
-      const score = Math.min(players, 3) * 100 + frameScore(frame);
+      const score = shotScore(view, frameScore(frame));
       const near = pickTarget(view, null, { anyone: true });
       const where = near ? `, nearest ${near.distance.toFixed(1)} m at ${near.bearing.toFixed(2)} rad${near.visible ? '' : ' (hidden)'}` : '';
       log(`    candidate ${c + 1}: ${players} player(s) in shot${where}, frame score ${frameScore(frame).toFixed(1)}`);
