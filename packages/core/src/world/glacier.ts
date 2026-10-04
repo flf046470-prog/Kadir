@@ -62,7 +62,13 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     // of a ramp. Measured: crevasse occupancy 9 % -> 15 % once it is walkable.
     // 4: yawed towers collide where they are drawn, and the snow drifts rest on the ice.
     // 5: walled edges; the crevasse ends at the rim instead of under it, with a solid ramp.
-    version: 6,
+    // 7: the crevasse ramp is the crevasse's full width. Beside a 12 m ramp were two dead-end
+    //    pockets the ramp's side walled off from each other; six bots, 16 seeds × 90 s: 26.3 % of
+    //    bot-seconds stuck, 52 % of the round in the crevasse, and 425 of 468 tags the same two
+    //    bots tagging each other back within 6 s in a pocket. After: 6.0 % stuck, crevasse 15 %,
+    //    12 of 39 tags repeats. The ice columns moved to the floor past the ramp's foot; the wall
+    //    ledges, which climbed to nowhere under the roof, are gone.
+    version: 7,
     seed,
     killPlaneY,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and
@@ -85,8 +91,12 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
  * honest way to make an empty floor interesting: the scattered boulders are not decoration, they
  * are the only things you can push off to change direction.
  */
-/** How wide the way down into the crevasse is; the rink's rim leaves a gap for it. */
-const CREVASSE_RAMP_WIDTH = 12;
+/**
+ * How wide the way down into the crevasse is; the rink's rim leaves a gap for it. The crevasse's
+ * whole width between its walls (their inner faces are at z = ±11.5): a narrower ramp left a
+ * dead-end pocket either side of its top end, walled off from each other by the ramp's own side.
+ */
+const CREVASSE_RAMP_WIDTH = 23;
 
 function buildIceShelf(b: LevelBuilder, rand: Rand): void {
   b.box(vec3(0, -1, 0), vec3(38, 1, 38), 'ice', 0, 'shelf');
@@ -133,6 +143,15 @@ function buildIceShelf(b: LevelBuilder, rand: Rand): void {
   }
 }
 
+/** Where the crevasse's ice columns stand, west of the ramp's foot (x = -55). */
+const COLUMN_SPOTS: readonly (readonly [number, number])[] = [
+  [-56.8, 3.6],
+  [-59.4, -3.4],
+  [-57.0, -8.2],
+  [-60.4, 3.2],
+  [-60.2, -8.4],
+];
+
 /**
  * The crevasse: a slot beside the shelf, reached by a ramp at its mouth.
  *
@@ -168,20 +187,17 @@ function buildCrevasse(b: LevelBuilder, rand: Rand): void {
   // Under the lip, floor to the underside of the ice: the crevasse's east face.
   b.box(vec3(RIM + 0.75, -6, 0), vec3(0.75, 4, 14.5), 'rock', 0, 'crevasse');
 
-  // Ice columns from floor to roof: the cover that makes a dead end survivable. Either side of the
-  // ramp, never through it, and clear of its sides: a column within a body's width of the ramp
-  // closes the walk along it to the foot.
+  // Ice columns: the cover that makes a dead end survivable. On the flat floor past the ramp's
+  // foot, clear of the walls, of the runner spawn and of the line out along z = 0. They used to
+  // stand beside a narrow ramp, and on a full-width one they would leave slots against the walls
+  // a body fits into and not through. Nine draws as before, so nothing after this moves.
   for (let i = 0; i < 9; i++) {
-    const x = -42 - i * 2 - rand.range(0, 1.2);
-    const z = (i % 2 === 0 ? 1 : -1) * rand.range(8, 10.4);
-    b.cylinder(vec3(x, -2.5, z), rand.range(0.5, 0.9), 5.5, 'glazedIce', 'crevasse');
-  }
-
-  // Ledges up one wall — the climb back out that is not the ramp.
-  for (let i = 0; i < 5; i++) {
-    const x = -40 - i * 3.6;
-    b.platform(x, -5 + i * 1.6, -10, 3.5, 2.5, 'crevasse');
-    b.grip(vec3(x, -4 + i * 1.6, -10), vec3(0, 0, 1), 'ledge');
+    const jx = rand.range(0, 1.2);
+    const jz = rand.range(8, 10.4);
+    const radius = rand.range(0.5, 0.9);
+    const spot = COLUMN_SPOTS[i];
+    if (!spot) continue;
+    b.cylinder(vec3(spot[0] + (jx - 0.6) * 0.4, -2.5, spot[1] + (jz - 9.2) * 0.2), radius, 5.5, 'glazedIce', 'crevasse');
   }
 
   b.spawn(vec3(-58, FLOOR, 7), Math.PI / 2, 'crevasse', 'runner');

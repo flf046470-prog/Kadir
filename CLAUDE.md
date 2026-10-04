@@ -2285,8 +2285,17 @@ Measured with six bots × 16 seeds × 90 s, HEAD against the change: jungle fall
 changed seeds lower — which looked systematic, so 48 fresh seeds were run: **952 → 942**, changes
 both ways, stuck 16.8 % on both. The chase is chaotic; a sign test on seven seeds is not evidence.
 
-**Found while measuring and not fixed:** on the glacier, bots spend **29 % of bot-seconds stuck**,
-nearly all in two cells at (−40, −7, ±12) in the crevasse, and 47 % of the round is spent there.
+**The glacier's crevasse wedge — fixed in version 7.** Bots spent 26 % of bot-seconds stuck, almost
+all at (−38.4, −8, ±11.1): the corners of two dead-end pockets beside the top of a 12 m ramp in a
+23 m crevasse, which the ramp's 7 m side walled off from each other. Mostly runners, each pressed
+into a corner, fleeing a chaser in the *other* pocket who pressed into the ramp's side towards
+them; and where they did meet, the role-swap tag ping-ponged — **425 of 468 tags were the same two
+bots again within 6 s**, so the glacier's tag count was a measurement of the trap, not of chasing.
+`routeOut` never ran for them: it only steers bots with an *objective* and no target, and in
+Kangaroo Chase every bot has a target. The ramp is the crevasse's full width now (`.probe/stuck.ts`,
+6 bots × 16 seeds × 90 s): 6.0 % stuck, crevasse 52 % → 15 % of the round, 39 tags of which 12
+repeats. Real chases on the glacier are rare (about 1.7 a round) — that is the ice, and a separate
+question from this. `glacier.test.ts` raycasts across the crevasse near the ramp's top.
 
 ## The kangaroo bounds: planted feet, a ballistic flight, and a thump
 

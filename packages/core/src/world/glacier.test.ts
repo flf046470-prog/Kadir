@@ -7,6 +7,8 @@ import { zoneAt } from './zone.js';
 import type { BoxCollider } from '../physics/types.js';
 import { SurfaceFlags } from '../physics/types.js';
 import { closestPointOnBox } from '../physics/geometry.js';
+import { makeRaycastResult } from '../physics/types.js';
+import { PhysicsWorld } from '../physics/world.js';
 import { vec3 } from '../math/vec3.js';
 
 /**
@@ -103,6 +105,20 @@ describe('glacier world', () => {
     const crevasse = level.zones.find((z) => z.name === 'crevasse');
     expect(crevasse?.darkness).toBeGreaterThan(0.5);
     expect(zoneAt(level, crevasse?.center ?? { x: 0, y: 0, z: 0 })?.zone.name).toBe('crevasse');
+  });
+
+  it('leaves no pocket beside the crevasse ramp', () => {
+    // Beside a 12 m ramp the crevasse floor ran on to the rim on both sides: two dead ends that the
+    // ramp's side walled off from each other. Six bots spent 26 % of their time stuck there, and the
+    // same two tagged each other back and forth through 425 of the round's 468 tags. Near the top
+    // end, the ground right across the crevasse has to be the ramp, not the floor below it.
+    const world = new PhysicsWorld(level.colliders);
+    const ray = makeRaycastResult();
+    for (let z = -11; z <= 11; z += 0.5) {
+      world.raycast(ray, vec3(-41, 4, z), vec3(0, -1, 0), 20);
+      expect(ray.hit, `nothing under x -41, z ${z}`).toBe(true);
+      expect(ray.point.y, `x -41, z ${z} is the crevasse floor, not the ramp`).toBeGreaterThan(-4);
+    }
   });
 
   it('puts the spawn on the rink, not in the hole', () => {
