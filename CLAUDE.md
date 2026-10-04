@@ -2568,6 +2568,12 @@ in the middle of the view); and the maps were chosen for variety alone, the Hunt
 17 % close-and-in-sight against 31 % on the glacier. Each trailer shot is on its mode's best map now
 (the table is in `pack-trailer.mjs`).
 
+**A bots' average does not say where the filming player starts.** King of the Hill measured 62 %
+close-and-in-sight on the outback, and its screenshot there had the player start 140 m from
+everybody, pinned in a rock corner for the whole capture (`seekPlayers` runs straight at the
+nearest player and cannot path round a wall). It went back to the glacier (71 %), where it had
+already been shot well.
+
 **A trailer run takes about two hours, and a background job here is killed at two.** One died in
 its fifth shot with nothing kept: the finished shots' videos were in `dist/trailer-work/`, but their
 first frames — which the title and end cards are drawn over — were only ever in memory. Each
