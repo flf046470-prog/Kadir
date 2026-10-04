@@ -27,7 +27,7 @@
 [hidden]{display:none!important}
 html,body{height:100%;margin:0;overflow:hidden;background:var(--soot);color:var(--paper)}
 body{font-family:var(--type);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#view{position:fixed;inset:0;width:100%;height:100%;display:block;object-fit:cover;image-rendering:crisp-edges;image-rendering:pixelated;background:var(--soot);cursor:crosshair}
+#view{position:fixed;inset:0;width:100%;height:100%;display:block;object-fit:contain;image-rendering:crisp-edges;image-rendering:pixelated;background:var(--soot);cursor:crosshair}
 
 .hud{position:fixed;inset:0;pointer-events:none;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(14px + env(safe-area-inset-bottom,0px))}
 .hud-top{display:flex;align-items:center;gap:12px}
@@ -51,7 +51,7 @@ body{font-family:var(--type);font-size:15px;line-height:1.5;-webkit-font-smoothi
 .screen{position:fixed;inset:0;display:grid;place-items:center;padding:24px 16px;overflow:auto;background:radial-gradient(ellipse at 50% 45%,rgba(11,10,9,.45),rgba(11,10,9,.93) 72%)}
 .panel{width:100%;max-width:36rem;display:grid;gap:18px}
 .eyebrow{margin:0;font-size:12px;letter-spacing:.22em;text-transform:uppercase;color:var(--candle)}
-.panel h1{margin:0;font-family:var(--display);font-weight:700;font-size:clamp(52px,11vw,112px);line-height:.88;letter-spacing:.05em;text-transform:uppercase;color:var(--paper);text-wrap:balance}
+.panel h1{margin:0;font-family:var(--display);font-weight:700;font-size:clamp(40px,11vw,112px);line-height:.88;letter-spacing:.05em;text-transform:uppercase;color:var(--paper);text-wrap:balance}
 .panel h2{margin:0;font-family:var(--display);font-weight:600;font-size:clamp(36px,6vw,60px);line-height:1;text-wrap:balance}
 .dead h2{color:var(--ember)}
 .lede{margin:0;font-family:var(--display);font-style:italic;font-weight:500;font-size:clamp(19px,2.2vw,23px);line-height:1.35;color:var(--paper);max-width:32em}
@@ -395,7 +395,7 @@ function buildTextures() {
 
 /* ---------------- level ---------------- */
 const N = 21;
-let map, seen, PF, items = [], exitCell = -1, exitIn = -1, exitX = 0, exitY = 0, found = 0, doorOpen = false, startAngle = 0;
+let map, seen, PF, pfCell = -1, items = [], exitCell = -1, exitIn = -1, exitX = 0, exitY = 0, found = 0, doorOpen = false, startAngle = 0;
 const Q = new Int32Array(N * N);
 function bfs(start, out) {
   out.fill(-1); out[start] = 0; let h = 0, t = 0; Q[t++] = start;
@@ -449,7 +449,7 @@ function genLevel() {
   for (let i = 0; i < N * N; i++) if (map[i]) { const r = rnd(); map[i] = r < 0.64 ? 1 : r < 0.82 ? 2 : r < 0.89 ? 4 : r < 0.95 ? 5 : 3; }
 
   seen = new Uint8Array(N * N);
-  PF = new Int16Array(N * N); bfs(N + 1, PF);
+  PF = new Int16Array(N * N); bfs(N + 1, PF); pfCell = N + 1;
   M.wf = new Int16Array(N * N);
 
   let best = -1;
@@ -614,7 +614,7 @@ const A = {
 };
 
 /* ---------------- state ---------------- */
-const P = { x: 1.5, y: 1.5, a: 0, pitch: 0, bob: 0, bobZ: 0, amp: 0, swayX: 0, swayY: 0, stam: 100, batt: 100, light: true, moving: false, sprint: false, tired: false, fear: 0, t: 0, step: 0, flick: 0, fl: 1, hb: 1, evtT: 15, tinkT: 2, warned: 0, ignoreUnlock: false };
+const P = { x: 1.5, y: 1.5, a: 0, pitch: 0, bob: 0, bobZ: 0, amp: 0, swayX: 0, swayY: 0, stam: 100, batt: 100, light: true, moving: false, sprint: false, tired: false, fear: 0, t: 0, step: 0, flick: 0, fl: 1, hb: 1, evtT: 15, tinkT: 2, warned: 0, shriekT: 0, ignoreUnlock: false };
 const M = { x: 0, y: 0, state: 'sleep', timer: 0, huntT: 0, tgt: -1, wf: null, wgoal: -1, farT: 0, senseT: 30, onScreen: false };
 const MS = { tex: null, w: 0.5, h: 0.98, z: 0, emis: 2.6 / 255, x: 0, y: 0 };
 let state = 'menu', dieT = 0, lastRunMsg = -99, lastDoorMsg = -99, msgT = 0;
@@ -664,16 +664,20 @@ addEventListener('mousemove', e => {
 });
 cv.addEventListener('mousedown', () => { if (state === 'play') { if (!locked) lock(); dragging = true; } });
 addEventListener('mouseup', () => { dragging = false; });
+// F, M and P follow the printed letter (Turkish-F, AZERTY); movement keys stay positional
+const ACT = { f: 'KeyF', m: 'KeyM', p: 'KeyP' }, held = new Map();
 addEventListener('keydown', e => {
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) e.preventDefault();
-  const first = !keys.has(e.code); keys.add(e.code);
-  if (!first) return;
+  const code = ACT[(e.key || '').toLocaleLowerCase('tr-TR')] || e.code;
+  held.set(e.code, code);
+  if (state === 'play' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(code)) e.preventDefault();
+  keys.add(code);
+  if (e.repeat) return;
   if (state === 'play') {
-    if (e.code === 'KeyF') { P.light = !P.light; A.click(); }
-    else if (e.code === 'Escape' || e.code === 'KeyP') pause();
-  } else if (state === 'paused' && e.code === 'KeyP') resume();
+    if (code === 'KeyF') { P.light = !P.light; A.click(); }
+    else if (code === 'Escape' || code === 'KeyP') pause();
+  } else if (state === 'paused' && code === 'KeyP') resume();
 });
-addEventListener('keyup', e => keys.delete(e.code));
+addEventListener('keyup', e => { keys.delete(held.get(e.code) || e.code); held.delete(e.code); });
 addEventListener('blur', () => { keys.clear(); dragging = false; if (state === 'play') pause(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'play') pause(); });
 
@@ -682,7 +686,7 @@ function startGame() {
   if (state === 'play') return;
   A.init();
   genLevel();
-  Object.assign(P, { x: 1.5, y: 1.5, a: startAngle, pitch: 0, bob: 0, bobZ: 0, amp: 0, stam: 100, batt: 100, light: true, moving: false, sprint: false, tired: false, fear: 0, t: 0, step: 0, flick: 0, fl: 1, hb: 1, evtT: 12 + Math.random() * 10, tinkT: 2, warned: 0, ignoreUnlock: false });
+  Object.assign(P, { x: 1.5, y: 1.5, a: startAngle, pitch: 0, bob: 0, bobZ: 0, amp: 0, stam: 100, batt: 100, light: true, moving: false, sprint: false, tired: false, fear: 0, t: 0, step: 0, flick: 0, fl: 1, hb: 1, evtT: 12 + Math.random() * 10, tinkT: 2, warned: 0, shriekT: 0, ignoreUnlock: false });
   found = 0; doorOpen = false; lastRunMsg = -99; lastDoorMsg = -99; dieT = 0;
   updateMuskaHud(); A.reset();
   state = 'play'; showScreen(null); hud.hidden = false;
@@ -691,7 +695,7 @@ function startGame() {
 }
 function pause() {
   if (state !== 'play') return;
-  state = 'paused'; keys.clear(); dragging = false; A.suspend();
+  state = 'paused'; keys.clear(); dragging = false; unlock(); A.suspend();
   showScreen('scr-pause');
 }
 function resume() {
@@ -739,9 +743,10 @@ function gotMuska() {
   found++; updateMuskaHud(); TEX[9] = doorTex(found);
   A.chime(0.3, 0, 988);
   if (M.state === 'sleep') { M.state = 'wander'; M.timer = 0; }
+  lastRunMsg = P.t;
   if (found < 5) {
     msg(found === 1 ? 'Bir muska buldun. Evin derinlerinden bir çığlık yükseldi.' : `Muska ${found}/5. Karabasan artık daha hızlı.`);
-    setTimeout(() => { if (state === 'play') A.shriek(); }, 700);
+    P.shriekT = 0.7;
     M.huntT = Math.max(M.huntT, 6);
   } else {
     doorOpen = true; map[exitCell] = 10; A.rumble(); A.startExit();
@@ -811,6 +816,8 @@ function update(dt) {
   P.sprint = P.moving && (key('ShiftLeft') || key('ShiftRight')) && f >= 0 && !P.tired;
   P.stam = clamp(P.stam + (P.sprint ? -24 : P.moving ? 10 : 16) * dt, 0, 100);
   if (len > 0) { const sp = (P.sprint ? 3.4 : 1.9) * dt / len; tryMove(mx * sp, my * sp); }
+  const pcell = (P.y | 0) * N + (P.x | 0);
+  if (pcell !== pfCell) { pfCell = pcell; bfs(pcell, PF); }
 
   P.bob += dt * (P.moving ? (P.sprint ? 11.5 : 7.5) : 1.2);
   P.amp += ((P.moving ? (P.sprint ? 0.03 : 0.018) : 0.004) - P.amp) * Math.min(1, dt * 8);
@@ -849,6 +856,7 @@ function update(dt) {
 
   monsterUpdate(dt);
   if (state !== 'play') return;
+  if (P.shriekT > 0 && (P.shriekT -= dt) <= 0) A.shriek();
 
   const eu = Math.hypot(M.x - P.x, M.y - P.y), pdM = PF[(M.y | 0) * N + (M.x | 0)];
   const target = M.state === 'sleep' ? 0 : Math.max(clamp(1 - pdM / 10, 0, 1) * (M.state === 'hunt' ? 0.85 : 0.5), clamp(1 - eu / 6, 0, 1));
