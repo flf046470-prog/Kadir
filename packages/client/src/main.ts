@@ -343,10 +343,14 @@ async function main(): Promise<void> {
         },
       },
     });
-    // The store-capture scripts turn the camera towards other players with this (`captureView.ts`).
-    // Only under automation, which is the only thing that calls it; it reads and never writes.
+    // The store-capture scripts turn the camera towards other players with `__kcView`
+    // (`captureView.ts`), and take the cover backdrops without the player's own kangaroo in them
+    // with `__kcHideSelf`. Only under automation, which is the only thing that calls either. The
+    // first only reads; the second changes what this tab draws and nothing the game simulates.
     if (navigator.webdriver) {
-      (window as unknown as { __kcView?: () => unknown }).__kcView = () => game?.captureView() ?? null;
+      const hooks = window as unknown as { __kcView?: () => unknown; __kcHideSelf?: (hidden: boolean) => void };
+      hooks.__kcView = () => game?.captureView() ?? null;
+      hooks.__kcHideSelf = (hidden) => game?.setSelfVisible(!hidden);
     }
 
     hud = new Hud({

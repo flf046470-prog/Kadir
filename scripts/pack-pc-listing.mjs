@@ -34,6 +34,7 @@
  * Usage:
  *   npm run build:client && npm run pack:pc:listing
  *   npm run pack:pc:listing -- --check     # sizes, the spec table and the browser-free icon only
+ *   npm run pack:pc:listing -- --art       # key art and icons; keeps the screenshots already there
  */
 
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -46,6 +47,7 @@ import {
   captureBestHeldFrame,
   enterMatch,
   hideInterface,
+  hideSelf,
   imageDataUri,
   jpegSize,
   pinStoreQuality,
@@ -69,6 +71,9 @@ const OUT = {
 };
 
 const CHECK_ONLY = process.argv.includes('--check');
+// The five screenshots are most of a run's hour under swiftshader, and the key art is what gets
+// iterated on. Skipping them leaves whatever screenshots are on disk untouched.
+const ART_ONLY = process.argv.includes('--art');
 const MB = 1024 * 1024;
 
 const problems = [];
@@ -243,11 +248,12 @@ const roo = imageDataUri(await renderModel(browser, server.base, { clip: 'run', 
  * out with the button visible, enabled and stable), and at the fixed high tier one 2560x1440
  * screenshot took 29.6 s.
  */
-async function cleanFrame(size, mode, map) {
+async function cleanFrame(size, mode, map, { self = true } = {}) {
   try {
     return await withPage({ width: 1280, height: 720 }, async (page) => {
       await enterMatch(page, server.base, mode, problem, map, { held: true });
       await hideInterface(page);
+      if (!self) await hideSelf(page);
       if (!(await rollPastCountdown(page))) problem(`${mode} on ${map}: the round never left its countdown`);
       return await captureBestHeldFrame(page, size, 5);
     });
@@ -258,7 +264,9 @@ async function cleanFrame(size, mode, map) {
 }
 
 console.log('pack:pc:listing — gameplay frames (slow under swiftshader)…');
-const backdropFrame = await cleanFrame({ width: 2560, height: 1440 }, 'Kangaroo Chase', 'Jungle World');
+// Without the player's own kangaroo: the covers draw a kangaroo over this frame, and the third-person
+// camera puts the player's, from behind, right where the vertical layouts stand the rendered one.
+const backdropFrame = await cleanFrame({ width: 2560, height: 1440 }, 'Kangaroo Chase', 'Jungle World', { self: false });
 const heroFrame = await cleanFrame({ width: 3840, height: 1240 }, 'Kangaroo Chase', 'Glacier World');
 // The backdrop is darkened under the name, so JPEG keeps it small enough to inline without loss anyone could see.
 const backdrop = backdropFrame
@@ -293,7 +301,7 @@ if (icon) {
 }
 
 // Screenshots: the HUD stays on — it is what the player sees — and nothing is drawn over the frame.
-for (const shot of SHOTS) {
+for (const shot of ART_ONLY ? [] : SHOTS) {
   console.log(`pack:pc:listing — screenshot: ${shot.mode}${shot.map ? ` on ${shot.map}` : ''}`);
   try {
     const frame = await withPage({ width: 1280, height: 720 }, async (page) => {

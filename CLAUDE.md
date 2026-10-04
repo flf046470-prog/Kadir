@@ -2463,6 +2463,13 @@ nine shots.
   `CaptureView.pitch`): 0.000 after twelve steps, and the same shot then had the ball, a goal,
   the corner flags and four players in it.
 
+**The covers stood the kangaroo in front of a blurred copy of itself.** Their backdrop is a frame
+of the game, and the third-person camera puts the player's own kangaroo, from behind, bottom
+centre — exactly where the vertical capsule and the library capsule stand the rendered one. The
+backdrop is taken with `__kcHideSelf` (webdriver only, like `__kcView`; it changes what the tab
+draws and nothing the simulation knows). `pack:pc:listing -- --art` redraws the key art and
+icons without re-shooting the five screenshots, which are most of a run's hour.
+
 **The scoreboard printed ids, not names.** `Hud` showed `shortId(id)`: `bot0`…`bot4` in practice,
 beside avatars whose name tags said Bounce and Digger, and seven characters of an account id
 online. The Steam screenshots showed it. `ui/scores.ts` takes the name from the roster that labels

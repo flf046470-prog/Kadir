@@ -172,6 +172,7 @@ export class GameClient {
 
   private localId: string;
   private localAvatar: Avatar | null = null;
+  private selfVisible = true;
   /**
    * Authored models, shared across every avatar in the session.
    *
@@ -353,6 +354,16 @@ export class GameClient {
 
   get localPlayer(): PlayerState | undefined {
     return this.sim.players.get(this.localId);
+  }
+
+  /**
+   * Draw the local player's avatar or not. For the store art's cover backdrops only, which lay the
+   * name and a rendered kangaroo over a frame of the game: with the player's own kangaroo in that
+   * frame too, from behind and blurred, the vertical capsule stood the hero in front of a brown
+   * copy of itself. Changes what this tab draws and nothing the simulation knows.
+   */
+  setSelfVisible(visible: boolean): void {
+    this.selfVisible = visible;
   }
 
   /** Another player's name, from the roster that also labels their avatar. Bots included. */
@@ -1147,6 +1158,8 @@ export class GameClient {
       snapshot.y += this.prediction.smoothingOffset.y;
       snapshot.z += this.prediction.smoothingOffset.z;
       this.localAvatar.update(snapshot, dt, cameraPosition);
+      // Set every frame rather than once, so it survives the avatar being rebuilt (a new animal).
+      this.localAvatar.group.visible = this.selfVisible;
       // A headset player's body is not drawn and they are not hopping: no thump under them.
       if (this.localAvatar.takeFootfalls() > 0 && this.input.kind !== 'vr') this.footfall(snapshot, cameraPosition);
       this.localAvatar.setRole(local.role, this.settings.colorblindSafe);

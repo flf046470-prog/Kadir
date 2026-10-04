@@ -536,6 +536,19 @@ export async function captureBestFrame(page, candidates = 7) {
  * behind a store's own text or logo (Steam's library hero must carry no text at all); the
  * screenshots keep the HUD, because it is what a player sees.
  */
+/**
+ * Stop drawing the player's own kangaroo, for a frame that goes behind a rendered one. Throws on a
+ * build without the hook rather than quietly taking the frame with the kangaroo still in it.
+ */
+export async function hideSelf(page) {
+  const ok = await page.evaluate(() => {
+    if (typeof window.__kcHideSelf !== 'function') return false;
+    window.__kcHideSelf(true);
+    return true;
+  });
+  if (!ok) throw new Error('this build has no __kcHideSelf; rebuild the client');
+}
+
 export async function hideInterface(page) {
   await page.addStyleTag({ content: 'body * { visibility: hidden !important; } canvas { visibility: visible !important; }' });
   await page.waitForTimeout(100);
