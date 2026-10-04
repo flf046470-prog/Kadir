@@ -2435,6 +2435,25 @@ they were the hunter, and the role-change toast said "You are now WARM-UP". `ui/
 the wire's `ROLES`. Mutation: deleting `hunter` fails both the test and `tsc`. The Hunt's `down`
 event, which is not a role, has its own toast.
 
+**The first full capture filmed walls.** Of the five Steam screenshots, three looked at rock or ice,
+and none showed another player. The covers stood on a grey canyon wall, and four filmed trailer
+shots stared at walls too. The capture had sprinted the kangaroo forward blind. Players start a
+round spread across the map: measured headless with the client's own practice setup, an idle local
+player had nobody within 25 m in sight for a whole 90 s round in Kangaroo Chase on the jungle and
+in the Hunt on both maps. Running at the nearest player, somebody was in sight after 1–26 s in all
+nine shots.
+
+- `GameClient.captureView()` (`game/captureView.ts`) reports each other player's bearing,
+  distance and line of sight (a physics ray, head to head). It is exposed as `window.__kcView`
+  only when `navigator.webdriver` is set. It reads and never writes.
+- `scripts/lib/listing.mjs` has `Steering`, `seekPlayers` and `playersInShot`. A candidate frame is
+  ranked by the players in it first, then by `frameScore`.
+- **A drag turns the view 4.5× what `PCInput`'s arithmetic says** in headless Chromium: 0.99 rad
+  for 100 px, against 0.22. `Steering.calibrate` measures it at runtime.
+- **`Bot` stores its id as `playerId`, not `id`.** A probe that looked bots up by `bot.id` got
+  `undefined`, skipped every `think`, and measured a round of bots standing still. Its first
+  numbers said seeking never met anybody on the glacier; with the bots driven, it took 1.8 s.
+
 **Neither store page can be put up from here, so do not offer to "upload and publish" it.**
 Epic's Developer Portal has no API for store pages: it is a dashboard behind the account holder's
 own login. Onboarding means accepting the Distribution Agreement as a named person, paying $100

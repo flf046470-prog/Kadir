@@ -235,44 +235,180 @@ export async function rollPastCountdown(page, maxSteps = 200) {
   return false;
 }
 
+/** Radians the view turns per pixel of mouse drag, by `PCInput`'s arithmetic at the default look sensitivity. */
+export const LOOK_RAD_PER_PX = 0.0022;
+
 /**
- * The held-clock version of `captureBestFrame`: run, turn and hop through `candidates` stretches of
- * real game time at 1280x720, grow the window to `size` for one frame at the top of each hop, and
- * keep the one that shows the most (`frameScore`). Every candidate is 0.8 s of play apart, so they differ — in real time under
- * swiftshader the game advances a tenth of a second per drawn frame, and seven candidates were
- * seven near-copies of one moment.
+ * Everyone else as the camera sees them (`packages/client/src/game/captureView.ts`): a bearing off
+ * the view's heading, a distance and whether a wall is in the way. Null on a build without the hook.
  */
-export async function captureBestHeldFrame(page, size, candidates = 6) {
-  const small = page.viewportSize();
-  const step = (ms) => page.evaluate((t) => window.__kcTime.step(t), ms);
-  let best = null;
-  let x = small.width / 2;
-  const y = small.height / 2;
-  await page.mouse.move(x, y);
-  await page.mouse.down();
+export async function readView(page) {
+  return page.evaluate(() => window.__kcView?.() ?? null);
+}
+
+/** Players worth pointing the camera at: in sight, past arm's length and close enough to read. */
+function inSight(view, near = 2.5, far = 30) {
+  return view ? view.others.filter((o) => o.visible && o.distance >= near && o.distance <= far) : [];
+}
+
+/**
+ * Who to film: the one already being filmed while they stay in sight, otherwise the nearest player
+ * in sight. Sticky, so the camera does not swing between two players at the same distance. With
+ * `anyone`, when nobody is in sight, the nearest player wherever they are — somebody to run
+ * towards rather than somebody to film.
+ */
+export function pickTarget(view, previousId = null, { anyone = false } = {}) {
+  const seen = inSight(view);
+  const target = seen.find((o) => o.id === previousId) ?? seen[0] ?? null;
+  if (target || !anyone || !view) return target;
+  return view.others[0] ?? null;
+}
+
+/**
+ * The mouse drag, in pixels, that turns the view towards `target` this frame: aiming `offset`
+ * radians to its left so they stand beside the kangaroo rather than behind it, and turning no
+ * more than `maxTurn` radians, because a camera that snaps reads as a cut. A bearing is positive
+ * to the left, and dragging left turns left (`PCInput`: yaw -= movementX × sensitivity).
+ */
+export function steerPixels(target, { offset = 0.14, maxTurn = 0.06, radPerPx = LOOK_RAD_PER_PX } = {}) {
+  const error = target.bearing - offset;
+  const turn = Math.max(-maxTurn, Math.min(maxTurn, error));
+  return -turn / radPerPx;
+}
+
+/** How many other players a frame shows: in sight, in the middle of the view and near enough to read. */
+export function playersInShot(view) {
+  return inSight(view, 2.5, 22).filter((o) => Math.abs(o.bearing) < 0.5).length;
+}
+
+/**
+ * Turning a held game's camera towards other players with the mouse, the way a player does.
+ *
+ * `calibrate` measures the turn a drag actually makes rather than trusting `LOOK_RAD_PER_PX`:
+ * measured in headless Chromium, a 100 px drag turned the view 0.99 rad against the 0.22 the
+ * arithmetic gives, and steering with a gain four and a half times too high overshoots every turn.
+ */
+export class Steering {
+  constructor(page) {
+    this.page = page;
+    this.radPerPx = LOOK_RAD_PER_PX;
+    this.targetId = null;
+    this.x = 0;
+    this.y = 0;
+  }
+
+  /**
+   * Hold the button down from here on: without pointer lock, look is a drag (`PCInput`), and a
+   * drag past a few pixels stops counting as a punch, so the camera never swings at anyone.
+   */
+  async begin() {
+    const size = this.page.viewportSize();
+    this.x = size.width / 2;
+    this.y = size.height / 2;
+    await this.page.mouse.move(this.x, this.y);
+    await this.page.mouse.down();
+  }
+
+  async calibrate() {
+    const before = await readView(this.page);
+    this.x += 40;
+    await this.page.mouse.move(this.x, this.y);
+    await this.page.evaluate(() => window.__kcTime.step(1000 / 30));
+    const after = await readView(this.page);
+    if (!before || !after) return this.radPerPx;
+    const turned = Math.atan2(Math.sin(before.yaw - after.yaw), Math.cos(before.yaw - after.yaw));
+    if (turned > 0.005) this.radPerPx = turned / 40;
+    return this.radPerPx;
+  }
+
+  /** Turn towards the current target; `drift` pixels when there is nobody. Returns what it saw. */
+  async steer({ maxTurn = 0.06, drift = 0, anyone = false } = {}) {
+    const view = await readView(this.page);
+    const target = pickTarget(view, this.targetId, { anyone });
+    this.targetId = target?.id ?? null;
+    this.x += target ? steerPixels(target, { maxTurn, radPerPx: this.radPerPx }) : drift;
+    await this.page.mouse.move(this.x, this.y);
+    return { view, target };
+  }
+
+  async end() {
+    await this.page.mouse.up().catch(() => {});
+  }
+}
+
+/**
+ * Run at the nearest player until somebody is in sight, in 100 ms steps nothing films, for at most
+ * `maxSeconds` of game time. Returns the seconds it took, or null if nobody came into sight.
+ *
+ * Needed because players start a round spread across the map. Measured headless on every shot the
+ * store art uses, with the client's own practice setup: standing still, nobody came within 25 m in
+ * sight for a whole 90 s round of Kangaroo Chase on the jungle or the Hunt on either map; running
+ * at the nearest player, somebody was in sight after 1–26 s on all nine.
+ */
+export async function seekPlayers(page, steering, { maxSeconds = 30 } = {}) {
   await page.keyboard.down('ShiftLeft');
   await page.keyboard.down('KeyW');
   try {
+    for (let i = 0; i < maxSeconds * 10; i++) {
+      // A hop every 1.6 s, as a player moves, and the way over a kerb the run would stall on.
+      if (i % 16 === 0) await page.keyboard.down('Space');
+      if (i % 16 === 2) await page.keyboard.up('Space');
+      const { view } = await steering.steer({ maxTurn: 0.3, anyone: true });
+      if (inSight(view, 2.5, 20).length > 0) return i / 10;
+      await page.evaluate(() => window.__kcTime.step(100));
+    }
+    return null;
+  } finally {
+    await page.keyboard.up('Space').catch(() => {});
+    await page.keyboard.up('KeyW').catch(() => {});
+    await page.keyboard.up('ShiftLeft').catch(() => {});
+  }
+}
+
+/**
+ * The held-clock version of `captureBestFrame`: find somebody (`seekPlayers`), then run, turn and
+ * hop through `candidates` stretches of real game time at the menu size, grow the window to
+ * `size` for one frame at the top of each hop, and keep the best. Every candidate is 0.8 s of play
+ * apart, so they differ — in real time under swiftshader the game advances a tenth of a second per
+ * drawn frame, and seven candidates were seven near-copies of one moment.
+ *
+ * A frame is ranked first by how many other players it shows, then by `frameScore`. Running blind,
+ * the kangaroo met the nearest wall on every map: four of the five Steam screenshots looked at rock
+ * or ice, and none of the five showed anyone else, in a game about chasing other players.
+ */
+export async function captureBestHeldFrame(page, size, candidates = 6, log = () => {}) {
+  const small = page.viewportSize();
+  const step = (ms) => page.evaluate((t) => window.__kcTime.step(t), ms);
+  const steering = new Steering(page);
+  let best = null;
+  await steering.begin();
+  try {
+    await steering.calibrate();
+    const found = await seekPlayers(page, steering);
+    log(`    found somebody ${found === null ? 'never' : `after ${found.toFixed(1)} s`} (look ${steering.radPerPx.toFixed(4)} rad/px)`);
+    await page.keyboard.down('ShiftLeft');
+    await page.keyboard.down('KeyW');
     for (let c = 0; c < candidates; c++) {
       for (let f = 0; f < 24; f++) {
         // Take off 10 frames before the shot: about the top of a hop at the game's gravity.
         if (f === 14) await page.keyboard.down('Space');
         if (f === 17) await page.keyboard.up('Space');
-        x += 3;
-        await page.mouse.move(x, y);
+        await steering.steer({ maxTurn: 0.06, drift: 3, anyone: true });
         await step(1000 / 30);
       }
       await page.setViewportSize(size);
       await step(1000 / 30);
       const frame = await page.screenshot({ animations: 'disabled' });
-      const score = frameScore(frame);
-      if (!best || score > best.score) best = { frame, score };
+      const players = playersInShot(await readView(page));
+      const score = Math.min(players, 3) * 100 + frameScore(frame);
+      log(`    candidate ${c + 1}: ${players} player(s) in shot, frame score ${frameScore(frame).toFixed(1)}`);
+      if (!best || score > best.score) best = { frame, score, players };
       await page.setViewportSize(small);
     }
   } finally {
     await page.keyboard.up('KeyW').catch(() => {});
     await page.keyboard.up('ShiftLeft').catch(() => {});
-    await page.mouse.up().catch(() => {});
+    await steering.end();
   }
   return best?.frame ?? null;
 }
@@ -386,7 +522,7 @@ export async function renderCover(page, glyph, { veryWide, tagline = null, backd
       height: 100vh; display: flex; flex-direction: ${veryWide ? 'row' : 'column'}; align-items: center; justify-content: center;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "DejaVu Sans", sans-serif;
       background: ${ground(backdrop)};
-    }
+    }${backdropLayers(backdrop)}
     .text {
       ${veryWide ? 'height: 100%; width: 62%;' : 'width: 100%; height: 38%;'}
       box-sizing: border-box; padding: ${veryWide ? '0 4%' : '6% 8% 0'};
@@ -415,11 +551,22 @@ export async function renderCover(page, glyph, { veryWide, tagline = null, backd
   await page.waitForTimeout(300);
 }
 
-/** The ground key art stands on: the game's own greens, or a gameplay frame darkened so a name reads over it. */
+/** The ground key art stands on: the game's own greens, or under a gameplay frame, their darkest. */
 function ground(backdrop) {
-  return backdrop
-    ? `linear-gradient(180deg, rgba(8,18,10,.35) 0%, rgba(8,18,10,.12) 45%, rgba(8,18,10,.72) 100%), url("${backdrop}") center / cover no-repeat`
-    : 'radial-gradient(circle at 50% 40%, #3c8a4c 0%, #1d3a24 48%, #0b160e 100%)';
+  return backdrop ? '#0b160e' : 'radial-gradient(circle at 50% 40%, #3c8a4c 0%, #1d3a24 48%, #0b160e 100%)';
+}
+
+/**
+ * A gameplay frame behind key art, softened and darkened so the name and the posed kangaroo are
+ * the subject. Left sharp, the frame's own kangaroo — the player's avatar, centre screen — read as
+ * a second, smaller kangaroo standing under the title.
+ */
+function backdropLayers(backdrop) {
+  if (!backdrop) return '';
+  return `
+    body::before, body::after { content: ''; position: fixed; inset: -4%; z-index: -1; }
+    body::before { background: url("${backdrop}") center / cover no-repeat; filter: blur(0.55vmin) saturate(1.1); }
+    body::after { background: linear-gradient(180deg, rgba(8,18,10,.35) 0%, rgba(8,18,10,.12) 45%, rgba(8,18,10,.72) 100%); }`;
 }
 
 /**
@@ -440,7 +587,7 @@ export async function renderLogo(page, glyph, { backdrop = null, transparent = f
       height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden;
       font-family: system-ui, -apple-system, "Segoe UI", Roboto, "DejaVu Sans", sans-serif;
       background: ${transparent ? 'transparent' : ground(backdrop)};
-    }
+    }${transparent ? '' : backdropLayers(backdrop)}
     .logo { display: inline-flex; align-items: center; gap: 28px; transform-origin: center; }
     .logo img { height: 260px; filter: drop-shadow(0 8px 14px rgba(0,0,0,.45)); }
     h1 {

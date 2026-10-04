@@ -343,6 +343,11 @@ async function main(): Promise<void> {
         },
       },
     });
+    // The store-capture scripts turn the camera towards other players with this (`captureView.ts`).
+    // Only under automation, which is the only thing that calls it; it reads and never writes.
+    if (navigator.webdriver) {
+      (window as unknown as { __kcView?: () => unknown }).__kcView = () => game?.captureView() ?? null;
+    }
 
     hud = new Hud({
       root: shellRoot,

@@ -36,7 +36,9 @@ import {
   renderLogo,
   renderModel,
   rollPastCountdown,
+  seekPlayers,
   serveDist,
+  Steering,
 } from './lib/listing.mjs';
 import { FPS, HEIGHT, MAX_BYTES, WIDTH, findFfmpeg, readCaptions, timeControlSource, timeline } from './lib/trailer.mjs';
 
@@ -157,18 +159,17 @@ async function film(shot, index) {
   try {
     await enterMatch(page, server.base, shot.mode, problem, shot.map, { held: true });
     await hideInterface(page);
-    // Hold the mouse down from here on: without pointer lock, look is a drag (`PCInput`), and a
-    // drag past a few pixels stops counting as a punch, so the shot never swings at anyone.
-    let cursorX = 640;
-    const cursorY = 360;
-    await page.mouse.move(cursorX, cursorY);
-    await page.mouse.down();
+    const steering = new Steering(page);
+    await steering.begin();
     if (!(await rollPastCountdown(page))) problem(`${shot.mode}: the round never left its countdown`);
-    // Two more seconds for the bots to spread out and the player to get moving. All of this runs
-    // at 1280x720: none of it is filmed, and every step is a frame drawn in software.
+    // Find somebody to film before filming (`seekPlayers`): run blind, every shot ran into the
+    // nearest wall and filmed it, and three of the four filmed never showed another player. All of
+    // this runs at 1280x720: none of it is filmed, and every step is a frame drawn in software.
+    await steering.calibrate();
+    const found = await seekPlayers(page, steering);
+    log(`  found somebody ${found === null ? 'never' : `after ${found.toFixed(1)} s`}`);
     await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
-    for (let i = 0; i < 20; i++) await page.evaluate(() => window.__kcTime.step(100));
     await page.setViewportSize({ width: WIDTH, height: HEIGHT });
     for (let i = 0; i < 3; i++) await page.evaluate(() => window.__kcTime.step(1000 / 30));
 
@@ -188,8 +189,9 @@ async function film(shot, index) {
           // A hop every 1.6 s — the signature move — on top of the sprint.
           if (f % 48 === 0) await page.keyboard.down('Space');
           if (f % 48 === 4) await page.keyboard.up('Space');
-          cursorX += shot.turn / frames;
-          await page.mouse.move(cursorX, cursorY);
+          // Follow whoever is in sight, turning no faster than a camera operator would (60°/s);
+          // with nobody in sight, the slow pan the shot was given.
+          await steering.steer({ maxTurn: 0.035, drift: shot.turn / frames, anyone: true });
           const dataUrl = await page.evaluate((ms) => window.__kcTime.step(ms, true), 1000 / FPS);
           if (!dataUrl) throw new Error('the game has no canvas to film');
           const jpg = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');
