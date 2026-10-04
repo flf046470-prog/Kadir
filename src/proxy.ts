@@ -4,7 +4,7 @@ import { DEFAULT_LOCALE, LOCALE_CODES, negotiateLocale } from "@/lib/i18n";
 const LOCALE_COOKIE = "pu_locale";
 
 /** Paths that are served as-is, without a locale prefix. */
-const BYPASS = /^\/(?:_next|api|admin|uploads|favicon\.ico|icon\.svg|robots\.txt|sitemap\.xml|opengraph-image)/;
+const BYPASS = /^\/(?:_next|api|admin|uploads|game|favicon\.ico|icon\.svg|robots\.txt|sitemap\.xml|opengraph-image)/;
 
 export default function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

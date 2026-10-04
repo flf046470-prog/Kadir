@@ -28,7 +28,12 @@ const nextConfig: NextConfig = {
   // the safety net: if the proxy is ever skipped, the root still resolves to a
   // real page instead of a 404.
   async redirects() {
-    return [{ source: "/", destination: "/en", permanent: false }];
+    return [
+      { source: "/", destination: "/en", permanent: false },
+      // The browser game is a static page in public/game; its scripts load
+      // relative to index.html, so send bare /game there.
+      { source: "/game", destination: "/game/index.html", permanent: false },
+    ];
   },
 };
 
