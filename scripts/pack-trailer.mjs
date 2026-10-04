@@ -28,6 +28,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   enterMatch,
+  growTo,
   hideInterface,
   imageDataUri,
   pinStoreQuality,
@@ -170,7 +171,7 @@ async function film(shot, index) {
     log(`  found somebody ${found === null ? 'never' : `after ${found.toFixed(1)} s`}`);
     await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
-    await page.setViewportSize({ width: WIDTH, height: HEIGHT });
+    await growTo(page, { width: WIDTH, height: HEIGHT });
     for (let i = 0; i < 3; i++) await page.evaluate(() => window.__kcTime.step(1000 / 30));
 
     const frames = Math.round(shot.seconds * FPS);

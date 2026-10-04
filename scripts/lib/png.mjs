@@ -205,33 +205,6 @@ export function parseHex(hex) {
 }
 
 /**
- * Knock a flat background colour out to transparency, leaving the subject.
- *
- * The app icon is a kangaroo on a dark green square, and Store key art wants the kangaroo without
- * the square — an app-icon tile reads as a utility, a silhouette reads as a game. The icon is two
- * flat colours, so a colour key is exact rather than approximate here.
- *
- * Distance is per-channel Chebyshev rather than Euclidean: it is the one that says "no channel is
- * further than this from the target", which is what "close to that flat colour" actually means,
- * and it will not let a large drift in one channel hide behind two small ones. `feather` fades
- * alpha across the band just outside the tolerance so an antialiased edge does not turn into a
- * hard, jagged cut.
- *
- * @param {Image} image
- * @returns {Image}
- */
-export function keyOut(image, colour, { tolerance = 20, feather = 40 } = {}) {
-  const [tr, tg, tb] = parseHex(colour);
-  const data = new Uint8Array(image.data);
-  for (let i = 0; i < data.length; i += 4) {
-    const distance = Math.max(Math.abs(data[i] - tr), Math.abs(data[i + 1] - tg), Math.abs(data[i + 2] - tb));
-    if (distance <= tolerance) data[i + 3] = 0;
-    else if (distance < tolerance + feather) data[i + 3] = Math.round((data[i + 3] * (distance - tolerance)) / feather);
-  }
-  return { width: image.width, height: image.height, data };
-}
-
-/**
  * Crop to the bounding box of everything that is not transparent.
  *
  * Keying a square icon leaves the subject floating in a mostly-empty square, and CSS sizing then
@@ -390,7 +363,7 @@ export function encodePng(image) {
  * unpremultiplied source: transparent pixels keep whatever colour they were carrying underneath
  * the alpha, which is exactly the "transparent black becomes a visible fringe" failure `resize`
  * guards against elsewhere in this file. So this is for icon and key art output, never for a
- * source image still headed into `compose`, `keyOut` or `resize`.
+ * source image still headed into `compose` or `resize`.
  */
 export function encodePngRGB(image) {
   const { width, height, data } = image;

@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 
 import {
   BACKGROUND,
+  brandGlyph,
   captureBestHeldFrame,
   enterMatch,
   hideInterface,
@@ -57,7 +58,7 @@ import {
   toJpeg,
 } from './lib/listing.mjs';
 import { timeControlSource } from './lib/trailer.mjs';
-import { compose, decodePng, encodePng, encodePngRGB, keyOut, trim } from './lib/png.mjs';
+import { compose, decodePng, encodePng, encodePngRGB } from './lib/png.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const DIST = path.join(root, 'dist', 'client');
@@ -129,17 +130,16 @@ function checkTable() {
 
 // --- inputs -----------------------------------------------------------------------------------
 
-const iconPath = path.join(root, 'packages', 'client', 'public', 'icons', 'icon-1024.png');
 let icon;
 try {
-  icon = decodePng(await readFile(iconPath));
+  icon = await brandGlyph();
 } catch (error) {
-  problem(`could not read ${path.relative(root, iconPath)}: ${error?.message ?? error}`);
+  problem(`could not read assets/brand/kangaroo.png (npm run icons): ${error?.message ?? error}`);
 }
 
-/** The icon's kangaroo on the game's green, as every other store's icon is. */
+/** The kangaroo on the game's green, as every other store's icon is. */
 function iconImage(size) {
-  return compose(trim(keyOut(icon, BACKGROUND)), { width: size, height: size, background: BACKGROUND, padding: 0.12 });
+  return compose(icon, { width: size, height: size, background: BACKGROUND, padding: 0.12 });
 }
 
 async function writeShortcutIcon() {

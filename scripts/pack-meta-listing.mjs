@@ -49,12 +49,11 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BACKGROUND, captureBestFrame, enterMatch, glyphDataUri, pinStoreQuality, releaseKeys, renderCover, serveDist } from './lib/listing.mjs';
-import { compose, decodePng, encodePngRGB, keyOut, trim } from './lib/png.mjs';
+import { BACKGROUND, brandGlyph, captureBestFrame, enterMatch, imageDataUri, pinStoreQuality, releaseKeys, renderCover, serveDist } from './lib/listing.mjs';
+import { compose, decodePng, encodePngRGB } from './lib/png.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const DIST = path.join(root, 'dist', 'client');
-const publicDir = path.join(root, 'packages', 'client', 'public');
 const outDir = path.join(root, 'packaging', 'meta-quest', 'listing');
 
 const CHECK_ONLY = process.argv.includes('--check');
@@ -100,31 +99,26 @@ const SHOT_SIZE = { width: 2560, height: 1440 };
 
 // --- inputs -----------------------------------------------------------------------------------
 
-const iconPath = path.join(publicDir, 'icons', 'icon-1024.png');
 let icon;
 try {
-  icon = decodePng(await readFile(iconPath));
+  icon = await brandGlyph();
 } catch (error) {
-  problem(`could not read ${path.relative(root, iconPath)}: ${error?.message ?? error}`);
+  problem(`could not read assets/brand/kangaroo.png (npm run icons): ${error?.message ?? error}`);
 }
 
 /**
  * The 512x512 app icon needs no browser, so it is produced whether or not one is available.
  *
- * Composed from the *keyed-out and trimmed* glyph, not the raw `icon-1024.png` directly. That
- * source file already carries its own safe-zone padding baked in — it is drawn to survive an OS
- * cropping it to a rounded square or a circle — so handing it straight to `compose` pads a
- * glyph that is already padded, and the kangaroo ends up occupying under a third of the canvas.
- * Measured: composing the raw icon at `padding: 0.08` still leaves the kangaroo roughly the size
- * a `padding: 0.4` composition of the *trimmed* glyph would. Meta's guidance calls the icon a
- * "solid filled asset" that "must maintain legibility" and never crops it, so this store gets
- * the same trim-to-bounds treatment the cover art below already uses, at a padding chosen for
- * this canvas rather than inherited from one built for a different shape.
+ * Composed from the kangaroo cut out on its own (`brandGlyph`), not from `icon-1024.png`. That
+ * file carries its own rounded corners and safe-zone padding, drawn to survive an OS cropping it
+ * to a rounded square or a circle, so composing it pads a glyph that is already padded. Meta's
+ * guidance calls the icon a "solid filled asset" that "must maintain legibility" and never crops
+ * it, so the kangaroo is set at a padding chosen for this canvas rather than inherited from one
+ * built for a different shape.
  */
 async function writeIcon() {
   await mkdir(outDir, { recursive: true });
-  const glyphImage = trim(keyOut(icon, BACKGROUND));
-  const image = compose(glyphImage, { width: 512, height: 512, background: BACKGROUND, padding: 0.14 });
+  const image = compose(icon, { width: 512, height: 512, background: BACKGROUND, padding: 0.14 });
   const file = path.join(outDir, 'AppIcon-512x512.png');
   await writeFile(file, encodePngRGB(image));
   return file;
@@ -178,8 +172,8 @@ const base = server.base;
 const launch = process.env.PLAYWRIGHT_CHROMIUM_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH } : {};
 const browser = await chromium.launch(launch);
 
-/** The kangaroo alone, as a data URI — the same glyph the app icon is built from. */
-const glyph = glyphDataUri(icon);
+/** The kangaroo alone, as a data URI — the same cut-out the app icon is built from. */
+const glyph = imageDataUri(icon);
 
 /** Meta's covers carry a line under the name; Steam's may not (see `renderCover`). */
 const TAGLINE = 'Tag, parkour and traps &mdash; hands-first in VR';

@@ -52,6 +52,7 @@
     "pack:pc:listing": "node scripts/pack-pc-listing.mjs",
     "pack:pc:listing:check": "node scripts/pack-pc-listing.mjs --check",
     "pack:trailer": "node scripts/pack-trailer.mjs",
+    "icons": "node scripts/make-icons.mjs",
     "pack:msstore:check": "node scripts/pack-msstore.mjs --check",
     "build:quest": "node scripts/build-android.mjs --target quest",
     "build:phone": "node scripts/build-android.mjs --target phone",

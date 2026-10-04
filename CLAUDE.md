@@ -2400,9 +2400,10 @@ each one would have shipped:
 - **Every Meta cover drew the kangaroo in a dark box.** The keyed glyph went through
   `encodePngRGB`. That drops the alpha `keyOut` had just cleared, and `keyOut` leaves the colour
   under a cleared pixel unchanged. Measured on the square cover: (29, 58, 36) inside the glyph's
-  rectangle, (42, 96, 54) just outside it. Fixed in `glyphDataUri` with RGBA. The PC art no longer
-  uses the icon at all: `renderModel` poses the shipped `kangaroo.glb` from its own run clip, on a
-  page served with `three` from `node_modules`.
+  rectangle, (42, 96, 54) just outside it. It was fixed by encoding the glyph with RGBA. Keying
+  is gone now; the art reads the cut-out file instead (see "The app icon was a blot"). The PC art
+  never used the icon at all: `renderModel` poses the shipped `kangaroo.glb` from its own run
+  clip, on a page served with `three` from `node_modules`.
 
 How the shared capture code behaves (`scripts/lib/listing.mjs`, used by both store scripts):
 
@@ -2448,11 +2449,30 @@ nine shots.
   only when `navigator.webdriver` is set. It reads and never writes.
 - `scripts/lib/listing.mjs` has `Steering`, `seekPlayers` and `playersInShot`. A candidate frame is
   ranked by the players in it first, then by `frameScore`.
-- **A drag turns the view 4.5× what `PCInput`'s arithmetic says** in headless Chromium: 0.99 rad
-  for 100 px, against 0.22. `Steering.calibrate` measures it at runtime.
+- **The first drag after the mouse button goes down carries a stale delta.** It comes from wherever
+  the pointer last was, about 356 px of it. Measured in headless Chromium, 100 px turned the view
+  0.99 rad and 40 px turned it 0.86 rad. Those two only agree as `PCInput`'s own 0.0022 rad/px
+  plus that jump. This file briefly said a drag turns 4.5× what the arithmetic gives; that was
+  the stale delta read as a gain. The bad gain made the camera crawl, and four candidate frames
+  in a row lost a player it had found. `Steering.calibrate` now drags twice and measures the
+  second drag.
 - **`Bot` stores its id as `playerId`, not `id`.** A probe that looked bots up by `bot.id` got
   `undefined`, skipped every `think`, and measured a round of bots standing still. Its first
   numbers said seeking never met anybody on the glacier; with the bots driven, it took 1.8 s.
+
+**The app icon was a blot.** `icon-1024.png` was a flat orange shape drawn off to one side of its
+square, and `favicon.svg` was the same shape. At Steam's 184 px app icon, and on a home screen, it
+did not read as a kangaroo. `npm run icons` (`scripts/make-icons.mjs`) renders the shipped
+`kangaroo.glb` from its own run clip. It writes the cut-out to `assets/brand/kangaroo.png` and
+composes the four manifest icons from it. The favicon is `icon-192.png`, and the SVG is gone. It was
+also in the manifest as a `sizes: any` icon, which a browser may choose over the PNGs.
+
+- **The store scripts read the cut-out; they no longer key the icon.** `keyOut` removed the green
+  by colour, which works on a flat shape. On the lit model, 12.5 % of the kangaroo's opaque pixels
+  are within its reach of the green: shaded fur, and the eyes. `keyOut` had no other caller, so it
+  is gone.
+- The four icons are precached, and they went from 50 kB to 426 kB. That is the price of a shaded
+  model over a flat shape. It is paid once, at install.
 
 **Neither store page can be put up from here, so do not offer to "upload and publish" it.**
 Epic's Developer Portal has no API for store pages: it is a dashboard behind the account holder's

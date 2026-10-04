@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 // @ts-expect-error -- the packaging scripts are plain ESM JavaScript, deliberately un-typed.
-import { compose, decodePng, encodePng, encodePngRGB, keyOut, parseHex, resize, trim } from './png.mjs';
+import { compose, decodePng, encodePng, encodePngRGB, parseHex, resize, trim } from './png.mjs';
 
 /**
  * The hand-rolled PNG codec, tested because it is hand-rolled.
@@ -22,6 +22,8 @@ import { compose, decodePng, encodePng, encodePngRGB, keyOut, parseHex, resize, 
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const icon = () => decodePng(readFileSync(path.join(root, 'packages/client/public/icons/icon-1024.png')));
+/** The kangaroo cut out of its own render, which the icons and every store's key art are built from. */
+const glyph = () => decodePng(readFileSync(path.join(root, 'assets/brand/kangaroo.png')));
 
 /** Build a flat RGBA image, for tests that need known pixel values. */
 function solid(width: number, height: number, rgba: [number, number, number, number]) {
@@ -254,55 +256,6 @@ describe('colour parsing', () => {
   });
 });
 
-describe('keyOut', () => {
-  const px = (image: { data: Uint8Array; width: number }, x: number, y: number) => {
-    const i = (y * image.width + x) * 4;
-    return [...image.data.slice(i, i + 4)];
-  };
-
-  it('makes the keyed colour fully transparent', () => {
-    const image = solid(2, 2, [29, 58, 36, 255]);
-    expect(px(keyOut(image, '#1d3a24'), 0, 0)).toEqual([29, 58, 36, 0]);
-  });
-
-  it('leaves a colour outside the feather band untouched', () => {
-    const image = solid(2, 2, [224, 164, 94, 255]);
-    expect(px(keyOut(image, '#1d3a24'), 1, 1)).toEqual([224, 164, 94, 255]);
-  });
-
-  it('fades alpha across the feather band instead of cutting hard', () => {
-    // 30 away from the target: 10 past a tolerance of 20, a quarter of the way through a
-    // feather of 40, so a quarter of the original alpha survives.
-    const image = solid(1, 1, [59, 58, 36, 255]);
-    expect(px(keyOut(image, '#1d3a24', { tolerance: 20, feather: 40 }), 0, 0)[3]).toBe(64);
-  });
-
-  it('measures distance per channel, not as a sum', () => {
-    // Three channels each 15 away. Euclidean distance is 26 and would key this out at
-    // tolerance 20; Chebyshev is 15, which is what "close to that colour" has to mean.
-    const image = solid(1, 1, [44, 43, 51, 255]);
-    expect(px(keyOut(image, '#1d3a24', { tolerance: 20, feather: 0 }), 0, 0)[3]).toBe(0);
-    const further = solid(1, 1, [29, 58, 61, 255]);
-    expect(px(keyOut(further, '#1d3a24', { tolerance: 20, feather: 0 }), 0, 0)[3]).toBe(255);
-  });
-
-  it('does not change the image it was given', () => {
-    const image = solid(2, 2, [29, 58, 36, 255]);
-    keyOut(image, '#1d3a24');
-    expect(px(image, 0, 0)).toEqual([29, 58, 36, 255]);
-  });
-
-  it('separates the real icon into subject and background', () => {
-    const image = keyOut(icon(), '#1d3a24');
-    let opaque = 0;
-    for (let i = 3; i < image.data.length; i += 4) if (image.data[i] > 200) opaque++;
-    const fraction = opaque / (image.width * image.height);
-    // The kangaroo covers roughly a seventh of the icon; the rest is background and corners.
-    expect(fraction).toBeGreaterThan(0.1);
-    expect(fraction).toBeLessThan(0.2);
-  });
-});
-
 describe('trim', () => {
   /** A transparent canvas with one opaque rectangle in it. */
   function withBox(width: number, height: number, box: { x: number; y: number; w: number; h: number }) {
@@ -337,8 +290,18 @@ describe('trim', () => {
     expect([out.width, out.height]).toEqual([6, 6]);
   });
 
-  it('tightens the keyed icon around the kangaroo', () => {
-    const keyed = keyOut(icon(), '#1d3a24');
+  it('finds the brand cut-out already tight, with nothing round it to see through', () => {
+    // Key art sizes the kangaroo by its box; a margin left in the file shrinks it on every cover.
+    const g = glyph();
+    const out = trim(g);
+    expect([out.width, out.height]).toEqual([g.width, g.height]);
+    // A corner of a trimmed kangaroo is air, not a background colour that would print as a box.
+    expect(g.data[3]).toBe(0);
+  });
+
+  it('tightens a padded cut-out back around the kangaroo', () => {
+    // The brand cut-out (`npm run icons`) set in a transparent margin, as `compose` pads it.
+    const keyed = compose(glyph(), { width: 1400, height: 1400, padding: 0.2, transparent: true });
     const out = trim(keyed);
     expect(out.width).toBeLessThan(keyed.width);
     expect(out.height).toBeLessThan(keyed.height);

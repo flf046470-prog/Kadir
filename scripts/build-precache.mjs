@@ -25,7 +25,7 @@ import { fileURLToPath } from 'node:url';
 const dist = path.join(fileURLToPath(new URL('..', import.meta.url)), 'dist', 'client');
 
 /** Everything needed to boot, relative to the site root. Never anything under /models/. */
-const ROOTS = ['index.html', 'manifest.webmanifest', 'favicon.svg'];
+const ROOTS = ['index.html', 'manifest.webmanifest'];
 const DIRS = ['assets', 'icons'];
 
 /**

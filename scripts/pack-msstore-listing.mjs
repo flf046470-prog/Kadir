@@ -46,7 +46,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { compose, decodePng, encodePng, keyOut, trim } from './lib/png.mjs';
+import { compose, decodePng, encodePng } from './lib/png.mjs';
+import { brandGlyph } from './lib/listing.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const DIST = path.join(root, 'dist', 'client');
@@ -199,7 +200,7 @@ const browser = await chromium.launch(launch);
  * no origin to resolve a relative path against, and one base64 string is less machinery than a
  * second route on the static server.
  */
-const glyph = `data:image/png;base64,${Buffer.from(encodePng(trim(keyOut(icon, BACKGROUND)))).toString('base64')}`;
+const glyph = `data:image/png;base64,${Buffer.from(encodePng(await brandGlyph())).toString('base64')}`;
 
 /** Boot the game and get into a live round of `mode`, ready to photograph. */
 async function enterMatch(page, mode) {

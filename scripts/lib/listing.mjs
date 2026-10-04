@@ -11,11 +11,25 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { decodePng, encodePng, keyOut, resize, trim } from './png.mjs';
+import { decodePng, encodePng, resize, trim } from './png.mjs';
 
 /** The game's own ground green. Every drawn asset in every store listing sits on this. */
 export const BACKGROUND = '#1d3a24';
+
+/**
+ * The kangaroo on its own, cut out of a render of the shipped model (`npm run icons`), for art
+ * that sets it on a background of its own. It used to be recovered by keying the icon's green
+ * out (`keyOut`), which only works on a flat shape: on the lit model, 12.5 % of the kangaroo's
+ * pixels — shaded fur, the eyes — sit within keyOut's reach of that green.
+ */
+export const BRAND_GLYPH = fileURLToPath(new URL('../../assets/brand/kangaroo.png', import.meta.url));
+
+/** `BRAND_GLYPH`, decoded. */
+export async function brandGlyph() {
+  return decodePng(await readFile(BRAND_GLYPH));
+}
 
 const TYPES = {
   '.html': 'text/html',
@@ -126,19 +140,6 @@ export async function renderModel(browser, base, { id = 'kangaroo', clip = 'run'
 /** An RGBA image as a data URI — RGBA, so what was keyed out stays transparent in the browser. */
 export function imageDataUri(image) {
   return `data:image/png;base64,${Buffer.from(encodePng(image)).toString('base64')}`;
-}
-
-/**
- * The icon's kangaroo alone, keyed off its background and trimmed to its own bounds, as a data URI.
- *
- * **Encoded with alpha.** It was written through `encodePngRGB`, which drops the channel `keyOut`
- * had just cleared — and `keyOut` leaves the colour under a cleared pixel alone, so every keyed
- * pixel came back as the icon's background green. Measured on Meta's square cover: the corner of
- * the glyph rendered (29, 58, 36) against (42, 96, 54) just outside it, a dark box round the
- * kangaroo on every piece of key art, under a doc comment on `encodePngRGB` that says not to.
- */
-export function glyphDataUri(icon) {
-  return imageDataUri(trim(keyOut(icon, BACKGROUND)));
 }
 
 /** A PNG frame as a data URI, for drawing a captured gameplay frame behind key art. */
@@ -284,9 +285,12 @@ export function playersInShot(view) {
 /**
  * Turning a held game's camera towards other players with the mouse, the way a player does.
  *
- * `calibrate` measures the turn a drag actually makes rather than trusting `LOOK_RAD_PER_PX`:
- * measured in headless Chromium, a 100 px drag turned the view 0.99 rad against the 0.22 the
- * arithmetic gives, and steering with a gain four and a half times too high overshoots every turn.
+ * `calibrate` measures the turn a drag makes, and measures the *second* drag. The first drag after
+ * the button goes down carries a stale delta from wherever the pointer last was: measured in
+ * headless Chromium, 100 px turned the view 0.99 rad and 40 px turned it 0.86 rad, which only
+ * agree as 0.0022 rad/px — `PCInput`'s own figure — plus about 356 px of jump on the first event.
+ * Trusting that first reading gave the steering a gain ten times too low, the camera crawled, and
+ * four candidate frames in a row lost the player it had found.
  */
 export class Steering {
   constructor(page) {
@@ -310,10 +314,14 @@ export class Steering {
   }
 
   async calibrate() {
+    const drag = async () => {
+      this.x += 40;
+      await this.page.mouse.move(this.x, this.y);
+      await this.page.evaluate(() => window.__kcTime.step(1000 / 30));
+    };
+    await drag(); // absorbs the stale first delta
     const before = await readView(this.page);
-    this.x += 40;
-    await this.page.mouse.move(this.x, this.y);
-    await this.page.evaluate(() => window.__kcTime.step(1000 / 30));
+    await drag();
     const after = await readView(this.page);
     if (!before || !after) return this.radPerPx;
     const turned = Math.atan2(Math.sin(before.yaw - after.yaw), Math.cos(before.yaw - after.yaw));
@@ -389,28 +397,63 @@ export async function captureBestHeldFrame(page, size, candidates = 6, log = () 
     await page.keyboard.down('ShiftLeft');
     await page.keyboard.down('KeyW');
     for (let c = 0; c < candidates; c++) {
-      for (let f = 0; f < 24; f++) {
-        // Take off 10 frames before the shot: about the top of a hop at the game's gravity.
-        if (f === 14) await page.keyboard.down('Space');
-        if (f === 17) await page.keyboard.up('Space');
-        await steering.steer({ maxTurn: 0.06, drift: 3, anyone: true });
+      // Run with whoever is in sight and take the frame the moment somebody is in the middle of it,
+      // rather than at a fixed count: at a fixed frame the first steered run had a player in shot
+      // in one candidate of four, because a fleeing runner crosses the view in a second.
+      for (let f = 0; f < 36; f++) {
+        if (f % 16 === 0) await page.keyboard.down('Space');
+        if (f % 16 === 3) await page.keyboard.up('Space');
+        await steering.steer({ maxTurn: 0.08, drift: 3, anyone: true });
         await step(1000 / 30);
+        if (f >= 8 && playersInShot(await readView(page)) > 0) break;
       }
-      await page.setViewportSize(size);
-      await step(1000 / 30);
-      const frame = await page.screenshot({ animations: 'disabled' });
-      const players = playersInShot(await readView(page));
+      const frame = await snapAt(page, size);
+      const view = await readView(page);
+      const players = playersInShot(view);
       const score = Math.min(players, 3) * 100 + frameScore(frame);
-      log(`    candidate ${c + 1}: ${players} player(s) in shot, frame score ${frameScore(frame).toFixed(1)}`);
+      const near = pickTarget(view, null, { anyone: true });
+      const where = near ? `, nearest ${near.distance.toFixed(1)} m at ${near.bearing.toFixed(2)} rad${near.visible ? '' : ' (hidden)'}` : '';
+      log(`    candidate ${c + 1}: ${players} player(s) in shot${where}, frame score ${frameScore(frame).toFixed(1)}`);
       if (!best || score > best.score) best = { frame, score, players };
       await page.setViewportSize(small);
     }
   } finally {
+    await page.keyboard.up('Space').catch(() => {});
     await page.keyboard.up('KeyW').catch(() => {});
     await page.keyboard.up('ShiftLeft').catch(() => {});
     await steering.end();
   }
   return best?.frame ?? null;
+}
+
+/** Resize the window and wait until the game's canvas has followed it (see `snapAt`). */
+export async function growTo(page, size) {
+  await page.setViewportSize(size);
+  // Polled on a timer: the default polls on requestAnimationFrame, which the held clock owns.
+  await page
+    .waitForFunction((w) => (document.querySelector('canvas')?.width ?? 0) >= w * 0.9, size.width, { polling: 50, timeout: 10_000 })
+    .catch(() => {});
+}
+
+/**
+ * Grow the window to `size` and photograph one frame drawn at that size.
+ *
+ * The browser delivers the resize when it next updates the page, not when the viewport is set, and
+ * the renderer clears the canvas when it resizes it. Stepped straight after `setViewportSize`, the
+ * game sometimes drew its frame and then had it wiped: measured, two candidates in eight came back
+ * as the page's flat background (frame score 4.7 against 24–37). So this waits until the canvas
+ * has the new size, steps twice, and retakes a frame that is still flat.
+ */
+async function snapAt(page, size) {
+  await growTo(page, size);
+  let frame = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.evaluate(() => window.__kcTime.step(1000 / 30));
+    await page.evaluate(() => window.__kcTime.step(1000 / 30));
+    frame = await page.screenshot({ animations: 'disabled' });
+    if (frameScore(frame) >= 8) break;
+  }
+  return frame;
 }
 
 /** Swing the view. Dragging rather than nudging, so this works whether or not pointer lock took. */
