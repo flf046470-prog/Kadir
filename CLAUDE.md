@@ -2470,6 +2470,11 @@ backdrop is taken with `__kcHideSelf` (webdriver only, like `__kcView`; it chang
 draws and nothing the simulation knows). `pack:pc:listing -- --art` redraws the key art and
 icons without re-shooting the five screenshots, which are most of a run's hour.
 
+**Roo Ball's score broke across lines.** A goal flash ("BLUE SCORES — Joey · RED 0 – 1 BLUE")
+wrapped in the HUD's 520 px headline with "BLUE" alone on the second line. The score is written
+with no-break spaces now, as ` ` escapes: an Edit wrote the literal character the first
+time, which is invisible in source and made the first mutation a no-op that "passed".
+
 **The scoreboard printed ids, not names.** `Hud` showed `shortId(id)`: `bot0`…`bot4` in practice,
 beside avatars whose name tags said Bounce and Digger, and seven characters of an account id
 online. The Steam screenshots showed it. `ui/scores.ts` takes the name from the roster that labels

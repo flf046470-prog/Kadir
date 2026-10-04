@@ -302,7 +302,9 @@ export class RooBallMode extends RoundMode {
   }
 
   private updateHeadline(): void {
-    const score = `RED ${this.goals.red} – ${this.goals.blue} BLUE`;
+    // No-break spaces: the score is one unit. With ordinary ones a goal flash wrapped it in the
+    // HUD's 520 px headline as "… RED 0 – 1" over "BLUE", which a Steam screenshot caught.
+    const score = `RED\u00a0${this.goals.red}\u00a0–\u00a0${this.goals.blue}\u00a0BLUE`;
     this.headline = this.flash ? `${this.flash} · ${score}` : score;
   }
 

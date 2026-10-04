@@ -85,6 +85,8 @@ describe('a Roo Ball match', () => {
     expect(goals[0]?.data).toBe('blue');
     expect(mode.score).toEqual({ red: 0, blue: 1 });
     expect(sim.mode.state().tally).toEqual({ red: 0, blue: 1 });
+    // The score never breaks across lines in the headline, however long the flash before it.
+    expect(sim.mode.state().headline).toContain('RED\u00a00\u00a0–\u00a01\u00a0BLUE');
     // Back on the spot and held there through the restart, not left sitting in the net.
     for (let i = 0; i < 30; i++) sim.step();
     expect(Math.hypot(ball.position.x - pitch.centre.x, ball.position.z - pitch.centre.z)).toBeLessThan(0.05);
