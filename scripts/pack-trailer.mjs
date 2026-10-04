@@ -19,6 +19,7 @@
  * Usage:
  *   pip install imageio-ffmpeg            # an ffmpeg with libx264; Playwright's cannot write H.264
  *   npm run build:client && npm run pack:trailer
+ *   npm run pack:trailer -- --resume       # keep the shots a run that died already finished
  */
 
 import { spawn } from 'node:child_process';
@@ -65,6 +66,12 @@ const SHOTS = [
   { mode: 'The Hunt', map: 'Jungle World', seconds: 6.5, turn: 220 },
 ];
 
+// Filming takes about two hours under swiftshader, and one run was killed at that mark during its
+// fifth shot with nothing kept: the shots it had finished were in the work folder, but their first
+// frames, which the title and end cards are drawn over, were only ever held in memory. A finished
+// shot now leaves its first frame and a marker beside its video, and `--resume` films only the rest.
+const RESUME = process.argv.includes('--resume');
+
 const problems = [];
 const problem = (m) => problems.push(m);
 const log = (m) => console.log(`pack:trailer — ${m}`);
@@ -95,7 +102,7 @@ try {
   process.exit(1);
 }
 
-await rm(WORK, { recursive: true, force: true });
+if (!RESUME) await rm(WORK, { recursive: true, force: true });
 await mkdir(WORK, { recursive: true });
 
 const server = await serveDist(DIST, path.join(root, 'node_modules', 'three'));
@@ -207,6 +214,9 @@ async function film(shot, index) {
     );
     // A frozen game films as a still. Identical consecutive frames say the clock did not move.
     if (repeats > frames * 0.1) problem(`${shot.mode}: ${repeats} of ${frames} frames repeat the one before — the game did not advance`);
+    // Written last, after ffmpeg has closed the video: the marker is what says the shot is whole.
+    await writeFile(path.join(WORK, `shot-${index}.jpg`), firstFrame);
+    await writeFile(path.join(WORK, `shot-${index}.json`), JSON.stringify({ mode: shot.mode, map: shot.map, repeats, frames }));
   } finally {
     await releaseKeys(page);
     await page.keyboard.up('ShiftLeft').catch(() => {});
@@ -266,8 +276,27 @@ async function soundtrack(total) {
 
 // --- shots ----------------------------------------------------------------------------------------
 
+/** A shot an earlier run finished, if `--resume` and it is the same shot. */
+async function kept(shot, i) {
+  if (!RESUME) return null;
+  try {
+    const meta = JSON.parse(await readFile(path.join(WORK, `shot-${i}.json`), 'utf8'));
+    if (meta.mode !== shot.mode || meta.map !== shot.map) return null;
+    const firstFrame = await readFile(path.join(WORK, `shot-${i}.jpg`));
+    return { file: path.join(WORK, `shot-${i}.mp4`), firstFrame, repeats: meta.repeats, frames: meta.frames };
+  } catch {
+    return null;
+  }
+}
+
 const taken = [];
 for (const [i, shot] of SHOTS.entries()) {
+  const done = await kept(shot, i);
+  if (done) {
+    log(`shot ${i + 1}/${SHOTS.length}: ${shot.mode} on ${shot.map} — kept from the last run`);
+    taken.push(done);
+    continue;
+  }
   log(`shot ${i + 1}/${SHOTS.length}: ${shot.mode} on ${shot.map}`);
   try {
     taken.push(await film(shot, i));

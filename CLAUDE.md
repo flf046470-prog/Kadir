@@ -2479,6 +2479,16 @@ backdrop is taken with `__kcHideSelf` (webdriver only, like `__kcView`; it chang
 draws and nothing the simulation knows). `pack:pc:listing -- --art` redraws the key art and
 icons without re-shooting the five screenshots, which are most of a run's hour.
 
+**Conversion Duel's badge said RUNNER under a tally of KANGAROO 3 · HUMAN 3.** The mode runs its
+species on `chaser`/`runner`, and the badge and the role-change toast read the role's own name
+while the tally and the headline used the mode's. `MODE_ROLE_NAMES` in `ui/roles.ts` is the one
+table; `roleBadge(role, modeId)` and the tally both read it.
+
+**Which map a screenshot is shot on is measured.** Share of player-seconds with somebody within
+12 m and in sight (`.probe/close.ts`): Conversion Duel jungle 31 %, glacier 44 %, outback 26 %;
+King of the Hill 43 / 71 / 62 %. The duel's outback screenshot was red earth and a speck, so the
+two modes swapped maps.
+
 **A speck counted as a player.** Candidates were ranked by how many players were in the middle of
 the frame, and one 20 m away counted as much as one at 6 m: the Conversion Duel screenshot was a
 field of red earth with a penguin on the horizon. `shotScore` adds nearness under the count, and a
@@ -2549,6 +2559,12 @@ is rolled past at 1280x720 in unfilmed 100 ms steps, and only the filmed frames 
 can render it) bundled with esbuild into the page. The recorded effects are left out because of
 their ElevenLabs licence. The captions live in `docs/PC_LISTINGS.md`, so `copy.test.ts` checks
 their numbers.
+
+**A trailer run takes about two hours, and a background job here is killed at two.** One died in
+its fifth shot with nothing kept: the finished shots' videos were in `dist/trailer-work/`, but their
+first frames — which the title and end cards are drawn over — were only ever in memory. Each
+finished shot now writes `shot-N.jpg` and, last, a `shot-N.json` marker; `pack:trailer -- --resume`
+keeps every shot whose marker names the same mode and map, and films the rest.
 
 ## How to find defects here
 

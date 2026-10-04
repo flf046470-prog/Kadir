@@ -110,12 +110,17 @@ const ART = [
  * does. Steam gets PNGs; Epic's carousel gets JPEGs, because a busy 1920x1080 PNG can pass its
  * 4 MB ceiling and a JPEG at this quality never comes near it.
  */
+// Which map each mode is shot on is measured, not picked for variety alone: the share of
+// player-seconds with somebody within 12 m and in sight (`captureViewOf`, six bots, 4 seeds × 90 s).
+// Conversion Duel on the outback was 26 %, and its screenshot was red earth with a penguin on the
+// horizon; on the glacier it is 44 %. King of the Hill pulls everybody to the hill on any map
+// (outback 62 %, glacier 71 %), so it takes the outback.
 const SHOTS = [
   { name: '01-kangaroo-chase', mode: 'Kangaroo Chase', map: 'Jungle World' },
   { name: '02-the-hunt', mode: 'The Hunt', map: 'Outback Station' },
   { name: '03-roo-ball', mode: 'Roo Ball', map: 'Jungle World' },
-  { name: '04-king-of-the-hill', mode: 'King of the Hill', map: 'Glacier World' },
-  { name: '05-conversion-duel', mode: 'Conversion Duel', map: 'Outback Station' },
+  { name: '04-king-of-the-hill', mode: 'King of the Hill', map: 'Outback Station' },
+  { name: '05-conversion-duel', mode: 'Conversion Duel', map: 'Glacier World' },
 ];
 const SHOT_SIZE = { width: 1920, height: 1080 };
 const CAROUSEL_MAX = 4 * MB;

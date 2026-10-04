@@ -24,9 +24,27 @@ export const ROLE_BADGES: Record<PlayerRole, { label: string; tone: 'threat' | '
   blue: { label: 'BLUE TEAM', tone: 'other' },
 };
 
-/** The badge for a role as it arrives off the wire or in an event, where it is only a string. */
-export function roleBadge(role: string): { label: string; tone: 'threat' | 'prey' | 'other' } {
-  return ROLE_BADGES[role as PlayerRole] ?? ROLE_BADGES.idle;
+/**
+ * What a mode calls a role, where that is not the role's own name.
+ *
+ * Conversion Duel runs its two species on `chaser` and `runner`. The badge said RUNNER beside a
+ * tally reading KANGAROO 3 · HUMAN 3, under a headline counting "humans left": three names for
+ * one thing on one screen, in a store screenshot. The tally reads its labels from here too, so the
+ * two cannot drift apart again.
+ */
+export const MODE_ROLE_NAMES: Readonly<Record<string, Partial<Record<PlayerRole, string>>>> = {
+  duel: { chaser: 'KANGAROO', runner: 'HUMAN' },
+};
+
+/**
+ * The badge for a role as it arrives off the wire or in an event, where it is only a string, in
+ * the words of the mode being played. The tone is the role's own: a species is still the threat
+ * or the prey.
+ */
+export function roleBadge(role: string, modeId?: string): { label: string; tone: 'threat' | 'prey' | 'other' } {
+  const badge = ROLE_BADGES[role as PlayerRole] ?? ROLE_BADGES.idle;
+  const named = modeId ? MODE_ROLE_NAMES[modeId]?.[role as PlayerRole] : undefined;
+  return named ? { label: named, tone: badge.tone } : badge;
 }
 
 /** The badge's CSS class: `.kc-role--chaser` is the threat colour, `--runner` the prey's. */

@@ -107,6 +107,8 @@ export class Hud {
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   /** The local player's role as of the last update, for events that care which side you are on. */
   private localRole = '';
+  /** The mode being played, so the badge and the toast use its names for roles (`MODE_ROLE_NAMES`). */
+  private modeId = '';
   private options: HudOptions;
 
   constructor(options: HudOptions) {
@@ -271,6 +273,7 @@ export class Hud {
 
   update(state: ModeStateView, local: PlayerState | undefined): void {
     this.localRole = local?.role ?? '';
+    this.modeId = state.modeId;
     this.headline.textContent = state.headline;
     this.timer.textContent = state.phase === 'playing' ? formatTime(state.timeRemaining) : state.phase.toUpperCase();
 
@@ -278,7 +281,7 @@ export class Hud {
     this.updateBout(state);
 
     const role = local?.role ?? 'idle';
-    this.role.textContent = roleBadge(role).label;
+    this.role.textContent = roleBadge(role, state.modeId).label;
     this.role.className = roleBadgeClass(role);
 
     // Short screens (landscape phones) only have room for a few rows.
@@ -565,7 +568,11 @@ export class Hud {
     const sides =
       'red' in tally
         ? ([['red', 'RED'], ['blue', 'BLUE']] as const)
-        : ([['chaser', 'KANGAROO'], ['runner', 'HUMAN'], ['fighter', 'IN THE RING']] as const);
+        : ([
+            ['chaser', roleBadge('chaser', state.modeId).label],
+            ['runner', roleBadge('runner', state.modeId).label],
+            ['fighter', 'IN THE RING'],
+          ] as const);
     for (const [role, label] of sides) {
       const count = tally[role] ?? 0;
       if (count === 0 && role === 'fighter') continue;
@@ -625,7 +632,7 @@ export class Hud {
           // The Hunt's survivor going down: not a role, the end of their round.
           if (event.playerId === localId) this.showToast("You're down — the hunter got you", 2600);
         } else if (event.playerId === localId) {
-          this.showToast(`You are now ${roleBadge(data).label}`);
+          this.showToast(`You are now ${roleBadge(data, this.modeId).label}`);
         }
         break;
       }

@@ -19,6 +19,15 @@ describe('the role badge', () => {
     expect(roleBadgeClass('survivor')).toBe('kc-role kc-role--runner');
   });
 
+  it("calls Conversion Duel's sides what the mode calls them, and keeps their colours", () => {
+    expect(roleBadge('runner', 'duel')).toEqual({ label: 'HUMAN', tone: 'prey' });
+    expect(roleBadge('chaser', 'duel')).toEqual({ label: 'KANGAROO', tone: 'threat' });
+    // Every other mode, and a role the duel does not rename, keeps the role's own name.
+    expect(roleBadge('runner', 'kangaroo-chase').label).toBe('RUNNER');
+    expect(roleBadge('fighter', 'duel').label).toBe('FIGHTER');
+    expect(roleBadge('runner').label).toBe('RUNNER');
+  });
+
   it('falls back to WARM-UP only for a string that is not a role', () => {
     expect(roleBadge('converted:human').label).toBe('WARM-UP');
   });
