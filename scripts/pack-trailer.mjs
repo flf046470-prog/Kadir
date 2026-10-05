@@ -346,7 +346,10 @@ const backdropFor = (jpg) => `data:image/jpeg;base64,${jpg.toString('base64')}`;
 const titlePng = path.join(WORK, 'title.png');
 const endPng = path.join(WORK, 'end.png');
 await writeFile(titlePng, await still({ width: WIDTH, height: HEIGHT }, (page) => renderLogo(page, roo, { backdrop: backdropFor(taken[0].firstFrame), fill: 0.6 })));
-await writeFile(endPng, await still({ width: WIDTH, height: HEIGHT }, (page) => renderCover(page, roo, { veryWide: false, tagline: captions[SHOTS.length], backdrop: backdropFor(taken[2].firstFrame) })));
+// Side by side, as the Steam main capsule is. Stacked, the name and the line under it share 38 % of
+// the card's height, and on a 1080p frame the line came out 21 px tall — unreadable on a phone,
+// which is where a store page's video is most often watched.
+await writeFile(endPng, await still({ width: WIDTH, height: HEIGHT }, (page) => renderCover(page, roo, { veryWide: true, tagline: captions[SHOTS.length], backdrop: backdropFor(taken[2].firstFrame) })));
 
 const durations = [TITLE_SECONDS, ...SHOTS.map((s) => s.seconds), END_SECONDS];
 const { offsets, total } = timeline(durations, CROSSFADE);

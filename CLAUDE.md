@@ -2574,6 +2574,11 @@ forest or the boulders beyond (Roo Ball: the ball and the pitch for one second o
 decides per frame: run at them past 8 m, sprint past 12, stand and watch inside 6, with the gap
 between as hysteresis so it does not stutter.
 
+**The end card's line was 21 px tall on a 1080p frame.** Stacked, `renderCover` gives the name
+and the line under it 38 % of the height, and its `cqmin` units resolve against that strip. The
+trailer's end card uses the side-by-side layout the Steam main capsule uses (58 px), and a tagline
+breaks after each sentence — balanced wrapping alone gave "No loot / boxes".
+
 **A bots' average does not say where the filming player starts.** King of the Hill measured 62 %
 close-and-in-sight on the outback, and its screenshot there had the player start 140 m from
 everybody, pinned in a rock corner for the whole capture (`seekPlayers` runs straight at the

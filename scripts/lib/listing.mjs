@@ -674,7 +674,9 @@ export async function renderCover(page, glyph, { veryWide, tagline = null, backd
       text-shadow: 0 2px 16px rgba(0,0,0,.55);
     }
     .rule { width: 22%; height: 1.4cqmin; min-height: 3px; border-radius: 999px; background: #ffd166; margin: 4% 0 3%; }
-    p { margin: 0; color: #ffe9b8; font-weight: 600; text-align: center; font-size: 5.4cqmin; }
+    /* One sentence to a line, and a sentence that still wraps splits in the middle rather than
+       leaving "pay-to-win." alone on a line. */
+    p { margin: 0; color: #ffe9b8; font-weight: 600; text-align: center; font-size: 5.4cqmin; text-wrap: balance; }
     .roo {
       ${veryWide ? 'height: 74%; width: 34%; margin: 0 4% 0 0;' : 'flex: 1; min-height: 0; width: 100%; padding: 0 12% 6%; box-sizing: border-box;'}
       object-fit: contain;
@@ -683,7 +685,7 @@ export async function renderCover(page, glyph, { veryWide, tagline = null, backd
   </style></head><body>
     <div class="text">
       <h1>KANGAROO CHASE</h1>
-      ${tagline ? `<div class="rule"></div><p>${tagline}</p>` : ''}
+      ${tagline ? `<div class="rule"></div><p>${tagline.replace(/([.!?]) (?=\S)/g, '$1<br>')}</p>` : ''}
     </div>
     <img class="roo" src="${glyph}" alt="">
   </body></html>`);
