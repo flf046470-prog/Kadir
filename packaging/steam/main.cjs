@@ -11,8 +11,13 @@
  *   - VR, by handing the same local URL to Chrome or Edge in app mode, where WebXR is driven by
  *     the system OpenXR runtime that SteamVR provides.
  *
+ * Online play is not on that local server. It serves the game and runs offline practice; the
+ * page it serves is told (`KC_ONLINE_ORIGIN`) to play on the hosted server, where Steam, Epic and
+ * browser players meet, and falls back to the local one when that cannot be reached.
+ *
  * The decision logic lives in @kc/shell (bundled to dist/shell/index.cjs) so it can be unit
- * tested without Electron; this file is the wiring.
+ * tested without Electron; this file is the wiring. `npm run check:shell` runs it under a
+ * stand-in for Electron to prove the wiring, since no CI machine can open the real one.
  */
 
 const { app, BrowserWindow, dialog, Menu, shell } = require('electron');
@@ -21,7 +26,7 @@ const net = require('node:net');
 const path = require('node:path');
 const fs = require('node:fs');
 
-const { planVrLaunch } = require('./resources/shell/index.cjs');
+const { planVrLaunch, portCandidates, parseSavedPort, parseSavedSecret, onlineOriginFor } = require('./resources/shell/index.cjs');
 
 const ROOT = path.join(__dirname, 'resources');
 const SERVER_ENTRY = path.join(ROOT, 'server', 'main.js');
@@ -32,17 +37,61 @@ let mainWindow = null;
 let vrProcess = null;
 let baseUrl = null;
 
-/** Ask the OS for a free port rather than guessing one that may already be taken. */
-function freePort() {
-  return new Promise((resolve, reject) => {
+/** Packed in by `pack:steam --online`; the environment can override it (see `onlineOriginFor`). */
+const ONLINE_ORIGIN = onlineOriginFor(require('./package.json'), (name) => process.env[name]);
+
+/** Files in the player's own data folder that have to survive from one launch to the next. */
+const kept = (name) => path.join(app.getPath('userData'), name);
+
+function readKept(name) {
+  try {
+    return fs.readFileSync(kept(name), 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+function writeKept(name, text, mode = 0o644) {
+  fs.mkdirSync(app.getPath('userData'), { recursive: true });
+  fs.writeFileSync(kept(name), `${text}\n`, { mode });
+}
+
+/** `port` if nothing is listening on it (0: whatever the OS picks), else null. */
+function tryPort(port) {
+  return new Promise((resolve) => {
     const probe = net.createServer();
     probe.unref();
-    probe.on('error', reject);
-    probe.listen(0, '127.0.0.1', () => {
-      const { port } = probe.address();
-      probe.close(() => resolve(port));
+    probe.once('error', () => resolve(null));
+    probe.listen(port, '127.0.0.1', () => {
+      const bound = probe.address().port;
+      probe.close(() => resolve(bound));
     });
   });
+}
+
+/**
+ * The same port as last launch whenever possible: the page's storage — name, settings, and the
+ * token to the player's account — belongs to an origin, and the port is part of it. See
+ * `packages/shell/src/launch.ts` for what an OS-chosen port every launch cost.
+ */
+async function choosePort() {
+  for (const candidate of portCandidates(parseSavedPort(readKept('port')))) {
+    const port = await tryPort(candidate);
+    if (port) return { port, stable: true };
+  }
+  return { port: await tryPort(0), stable: false };
+}
+
+/**
+ * One secret for the life of the install. A new one each launch signed the page's token with a key
+ * the next launch's server did not have, which logs the player out of their own computer.
+ */
+function sessionSecret() {
+  const saved = parseSavedSecret(readKept('session-secret'));
+  if (saved) return saved;
+  const fresh = require('node:crypto').randomBytes(32).toString('hex');
+  writeKept('session-secret', fresh, 0o600);
+  return fresh;
 }
 
 function waitForServer(port, timeoutMs = 20_000) {
@@ -70,7 +119,7 @@ function waitForServer(port, timeoutMs = 20_000) {
  * lets the Steam depot ship one runtime instead of also bundling Node.
  */
 async function startServer() {
-  const port = await freePort();
+  const { port, stable } = await choosePort();
   serverProcess = spawn(process.execPath, [SERVER_ENTRY], {
     env: {
       ...process.env,
@@ -82,9 +131,12 @@ async function startServer() {
       // Per-user, not next to the binary: a Steam library directory is often read-only, and on
       // Windows it sits under Program Files where writes are blocked outright.
       KC_DATA_DIR: path.join(app.getPath('userData'), 'data'),
-      KC_SESSION_SECRET: process.env.KC_SESSION_SECRET || require('node:crypto').randomBytes(32).toString('hex'),
+      KC_SESSION_SECRET: process.env.KC_SESSION_SECRET || sessionSecret(),
+      KC_ONLINE_ORIGIN: ONLINE_ORIGIN,
     },
-    stdio: ['ignore', 'pipe', 'pipe'],
+    // The IPC channel is how the server knows this process is gone (it exits on `disconnect`), so
+    // a crash here cannot leave it holding the port the next launch needs.
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
   });
 
   serverProcess.stdout.on('data', (d) => process.stdout.write(`[server] ${d}`));
@@ -98,6 +150,9 @@ async function startServer() {
   });
 
   await waitForServer(port);
+  // Only once the server is really up on it, and never the OS's own pick: saving that would send
+  // the next launch to an origin with nothing in it.
+  if (stable) writeKept('port', String(port));
   baseUrl = `http://127.0.0.1:${port}`;
   return baseUrl;
 }
@@ -195,16 +250,28 @@ async function createWindow() {
   await mainWindow.loadURL(baseUrl);
 }
 
-app.whenReady().then(async () => {
-  try {
-    await startServer();
-    buildMenu();
-    await createWindow();
-  } catch (error) {
-    dialog.showErrorBox('Kangaroo Chase', `Failed to start.\n\n${error.message}`);
-    app.quit();
-  }
-});
+// One copy at a time. A second would find the first one's port taken, start on another — a new
+// origin with empty storage — and greet the player as a stranger in the second window.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+
+  app.whenReady().then(async () => {
+    try {
+      await startServer();
+      buildMenu();
+      await createWindow();
+    } catch (error) {
+      dialog.showErrorBox('Kangaroo Chase', `Failed to start.\n\n${error.message}`);
+      app.quit();
+    }
+  });
+}
 
 app.on('before-quit', () => {
   app.isQuitting = true;

@@ -38,6 +38,11 @@ jobs:
       # must never reach a release: every room in the process shares one Node process, so one
       # malformed message ending it ends every match on the box.
       - run: npm run check:hostile
+      # Runs the PC build's launcher (main.cjs) twice under a stand-in for Electron, which no CI
+      # machine can open: same origin both launches, the same account behind the kept token, no
+      # server left on the port when it is killed, and the page told where to play online. Every
+      # one of those was broken, and nothing ran this file.
+      - run: npm run check:shell
       # Packaging the Steam app also proves the built output is self-consistent — a missing
       # build step otherwise shows up as a blank window rather than an error.
       - run: npm run pack:steam
@@ -93,3 +98,6 @@ jobs:
       # Two players befriend each other, form a party, and the member follows the leader into a
       # new room on their own — the loop no unit test can see end to end.
       - run: npm run check:party
+      # A PC build's page and a browser player meet in one room on the hosted server, and the PC
+      # page still starts, saying why, when the hosted server is gone.
+      - run: npm run check:crossplay

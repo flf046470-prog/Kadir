@@ -15,18 +15,26 @@ guessed at.
 
 ## Before the page goes up: the release blocker
 
-**A Steam or Epic player cannot meet another player yet.** The PC build is an Electron shell that
-runs its own copy of the game server on `127.0.0.1` (`packaging/steam/main.cjs`), and the client
-connects to whatever host served it (`packages/client/src/main.ts`: `ws://${location.host}/ws`).
-So every install is its own server: practice against bots works fully offline, and nothing else
-in the copy below — 32 players, proximity voice, friends and parties — reaches anyone on another
-machine. The fix is one hosted server for every store (online play goes there; the local server
-stays for practice), and it is the first item in `ROADMAP.md`. It also decides Epic's
-distribution requirement that "products with online multiplayer functionality must support
-crossplay across all PC storefronts where the product is distributed": one server for every
-build satisfies that by construction, and two would not.
+**The build is ready to play online; the server it plays on is not up.** The PC build is an
+Electron shell that serves the game from a server bundled into the app on `127.0.0.1`
+(`packaging/steam/main.cjs`). That server tells the page to play online on the hosted origin the
+build was packed with — `npm run pack:steam -- --online https://<hosted origin>` — and the page
+falls back to the bundled server, with an offline menu that says why, when the hosted one cannot be
+reached or speaks another protocol. `npm run check:crossplay` puts a PC page and a browser player in
+one room on one server, and runs in CI.
 
-A Coming Soon page can go up before that; a release cannot.
+What is missing is that server. Railway's trial ended on 2026-09-22, and the domain it sits on
+also decides the Android package's permanent identity (`CLAUDE.md`, "Release identity"). Until it
+exists, a build has nowhere to be pointed: packed without `--online` it plays alone, and
+`pack:steam` says so in yellow. Everything multiplayer in the copy below — 32 players, proximity
+voice, friends and parties — reaches other people through that one server and nowhere else.
+
+It also settles Epic's distribution requirement that "products with online multiplayer
+functionality must support crossplay across all PC storefronts where the product is distributed":
+the Steam build, the Epic build and the browser all play on the same server, so crossplay holds by
+construction.
+
+A Coming Soon page can go up before the server does; a release cannot.
 
 ## Name
 

@@ -1,6 +1,7 @@
 import { env } from 'node:process';
 import { parseIceConfig, type IceConfig } from './ice.js';
 import { parseModerators } from './moderation.js';
+import { parseOnlineOrigin } from './origins.js';
 
 export interface ServerConfig {
   port: number;
@@ -18,8 +19,16 @@ export interface ServerConfig {
   clientTimeoutSeconds: number;
   /** Messages per second a single connection may send before being throttled. */
   messageRateLimit: number;
-  /** Allow the built-in dev origin check to be relaxed locally. */
+  /**
+   * Websites allowed to use this server from a browser (`KC_ALLOWED_ORIGINS`). Empty allows any.
+   * A page served from the player's own machine is always allowed — see `origins.ts`.
+   */
   allowedOrigins: string[];
+  /**
+   * Where a page served by this server plays online (`KC_ONLINE_ORIGIN`), or '' to play here.
+   * Set on the server bundled into the PC build; see `parseOnlineOrigin`.
+   */
+  onlineOrigin: string;
   publicDir: string;
   /**
    * What to serve at `/.well-known/assetlinks.json`: a JSON array of statements, or a
@@ -77,6 +86,7 @@ export function loadConfig(): ServerConfig {
     clientTimeoutSeconds: int('KC_CLIENT_TIMEOUT', 30),
     messageRateLimit: int('KC_MSG_RATE', 90),
     allowedOrigins: (env.KC_ALLOWED_ORIGINS ?? '').split(',').filter(Boolean),
+    onlineOrigin: parseOnlineOrigin(env.KC_ONLINE_ORIGIN),
     publicDir: env.KC_PUBLIC_DIR ?? 'dist/client',
     assetLinksFile: env.KC_ASSETLINKS ?? '',
     stores: {

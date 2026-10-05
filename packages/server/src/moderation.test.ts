@@ -21,6 +21,7 @@ const CONFIG: ServerConfig = {
   clientTimeoutSeconds: 30,
   messageRateLimit: 90,
   allowedOrigins: [],
+  onlineOrigin: '',
   publicDir: 'dist/client',
   assetLinksFile: '',
   stores: { metaAppId: '', metaAppSecret: '', steamAppId: '', steamWebApiKey: '', playPackageName: '' },

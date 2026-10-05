@@ -22,12 +22,14 @@ import {
   sanitizeName,
 } from '@kc/core';
 import type { CosmeticSlot, PlayerProfile } from '@kc/core';
+import { PROTOCOL_VERSION } from '@kc/net';
 import type { SocialActionResult } from '@kc/net';
 import type { AccountService } from './accounts.js';
 import type { ServerConfig } from './config.js';
 import type { Leaderboard } from './leaderboard.js';
 import type { RoomManager } from './rooms.js';
 import type { PurchaseService } from './purchases.js';
+import { originPermitted, withOnlineOrigin } from './origins.js';
 
 export interface HttpDeps {
   config: ServerConfig;
@@ -186,7 +188,10 @@ async function handleApi(
   const method = req.method ?? 'GET';
 
   if (path === '/api/health') {
-    json(res, 200, { ok: true, rooms: deps.rooms.roomCount, uptime: process.uptime() });
+    // `protocol` lets a PC build decide whether to play here before it opens a socket: a client a
+    // version behind is refused at `hello`, and it is better told at boot, while it can still
+    // fall back to the server it carries, than mid-menu with nowhere to go.
+    json(res, 200, { ok: true, protocol: PROTOCOL_VERSION, rooms: deps.rooms.roomCount, uptime: process.uptime() });
     return;
   }
 
@@ -409,8 +414,14 @@ function authenticate(deps: HttpDeps, req: IncomingMessage): string | null {
 function applyCors(res: ServerResponse, config: ServerConfig, req: IncomingMessage): void {
   const origin = req.headers.origin;
   if (!origin) return;
-  if (config.allowedOrigins.length > 0 && !config.allowedOrigins.includes(origin)) return;
-  res.setHeader('Access-Control-Allow-Origin', config.allowedOrigins.length > 0 ? origin : '*');
+  if (!originPermitted(config.allowedOrigins, origin)) return;
+  if (config.allowedOrigins.length > 0) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    // The answer depends on who asked, so a cache must not hand one origin's answer to another.
+    res.setHeader('Vary', 'Origin');
+  } else {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  }
   res.setHeader('Access-Control-Allow-Headers', 'content-type, authorization');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 }
@@ -450,6 +461,10 @@ async function serveStatic(config: ServerConfig, path: string, res: ServerRespon
   try {
     const info = await stat(target);
     if (!info.isFile()) throw new Error('not a file');
+    if (target === resolve(join(root, 'index.html'))) {
+      await serveIndex(config, target, res);
+      return;
+    }
     res.writeHead(200, {
       'content-type': MIME[extname(target)] ?? 'application/octet-stream',
       'cache-control': target.endsWith('index.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
@@ -472,14 +487,23 @@ async function serveStatic(config: ServerConfig, path: string, res: ServerRespon
       return;
     }
     try {
-      const index = resolve(join(root, 'index.html'));
-      await stat(index);
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
-      createReadStream(index).pipe(res);
+      await serveIndex(config, resolve(join(root, 'index.html')), res);
     } catch {
       res.writeHead(404).end('not found');
     }
   }
+}
+
+/**
+ * The app shell, read per request so it can carry `KC_ONLINE_ORIGIN`.
+ *
+ * Read rather than streamed because of that one line, and only navigations reach it — the service
+ * worker serves them network-first, so the line is never older than the server that wrote it.
+ */
+async function serveIndex(config: ServerConfig, file: string, res: ServerResponse): Promise<void> {
+  const html = withOnlineOrigin(await readFile(file, 'utf8'), config.onlineOrigin);
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' });
+  res.end(html);
 }
 
 /**

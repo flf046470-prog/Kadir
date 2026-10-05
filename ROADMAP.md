@@ -58,10 +58,11 @@ this repository can do them.
 
 The quarter's test: a player on the Steam build and a player in a browser can join the same match.
 
-- **One server for every store.** The PC build runs its own server on `127.0.0.1` and the client
-  connects to whatever host served it, so no two Steam players can ever meet
-  (`docs/PC_LISTINGS.md`). Online play goes to the hosted server; the bundled one stays for
-  offline practice. This blocks the release and Epic's crossplay rule, so it goes first.
+- ~~**One server for every store.**~~ Done in code (2026-10-05): a PC build packed with
+  `pack:steam --online <origin>` plays on the hosted server and falls back to the one it carries,
+  and `check:crossplay` puts a PC page and a browser player in one room in CI. The same pass found
+  that every Steam launch had made a new account (a new port, so a new origin, every launch). What
+  is left is the server itself, next line.
 - Hosting back up — Railway's trial ended 2026-09-22 **(account)** — then the domain and the Android
   package identity, decided once (`CLAUDE.md`: "Release identity is one irreversible decision").
 - Steamworks partner account and the $100 app fee, Epic developer account and its $100 fee, tax
@@ -69,7 +70,8 @@ The quarter's test: a player on the Steam build and a player in a browser can jo
 - Privacy policy at a live URL, written against what `packages/server/src/` actually stores.
 - Coming Soon pages on both stores with the `pack:pc:listing` art, the `pack:trailer` video and
   the checked copy. Release date "To be announced".
-- Fix the measured glacier defect: bots spend 29 % of bot-seconds stuck in two crevasse cells.
+- ~~Fix the measured glacier defect: bots spend 29 % of bot-seconds stuck in two crevasse cells.~~
+  Done: the crevasse ramp spans its full width now, 6.0 % stuck (glacier `version` 7).
 
 ### Q1 2027 (Jan–Mar): real hardware
 

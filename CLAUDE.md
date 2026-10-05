@@ -1587,7 +1587,18 @@ shell uses — and probing it:
   each saw **2 players**, and each received **240 snapshots in 12 s — exactly 20.0/s** against the
   configured 20 Hz
 
-No internet, no origin, no DNS. So for Steam "forget the web" is already the shipped design.
+No internet, no origin, no DNS. So for Steam "forget the web" is already the shipped design — for
+offline play. Playing *with other people* needs the hosted server; see "The PC build played alone".
+
+**Correction: that measurement could not have failed, and the package was broken.** It ran the
+server from `dist/steam-app`, *inside this repo*, where Node finds the server's one external
+package (`ws`) by walking up into the repo's own `node_modules`. An installed app has no such
+folder: packed anywhere else, the server died with `Cannot find package 'ws'` and the window would
+have shown "The game server stopped unexpectedly". `pack:steam` now copies the server bundle's bare
+imports and their dependencies into `resources/server/node_modules`, and refuses a package where
+one is missing — checked by looking inside the package, never by resolving, since resolving walks
+out of it. `check:shell` packs into a scratch folder outside the repo, which is how it was found.
+**Run a package from where it will be installed, not from where it was built.**
 
 **Electron cannot host a WebXR session, and that is a compile-time property of the binary.**
 Electron sets `checkout_webxr` false in its DEPS, leaving `enable_vr=false` in its Chromium, so
@@ -2391,13 +2402,9 @@ distant land's "clears the walls" test now measures against the drawn crest, not
 `ROADMAP.md` → "The next twelve months" is the dated plan. Three things found doing it, and
 each one would have shipped:
 
-- **A Steam or Epic player cannot meet another player.** Each install runs its own server on
-  `127.0.0.1`, and the client connects to `ws://${location.host}/ws` (`main.ts`), which is that
-  same local server. So the PC build is practice against bots, and nothing more, until online play
-  goes to one hosted server. The "Steam needs no origin" section is still right about offline
-  play. It is also why every multiplayer line in the store copy is a promise for release, not a
-  description of the build today. Epic's rule that online play must cross-play with every other PC
-  store depends on fixing it too.
+- **A Steam or Epic player could not meet another player** — each install played on its own
+  `127.0.0.1`. Fixed in code; see "The PC build played alone, and forgot its player every launch".
+  What remains is a hosted server to point it at, which is the account holder's.
 - **The Meta long description was 27 characters over Meta's limit**: 1527 against 1500, with
   "1424" written beside it. It also said "up to sixteen people per room" while the spec list
   further down said 32. `scripts/lib/copy.test.ts` now parses every fenced block under a
@@ -2608,6 +2615,58 @@ its fifth shot with nothing kept: the finished shots' videos were in `dist/trail
 first frames — which the title and end cards are drawn over — were only ever in memory. Each
 finished shot now writes `shot-N.jpg` and, last, a `shot-N.json` marker; `pack:trailer -- --resume`
 keeps every shot whose marker names the same mode and map, and films the rest.
+
+## The PC build played alone, and forgot its player every launch
+
+Steam and Epic installs serve the game from a server bundled into the app (`main.cjs`), and the
+page played on whatever served it, so every install was its own world. Now that server writes
+`<meta name="kc-online-origin">` into the page (`KC_ONLINE_ORIGIN`, packed in by
+`pack:steam --online <origin>`), and the page (`net/servers.ts`) plays there if `/api/health`
+answers **with this build's `PROTOCOL_VERSION`**. Otherwise it plays on the bundled server, and the
+menu is the offline one with the reason on it (`fallbackNotice`): server rooms have no bots, so
+"Play" there was a room nobody would ever join. `npm run check:crossplay` (CI, browser job) puts a
+PC page and a browser player in one room, then kills the hosted server and watches the PC page
+fall back in ~0.7 s.
+
+- **The backend is the server's setting, never the page's.** A URL parameter naming it would let a
+  link point a player, and their microphone, at a server nobody moderates. And a page whose server
+  named nobody is not probed at all — the browser build pays nothing.
+- **A loopback origin is always allowed**, even under `KC_ALLOWED_ORIGINS` (`origins.ts`, one rule
+  for CORS and the socket). Restricting origins stops *another website* driving the server; a
+  `127.0.0.1` page is software on the player's machine, which could connect with no Origin at all.
+  Mutation: dropping the allowance turns the PC page's health probe into a CORS failure and the
+  check reports the fallback.
+- **Sessions are keyed by server** (`sessionKeyFor`): a token only works where it was issued, and a
+  PC build has two. The page's own server keeps `kc.session.v1`, so no web player is signed out.
+  Keying them made a new regression, found reading the diff: a name but no session *for this
+  server* went to the name screen, so a player who once fell back was asked for their name again.
+  A saved name now creates the session itself; `check:crossplay` asserts no name prompt and one
+  session per server after the fallback.
+
+Doing it found the worse bug. **Every Steam launch made a new account.** `main.cjs` asked the OS
+for a new port each launch, and the port is part of the origin, so storage started empty: measured
+over three launches with one persistent profile — asked for a name 3 times, **3 accounts** on the
+bundled server, service-worker cache 1.9 → 3.7 → 5.6 MB. And a stable port alone would not have
+fixed it: the server was also given a **new random `KC_SESSION_SECRET` each launch**, so the kept
+token was signed with a key the next server did not have. Now (`@kc/shell` `launch.ts`):
+
+- The last port used, else 21787–21796 — under both OSes' ephemeral ranges, clear of Steam's
+  27015–27050 and of 8787. Only a fixed port is saved; saving the OS's own last-resort pick would
+  send every later launch to an origin with nothing in it.
+- The secret is generated once, kept in `userData/session-secret` (0600).
+- One instance (`requestSingleInstanceLock`): a second would get another port and a stranger's menu.
+- **The server exits when the launcher does** (spawned with an `ipc` channel, `disconnect` →
+  shutdown). An orphan from a crashed launcher kept the port, the next launch moved to another, and
+  that is a new origin again — measured by the mutation: "the launch after a crash is still on the
+  same origin" fails along with the orphan check.
+
+`npm run check:shell` (in `verify` and CI) runs the real `main.cjs` under a stand-in Electron
+written to a scratch `node_modules` — `app`, `BrowserWindow`, `dialog`, `Menu`, `shell` with only
+the methods it calls — twice, with one user folder. Four mutations, each failing its own line: OS
+port every launch, random secret (`HTTP 401`), no IPC channel, origin not passed. It packs into its
+scratch folder with `pack:steam --out`, because a copy with a test origin must never sit in
+`dist/steam-app` — and running it there, outside the repo, is what found the missing `ws` (see
+"Steam needs no origin" → Correction).
 
 ## How to find defects here
 

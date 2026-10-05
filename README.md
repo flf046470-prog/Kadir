@@ -55,7 +55,7 @@ npm run check:pwa        # prove the PWA still starts with the network gone
 npm run pack:quest -- --domain <host>   # Meta Horizon Store (Bubblewrap / immersive WebXR PWA)
 npm run pack:phone -- --domain <host>   # Google Play (Bubblewrap / landscape touch)
 npm run pack:msstore -- --domain <host> # Microsoft Store (hosted PWA / MSIX; also needs an identity)
-npm run pack:steam                      # Steam (Electron shell, SteamVR via OpenXR)
+npm run pack:steam -- --online <origin>  # Steam/Epic (Electron shell, SteamVR via OpenXR)
 ```
 
 `docs/STORES.md` covers what each store needs and which constraints are forced by the

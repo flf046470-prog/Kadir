@@ -8,6 +8,16 @@ const KEYS = {
   tutorial: 'kc.tutorial.v1',
 } as const;
 
+/**
+ * Where a session is kept. A token is only good on the server that issued it, and a PC build has
+ * two — the hosted one and the one it carries (`net/servers.ts`) — so one key would hand each the
+ * other's token. The page's own server keeps the original key, so nobody already signed in on the
+ * web is signed out by this.
+ */
+export function sessionKeyFor(server: string | null): string {
+  return server ? `${KEYS.session}@${server}` : KEYS.session;
+}
+
 export interface SessionInfo {
   playerId: string;
   token: string;
@@ -40,8 +50,9 @@ export class LocalStore {
     this.write(KEYS.settings, JSON.stringify(settings));
   }
 
-  loadSession(): SessionInfo | null {
-    const raw = this.read(KEYS.session);
+  /** The session for `server` — null meaning the server that served this page. */
+  loadSession(server: string | null = null): SessionInfo | null {
+    const raw = this.read(sessionKeyFor(server));
     if (!raw) return null;
     try {
       const parsed = JSON.parse(raw) as SessionInfo;
@@ -51,12 +62,12 @@ export class LocalStore {
     }
   }
 
-  saveSession(session: SessionInfo): void {
-    this.write(KEYS.session, JSON.stringify(session));
+  saveSession(session: SessionInfo, server: string | null = null): void {
+    this.write(sessionKeyFor(server), JSON.stringify(session));
   }
 
-  clearSession(): void {
-    this.remove(KEYS.session);
+  clearSession(server: string | null = null): void {
+    this.remove(sessionKeyFor(server));
   }
 
   loadName(): string {

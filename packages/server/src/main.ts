@@ -82,6 +82,11 @@ async function main(): Promise<void> {
 
   process.on('SIGINT', () => void shutdown());
   process.on('SIGTERM', () => void shutdown());
+  // A PC build's launcher starts this with an IPC channel, and the channel closes when the
+  // launcher goes — killed, crashed or quit. An orphan would keep holding the game's port, the next
+  // launch would have to serve the game from another, and another port is another origin: a
+  // player with no name, no settings and no way back to their account (`@kc/shell` launch.ts).
+  if (process.send) process.on('disconnect', () => void shutdown());
 }
 
 main().catch((error: unknown) => {

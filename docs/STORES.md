@@ -143,9 +143,10 @@ See `packaging/steam/README.md`. The short version: Electron is compiled with `e
 The desktop shell therefore serves flat play, and VR launches a Chromium-class browser in app
 mode against the local server, where SteamVR's OpenXR runtime drives WebXR.
 
-**The PC build cannot put two players in one match yet.** Every install runs its own server on
-`127.0.0.1`, and the client connects to the host that served it — so it is offline practice with
-bots and nothing else until online play is pointed at one hosted server (`ROADMAP.md`, Q4 2026).
+**The PC build plays online on the hosted server it is packed with** (`npm run pack:steam --
+--online https://<origin>`), and on the server it carries when that cannot be reached. Packed
+without `--online` it is offline practice with bots and nothing else, and `pack:steam` says so.
+There is no hosted server running yet (`ROADMAP.md`, Q4 2026), so no release build can be packed.
 
 ### The Store listing (Steam and Epic)
 

@@ -1,8 +1,25 @@
 # Steam build
 
-An Electron shell around the same web build the browser and Quest versions use. It runs the
-authoritative game server on localhost and opens the client against it, so single-player,
-practice-with-bots and connecting to a remote server all work offline-of-the-web-host.
+An Electron shell around the same web build the browser and Quest versions use. It runs a copy
+of the game server on localhost and opens the game from it. Online play is on the hosted server
+the build was packed with (`--online`), where Steam, Epic and browser players meet; the bundled
+server takes over, with an offline menu that says why, when that cannot be reached.
+
+## Where it plays, and why the port never changes
+
+The bundled server writes the hosted origin into the page it serves
+(`<meta name="kc-online-origin">`), and the page asks that server's `/api/health` before choosing
+it — a server on another protocol would refuse this build at `hello`, after the menu had promised
+online play. The hosted server lets the page in although it comes from `127.0.0.1`: a loopback
+origin is always allowed (`packages/server/src/origins.ts`).
+
+The game is served from the **same port every launch**: the last one used, else 21787–21796. A
+page's storage belongs to its origin, and the port is part of the origin. The launcher used to ask
+the OS for a new port each time, so every launch asked for a name again and made a new account,
+and the old one — with everything earned on it — was unreachable. The session secret is kept in
+the user's data folder for the same reason, only one copy of the app runs at a time, and the
+server exits when the launcher does, so an orphan never holds the port. `npm run check:shell` runs
+`main.cjs` twice under a stand-in for Electron to prove all of it.
 
 ## Why VR launches a second browser
 
@@ -33,7 +50,7 @@ part that has to be right on machines we cannot test on.
 
 ```bash
 npm run build          # client + server + shell
-npm run pack:steam     # assembles dist/steam-app/
+npm run pack:steam -- --online https://<hosted origin>   # assembles dist/steam-app/
 npx electron dist/steam-app     # run it locally
 ```
 

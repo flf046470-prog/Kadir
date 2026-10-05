@@ -5,6 +5,7 @@ import type { WebSocket } from 'ws';
 import { sanitizeName } from '@kc/core';
 import { PROTOCOL_VERSION, decodeJson } from '@kc/net';
 import type { ClientMessage, ServerMessage } from '@kc/net';
+import { originPermitted } from './origins.js';
 import type { AccountService } from './accounts.js';
 import type { ServerConfig } from './config.js';
 import type { RoomManager } from './rooms.js';
@@ -336,8 +337,5 @@ function consumeBudget(connection: Connection, config: ServerConfig): boolean {
 }
 
 function originAllowed(config: ServerConfig, request: IncomingMessage): boolean {
-  if (config.allowedOrigins.length === 0) return true;
-  const origin = request.headers.origin;
-  if (!origin) return true; // native clients (Quest APK, mobile shell) send no Origin
-  return config.allowedOrigins.includes(origin);
+  return originPermitted(config.allowedOrigins, request.headers.origin);
 }

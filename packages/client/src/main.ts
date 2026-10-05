@@ -2,6 +2,7 @@ import { sanitizeName } from '@kc/core';
 import type { Settings } from '@kc/core';
 import { NEW_PRIVATE_ROOM } from '@kc/net';
 import { Api, localContent } from './net/Api.js';
+import { chooseServer, fallbackNotice, onlineOriginOf, probeServer, socketUrlFor } from './net/servers.js';
 import { GameClient } from './game/GameClient.js';
 import { VoiceChat } from './audio/VoiceChat.js';
 import { MobileInput } from './platform/mobile/MobileInput.js';
@@ -125,8 +126,15 @@ async function main(): Promise<void> {
 
   const store = new LocalStore();
   const settings: Settings = store.loadSettings();
-  const device = await detectDevice();
-  const api = new Api('');
+  // Asked alongside device detection, so a PC build waiting on the hosted server costs no boot
+  // time it was not already spending; a page nobody pointed elsewhere asks nothing at all.
+  const [device, server] = await Promise.all([
+    detectDevice(),
+    chooseServer(location.origin, onlineOriginOf(document), (origin) => probeServer(origin)),
+  ]);
+  /** The page's own server is `null` to the session store, which keeps its original key. */
+  const sessionServer = server.origin === location.origin ? null : server.origin;
+  const api = new Api(sessionServer ?? '');
 
   const quality = settings.graphics.quality === 'auto' ? device.suggestedQuality : settings.graphics.quality;
   const profile = profileFor(device.kind, quality, settings);
@@ -134,7 +142,7 @@ async function main(): Promise<void> {
   const renderer = new Renderer({ container: root, platform: device.kind, profile, pixelRatio: device.devicePixelRatio });
 
   // Session: a guest account is created on first run and remembered locally.
-  let session = store.loadSession();
+  let session = store.loadSession(sessionServer);
   if (session) api.setToken(session.token);
 
   const shellRoot = el('div');
@@ -218,6 +226,14 @@ async function main(): Promise<void> {
     settings,
   );
 
+  // On the bundled server the menu is the offline one. Its rooms are real but have no bots and
+  // nobody else can reach them, so Play and Friends would lead to a room nobody ever joins; the
+  // profile, Customise and the pass still work, because that server keeps them.
+  if (server.fallback) {
+    shell.setOnline(false);
+    shell.setNotice(fallbackNotice(server.fallback));
+  }
+
   /**
    * Friends and party. Polled while there is a server session; the poll is also this player's own
    * presence, so friends see them as online in the menu and not only while a room holds them.
@@ -262,7 +278,7 @@ async function main(): Promise<void> {
   /** Which way a tap on a tuning row moves the value. Flipped from a row in the panel. */
   let tuningStep = 1;
 
-  const serverUrl = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
+  const serverUrl = socketUrlFor(server.origin);
 
   async function createSession(name: string): Promise<void> {
     const clean = sanitizeName(name);
@@ -271,7 +287,7 @@ async function main(): Promise<void> {
       const guest = await api.createGuest(clean);
       api.setToken(guest.token);
       session = { playerId: guest.playerId, token: guest.token };
-      store.saveSession(session);
+      store.saveSession(session, sessionServer);
       await bootGame(clean);
     } catch (error) {
       // No server? Still let the player in — practice mode is fully offline.
@@ -702,6 +718,10 @@ async function main(): Promise<void> {
 
   const savedName = store.loadName();
   if (session && savedName) await bootGame(savedName);
+  // A name but no session *for this server*: sessions are kept per server (`sessionKeyFor`), so a
+  // PC player who once fell back to the bundled server has a name and no session there — or, back
+  // online, none on the hosted one. They chose their name once; they are not asked again.
+  else if (savedName) await createSession(savedName);
   else shell.show('name');
 }
 

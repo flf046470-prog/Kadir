@@ -127,10 +127,10 @@ These were Milestone B items in `ROADMAP.md` and are done:
 - **Electron cannot host WebXR.** `enable_vr=false` is compiled into the Electron binary, so the
   Steam window is flat-only and "Play in VR" hands off to Chrome/Edge against the same local
   server. A Steam *VR* listing has to say so.
-- **A Steam or Epic player cannot meet another player.** The flip side of needing no origin: each
-  install runs its own server and the client connects to `location.host`, so the PC build is
-  practice against bots and nothing else. One hosted server for online play is the first item of
-  `ROADMAP.md`'s twelve months, and Epic's crossplay rule depends on it.
+- **The PC build needs a hosted server to point at.** It plays online wherever
+  `pack:steam --online` points it (`check:crossplay` proves a PC page and a browser player meet),
+  and on its bundled server when that is unreachable. There is no hosted server running, so a
+  release cannot be packed; until there is, a PC build is practice against bots.
 - **Voice chat** is a mesh bounded by distance (`MAX_VOICE_PEERS`, `audio/voiceRange.ts`). Proximity
   falloff is applied client-side and is therefore **not enforceable**; saying otherwise would be
   a lie about a cheat. Enforcing it means putting the server in the audio path.
@@ -168,10 +168,11 @@ the live server for something only the new commit has — a `hello` at the curre
 
 The dated plan is `ROADMAP.md` → "The next twelve months". In order:
 
-1. One hosted server for every store: online play leaves `127.0.0.1` (blocks the PC release).
+1. One hosted server for every store. The code is done (`pack:steam --online`, `check:crossplay`);
+   the server and its domain are the account holder's (Railway's trial ended 2026-09-22).
 2. Steam and Epic Coming Soon pages: art from `npm run pack:pc:listing`, the trailer from
    `npm run pack:trailer`, copy from `docs/PC_LISTINGS.md` (accounts and fees are the account
    holder's).
-3. The glacier crevasse bot wedge (measured: 29 % of bot-seconds stuck).
+3. ~~The glacier crevasse bot wedge~~ — fixed in glacier `version` 7 (26 % → 6.0 % stuck).
 4. Hardware pass: VR on a real headset, system requirements on real PCs, real-machine footage.
 5. Capacitor shell for Play / App Store; region sharding when festival numbers ask for it.
