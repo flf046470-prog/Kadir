@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 import {
   enterMatch,
   frameUp,
+  pursuit,
   growTo,
   hideInterface,
   imageDataUri,
@@ -205,13 +206,27 @@ async function film(shot, index) {
         '-map', '[v]', '-c:v', 'libx264', '-preset', 'medium', '-crf', '14', '-r', String(FPS), file,
       ],
       async (stdin) => {
+        // W and Shift are down from `frameUp`.
+        let running = true;
+        let sprinting = true;
         for (let f = 0; f < frames; f++) {
-          // A hop every 1.6 s — the signature move — on top of the sprint.
-          if (f % 48 === 0) await page.keyboard.down('Space');
+          // A hop every 1.6 s while moving — the signature move.
+          if (running && f % 48 === 0) await page.keyboard.down('Space');
           if (f % 48 === 4) await page.keyboard.up('Space');
           // Follow whoever is in sight, turning no faster than a camera operator would (60°/s);
           // with nobody in sight, the slow pan the shot was given.
-          await steering.steer({ maxTurn: 0.035, drift: shot.turn / frames, anyone: true });
+          const { target } = await steering.steer({ maxTurn: 0.035, drift: shot.turn / frames, anyone: true });
+          // Close in on them from far and stand and watch from near (`pursuit`): sprinting the
+          // whole shot overtook them in a second and filmed what was beyond.
+          const want = pursuit(target, running);
+          if (want.run !== running) {
+            await (want.run ? page.keyboard.down('KeyW') : page.keyboard.up('KeyW'));
+            running = want.run;
+          }
+          if (want.sprint !== sprinting) {
+            await (want.sprint ? page.keyboard.down('ShiftLeft') : page.keyboard.up('ShiftLeft'));
+            sprinting = want.sprint;
+          }
           const dataUrl = await page.evaluate((ms) => window.__kcTime.step(ms, true), 1000 / FPS);
           if (!dataUrl) throw new Error('the game has no canvas to film');
           const jpg = Buffer.from(dataUrl.slice(dataUrl.indexOf(',') + 1), 'base64');

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain .mjs modules with no type declarations, like png.mjs.
 import { encodePng } from './png.mjs';
 // @ts-expect-error — see above.
-import { LOOK_RAD_PER_PX, frameScore, inFrame, levelPixels, pickTarget, playersInShot, shotScore, steerPixels } from './listing.mjs';
+import { LOOK_RAD_PER_PX, frameScore, inFrame, levelPixels, pickTarget, playersInShot, pursuit, shotScore, steerPixels } from './listing.mjs';
 
 /** A 384x216 frame filled by `shade(x, y)`, as PNG bytes the way a screenshot arrives. */
 function frame(shade: (x: number, y: number) => number): Uint8Array {
@@ -106,6 +106,18 @@ describe('pointing the camera at somebody', () => {
     expect(inFrame(view({ id: 'fox', distance: 19, bearing: 0.1 }))).toBe(false);
     expect(inFrame(view({ id: 'fox', distance: 8, bearing: 0.1, visible: false }))).toBe(false);
     expect(inFrame(null)).toBe(false);
+  });
+
+  it('closes in from far and stands and watches from near, without stuttering between', () => {
+    const at = (distance: number) => ({ id: 'fox', distance, bearing: 0, visible: true }) as never;
+    expect(pursuit(at(20), true)).toEqual({ run: true, sprint: true });
+    expect(pursuit(at(9), true)).toEqual({ run: true, sprint: false });
+    expect(pursuit(at(4), true)).toEqual({ run: false, sprint: false });
+    // Stopped at 4 m, the fox drifts to 7 m: still watching, until it is past 8.
+    expect(pursuit(at(7), false).run).toBe(false);
+    expect(pursuit(at(8.5), false).run).toBe(true);
+    // Nobody to film: keep moving, so the shot pans rather than freezing.
+    expect(pursuit(null, false)).toEqual({ run: true, sprint: false });
   });
 
   it('counts only the players a frame actually shows', () => {

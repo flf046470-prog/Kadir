@@ -2568,6 +2568,12 @@ in the middle of the view); and the maps were chosen for variety alone, the Hunt
 17 % close-and-in-sight against 31 % on the glacier. Each trailer shot is on its mode's best map now
 (the table is in `pack-trailer.mjs`).
 
+**Framed, then outrun.** With `frameUp` every shot opened on somebody near — and then the filming
+kangaroo, holding sprint for the whole shot, overtook them within a second and filmed the empty
+forest or the boulders beyond (Roo Ball: the ball and the pitch for one second of six). `pursuit`
+decides per frame: run at them past 8 m, sprint past 12, stand and watch inside 6, with the gap
+between as hysteresis so it does not stutter.
+
 **A bots' average does not say where the filming player starts.** King of the Hill measured 62 %
 close-and-in-sight on the outback, and its screenshot there had the player start 140 m from
 everybody, pinned in a rock corner for the whole capture (`seekPlayers` runs straight at the

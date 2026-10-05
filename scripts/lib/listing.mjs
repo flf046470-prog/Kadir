@@ -331,6 +331,21 @@ export async function frameUp(page, steering, { maxSeconds = 15, within = CLOSE_
   }
 }
 
+/**
+ * Whether the filming player should run at the one it is filming, and whether to sprint: close in
+ * from far, stand and watch from near. `running` is what it is doing now — it stops inside `near`
+ * but only starts again past `near + 2`, so it does not stutter on the boundary.
+ *
+ * The trailer used to hold sprint for the whole shot. The kangaroo overtook whoever it had framed
+ * in a second and filmed empty forest and boulders for the other five: of four shots checked, the
+ * other players were in the middle of the frame for the opening second and rarely after.
+ */
+export function pursuit(target, running, { near = 6, far = 12 } = {}) {
+  if (!target) return { run: true, sprint: false };
+  const run = running ? target.distance > near : target.distance > near + 2;
+  return { run, sprint: run && target.distance > far };
+}
+
 /** Near enough that a player reads as somebody, not a speck, in a 1920x1080 frame. */
 export const CLOSE_SHOT = 12;
 
