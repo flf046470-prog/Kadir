@@ -62,19 +62,19 @@ const CROSSFADE = 0.5;
  *
  * Each mode is filmed on the map where its players are most often close: the share of
  * player-seconds with somebody within 12 m and in sight, six bots, 4 seeds × 90 s
- * (`captureViewOf`). The Hunt was on the jungle, its worst map at 17 %, and its shot never found
- * anybody; it is 27 % on the outback. Chase: outback 33 %. Duel: glacier 44 %. King of the Hill:
- * glacier 71 % — on the outback the filming player once started 140 m from everybody, in a rock
- * corner, which no average over bots predicts. Roo Ball is 96–98 % anywhere, so it carries the
- * jungle. Consecutive shots change map, and the third — the end card's backdrop — is the one sure
- * to have players in it.
+ * (`captureViewOf`). Chase: outback 33 %. Duel: glacier 44 %. King of the Hill: glacier 71 % — on
+ * the outback the filming player once started 140 m from everybody, in a rock corner, which no
+ * average over bots predicts. Roo Ball is 96–98 % anywhere, so it carries the jungle. Infection,
+ * glacier 40 %, closes it: the Hunt was there first, at 17 % on the jungle and 27 % on the outback,
+ * and both of its shots were a kangaroo alone — survivors scatter from a hunter, so there is
+ * nobody to film. Consecutive shots change map.
  */
 const SHOTS = [
   { mode: 'King of the Hill', map: 'Glacier World', seconds: 6.5, turn: 240 },
   { mode: 'Kangaroo Chase', map: 'Outback Station', seconds: 6.5, turn: -200 },
-  { mode: 'Roo Ball', map: 'Jungle World', seconds: 6.5, turn: 180 },
-  { mode: 'Conversion Duel', map: 'Glacier World', seconds: 6.5, turn: -160 },
-  { mode: 'The Hunt', map: 'Outback Station', seconds: 6.5, turn: 220 },
+  { mode: 'Conversion Duel', map: 'Glacier World', seconds: 6.5, turn: 180 },
+  { mode: 'Roo Ball', map: 'Jungle World', seconds: 6.5, turn: -160 },
+  { mode: 'Infection', map: 'Glacier World', seconds: 6.5, turn: 220 },
 ];
 
 // Filming takes about two hours under swiftshader, and one run was killed at that mark during its
@@ -349,7 +349,11 @@ await writeFile(titlePng, await still({ width: WIDTH, height: HEIGHT }, (page) =
 // Side by side, as the Steam main capsule is. Stacked, the name and the line under it share 38 % of
 // the card's height, and on a 1080p frame the line came out 21 px tall — unreadable on a phone,
 // which is where a store page's video is most often watched.
-await writeFile(endPng, await still({ width: WIDTH, height: HEIGHT }, (page) => renderCover(page, roo, { veryWide: true, tagline: captions[SHOTS.length], backdrop: backdropFor(taken[2].firstFrame) })));
+// Behind the end card, the Roo Ball shot's first frame: of every mode it is the one with players
+// in shot nearly all the time (96–98 %), so its first frame is sure to have some. Found by mode,
+// not by position — it was `taken[2]`, which stopped being Roo Ball when the shots were reordered.
+const endBackdrop = taken[SHOTS.findIndex((s) => s.mode === 'Roo Ball')] ?? taken[0];
+await writeFile(endPng, await still({ width: WIDTH, height: HEIGHT }, (page) => renderCover(page, roo, { veryWide: true, tagline: captions[SHOTS.length], backdrop: backdropFor(endBackdrop.firstFrame) })));
 
 const durations = [TITLE_SECONDS, ...SHOTS.map((s) => s.seconds), END_SECONDS];
 const { offsets, total } = timeline(durations, CROSSFADE);

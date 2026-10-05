@@ -2583,6 +2583,14 @@ now reports the mode's `focus` (`captureFocusOf`: the hill marker, else Roo Ball
 **A re-run that matches an earlier one frame for frame is a measurement:** the change it was meant
 to test did nothing.
 
+**The Hunt has nobody to film, on any map.** Both of its trailer takes were a kangaroo alone,
+framed on somebody and then empty: survivors scatter from a hunter, and the shot runs out before
+anybody comes back. Infection on the glacier (40 % close-and-in-sight, against the Hunt's 17 / 31 /
+27 %) closes the trailer instead, and the end card's backdrop is found by mode (Roo Ball's first
+frame), not by position — `taken[2]` silently stopped being Roo Ball when the shots were reordered.
+Finished shots can be reordered by renaming their `shot-N.*` files: the marker carries mode and
+map, so `--resume` keeps them in their new places.
+
 **The end card's line was 21 px tall on a 1080p frame.** Stacked, `renderCover` gives the name
 and the line under it 38 % of the height, and its `cqmin` units resolve against that strip. The
 trailer's end card uses the side-by-side layout the Steam main capsule uses (58 px), and a tagline
