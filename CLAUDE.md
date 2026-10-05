@@ -2663,7 +2663,15 @@ token was signed with a key the next server did not have. Now (`@kc/shell` `laun
 `npm run check:shell` (in `verify` and CI) runs the real `main.cjs` under a stand-in Electron
 written to a scratch `node_modules` — `app`, `BrowserWindow`, `dialog`, `Menu`, `shell` with only
 the methods it calls — twice, with one user folder. Four mutations, each failing its own line: OS
-port every launch, random secret (`HTTP 401`), no IPC channel, origin not passed. It packs into its
+port every launch, random secret (`HTTP 401`), no IPC channel, origin not passed. **The launcher's Help → Credits & licences did nothing.** It dispatches `kc:credits` into the page
+and nothing listened; `executeJavaScript` succeeds either way, so no error anywhere — and that
+screen is where the CC-BY authors are named. `main.ts` listens now (measured in a browser: the
+event opens Credits from the menu and mid-practice), and `launcher-events.test.ts` reads every
+`new Event(…)` out of `main.cjs` and refuses one with no `addEventListener` in the client
+(comments stripped). It asserts it found `kc:credits` first, so a regex that matches nothing cannot
+pass as "every event is handled".
+
+It packs into its
 scratch folder with `pack:steam --out`, because a copy with a test origin must never sit in
 `dist/steam-app` — and running it there, outside the repo, is what found the missing `ws` (see
 "Steam needs no origin" → Correction).

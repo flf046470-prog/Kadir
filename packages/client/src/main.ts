@@ -676,6 +676,18 @@ async function main(): Promise<void> {
     };
   }
 
+  /**
+   * The PC launcher's Help → Credits & licences (`packaging/steam/main.cjs`), which dispatches this
+   * into the page. Nothing listened, so the menu item did nothing — and the credits are where a
+   * CC-BY author is named. `launcher-events.test.ts` holds every event the launcher sends to a
+   * listener here.
+   */
+  window.addEventListener('kc:credits', () => {
+    if (input instanceof PCInput) input.releasePointerLock();
+    hud?.setVisible(false);
+    shell.show('credits');
+  });
+
   document.addEventListener('keydown', (event) => {
     // Enter opens the chat composer, and T does the same — Enter is the reflex, T is the habit
     // from every other game. Both are ignored while a menu is up, where Enter means "confirm".
