@@ -215,7 +215,7 @@ async function film(shot, index) {
           if (f % 48 === 4) await page.keyboard.up('Space');
           // Follow whoever is in sight, turning no faster than a camera operator would (60°/s);
           // with nobody in sight, the slow pan the shot was given.
-          const { target } = await steering.steer({ maxTurn: 0.035, drift: shot.turn / frames, anyone: true });
+          const { target } = await steering.steer({ maxTurn: 0.035, drift: shot.turn / frames, anyone: true, focus: true });
           // Close in on them from far and stand and watch from near (`pursuit`): sprinting the
           // whole shot overtook them in a second and filmed what was beyond.
           const want = pursuit(target, running);

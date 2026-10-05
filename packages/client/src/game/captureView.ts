@@ -1,5 +1,5 @@
 import { makeRaycastResult, v3set } from '@kc/core';
-import type { PhysicsWorld, PlayerState, Vec3 } from '@kc/core';
+import type { ModeMarkerView, PhysicsWorld, PlayerState, Vec3 } from '@kc/core';
 
 /** Another player as the camera sees them. */
 export interface CaptureTarget {
@@ -13,9 +13,17 @@ export interface CaptureTarget {
   visible: boolean;
 }
 
+/** A place, as the camera sees it: how far, and how far off its heading (positive is left). */
+export interface CaptureSpot {
+  distance: number;
+  bearing: number;
+}
+
 export interface CaptureView {
   /** The camera's heading: the local player's yaw, which the third-person camera follows. */
   yaw: number;
+  /** Where the mode's play gathers, if it has such a place (`captureFocusOf`). */
+  focus: CaptureSpot | null;
   /** The local player's look pitch, radians, positive looking up; the camera follows it. */
   pitch: number;
   others: CaptureTarget[];
@@ -44,6 +52,7 @@ export function captureViewOf(
   localId: string,
   cameraYaw: number,
   world: PhysicsWorld,
+  focusPoint: Vec3 | null = null,
 ): CaptureView | null {
   const all = [...players];
   const self = all.find((p) => p.id === localId);
@@ -65,5 +74,27 @@ export function captureViewOf(
     others.push({ id: p.id, role: p.role, distance, bearing, visible: !_ray.hit });
   }
   others.sort((a, b) => a.distance - b.distance);
-  return { yaw: cameraYaw, pitch: self.pitch, others };
+  let focus: CaptureSpot | null = null;
+  if (focusPoint) {
+    const dx = focusPoint.x - self.position.x;
+    const dz = focusPoint.z - self.position.z;
+    const bearing = Math.atan2(dx, dz) - cameraYaw;
+    focus = { distance: Math.hypot(dx, dz), bearing: Math.atan2(Math.sin(bearing), Math.cos(bearing)) };
+  }
+  return { yaw: cameraYaw, pitch: self.pitch, focus, others };
+}
+
+/**
+ * What a mode's play gathers round, if it has one place it does: King of the Hill's hill, Roo
+ * Ball's match ball. A trailer shot chasing whichever player was nearest filmed them running away
+ * across the ice — a bot is as fast as the player filming it — while every other player was at
+ * the hill.
+ */
+export function captureFocusOf(
+  markers: readonly ModeMarkerView[] | undefined,
+  bodies: readonly { kind: string; position: Vec3 }[],
+): Vec3 | null {
+  const hill = markers?.find((m) => m.kind === 'hill');
+  if (hill) return { x: hill.x, y: hill.y, z: hill.z };
+  return bodies.find((b) => b.kind === 'rooball')?.position ?? null;
 }

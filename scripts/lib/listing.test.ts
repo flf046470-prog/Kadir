@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error — plain .mjs modules with no type declarations, like png.mjs.
 import { encodePng } from './png.mjs';
 // @ts-expect-error — see above.
-import { LOOK_RAD_PER_PX, frameScore, inFrame, levelPixels, pickTarget, playersInShot, pursuit, shotScore, steerPixels } from './listing.mjs';
+import { LOOK_RAD_PER_PX, frameScore, inFrame, levelPixels, pickTarget, playersInShot, pursuit, shotScore, steerPixels, subjectOf } from './listing.mjs';
 
 /** A 384x216 frame filled by `shade(x, y)`, as PNG bytes the way a screenshot arrives. */
 function frame(shade: (x: number, y: number) => number): Uint8Array {
@@ -118,6 +118,21 @@ describe('pointing the camera at somebody', () => {
     expect(pursuit(at(8.5), false).run).toBe(true);
     // Nobody to film: keep moving, so the shot pans rather than freezing.
     expect(pursuit(null, false)).toEqual({ run: true, sprint: false });
+  });
+
+  it('films somebody near, else where the play gathers, else whoever it can run at', () => {
+    const withFocus = (focus: { distance: number; bearing: number } | null, ...others: Parameters<typeof view>) =>
+      ({ ...view(...others), focus }) as never;
+    const hill = { distance: 25, bearing: 1 };
+    // Somebody near and in sight wins over the hill.
+    expect(subjectOf(withFocus(hill, { id: 'fox', distance: 7, bearing: 0.3 }))?.id).toBe('fox');
+    // Nobody near: the hill, shaped like a player so the steering needs nothing new.
+    const toHill = subjectOf(withFocus(hill, { id: 'fox', distance: 20, bearing: 0.3 }));
+    expect(toHill).toMatchObject({ id: 'focus', distance: 25, bearing: 1, visible: true });
+    // A mode with no centre: the nearest player, seen or not.
+    expect(subjectOf(withFocus(null, { id: 'far', distance: 30, bearing: 2, visible: false }))?.id).toBe('far');
+    // Sticky among the near, as `pickTarget` is.
+    expect(subjectOf(withFocus(hill, { id: 'a', distance: 4, bearing: 0 }, { id: 'b', distance: 8, bearing: 0 }), 'b')?.id).toBe('b');
   });
 
   it('counts only the players a frame actually shows', () => {

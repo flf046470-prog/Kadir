@@ -266,6 +266,25 @@ export function pickTarget(view, previousId = null, { anyone = false } = {}) {
 }
 
 /**
+ * What a filmed shot points at: somebody near and in sight; failing that, where the mode's play
+ * gathers (`CaptureView.focus` — the hill, Roo Ball's ball); failing that, whoever `pickTarget`
+ * would run at. The focus comes back shaped like a player (`id: 'focus'`), so the steering and
+ * `pursuit` need nothing new.
+ *
+ * Chasing the nearest player is right for a chase and wrong for a mode with a centre. On the
+ * glacier's King of the Hill the shot framed a bot near the start and then followed it across the
+ * ice for six seconds at twenty metres — as fast as it, never closer — while the others were at
+ * the hill.
+ */
+export function subjectOf(view, previousId = null, { near = CLOSE_SHOT } = {}) {
+  const close = inSight(view, 2.5, near);
+  const kept = close.find((o) => o.id === previousId) ?? close[0];
+  if (kept) return kept;
+  if (view?.focus) return { id: 'focus', role: 'focus', visible: true, ...view.focus };
+  return pickTarget(view, previousId, { anyone: true });
+}
+
+/**
  * The mouse drag, in pixels, that turns the view towards `target` this frame: aiming `offset`
  * radians to its left so they stand beside the kangaroo rather than behind it, and turning no
  * more than `maxTurn` radians, because a camera that snaps reads as a cut. A bearing is positive
@@ -321,7 +340,7 @@ export async function frameUp(page, steering, { maxSeconds = 15, within = CLOSE_
     for (let i = 0; i < maxSeconds * 10; i++) {
       if (i % 16 === 0) await page.keyboard.down('Space');
       if (i % 16 === 2) await page.keyboard.up('Space');
-      const { view } = await steering.steer({ maxTurn: 0.2, anyone: true });
+      const { view } = await steering.steer({ maxTurn: 0.2, anyone: true, focus: true });
       if (inFrame(view, within)) return i / 10;
       await page.evaluate(() => window.__kcTime.step(100));
     }
@@ -409,9 +428,9 @@ export class Steering {
   }
 
   /** Turn towards the current target; `drift` pixels when there is nobody. Returns what it saw. */
-  async steer({ maxTurn = 0.06, drift = 0, anyone = false } = {}) {
+  async steer({ maxTurn = 0.06, drift = 0, anyone = false, focus = false } = {}) {
     const view = await readView(this.page);
-    const target = pickTarget(view, this.targetId, { anyone });
+    const target = focus ? subjectOf(view, this.targetId) : pickTarget(view, this.targetId, { anyone });
     this.targetId = target?.id ?? null;
     this.x += target ? steerPixels(target, { maxTurn, radPerPx: this.radPerPx }) : drift;
     if (view) this.y += levelPixels(view.pitch, { radPerPx: this.radPerPx });

@@ -2574,6 +2574,15 @@ forest or the boulders beyond (Roo Ball: the ball and the pitch for one second o
 decides per frame: run at them past 8 m, sprint past 12, stand and watch inside 6, with the gap
 between as hysteresis so it does not stutter.
 
+**`pursuit` never fired in King of the Hill, and the frames proved it.** The second take of that
+shot was frame-for-frame the first: the simulation is deterministic, so identical frames meant the
+keys never changed — the target stayed past 12 m for the whole shot, a bot running across the ice
+exactly as fast as the kangaroo filming it, while everybody else was at the hill. `captureView`
+now reports the mode's `focus` (`captureFocusOf`: the hill marker, else Roo Ball's match ball), and
+`subjectOf` films somebody near and in sight, else the focus, else whoever is nearest.
+**A re-run that matches an earlier one frame for frame is a measurement:** the change it was meant
+to test did nothing.
+
 **The end card's line was 21 px tall on a 1080p frame.** Stacked, `renderCover` gives the name
 and the line under it 38 % of the height, and its `cqmin` units resolve against that strip. The
 trailer's end card uses the side-by-side layout the Steam main capsule uses (58 px), and a tagline

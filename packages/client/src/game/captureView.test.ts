@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LevelBuilder, Rand, Simulation, vec3 } from '@kc/core';
-import { captureViewOf } from './captureView.js';
+import { captureFocusOf, captureViewOf } from './captureView.js';
 
 /** A floor, a wall between the start and one player, and open ground to another. */
 function rig() {
@@ -69,6 +69,26 @@ describe('what the store capture can see', () => {
     const sim = rig();
     sim.players.get('me')!.pitch = 0.4;
     expect(captureViewOf(sim.players.values(), 'me', 0, sim.world)!.pitch).toBe(0.4);
+  });
+
+  it("reports where the mode's play gathers, as the camera sees it", () => {
+    const sim = rig();
+    // Facing +z, a hill 8 m to the right (−x) is 8 m away at bearing −π/2.
+    const view = captureViewOf(sim.players.values(), 'me', 0, sim.world, { x: -8, y: 0, z: 0 })!;
+    expect(view.focus!.distance).toBeCloseTo(8, 6);
+    expect(view.focus!.bearing).toBeCloseTo(-Math.PI / 2, 6);
+    expect(captureViewOf(sim.players.values(), 'me', 0, sim.world)!.focus).toBeNull();
+  });
+
+  it("finds the hill first, then Roo Ball's match ball, and nothing for a mode without either", () => {
+    const hill = { kind: 'hill' as const, x: 3, y: 0, z: 4, radius: 5 };
+    const goal = { kind: 'goal' as const, x: 9, y: 0, z: 9, radius: 2 };
+    const ball = { kind: 'rooball', position: { x: 1, y: 0.5, z: 2 } };
+    const toy = { kind: 'football', position: { x: 7, y: 0.1, z: 7 } };
+    expect(captureFocusOf([goal, hill], [ball])).toEqual({ x: 3, y: 0, z: 4 });
+    expect(captureFocusOf([goal], [toy, ball])).toEqual(ball.position);
+    // A lobby toy is not what a match is about.
+    expect(captureFocusOf(undefined, [toy])).toBeNull();
   });
 
   it('has nothing to say without a local player', () => {

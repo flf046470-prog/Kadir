@@ -45,7 +45,7 @@ import { easeRigHeight, isTeleport } from '../platform/vr/comfort.js';
 import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { practiceLevelFor } from './practice.js';
-import { captureViewOf } from './captureView.js';
+import { captureFocusOf, captureViewOf } from './captureView.js';
 import type { CaptureView } from './captureView.js';
 import { Renderer } from '../render/Renderer.js';
 import { worldNeedsRebuild } from '../render/surfaces.js';
@@ -373,7 +373,8 @@ export class GameClient {
 
   /** Everyone else as the camera sees them — for the store-capture scripts only (`captureView.ts`). */
   captureView(): CaptureView | null {
-    return captureViewOf(this.sim.players.values(), this.localId, this.cameraYaw, this.sim.world);
+    const focus = captureFocusOf(this.sim.mode.state().markers, this.sim.bodies.bodies);
+    return captureViewOf(this.sim.players.values(), this.localId, this.cameraYaw, this.sim.world, focus);
   }
 
   get modeState(): ModeStateView {
