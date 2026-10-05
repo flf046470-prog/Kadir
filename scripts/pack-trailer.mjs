@@ -64,17 +64,17 @@ const CROSSFADE = 0.5;
  * player-seconds with somebody within 12 m and in sight, six bots, 4 seeds × 90 s
  * (`captureViewOf`). Chase: outback 33 %. Duel: glacier 44 %. King of the Hill: glacier 71 % — on
  * the outback the filming player once started 140 m from everybody, in a rock corner, which no
- * average over bots predicts. Roo Ball is 96–98 % anywhere, so it carries the jungle. Infection,
- * glacier 40 %, closes it: the Hunt was there first, at 17 % on the jungle and 27 % on the outback,
- * and both of its shots were a kangaroo alone — survivors scatter from a hunter, so there is
- * nobody to film. Consecutive shots change map.
+ * average over bots predicts. Roo Ball is 96–98 % anywhere, so it carries the jungle and closes the
+ * trailer on the outback. Every mode where one side runs from the other films badly, whatever its
+ * average: the Hunt (17–31 %) and Infection (40 % on the glacier) each closed a take, and each was
+ * a kangaroo alone — the runners are as fast as the one filming them. Consecutive shots change map.
  */
 const SHOTS = [
   { mode: 'King of the Hill', map: 'Glacier World', seconds: 6.5, turn: 240 },
   { mode: 'Kangaroo Chase', map: 'Outback Station', seconds: 6.5, turn: -200 },
   { mode: 'Conversion Duel', map: 'Glacier World', seconds: 6.5, turn: 180 },
   { mode: 'Roo Ball', map: 'Jungle World', seconds: 6.5, turn: -160 },
-  { mode: 'Infection', map: 'Glacier World', seconds: 6.5, turn: 220 },
+  { mode: 'Roo Ball', map: 'Outback Station', seconds: 6.5, turn: 220 },
 ];
 
 // Filming takes about two hours under swiftshader, and one run was killed at that mark during its
