@@ -3,7 +3,7 @@
 Status of every phase in `ROADMAP.md`. A phase is only ticked when it is implemented **and**
 covered by a passing check.
 
-`npm run verify` = lint + asset/pack gates + typecheck + **1088 tests** + all three builds +
+`npm run verify` = lint + asset/pack gates + typecheck + **1362 tests** + all three builds +
 `check:hostile`. CI runs the same commands as separate steps, plus a `postgres` job against a real
 database and a `browser` job (`check:smoke`, `check:pwa`) against a real Chromium.
 
