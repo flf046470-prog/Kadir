@@ -2676,6 +2676,62 @@ scratch folder with `pack:steam --out`, because a copy with a test origin must n
 `dist/steam-app` — and running it there, outside the repo, is what found the missing `ws` (see
 "Steam needs no origin" → Correction).
 
+## Ultimate Edition: Phase 0 audit, and waiting for approval
+
+The owner's "PC + VR Ultimate Edition" directive runs in phases 0–15. **Phase 0 is done and
+Phase 1 must not start without the owner's approval.** The audit is `docs/ULTIMATE_EDITION_AUDIT.md`
+and the sized phases are in `docs/ULTIMATE_EDITION_ROADMAP.md`. Four findings are new and measured
+(probes `.probe/punch.ts` and `.probe/leak.ts`, both untracked).
+
+- **A modified client punches 2.8× harder.**
+  - Mechanism: `sanitizeIntent` clamps each hand into the reach envelope but never bounds how far
+    it moves per tick, and `combat.ts` takes punch speed from that displacement. A hand teleported
+    across the envelope every tick sits at `speedFactor` 1.4.
+  - Toe to toe in Boxing, 20 s:
+
+    | input | damage per second |
+    | --- | --- |
+    | PC button | 11.3 |
+    | honest VR jab | 12.5 |
+    | spoof | **34.8** |
+
+  - The server accepts `hands` from any platform, so this is not a VR-only exploit.
+  - The probe was proved live by sweeping hand height: −0.6 m gives 0 hits, 0 m gives body shots,
+    1.1 m gives head shots. All heights from 0.6 to 1.7 m gave *identical* numbers, because they all
+    saturate the speed and head-radius caps. That looked like this file's "identical results"
+    warning, and the sweep is how it was told apart from a dead probe.
+- **The hunter is sent survivors they cannot see.** `broadcastSnapshots` sends every player to
+  every client, with far players only throttled. Head-to-head line-of-sight rays in the Hunt (six
+  bots, 4 seeds × 90 s) find no sight on 63 % of samples on the jungle, 56 % on the glacier and
+  77 % on the outback. A wallhack needs only a renderer change and leaves nothing on the server to
+  detect.
+- **Every headset is judged against 72 Hz.** `VR_DISPLAY_HZ = 72` is the only display rate. Nothing
+  reads `XRSession.frameRate` or calls `updateTargetFrameRate`, so a 90/120/144 Hz PCVR session
+  can reproject without the governor noticing.
+- **A headset player has no HUD.** Timer, score, role badge, gadget charges and toasts are DOM
+  only. `VRPanels.ts` holds menus, not a play HUD.
+- **Classic `WebGLRenderer` has no multiview in three 0.182.** Only the node `Renderer` does, and
+  the triplanar `onBeforeCompile` patches cannot move there for free. Stereo stays two scene
+  passes.
+- **No KTX2 and no LODs exist in the client.** Any texture above today's 512² needs them first. A
+  4K PBR set for all 16 animals is ≈ 4.3 GB uncompressed, ≈ 1 GB as ASTC.
+- **Meshy API prices** (checked 2026-10-09):
+
+  | operation | credits |
+  | --- | --- |
+  | preview | 20 |
+  | refine (texture), 2K/4K | 10 |
+  | refine, 8K | 15 |
+  | retexture | 10 |
+  | remesh | 5 |
+  | rig | 5 |
+
+  The account held **2,020** credits. The key the owner pasted in chat was used once,
+  read-only, from an environment variable, and is written nowhere; it must be rotated.
+- **Unreal for the maps was declined, with reasons, in the roadmap.** A glTF export loses Lumen,
+  Nanite and the material layering that make Unreal look real. Megascans/Fab-Standard licences
+  forbid extractable delivery.
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

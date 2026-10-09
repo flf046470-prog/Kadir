@@ -3,6 +3,23 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-09 — Ultimate Edition Phase 0 (no gameplay change)
+
+**Done**
+- `docs/ULTIMATE_EDITION_AUDIT.md`: the owner's PC + VR directive, Phase 0. Four new measured
+  findings:
+  - a modified client punches 2.8× harder (`.probe/punch.ts`);
+  - 56–77 % of the survivors a Hunt hunter is sent are out of sight (`.probe/leak.ts`);
+  - every headset is judged against 72 Hz;
+  - a headset player has no HUD.
+- `docs/ULTIMATE_EDITION_ROADMAP.md`: phases 0–15 with sizes, the proposed architecture, and what
+  not to change.
+- `verify` exit 0, 1362 tests.
+
+**The owner asked that Phase 1 not start without their approval.** Check the conversation or the
+PR before starting gameplay work for the Ultimate Edition. The roadmap's Phase 1 list is the
+proposed order once approved.
+
 ## 2026-10-09 — audit session (no gameplay change)
 
 **Done**
