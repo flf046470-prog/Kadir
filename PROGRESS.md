@@ -3,6 +3,18 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (2nd run) — gorge floor follow-up: measured, no code change
+
+**Done**
+- Re-ran `scripts/measure-stuck.ts outback-station 16 90`: **4.4 %** stuck (reproduces the previous run exactly; harness is deterministic). Dominant cells unchanged: gorge floor x≈-60 at z -8 / 8 / 28 (≈50 % of stuck), plus (48,-48).
+- Experiment: `PIT_ESCAPE_SECONDS` 6 → 20 gave 4.4 % → 3.9 % only, same cells. Reverted — the gain is too small to justify a behaviour change without tag-balance data, so the cause is not "escape ends too early".
+- Observed: the cells sit on the west face of the gorge east wall (x -59.5) beside the 12 m gap (|z|<6) that holds the exit ramp (foot (-68,-15,0)). They are runners pinned by flee steering, not bots failing to find the exit.
+- **Harness bug found, not yet fixed:** `tags` in `scripts/measure-stuck.ts` is accumulated (line ~70, `sim.events?.filter`) but never printed, and may always be 0 if events are cleared inside `step()`. Tag counts before/after the chaser `routeOut` change therefore remain unmeasured.
+
+**Not run:** `npm run verify` (docs-only change); no code changed.
+
+**Next session — first task:** make the harness count tags correctly (check how `Simulation` exposes events per step), print them, then compare tag counts with/without the chaser `routeOut` change in `bot.ts`. After that, try a flee-steering fix: prey whose heading points into a wall within ~2 m slides along it toward the nearest exit instead of stopping (measure outback + jungle + glacier).
+
 ## 2026-10-10 — outback gorge: bots pinned against the wall
 
 **Done**
