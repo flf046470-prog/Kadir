@@ -6,6 +6,7 @@
 
 class UCameraComponent;
 class USpotLightComponent;
+class UDerinlikCamcorderComponent;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
@@ -14,8 +15,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnFocusChanged, AActor*, NewFocus,
 
 /**
  * First-person player for DERINLIK (Ekin Yalin).
- * Phase 1 scope: walk / sprint / crouch, subtle head bob, flashlight, interaction trace.
- * Camcorder, Echo level and inventory live in separate components (later tasks).
+ * Phase 1 scope: walk / sprint / crouch, subtle head bob, flashlight, interaction trace, camcorder.
+ * Echo level and inventory will live in separate components (later tasks).
  */
 UCLASS()
 class DERINLIK_API ADerinlikCharacter : public ACharacter
@@ -52,6 +53,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<USpotLightComponent> Flashlight;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UDerinlikCamcorderComponent> Camcorder;
+
 	// --- Input (assign the assets in BP_DerinlikCharacter) ---
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputMappingContext> DefaultMappingContext;
@@ -73,6 +77,9 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, Category = "Input")
 	TObjectPtr<UInputAction> InteractAction;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Input")
+	TObjectPtr<UInputAction> CamcorderAction;
 
 	// --- Movement tuning (cm/s) ---
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
@@ -107,6 +114,7 @@ private:
 	void ToggleCrouch();
 	void ToggleFlashlight();
 	void Interact();
+	void ToggleCamcorder();
 
 	void UpdateFocus();
 	void UpdateHeadBob(float DeltaSeconds);

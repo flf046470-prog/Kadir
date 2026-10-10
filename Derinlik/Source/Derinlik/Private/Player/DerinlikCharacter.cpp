@@ -1,6 +1,7 @@
 #include "Player/DerinlikCharacter.h"
 #include "Derinlik.h"
 #include "Interaction/DerinlikInteractable.h"
+#include "Camcorder/DerinlikCamcorderComponent.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -34,6 +35,8 @@ ADerinlikCharacter::ADerinlikCharacter()
 	Flashlight->SetOuterConeAngle(28.f);
 	Flashlight->SetCastShadows(true);
 	Flashlight->SetVisibility(false);
+
+	Camcorder = CreateDefaultSubobject<UDerinlikCamcorderComponent>(TEXT("Camcorder"));
 
 	UCharacterMovementComponent* MoveComp = GetCharacterMovement();
 	MoveComp->MaxWalkSpeed = WalkSpeed;
@@ -90,6 +93,7 @@ void ADerinlikCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	if (CrouchAction)     Input->BindAction(CrouchAction, ETriggerEvent::Started, this, &ADerinlikCharacter::ToggleCrouch);
 	if (FlashlightAction) Input->BindAction(FlashlightAction, ETriggerEvent::Started, this, &ADerinlikCharacter::ToggleFlashlight);
 	if (InteractAction)   Input->BindAction(InteractAction, ETriggerEvent::Started, this, &ADerinlikCharacter::Interact);
+	if (CamcorderAction)  Input->BindAction(CamcorderAction, ETriggerEvent::Started, this, &ADerinlikCharacter::ToggleCamcorder);
 }
 
 void ADerinlikCharacter::Tick(float DeltaSeconds)
@@ -129,6 +133,11 @@ void ADerinlikCharacter::ToggleCrouch()
 void ADerinlikCharacter::ToggleFlashlight()
 {
 	SetFlashlightOn(!IsFlashlightOn());
+}
+
+void ADerinlikCharacter::ToggleCamcorder()
+{
+	Camcorder->ToggleRaised();
 }
 
 void ADerinlikCharacter::SetFlashlightOn(bool bOn)

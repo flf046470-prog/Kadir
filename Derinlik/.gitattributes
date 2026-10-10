@@ -8,3 +8,5 @@
 *.exr    filter=lfs diff=lfs merge=lfs -text
 *.glb    filter=lfs diff=lfs merge=lfs -text
 *.bat    text eol=crlf
+# Small hand-made textures stay as normal git files (LFS uploads are not available from every environment)
+SourceArt/Textures/T_FirstRecorderSigil.png !filter !diff !merge binary
