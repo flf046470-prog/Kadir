@@ -253,6 +253,62 @@ describe('interpolation', () => {
   });
 
   /**
+   * The server sends a player beyond `NEAR_DISTANCE` in one snapshot of every four. Sampling only
+   * the two snapshots either side of the render time found them in neither half the time, and the
+   * client hides an avatar it gets no sample for: measured, a far player was drawn on 50 % of
+   * frames and jumped whenever it came back.
+   */
+  it('draws a quarter-rate far player on every frame, moving smoothly', () => {
+    const buffer = new InterpolationBuffer();
+    let frames = 0;
+    let shown = 0;
+    let worstStep = 0;
+    let last: number | null = null;
+    for (let ms = 0; ms < 3000; ms++) {
+      if (ms % 50 === 0) {
+        const tick = ms / 50;
+        const players = [snap('near', 0)];
+        if (tick % 4 === 0) players.push({ ...snap('far', ms / 250), vx: 4 }); // 4 m/s, as it says
+        buffer.push(tick, players, [], ms);
+      }
+      if (ms >= 500 && ms % 14 === 0) {
+        frames++;
+        const far = buffer.sample('far', ms);
+        if (!far) continue;
+        shown++;
+        if (last !== null) worstStep = Math.max(worstStep, Math.abs(far.x - last));
+        last = far.x;
+      }
+    }
+    expect(shown).toBe(frames);
+    // 4 m/s at 14 ms frames is 0.056 m a frame; a jump would be a whole 200 ms gap at once.
+    expect(worstStep).toBeLessThan(0.1);
+  });
+
+  it('stops drawing a player the server has stopped sending', () => {
+    // An opponent out of sight in a mode about hiding: snapshots keep arriving, without them.
+    const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250, staleMs: 500 });
+    const seenAt = (tick: number) => {
+      const players = [snap('near', 0)];
+      if (tick <= 20) players.push(snap('hidden', 0));
+      buffer.push(tick, players, [], 1000 + tick * 50);
+    };
+    for (let tick = 0; tick <= 24; tick++) seenAt(tick);
+    // 200 ms without them is a far player's ordinary gap: still drawn.
+    expect(buffer.sample('hidden', 1000 + 24 * 50)).not.toBeNull();
+    for (let tick = 25; tick <= 40; tick++) seenAt(tick);
+    expect(buffer.sample('hidden', 1000 + 40 * 50)).toBeNull();
+    expect(buffer.sample('near', 1000 + 40 * 50)).not.toBeNull();
+  });
+
+  it('freezes everyone, and hides nobody, when snapshots stop arriving altogether', () => {
+    // A stalled connection is not the server withholding anyone.
+    const buffer = new InterpolationBuffer({ delayMs: 100, maxExtrapolationMs: 250, staleMs: 500 });
+    buffer.push(1, [snap('a', 0)], [], 1000);
+    expect(buffer.sample('a', 9000)).not.toBeNull();
+  });
+
+  /**
    * Gadget entities used to be assigned straight from the newest snapshot while players came from
    * this buffer's deliberate 100 ms of delay, so a projectile was drawn that far ahead of the
    * world it was flying through. Measured against the real catalog speeds: **6.00 m** for the

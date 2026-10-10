@@ -1,15 +1,30 @@
 import type { EntitySnapshot, PlayerSnapshot } from '@kc/core';
+import { FAR_SNAPSHOT_DIVISOR, SNAPSHOT_RATE } from './constants.js';
 
 export interface InterpolationOptions {
   /** How far in the past remote players are rendered. One snapshot interval + jitter margin. */
   delayMs: number;
   /** Never extrapolate further than this; beyond it a player is frozen rather than guessed. */
   maxExtrapolationMs: number;
+  /**
+   * A player missing from every snapshot that has arrived for this long is no longer being sent —
+   * out of sight in a mode about hiding (`sim/concealment.ts`), or gone — and is not drawn.
+   *
+   * It has to be longer than the gap a far player is *meant* to have: the server sends them one
+   * snapshot in `FAR_SNAPSHOT_DIVISOR`. Measured from the newest snapshot received, not from the
+   * clock, so a stalled connection — no snapshots at all — freezes everyone as before rather than
+   * making them vanish.
+   */
+  staleMs: number;
 }
+
+/** A far player's gap between snapshots, in ms: 200 at 20 Hz and a divisor of 4. */
+const FAR_GAP_MS = (1000 / SNAPSHOT_RATE) * FAR_SNAPSHOT_DIVISOR;
 
 export const DEFAULT_INTERPOLATION: InterpolationOptions = {
   delayMs: 100,
   maxExtrapolationMs: 250,
+  staleMs: FAR_GAP_MS * 2.5,
 };
 
 interface TimedSnapshot {
@@ -36,7 +51,11 @@ interface TimedSnapshot {
 export class InterpolationBuffer {
   private buffer: TimedSnapshot[] = [];
 
-  constructor(private readonly options: InterpolationOptions = DEFAULT_INTERPOLATION) {}
+  private readonly options: InterpolationOptions;
+
+  constructor(options: Partial<InterpolationOptions> = {}) {
+    this.options = { ...DEFAULT_INTERPOLATION, ...options };
+  }
 
   push(tick: number, players: PlayerSnapshot[], entities: EntitySnapshot[] = [], now = Date.now()): void {
     const map = new Map<string, PlayerSnapshot>();
@@ -95,30 +114,53 @@ export class InterpolationBuffer {
   }
 
   /** Interpolated state for one player at render time, or null when unknown. */
+  /**
+   * One remote player at render time, from the two snapshots *that contain them* either side of
+   * it — not from the two newest snapshots.
+   *
+   * The server sends a player further than `NEAR_DISTANCE` in one snapshot of every four. Looking
+   * only at the pair around the render time found them in neither half the time, and a null hides
+   * the avatar: measured, a far player was drawn on **50 %** of frames — blinking at about 5 Hz, on
+   * maps whose whole subject is being seen — and jumped whenever it reappeared.
+   */
   sample(playerId: string, now = Date.now()): PlayerSnapshot | null {
     if (this.buffer.length === 0) return null;
-    const { older, newer, t } = this.pair(now);
-
-    if (older && newer) {
-      const a = older.players.get(playerId);
-      const b = newer.players.get(playerId);
-      if (a && b) return lerpSnapshot(a, b, t);
-      return b ?? a ?? null;
+    const target = now - this.options.delayMs;
+    let before: TimedSnapshot | null = null;
+    let after: TimedSnapshot | null = null;
+    for (const snap of this.buffer) {
+      if (!snap.players.has(playerId)) continue;
+      if (snap.receivedAt <= target) before = snap;
+      else {
+        after = snap;
+        break;
+      }
     }
 
-    const latest = this.buffer.at(-1) as TimedSnapshot;
-    const player = latest.players.get(playerId);
-    if (!player) return null;
+    const a = before?.players.get(playerId);
+    const b = after?.players.get(playerId);
+    if (before && after && a && b) {
+      const span = after.receivedAt - before.receivedAt || 1;
+      return lerpSnapshot(a, b, Math.max(0, Math.min(1, (target - before.receivedAt) / span)));
+    }
+    // Only a newer one: they have just appeared, so they are drawn where they appeared.
+    if (b) return b;
+    if (!before || !a) return null;
 
-    const age = now - latest.receivedAt;
-    if (age <= this.options.delayMs) return player;
+    // Only an older one. Snapshots that keep arriving without them mean the server has stopped
+    // sending them; a connection that has stalled has sent nothing, and freezes them instead.
+    const latest = this.buffer.at(-1) as TimedSnapshot;
+    if (latest.receivedAt - before.receivedAt > this.options.staleMs) return null;
+
+    const age = target - before.receivedAt;
+    if (age <= 0) return a;
     // Short, bounded extrapolation from the last known velocity.
-    const extra = Math.min(age - this.options.delayMs, this.options.maxExtrapolationMs) / 1000;
+    const extra = Math.min(age, this.options.maxExtrapolationMs) / 1000;
     return {
-      ...player,
-      x: player.x + player.vx * extra,
-      y: player.y + player.vy * extra,
-      z: player.z + player.vz * extra,
+      ...a,
+      x: a.x + a.vx * extra,
+      y: a.y + a.vy * extra,
+      z: a.z + a.vz * extra,
     };
   }
 

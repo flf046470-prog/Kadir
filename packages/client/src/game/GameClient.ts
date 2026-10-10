@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   Bot,
   Buttons,
+  THIRD_PERSON_CAMERA_DISTANCE,
   MicGate,
   Simulation,
   TICK_DT,
@@ -106,7 +107,11 @@ interface RemotePlayer {
   entry: RosterEntry;
 }
 
-const CAMERA_DISTANCE = 5.4;
+/**
+ * Owned by `@kc/core` because the server tests sight from wherever this camera can be: in a mode
+ * about hiding, an opponent it could see must be sent (`sim/concealment.ts`).
+ */
+const CAMERA_DISTANCE = THIRD_PERSON_CAMERA_DISTANCE;
 const CAMERA_HEIGHT = 1.35;
 /**
  * How far above the player's own pitch the flat-screen camera orbits, and how far ahead of the

@@ -175,6 +175,12 @@ export interface GameMode {
    */
   canDamage?(attacker: PlayerState, victim: PlayerState): boolean;
   /**
+   * May `other` be withheld from `viewer` while out of sight? Only a mode about hiding says yes,
+   * and only for opponents; see `sim/concealment.ts` for the rule and why it is generous.
+   * Omitted means everyone is sent to everyone.
+   */
+  conceals?(viewer: PlayerState, other: PlayerState): boolean;
+  /**
    * Where a player should be heading, for a mode whose objective is a place.
    *
    * Bots drive the same `InputIntent` as a human and read the world the same way, so everything

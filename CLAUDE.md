@@ -2722,6 +2722,91 @@ test:
 
 Probes: `.probe/punch.ts`, `.probe/flick.ts`.
 
+## The hunter is no longer sent who they cannot see — and far players stopped blinking
+
+Phase 1's second item. In the Hunt the server sent every survivor to the hunter, and 56–77 % of
+those were out of sight, so a wallhack was a renderer change. `sim/concealment.ts`
+(`concealedFrom`) now decides who a client is not sent. The mode declares who counts as an
+opponent (`GameMode.conceals`); only Hunt does, for the same pairs as `canDamage`.
+
+**The rule is generous on purpose.** Withholding someone the screen could legitimately show is
+worse than the leak: they pop out of a view they were standing in.
+- **Within `CONCEAL_GRACE` everyone is sent.** It is `VOICE_FAR` (22 m): a voice carries that far,
+  so the position is not a secret. Measured, only 4–8 % of hidden pairs are that close.
+- **Sight is tested from everywhere the flat-screen camera can be**, not only the eyes. That means
+  the head, a point straight up, and two rings of eight and four directions, each at
+  `THIRD_PERSON_CAMERA_DISTANCE` and pulled in by walls as the client's camera is. The constant
+  moved into core, and `GameClient` imports it, so the two cannot drift. Looking down lifts the
+  camera ~5 m over the head, so a PC player legitimately sees over low walls.
+- **Targets are head and chest.**
+
+Measured with six bots, Hunt, 4 seeds × 90 s (`.probe/conceal.ts`):
+
+| | jungle | glacier | outback |
+| --- | --- | --- | --- |
+| hidden from the eyes | 58 % | 59 % | 66 % |
+| of those, still sent (the camera can see them) | 43 % | 70 % | 21 % |
+| seen by the eyes but withheld | **0** | **0** | **0** |
+| cost, 6-player room | 0.70 % of a core | 0.21 % | 0.82 % |
+
+What is still sent is what a PC camera can show. That is a crossplay-fairness question for
+Phase 12, not a leak.
+
+**Hiding the snapshot alone hid nothing.** Every hop is a `jump` and a `land` with a position on
+it, broadcast to the room. In a mode that conceals, `Room.sendEventsInSight` withholds events about
+a client's concealed opponents. It still delivers any event that names that client as `otherId`,
+because you know where the shot that hit you came from.
+
+### Found on the way: far players were drawn on half the frames
+
+The server sends a player beyond `NEAR_DISTANCE` (45 m) in one snapshot of four. The client
+sampled only the two snapshots either side of the render time and hid any avatar with no sample.
+Measured on the real buffer, a far player was drawn on **50 %** of frames, blinking at ~5 Hz and
+jumping when it came back. `InterpolationBuffer.sample` now interpolates between the snapshots
+*that contain that player*: **100 %** of frames, 0 jumps.
+
+A player missing from snapshots that keep arriving for `staleMs` (2.5 far gaps, 500 ms) is no
+longer drawn. That is how a concealed opponent leaves the screen. It is measured against the newest
+snapshot received, not the clock, so a stalled connection freezes everyone instead of making them
+vanish.
+
+### Found on the way: a far newcomer was drawn at the origin
+
+`mergeBaseline` recorded a skipped player's *current* state whenever the client had nothing for
+them. That covers every newcomer more than 45 m away, since three snapshots in four skip far
+players. The next frame then carried only what had changed, which for somebody standing still is
+nothing, so the client drew them at (0, 0, 0). A skipped player the client was never sent is now
+left out of the baseline, so their first appearance is a whole record.
+
+### Guards
+
+Each of the following mutations fails its own test:
+
+| mutation | test that fails |
+| --- | --- |
+| camera vantages removed (eyes only) | the low-wall test |
+| no grace distance | the voice-range test |
+| camera not pulled in by walls | the roof test |
+| snapshot skip removed | room test (server) |
+| events unfiltered | room test (server) |
+| old baseline rule | newcomer test, which reads the newcomer at x = 0 |
+| old sampler | far-player test and withheld-player test |
+| no stale rule | withheld-player test |
+
+Where they live:
+- `sim/concealment.test.ts`: low-wall, voice-range and roof tests.
+- `server/src/concealment.test.ts`: the room test (snapshot and events) and the newcomer test.
+- `net.test.ts`: the far-player and withheld-player tests.
+
+The roof test's first version could not fail: its 40 m wall blocked a camera above the roof just
+as well as one below it. It uses a low wall now.
+
+Known limits:
+- A dead player sees everyone. A spectator is not in the fight, and anything they relay by voice
+  is ghosting, which only an SFU-side rule could stop.
+- The `.probe/leak.ts` numbers above are "from the eyes", so they overstate what a PC player
+  could not legitimately see.
+
 ## Ultimate Edition: the Phase 0 audit
 
 The owner's "PC + VR Ultimate Edition" directive runs in phases 0–15. **Phase 0 is done, and the

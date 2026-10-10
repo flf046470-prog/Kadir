@@ -213,6 +213,16 @@ export class HuntMode extends RoundMode {
     return false;
   }
 
+  /**
+   * A mode about hiding withholds an opponent who is out of sight (`sim/concealment.ts`). The
+   * same pairs that may hurt each other: survivors always see each other, and so does anyone
+   * who is down, because a spectator is not in the fight.
+   */
+  conceals(viewer: PlayerState, other: PlayerState): boolean {
+    if (!viewer.alive || !other.alive || !viewer.active || !other.active) return false;
+    return this.canDamage(viewer, other);
+  }
+
   private countSurvivors(ctx: ModeContext): number {
     let n = 0;
     for (const p of ctx.players.values()) if (p.active && p.role === 'survivor' && p.alive) n++;

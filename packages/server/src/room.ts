@@ -25,6 +25,7 @@ import {
   verifiedCosmetics,
   enterActiveEvents,
   evaluateEvents,
+  concealedFrom,
 } from '@kc/core';
 import type {
   InputIntent,
@@ -34,7 +35,9 @@ import type {
   ModeConfig,
   PlayerProfile,
   PlayerState,
+  PlayerSnapshot,
   SanctionStore,
+  SimEvent,
   Snapshot,
 } from '@kc/core';
 import {
@@ -71,6 +74,12 @@ export interface RoomClient {
   messageBudget: number;
   votedMode: string | null;
   ready: boolean;
+  /**
+   * Opponents this client is not being sent, as of the last snapshot (`sim/concealment.ts`).
+   * Empty except in a mode about hiding. Events about these players are withheld too: every hop
+   * is a `jump` and a `land` with a position on it, so hiding the snapshot alone hid nothing.
+   */
+  concealed: Set<string>;
 }
 
 export interface RoomOptions {
@@ -213,6 +222,7 @@ export class Room {
       messageBudget: 0,
       votedMode: null,
       ready: false,
+      concealed: new Set(),
     };
     this.clients.set(profile.playerId, client);
     this.emptySince = null;
@@ -465,7 +475,8 @@ export class Room {
 
     const events = this.sim.events.drain();
     if (events.length > 0) {
-      this.broadcast({ t: 'events', events });
+      if (this.sim.mode.conceals) this.sendEventsInSight(events);
+      else this.broadcast({ t: 'events', events });
     }
 
     if (this.sim.tick % this.snapshotIntervalTicks === 0) {
@@ -491,6 +502,11 @@ export class Room {
 
     for (const client of this.clients.values()) {
       const skip = new Set<string>();
+      const viewerState = this.sim.players.get(client.playerId);
+      if (this.sim.mode.conceals && viewerState) {
+        concealedFrom(viewerState, this.sim.players.values(), this.sim.world, this.sim.mode, client.concealed);
+        for (const id of client.concealed) skip.add(id);
+      }
       if (farPhase) {
         const viewer = snapshot.players.find((p) => p.id === client.playerId);
         if (viewer) {
@@ -510,6 +526,20 @@ export class Room {
       });
       client.socket.sendBinary(bytes);
       client.baseline = mergeBaseline(client.baseline, snapshot, skip);
+    }
+  }
+
+  /**
+   * Events, less the ones about an opponent this client is not being sent. An event that
+   * involves the client — the shot that hit them — still arrives: they know where it came from.
+   */
+  private sendEventsInSight(events: SimEvent[]): void {
+    for (const client of this.clients.values()) {
+      const visible =
+        client.concealed.size === 0
+          ? events
+          : events.filter((e) => !client.concealed.has(e.playerId) || e.otherId === client.playerId);
+      if (visible.length > 0) client.socket.sendJson({ t: 'events', events: visible });
     }
   }
 
@@ -685,11 +715,20 @@ export class Room {
 
 /** Skipped players keep their previous baseline entry so the next delta is still correct. */
 function mergeBaseline(previous: Snapshot | null, next: Snapshot, skipped: Set<string>): Snapshot {
-  if (skipped.size === 0 || !previous) return next;
-  const players = next.players.map((player) => {
-    if (!skipped.has(player.id)) return player;
-    return previous.players.find((p) => p.id === player.id) ?? player;
-  });
+  if (skipped.size === 0) return next;
+  // A skipped player keeps what the client last had — and a player the client has never been
+  // sent is left out entirely, so their first appearance is a full record. Recording `next` for
+  // them claimed the client knew a position it had never received, and the delta after it would
+  // have been decoded against nothing. Rare while only far players were skipped (one quarter-rate
+  // frame); routine once concealment withholds an opponent from the moment they spawn.
+  const players: PlayerSnapshot[] = [];
+  for (const player of next.players) {
+    if (!skipped.has(player.id)) players.push(player);
+    else {
+      const known = previous?.players.find((p) => p.id === player.id);
+      if (known) players.push(known);
+    }
+  }
   // Entities are never delta-encoded, so the baseline just carries the newest set forward.
   return { tick: next.tick, players, entities: next.entities, mode: next.mode };
 }
