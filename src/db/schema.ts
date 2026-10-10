@@ -71,6 +71,39 @@ export const sessions = pgTable(
   (table) => [index("sessions_user_idx").on(table.userId)]
 );
 
+export const emailVerificationTokens = pgTable(
+  "email_verification_tokens",
+  {
+    /**
+     * SHA-256 of the token. The raw token exists only in the member's inbox and
+     * in memory for the request that created it, exactly as session tokens
+     * work — a leaked backup must not hand an attacker a way to verify
+     * somebody else's address.
+     */
+    tokenHash: text("token_hash").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /**
+     * The address this token was issued for, stored rather than read back off
+     * the user row at verification time.
+     *
+     * Without it, a token mailed to the address somebody typed at signup would
+     * still verify the account after the address had been changed to another
+     * one. That is the whole attack: register with a mailbox you control,
+     * change the address to the victim's, click your own link, and the account
+     * now holds a verified address nobody consented to. Comparing against the
+     * address the mail actually went to closes it.
+     */
+    email: text("email").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /** Set when the link is followed, so a token cannot be replayed. */
+    consumedAt: timestamp("consumed_at", { withTimezone: true })
+  },
+  (table) => [index("email_verification_user_idx").on(table.userId)]
+);
+
 export const profiles = pgTable(
   "profiles",
   {

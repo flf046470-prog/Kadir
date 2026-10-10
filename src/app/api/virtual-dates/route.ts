@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import { requireUser, requireVerifiedUser, isUnauthorized, apiError } from "@/auth/guard";
 import { inviteToVirtualDate, listOpenInvites, listUpcomingDates } from "@/db/virtual-dates";
 import { environmentsFor } from "@/lib/virtual-dates/environments";
 import { tierOf, virtualDateAllowance } from "@/db/entitlements";
@@ -63,7 +63,7 @@ export async function GET() {
 
 /** Inviting the other member of a match to meet. */
 export async function POST(request: NextRequest) {
-  const auth = await requireUser();
+  const auth = await requireVerifiedUser();
   if (isUnauthorized(auth)) return auth.response;
 
   /**

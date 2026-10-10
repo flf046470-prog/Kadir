@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import { requireUser, requireVerifiedUser, isUnauthorized, apiError } from "@/auth/guard";
 import { listMessages, markRead, sendMessage } from "@/db/messaging";
 import { presenceFor, touchPresence } from "@/db/presence";
 import { listGifts } from "@/db/gifts";
@@ -52,7 +52,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
-  const auth = await requireUser();
+  const auth = await requireVerifiedUser();
   if (isUnauthorized(auth)) return auth.response;
 
   const limit = checkRateLimit(`messages:${auth.user.id}`, { max: 60, windowMs: 60_000 });

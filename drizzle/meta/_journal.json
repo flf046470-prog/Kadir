@@ -141,6 +141,13 @@
       "when": 1788678988657,
       "tag": "0019_chief_titanium_man",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791582131078,
+      "tag": "0020_giant_tag",
+      "breakpoints": true
     }
   ]
 }

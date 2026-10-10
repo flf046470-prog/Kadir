@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import { requireVerifiedUser, isUnauthorized, apiError } from "@/auth/guard";
 import { giftAllowance, sendGift } from "@/db/gifts";
 import { checkRateLimit } from "@/lib/rate-limit";
 
@@ -15,7 +15,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
-  const auth = await requireUser();
+  const auth = await requireVerifiedUser();
   if (isUnauthorized(auth)) return auth.response;
 
   const limit = checkRateLimit(`gifts:${auth.user.id}`, { max: 20, windowMs: 60_000 });

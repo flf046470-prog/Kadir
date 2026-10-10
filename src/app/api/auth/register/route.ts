@@ -6,6 +6,7 @@ import { apiError } from "@/auth/guard";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { attachReferral } from "@/db/referral";
 import { signupsOpen } from "@/lib/site";
+import { sendVerificationEmail } from "@/auth/email-verification";
 
 export async function POST(request: NextRequest) {
   /**
@@ -64,7 +65,39 @@ export async function POST(request: NextRequest) {
   const store = await cookies();
   store.set(SESSION_COOKIE, session.token, sessionCookieOptions(session.expiresAt));
 
-  return NextResponse.json({ ok: true }, { status: 201 });
+  /**
+   * The verification mail, sent inline and reported back.
+   *
+   * Inline rather than queued because there is no queue, and a member staring
+   * at a "check your inbox" screen is the worst audience for a job that runs
+   * eventually. It costs one HTTPS round trip with a ten-second ceiling.
+   *
+   * Wrapped like the referral above, and for the same reason: a mail provider
+   * having a bad minute must not cost somebody the account they just created,
+   * which already exists and is already signed in by this point. What differs
+   * is that the outcome is *returned*. A new member who was not mailed needs to
+   * know that now — the screen can offer the resend button instead of telling
+   * them to wait for something that is not coming — and silently claiming an
+   * email was sent is exactly the failure that makes verification feel broken
+   * rather than slow.
+   */
+  let verificationEmailSent = false;
+  try {
+    const mail = await sendVerificationEmail({
+      userId: result.userId,
+      email: input.email as string,
+      displayName: input.displayName as string,
+      locale: typeof input.locale === "string" ? input.locale : "en"
+    });
+    verificationEmailSent = mail.sent;
+    if (!mail.sent) {
+      console.error(`Verification mail not sent for a new member: ${mail.reason}`);
+    }
+  } catch (error) {
+    console.error("Verification mail threw for a new member", error);
+  }
+
+  return NextResponse.json({ ok: true, verificationEmailSent }, { status: 201 });
 }
 
 /**
