@@ -3,6 +3,17 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (7th run) — experiment: chaser awareness 80 m does not fix glacier (reverted)
+
+**Done (measured, 6 seeds x 6 bots x 90 s, `measure-stuck.ts`)**
+- Hypothesis: `pickTarget` awareness (18 + skill*32 m) makes chasers ignore distant stationary runners. Tried a flat 80 m for chasers.
+- Result: glacier **14 -> 14** tags (unchanged), outback 97 -> 114 (+17 %), jungle 61 -> 62; stuck share +0.2..0.7 pt. Glacier is therefore not an awareness/target-selection problem. Reverted (outback gain is a balance change nobody asked for).
+- Combined with runs 3-6: bot navigation, chaser speed, steering and target range are all ruled out for glacier; the cause is map balance (small shelf, tag immunity 2 s + 1.5 s).
+
+**Not run:** `npm run verify` (no code change).
+
+**Next session — first task:** needs an owner decision on glacier balance (smaller play area, fewer pillars, or shorter immunity). Without one, stop glacier bot work and pick another TODO.md item.
+
 ## 2026-10-10 (6th run) — seracs probe: near-misses are tag immunity, not ice slip (no code change)
 
 **Done (measured, glacier-world, 6 seeds x 6 bots x 90 s, untracked `.probe/serac.ts`)**
