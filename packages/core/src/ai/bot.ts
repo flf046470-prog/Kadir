@@ -49,6 +49,8 @@ const PROGRESS_MIN = 1.4;
 /** Roughly a right angle: enough to clear an obstacle, not so much that the bot doubles back. */
 const DETOUR_ANGLE = 1.35;
 const DETOUR_SECONDS = 1.4;
+/** How long cornered prey in a pit heads for the way out before it goes back to fleeing. */
+const PIT_ESCAPE_SECONDS = 6;
 const FIRE_RANGE = 34;
 /** Past this far apart a fighter closes the distance instead of swinging at air. */
 const PUNCH_RANGE = 1.15;
@@ -89,6 +91,12 @@ export class Bot {
   /** True while the bot is making no ground. Steering reads it; no button does. */
   private blocked = false;
   /** The way out of a pit the bot is taking, and whether it has reached the foot yet. */
+  /** Prey pinned in a pit: its own progress window, and seconds left of heading for the way out. */
+  private pitTimer = 0;
+  private pitX = 0;
+  private pitZ = 0;
+  private pitEscape = 0;
+  private readonly pitSky: Vec3 = { x: 0, y: 1e3, z: 0 };
   private exitLeg: { foot: Vec3; top: Vec3; climbing: boolean; best: number } | null = null;
   private readonly carrot: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -134,8 +142,12 @@ export class Bot {
     let desiredYaw = this.wanderYaw;
     let braking = false;
     if (target) {
-      const dx = target.position.x - self.position.x;
-      const dz = target.position.z - self.position.z;
+      // A chaser down in a pit with its quarry up out of it heads for the way out first, exactly as
+      // a racer does: straight at the quarry is straight into the pit's wall. `routeOut` used to
+      // run only for bots with an objective and no target, and in Kangaroo Chase every bot has one.
+      const goal = chasing ? this.routeOut(self, level, target.position) : target.position;
+      const dx = goal.x - self.position.x;
+      const dz = goal.z - self.position.z;
       const toTarget = Math.atan2(dx, dz);
       // Chasers home in; runners flee, with a little noise so they are not perfectly predictable.
       desiredYaw = chasing ? toTarget : toTarget + Math.PI + this.rand.range(-0.5, 0.5) * (1 - this.options.skill);
@@ -198,6 +210,10 @@ export class Bot {
     if ((target || !objective) && distanceFromCentre > level.playRadius * 0.75) {
       desiredYaw = Math.atan2(-self.position.x, -self.position.z);
     }
+
+    // After the leash: the leash points at the middle of the map, which from the gorge floor is
+    // through the gorge wall, and it was what pinned the prey there in the first place.
+    if (!chasing) desiredYaw = this.escapePit(self, level, desiredYaw, dt);
 
     intent.lookYaw = approachAngle(self.yaw, desiredYaw, dt * (2.5 + this.options.skill * 4));
     intent.lookPitch = 0;
@@ -302,9 +318,14 @@ export class Bot {
     if (!this.exitLeg) {
       let best = Infinity;
       for (const zone of level.zones) {
-        if (!zone.exits || v3distance(zone.center, p) > zone.radius) continue;
+        if (!zone.exits) continue;
         for (const exit of zone.exits) {
           if (p.y > exit.top.y - 2.5 || objective.y < exit.top.y - 2.5) continue;
+          // The zone is a sphere and a gorge is a slot: the outback's runs 88 m along z and its
+          // sphere only reaches z = ±29 at the foot of the wall, so bots on the far floor were
+          // "not in the pit" while pinned against it. Below the exit's top and within reach of its
+          // foot counts as down in it.
+          if (v3distance(zone.center, p) > zone.radius && Math.hypot(exit.foot.x - p.x, exit.foot.z - p.z) > zone.radius * 1.4) continue;
           const d = Math.hypot(exit.foot.x - p.x, exit.foot.z - p.z);
           if (d < best) {
             best = d;
@@ -341,6 +362,37 @@ export class Bot {
     this.carrot.y = leg.foot.y + (leg.top.y - leg.foot.y) * t;
     this.carrot.z = leg.foot.z + az * t;
     return this.carrot;
+  }
+
+  /**
+   * Prey pinned on the floor of a pit takes the way out.
+   *
+   * A runner flees *away* from its chaser, so in a gorge it runs into the nearest wall and stays
+   * there: measured on the outback with six bots, 80 % of all stuck bot-seconds were runners, almost
+   * all on the gorge floor pressed against one wall. Obstacle detours are deliberately not applied
+   * to prey (see the note above `avoidObstacle`: cornered prey is what makes a Hunt winnable), so
+   * this is scoped to the one place that is a trap rather than a corner: a zone that declares an
+   * exit, below its top. Only after a full progress window without making ground, and only for a
+   * few seconds, so prey that is merely running along a wall is left alone.
+   */
+  private escapePit(self: PlayerState, level: LevelDef, desiredYaw: number, dt: number): number {
+    this.pitTimer += dt;
+    if (this.pitTimer >= PROGRESS_WINDOW) {
+      const net = Math.hypot(self.position.x - this.pitX, self.position.z - this.pitZ);
+      if (net < PROGRESS_MIN && this.pitEscape <= 0) this.pitEscape = PIT_ESCAPE_SECONDS;
+      this.pitX = self.position.x;
+      this.pitZ = self.position.z;
+      this.pitTimer = 0;
+    }
+    if (this.pitEscape <= 0) return desiredYaw;
+    this.pitEscape -= dt;
+    const goal = this.routeOut(self, level, this.pitSky);
+    if (goal === this.pitSky) {
+      // Not in a pit (or already out): nothing to escape.
+      this.pitEscape = 0;
+      return desiredYaw;
+    }
+    return Math.atan2(goal.x - self.position.x, goal.z - self.position.z);
   }
 
   /**

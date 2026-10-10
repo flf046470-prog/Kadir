@@ -3,6 +3,20 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 — outback gorge: bots pinned against the wall
+
+**Done**
+- `scripts/measure-stuck.ts` (tracked): stuck share by role and 4 m cell, `npx tsx scripts/measure-stuck.ts <level-id> [seeds] [seconds]`. Refuses unknown level ids (`buildLevel` silently falls back to the jungle).
+- Root cause (measured): 13.1 % of outback bot-seconds stuck, 81–86 % runners, nearly all on the gorge floor at x≈-60. The play-area leash aims at the map centre, which from the gorge floor is through the gorge wall; prey gets no obstacle detours. Also the gorge zone sphere does not cover the whole slot.
+- Fix in `Bot` (`bot.ts`): `escapePit` — prey that makes <1.4 m in 1.2 s inside a pit heads for the zone's exit for 6 s, applied after the leash; `routeOut` now counts "in the pit" as below the exit top and within 1.4×radius of its foot; chasers with a target also use `routeOut`.
+- Result (16 seeds × 6 bots × 90 s): outback **13.1 % → 4.4 %** stuck. Jungle 7.1 % and glacier 6.6 %: identical before/after.
+- Regression test in `navigation.test.ts` (fails at 13.1 % without the fix, passes with it).
+- `npm run verify` exit 0.
+
+**Not done / still open:** remaining outback stuck cells at the gorge floor x≈-60 (z -8, 28, 8) and (48,-48); tag counts/balance not re-measured; Phase 1 of the Ultimate Edition still waits for the owner's approval (none found on PR #4).
+
+**Next session — first task:** re-run the harness on the outback, find why the gorge-floor cells still read ~1 % each, and check tag counts before/after (chaser `routeOut` change).
+
 ## 2026-10-09 — Ultimate Edition Phase 0 (no gameplay change)
 
 **Done**

@@ -98,3 +98,47 @@ describe('a bot racing a route', () => {
     }
   });
 });
+
+describe('prey on the outback gorge floor', () => {
+  it('does not spend the round pinned against the gorge wall', () => {
+    /**
+     * Before: 13.1 % of bot-seconds stuck over 16 seeds x 90 s, 86 % of them runners on the gorge
+     * floor at x = -60. The leash sent anything past 0.75 x playRadius back at the map's centre,
+     * which from down there is through the gorge wall, and prey is not given obstacle detours. After:
+     * 4.4 %. Asserted at 8 % over the same 16 seeds as `scripts/measure-stuck.ts`.
+     */
+    const level = buildLevel('outback-station');
+    let samples = 0;
+    let stuck = 0;
+    for (let seed = 1; seed <= 16; seed++) {
+      const sim = new Simulation({ level, modeId: 'kangaroo-chase', seed });
+      const bots: Bot[] = [];
+      const trail = new Map<string, { x: number; z: number }[]>();
+      for (let i = 0; i < 6; i++) {
+        sim.addPlayer({ id: `p${i}`, name: `P${i}` });
+        bots.push(new Bot(`p${i}`, { skill: 0.45 + (i % 4) * 0.15, seed: 900 + i * 17 + seed }));
+        trail.set(`p${i}`, []);
+      }
+      for (let tick = 0; tick < 60 * 90; tick++) {
+        const moving = new Set<string>();
+        for (const [i, bot] of bots.entries()) {
+          const self = sim.players.get(`p${i}`)!;
+          const intent = bot.think(self, sim.players.values(), level, 1 / 60, sim.mode.objectiveFor?.(self) ?? null);
+          intent.tick = sim.tick + 1;
+          sim.setIntent(`p${i}`, intent);
+          if (Math.hypot(intent.moveX, intent.moveZ) > 0.5) moving.add(`p${i}`);
+        }
+        sim.step();
+        for (const [id, p] of sim.players) {
+          const t = trail.get(id)!;
+          t.push({ x: p.position.x, z: p.position.z });
+          if (t.length > 72) t.shift();
+          if (!p.alive || t.length < 72) continue;
+          samples++;
+          if (moving.has(id) && Math.hypot(p.position.x - t[0]!.x, p.position.z - t[0]!.z) < 1.4) stuck++;
+        }
+      }
+    }
+    expect(stuck / samples).toBeLessThan(0.08);
+  }, 60_000);
+});
