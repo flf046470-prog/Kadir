@@ -67,13 +67,7 @@ export function resolvePunches(
   for (let i = 0; i < 2; i++) {
     const hand = attacker.hands[i] as HandState;
     if (hand.punchCooldown > 0) continue;
-    // Punch speed is measured *relative to the body*: sprinting past someone must not count as
-    // a punch, and a jab thrown while running should still register at its true speed.
-    const speed = Math.hypot(
-      hand.velocity.x - attacker.velocity.x,
-      hand.velocity.y - attacker.velocity.y,
-      hand.velocity.z - attacker.velocity.z,
-    );
+    const speed = punchSpeedOf(hand, attacker, config);
     if (speed < config.punchSpeed) continue;
 
     for (const victim of others) {
@@ -90,7 +84,7 @@ export function resolvePunches(
       if (!head && !body) continue;
 
       const staminaFactor = attacker.stamina > config.staminaCost ? 1 : 0.4;
-      const speedFactor = clamp(speed / config.maxSpeed, 0.35, 1.4);
+      const speedFactor = clamp(speed / config.maxSpeed, 0.35, 1);
       const damage = config.baseDamage * speedFactor * (head ? config.headMultiplier : 1) * staminaFactor;
 
       applyKnockback(victim, hand, config, speedFactor);
@@ -121,6 +115,37 @@ export function resolvePunches(
     }
   }
   return hits;
+}
+
+/**
+ * How fast a hand is punching, in m/s: the smaller of its speed relative to the moving body in
+ * the world and its speed in the body's own frame, capped at `maxSpeed`.
+ *
+ * Each frame alone mistakes something that is not a punch for one, and the two mistakes are
+ * opposite, so the smaller of the two is the punch:
+ * - **World speed less the body's velocity** (what this used to be) counts *turning*. A hand held
+ *   still is swung through an arc by a mouse flick or a VR snap turn — measured, a PC player
+ *   flicking ±90° beside an opponent, punch button never pressed, landed 58 hits in 20 s.
+ * - **Speed in the body's frame** counts a VR player's *head* turning: tracked hands are sent
+ *   relative to the head's yaw, so a fast glance with the hands held still in the room moves them
+ *   through the frame while they do not move at all.
+ * A real punch is fast in both. Sprinting past someone is in neither, as before.
+ *
+ * The cap is a human hand, not a tuning knob. Hand positions are only clamped into a reach
+ * envelope, so a modified client can teleport a hand across it every tick, and the speed that
+ * reads as is limited by nothing: measured, 34.8 damage per second against 12.5 for honest
+ * 6 m/s jabs, because `speedFactor` was allowed to reach 1.4. Damage "scales with speed up to
+ * `maxSpeed`", as the config always said; now it stops there, so a cheat can be at most a perfect
+ * human. No honest punch is affected: the procedural PC thrust is 7.7 m/s.
+ */
+export function punchSpeedOf(hand: HandState, attacker: PlayerState, config: CombatConfig): number {
+  const world = Math.hypot(
+    hand.velocity.x - attacker.velocity.x,
+    hand.velocity.y - attacker.velocity.y,
+    hand.velocity.z - attacker.velocity.z,
+  );
+  const local = Math.hypot(hand.localVelocity.x, hand.localVelocity.y, hand.localVelocity.z);
+  return Math.min(world, local, config.maxSpeed);
 }
 
 const _dir = vec3();

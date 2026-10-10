@@ -249,9 +249,12 @@ function updateHandPoses(
     const hand = player.hands[i] as HandState;
     const source = intent.hands ? intent.hands[i] : null;
     v3copy(hand.prevWorld, hand.world);
+    v3copy(hand.prevLocal, hand.local);
+    const wasTracked = hand.tracked;
 
     if (source && source.tracked) {
       hand.tracked = true;
+      v3copy(hand.local, source.pos);
       localToWorld(_handWorld, player.position, source.pos);
       v3copy(hand.world, _handWorld);
       hand.gripHeld = source.grip >= cfg.gripThreshold;
@@ -272,25 +275,22 @@ function updateHandPoses(
       // Both shoulders swing inwards on a thrust: the fist travels to the centre line rather than
       // out past the opponent's shoulder, which is what a punch thrown at someone looks like.
       const lateral = 0.32 * (1 - thrust * 0.55);
-      v3set(
-        _tmp,
-        _right.x * side * lateral + _forward.x * reach,
-        player.height * 0.62 + aim,
-        _right.z * side * lateral + _forward.z * reach,
-      );
-      v3set(hand.world, player.position.x + _tmp.x, player.position.y + _tmp.y, player.position.z + _tmp.z);
+      v3set(hand.local, side * lateral, player.height * 0.62 + aim, reach);
+      localToWorld(hand.world, player.position, hand.local);
       hand.gripHeld = i === LEFT ? grabLeft : grabRight;
     }
 
     if (frozen) hand.gripHeld = false;
 
-    // First pose ever, or the first one after a respawn: `world` just jumped (from the origin
-    // default, or across a teleport to a new spawn point) while `prevWorld` is still wherever it
-    // was before. Snapping it here makes this tick's velocity exactly zero instead of a
+    // First pose ever, the first one after a respawn, or a hand that just gained or lost
+    // tracking: the pose jumped (from the origin default, across a teleport to a new spawn point,
+    // or from a controller to the procedural pose) while the previous one is still wherever it
+    // was. Snapping it here makes this tick's velocity exactly zero instead of a
     // multi-hundred-m/s spike that would clear resolvePunches' punch threshold and trigger
     // applyPalmPush from nothing but the jump itself.
-    if (!hand.posed) {
+    if (!hand.posed || hand.tracked !== wasTracked) {
       v3copy(hand.prevWorld, hand.world);
+      v3copy(hand.prevLocal, hand.local);
       hand.posed = true;
     }
 
@@ -300,6 +300,12 @@ function updateHandPoses(
         (hand.world.x - hand.prevWorld.x) / dt,
         (hand.world.y - hand.prevWorld.y) / dt,
         (hand.world.z - hand.prevWorld.z) / dt,
+      );
+      v3set(
+        hand.localVelocity,
+        (hand.local.x - hand.prevLocal.x) / dt,
+        (hand.local.y - hand.prevLocal.y) / dt,
+        (hand.local.z - hand.prevLocal.z) / dt,
       );
     }
   }

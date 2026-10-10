@@ -2676,10 +2676,56 @@ scratch folder with `pack:steam --out`, because a copy with a test origin must n
 `dist/steam-app` — and running it there, outside the repo, is what found the missing `ws` (see
 "Steam needs no origin" → Correction).
 
-## Ultimate Edition: Phase 0 audit, and waiting for approval
+## Turning was a punch, and a cheat's punch had no ceiling
 
-The owner's "PC + VR Ultimate Edition" directive runs in phases 0–15. **Phase 0 is done and
-Phase 1 must not start without the owner's approval.** The audit is `docs/ULTIMATE_EDITION_AUDIT.md`
+Phase 1's first item, and the measurement for it found a worse bug than the one it was looking
+for. `combat.ts` took punch speed as the hand's world speed less the body's. Turning swings a hand
+held still through an arc, so **turning was punching**: beside an opponent, punch button never
+pressed, a PC player flicking ±90° landed **58 hits / 740 damage in 20 s** (37 dps, more than the
+cheat below). A steady 480°/s mouse turn landed 26, 720°/s landed 66, and a VR snap turn with the
+hands out landed 58. The control — the same flick with the opponent 3 m away — landed 0.
+This is also what the "1056 threshold crossings while hopping" in the punch-cue section were:
+bots turn while they hop.
+
+The obvious fix — speed in the body's own frame (`HandState.local`/`localVelocity`) — is wrong
+for VR on its own. Tracked hands arrive relative to the *head's* yaw, so a fast glance with the
+hands held still in the room moves them through that frame. `punchSpeedOf` takes the **smaller**
+of the two frames: each frame mistakes a different non-punch for a punch, and a real punch is fast
+in both.
+
+It is capped at `maxSpeed` (12 m/s), and `speedFactor` stops at 1. The config always said damage
+"scales with speed up to `maxSpeed`"; the clamp let it reach 1.4. Hand *positions* are not
+limited — that would slow VR throws and grabs. Only what a hand's speed is worth is limited.
+Measured, Boxing, toe to toe, 20 s, damage per second:
+
+| input | before | after |
+| --- | --- | --- |
+| PC button | 11.3 | 11.3 |
+| honest VR jab, 6 m/s | 12.5 | 12.5 |
+| fast honest VR jab, 10 m/s | — | 20.8 |
+| hand teleported each tick (cheat) | 34.8 | 24.9 |
+| flick / snap turn, no punch | 37.0 | **0** |
+
+A cheat is now at most a perfect human. That is the honest bound: no rule on positions can tell a
+flawless 12 m/s puncher from a client claiming to be one. Doing better is the statistical
+detection in roadmap Phase 12.
+
+A hand that gains or loses tracking is a pose jump like a respawn, so it snaps `prevWorld` and
+`prevLocal` too. A flickering controller inside an opponent's head was otherwise a punch a tick.
+
+`simulation.test.ts` → "punch speed" covers each case. Four mutations, each failing only its own
+test:
+- world speed only (the old rule): the PC flick and snap-turn tests;
+- body-frame speed only: the head-glance test;
+- no cap: the spoof test;
+- no snap on a tracking change: the controller test.
+
+Probes: `.probe/punch.ts`, `.probe/flick.ts`.
+
+## Ultimate Edition: the Phase 0 audit
+
+The owner's "PC + VR Ultimate Edition" directive runs in phases 0–15. **Phase 0 is done, and the
+owner approved Phase 1 in full on 2026-10-10** ("her şeyi şimdiden onaylıyorum"). The audit is `docs/ULTIMATE_EDITION_AUDIT.md`
 and the sized phases are in `docs/ULTIMATE_EDITION_ROADMAP.md`. Four findings are new and measured
 (probes `.probe/punch.ts` and `.probe/leak.ts`, both untracked).
 

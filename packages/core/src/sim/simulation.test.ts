@@ -5,6 +5,7 @@ import { levelFingerprint, levelStats } from '../world/level.js';
 import { createIntent, Buttons } from '../input/intent.js';
 import type { InputIntent } from '../input/intent.js';
 import type { PlayerState } from '../player/state.js';
+import { DEFAULT_COMBAT } from '../player/combat.js';
 import '../modes/index.js';
 
 const level = buildJungleWorld();
@@ -248,6 +249,114 @@ describe('Boxing mode', () => {
     const intent = createIntent();
     intent.buttons = Buttons.PunchRight;
     expect(intent.buttons & Buttons.PunchRight).toBeTruthy();
+  });
+});
+
+/**
+ * What is *not* a punch. Every case here landed hits before `punchSpeedOf` (see `combat.ts`):
+ * turning swung the hands through an arc that read as punch speed, and a hand teleported across
+ * its reach envelope every tick read as any speed it liked.
+ */
+describe('punch speed', () => {
+  type Pose = (tick: number, intent: InputIntent) => void;
+
+  /** Toe to toe for `seconds`; the victim is healed every tick so the count is never cut short. */
+  function fight(pose: Pose, seconds = 10): { hits: number; worst: number } {
+    const sim = new Simulation({ level, modeId: 'boxing', seed: 9 });
+    const a = sim.addPlayer({ id: 'a' });
+    const b = sim.addPlayer({ id: 'b' });
+    runTicks(sim, TICK_RATE * 6);
+    sim.events.drain();
+    const intent = createIntent();
+    const idle = createIntent();
+    let hits = 0;
+    let worst = 0;
+    for (let t = 0; t < TICK_RATE * seconds; t++) {
+      place(a, 0, 1, 40);
+      place(b, 0, 1, 40.7);
+      b.health = 100;
+      b.alive = true;
+      pose(t, intent);
+      sim.setIntent('a', intent);
+      sim.setIntent('b', idle);
+      sim.step();
+      for (const event of sim.events.drain()) {
+        if (event.type !== 'punchHit' || event.playerId !== 'a') continue;
+        hits++;
+        worst = Math.max(worst, event.magnitude);
+      }
+    }
+    return { hits, worst };
+  }
+
+  const tracked = (x: number, y: number, z: number) => ({ tracked: true, pos: { x, y, z }, grip: 0 });
+
+  it('is not turning: a PC flick beside an opponent lands nothing', () => {
+    // Measured before the fix: 58 hits in 20 s, punch button never pressed.
+    const flick = fight((t, intent) => {
+      intent.hands = null;
+      intent.buttons = 0;
+      intent.lookYaw = Math.floor(t / 10) % 2 ? Math.PI / 2 : 0;
+    });
+    expect(flick.hits).toBe(0);
+  });
+
+  it('is not turning: a VR snap turn with the hands out lands nothing', () => {
+    const snap = fight((t, intent) => {
+      intent.hands = [tracked(-0.25, 1.1, 0.35), tracked(0.25, 1.1, 0.35)];
+      intent.lookYaw = Math.floor(t / 10) % 2 ? Math.PI / 4 : 0;
+    });
+    expect(snap.hits).toBe(0);
+  });
+
+  it('is not a glance: a VR head turn with the hands still in the room lands nothing', () => {
+    // Tracked hands arrive relative to the head's yaw, so a head turn moves them through the
+    // body's frame while they stay put in the world. Speed in that frame alone would punch.
+    const room = [
+      { x: -0.25, z: 0.35 },
+      { x: 0.25, z: 0.35 },
+    ];
+    const glance = fight((t, intent) => {
+      const yaw = Math.sin(t / 6) * 0.9;
+      const c = Math.cos(yaw);
+      const s = Math.sin(yaw);
+      intent.lookYaw = yaw;
+      intent.hands = room.map((h) => tracked(h.x * c - h.z * s, 1.1, h.x * s + h.z * c)) as InputIntent['hands'];
+    });
+    expect(glance.hits).toBe(0);
+  });
+
+  it('is not a controller losing tracking: the jump to the procedural pose lands nothing', () => {
+    const flicker = fight((t, intent) => {
+      // Tracked inside the opponent's head, then lost: the procedural pose is half a metre away.
+      intent.hands = [tracked(0, 1.45, 0.7), tracked(0, 1.45, 0.7)];
+      if (t % 2 === 1) for (const hand of intent.hands) hand.tracked = false;
+    });
+    expect(flicker.hits).toBe(0);
+  });
+
+  it('is no faster than a human hand, whatever a client sends', () => {
+    // A modified client teleporting a hand across its reach envelope every tick.
+    const spoof = fight((t, intent) => {
+      const out = t % 2 === 0 ? 0.7 : -0.5;
+      intent.hands = [tracked(0, 1.1, -out + 0.2), tracked(0, 1.1, out)];
+    });
+    expect(spoof.hits).toBeGreaterThan(0);
+    // A head hit at full stamina and `maxSpeed` — the best a perfect human can do.
+    expect(spoof.worst).toBeLessThanOrEqual(DEFAULT_COMBAT.baseDamage * DEFAULT_COMBAT.headMultiplier + 1e-6);
+  });
+
+  it('still lands an honest jab at its true speed', () => {
+    // 0.1 m a tick for five ticks: a 6 m/s jab, then back.
+    const jab = fight((t, intent) => {
+      const k = t % 36;
+      const z = k < 5 ? 0.15 + 0.1 * k : k < 25 ? 0.65 - 0.025 * (k - 5) : 0.15;
+      intent.hands = [tracked(0, 0, 0), tracked(0, 1.1, z)];
+      intent.hands[0].tracked = false;
+    });
+    expect(jab.hits).toBeGreaterThan(5);
+    const expected = DEFAULT_COMBAT.baseDamage * (6 / DEFAULT_COMBAT.maxSpeed) * DEFAULT_COMBAT.headMultiplier;
+    expect(jab.worst).toBeCloseTo(expected, 1);
   });
 });
 

@@ -47,6 +47,17 @@ export interface HandState {
    * every single respawn — which, per this game's own falling-and-respawning design, is routine.
    */
   posed: boolean;
+  /**
+   * The hand's pose in the body's own frame — x right, y up, z forward, from the feet — and its
+   * velocity in that frame. `velocity` above is the world's view: it includes everything the body
+   * does to the hand, and turning is one of those things. A mouse flick or a VR snap turn swings a
+   * hand held still through an arc, and read as world speed that arc is a punch: measured, a PC
+   * player flicking ±90° beside an opponent landed 58 hits in 20 s without touching the punch
+   * button. A punch has to be fast in *both* frames (`combat.ts`), so turning alone never is one.
+   */
+  local: Vec3;
+  prevLocal: Vec3;
+  localVelocity: Vec3;
   /** Seconds until this hand may register another punch. */
   punchCooldown: number;
   /**
@@ -70,6 +81,9 @@ export function createHandState(): HandState {
     anchor: vec3(),
     anchorCollider: -1,
     posed: false,
+    local: vec3(),
+    prevLocal: vec3(),
+    localVelocity: vec3(),
     punchCooldown: 0,
     punchThrow: 0,
   };
