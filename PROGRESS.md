@@ -3,6 +3,13 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (9th run) — still blocked on owner; per-grip feel is not a small change (no code change)
+
+**Checked:** branch current (2f3ecbc); PR #4 comments (30) contain only Vercel bot notices, no owner answer on glacier balance, Ultimate Edition Phase 1, or hosting.
+**Finding:** the 8th run's fallback task (per-grip feel) is larger than assumed. `LevelDef.grips`/`GripKind` are never read by `physics/` or `player/locomotion.ts`; grabbing is keyed only on `SurfaceFlags.Climbable` (`isGrabbable`). Per-grip feel means a change to the deterministic sim (and likely prediction/reconcile tests and protocol), so it needs an owner decision on the intended feel, not an autonomous edit.
+**Not run:** `npm run verify` (docs-only).
+**Next session — first task:** owner answers one of: glacier balance, Phase 1 approval, per-grip feel spec. Without it, only low-risk work remains (docs/test hygiene).
+
 ## 2026-10-10 (8th run) — no safe autonomous task left; owner decisions needed (no code change)
 
 **Checked:** branch `claude/kangaroo-chase-game-w62laa` at 393b5a5 is current; PR #4 has no owner
