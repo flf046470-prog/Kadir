@@ -3,6 +3,17 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (5th run) — experiment: chaser `avoidObstacle` does not fix glacier tags (reverted)
+
+**Done (measured, 6 seeds x 6 bots x 90 s, `measure-stuck.ts`)**
+- Baseline reproduced exactly: glacier 14 tags / 6.6 % stuck, outback 97 / 4.1 %, jungle 61 / 6.8 %.
+- Tried: run `avoidObstacle` (blocked-detour) for chasers that have a target too. Result: glacier **11** tags (stuck 6.6 -> 4.5 %), outback **87** (-10 %), jungle 65 (stuck 6.8 -> 7.4 %). Glacier tags did not rise and outback fell, so **reverted**; no code change committed.
+- Conclusion: the glacier tag shortage is not chaser pillar-wedging. Remaining hypothesis: ice friction (0.35) means the chaser cannot close on prey that keeps moving on the seracs; may be map balance rather than bot navigation.
+
+**Not run:** `npm run verify` (docs-only).
+
+**Next session — first task:** log chaser target/velocity vs. prey while prey is in the seracs zone (x~30, z -12..-6) to see whether the chaser overshoots on ice (slip) rather than gets blocked; consider braking/lead-pursuit for chasers on low-friction surfaces. Success = glacier tags/90 s up from ~2 toward 6+ without lowering outback/jungle.
+
 ## 2026-10-10 (4th run) — glacier tag rarity: diagnosis only, no code change
 
 **Done (measured, 6 seeds x 6 bots x 90 s, `.probe/` scripts untracked)**
