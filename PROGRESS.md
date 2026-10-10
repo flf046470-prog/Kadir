@@ -3,6 +3,18 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (4th run) — glacier tag rarity: diagnosis only, no code change
+
+**Done (measured, 6 seeds x 6 bots x 90 s, `.probe/` scripts untracked)**
+- Tags: jungle 61, glacier **14**, outback 97. Chaser-to-nearest-runner distance: mean 16.7 / 14.1 / 11.5 m; share of chaser time within 4 m: 15 % / **7 %** / 30 %.
+- Not a chaser-speed problem: chaser mean speed 11.7 / 10.8 / 13.3 m/s; slow (<1.5 m/s) share 2.6 % / 5.7 % / 2.8 %. Chasers are never dead.
+- Slow chaser ticks on glacier cluster at x≈30, z -12..-6: the `seracs` zone (ice, friction 0.35, 12 m pillars ids 60/61/64/65, plus ledges at y≈12). Runners that reach the pillars keep >4 m from the chaser; the chaser does not close.
+- `measure-stuck.ts glacier-world 8 90`: 5.9 % stuck, 24 % of it in cell (40,-8).
+
+**Not done:** no behaviour change (no measured fix yet). `npm run verify` not run (docs-only).
+
+**Next session — first task:** log chaser target + path state while a runner is inside the seracs zone (is the chaser's `routeOut`/target stuck on a pillar-blocked straight line?). Try pillar-aware chaser steering; success = glacier tags/90 s up from ~2-3 toward 6+ without lowering outback/jungle.
+
 ## 2026-10-10 (3rd run) — harness counts tags; chaser `routeOut` cleared
 
 **Done**
