@@ -1,9 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { siteUrl } from "@/lib/site";
 import {
   VERIFICATION_TTL_HOURS,
   emailVerificationRequired,
   verificationLink
 } from "./email-verification";
+
+/**
+ * The origin is read from `siteUrl` rather than written out.
+ *
+ * `siteUrl` is `SITE_URL` or a default, captured when the module loads, and
+ * `vitest.config.mts` loads `.env.local` — so a developer who has pointed
+ * `SITE_URL` at a local port (to exercise the mail flow against `next dev`,
+ * which is exactly when somebody is working on this file) made these
+ * assertions fail on a hardcoded `https://fiorematch.com`. CI has no
+ * `.env.local`, so it passed there and failed only on the machine of whoever
+ * was changing the code. What these tests are actually about is the shape of
+ * the path, so the origin is a parameter rather than a claim.
+ */
+const origin = siteUrl.replace(/\/+$/, "");
 
 const KEYS = ["REQUIRE_EMAIL_VERIFICATION"] as const;
 const saved = Object.fromEntries(KEYS.map((key) => [key, process.env[key]]));
@@ -21,9 +36,7 @@ afterEach(() => {
 
 describe("the verification link", () => {
   it("is locale-prefixed, like every other page on the site", () => {
-    expect(verificationLink("tok", "tr")).toBe(
-      "https://fiorematch.com/tr/verify-email?token=tok"
-    );
+    expect(verificationLink("tok", "tr")).toBe(`${origin}/tr/verify-email?token=tok`);
   });
 
   /**
@@ -35,17 +48,15 @@ describe("the verification link", () => {
    */
   it("percent-encodes the token", () => {
     expect(verificationLink("a+b/c=", "en")).toBe(
-      "https://fiorematch.com/en/verify-email?token=a%2Bb%2Fc%3D"
+      `${origin}/en/verify-email?token=a%2Bb%2Fc%3D`
     );
   });
 
   /**
-   * `SITE_URL` is read once at import, so this cannot be driven from the
-   * environment here — the assertion is on the invariant itself: whatever the
-   * origin, exactly one slash separates it from the locale. A deployment that
-   * sets `SITE_URL=https://app.fiorematch.com/` would otherwise mail links
-   * with `//tr/verify-email`, which resolve for most clients and are rewritten
-   * by some into a path that 404s.
+   * The invariant, whatever the origin: exactly one slash separates it from
+   * the locale. A deployment that sets `SITE_URL=https://app.fiorematch.com/`
+   * would otherwise mail links containing `//tr/verify-email`, which resolve
+   * for most clients and are rewritten by some into a path that 404s.
    */
   it("separates origin from locale with exactly one slash", () => {
     expect(verificationLink("tok", "tr")).not.toContain("//tr");
