@@ -3,6 +3,14 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (10th run) — verified HEAD 698b898 green; still blocked on owner (docs only)
+
+**Checked:** routine branch `ccr-4ec37d19-9brig5` rebuilt from `claude/kangaroo-chase-game-w62laa` (698b898, the punch-turning fix landed after the 9th run's note and had no PROGRESS entry).
+**Tests:** `npm ci`, `npm run typecheck` clean; `npm run test` -> 115 files passed, 1369 tests passed, 12 skipped (previous docs said 1362). Full `verify` (builds, hostile, shell) not run.
+**Blockers unchanged:** glacier balance decision, Ultimate Edition Phase 1 approval, per-grip feel spec, hosting.
+**Update:** CLAUDE.md on the branch now records that the owner approved Ultimate Edition Phase 1 in full on 2026-10-10, so that blocker is lifted. PR #9 Vercel checks are red only from the free-plan deployment limit (100/day), unrelated to the diff.
+**Next session — first task:** Phase 1 item 1 (hand displacement bound, `docs/ULTIMATE_EDITION_ROADMAP.md`). 698b898 capped a spoofed hand at 24.9 dps; the roadmap exit is within 15 % of honest VR (12.5 dps). Mutation-test it and run `npm run verify` before committing.
+
 ## 2026-10-10 (9th run) — still blocked on owner; per-grip feel is not a small change (no code change)
 
 **Checked:** branch current (2f3ecbc); PR #4 comments (30) contain only Vercel bot notices, no owner answer on glacier balance, Ultimate Edition Phase 1, or hosting.
