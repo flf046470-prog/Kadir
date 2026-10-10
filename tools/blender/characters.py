@@ -1,0 +1,2203 @@
+"""
+Generate the playable animals: mesh, skeleton and animation clips, one .glb each.
+
+Three body plans cover the whole roster, chosen by each animal's own `visual.build` field:
+
+    hopper     kangaroo, frog      upright on huge hind legs, tail counterweight
+    upright    human, penguin      two legs under a vertical torso
+    quadruped  wolf, fox, tiger    four legs under a horizontal spine
+
+Everything else — colours, ear shape, tail shape, snout shape, overall scale — comes from the
+same `visual` block the game already uses to draw the procedural avatar, so a model can never
+describe a different animal than the one the player picked.
+
+Every animal is the same height and fills the same capsule, because every animal has identical
+movement. That is a rule of this project, not an art decision: premium and free animals may
+differ in model, texture, animation and sound, and in nothing that touches a match. A wolf that
+stood shorter than a kangaroo would be a smaller target, and that is a gameplay advantage bought
+with a cosmetic.
+
+Clip names are the contract with the renderer: idle, walk, run, jump, hit, and the seven emotes.
+"""
+
+import math
+import os
+
+import bpy
+import bmesh  # after bpy: the module only exists once Blender has initialised
+from mathutils import Euler, Matrix, Quaternion, Vector
+
+import lib
+from lib import Clip, armature, box, cone, join, material, skin, sphere, wedge
+
+
+def bpy_update() -> None:
+    bpy.context.view_layer.update()
+
+"""
+The emotes, in the order the game numbers them.
+
+Ids 1-4 are the four every animal carries (`animals.ts` names them per species, so a kangaroo
+taunts where a person points — the pose is the same, the name is flavour). Ids 5-7 belong to the
+three unlockable emote cosmetics. All seven are built for every animal so that equipping a cosmetic
+never depends on which body you are wearing.
+"""
+EMOTES = ("wave", "dance", "taunt", "sit", "backflip", "sleep", "victory")
+
+CLIPS = ("idle", "walk", "run", "jump", "hit") + tuple(f"emote_{name}" for name in EMOTES)
+
+# Frame counts. 24 fps, so walk is one second and a stride is half of it.
+LENGTHS = {"idle": 48, "walk": 24, "run": 16, "jump": 24, "hit": 16}
+# Emotes run about a second and a half; the simulation holds `emoteTimer` for the same span.
+LENGTHS.update({f"emote_{name}": 36 for name in EMOTES})
+LENGTHS["emote_sleep"] = 72
+LENGTHS["emote_backflip"] = 30
+
+
+# --------------------------------------------------------------------------------------------
+# Shared pieces
+# --------------------------------------------------------------------------------------------
+
+
+def _trait(spec, field, handled):
+    """
+    Read one shape trait, refusing anything this file does not actually build.
+
+    Every trait here used to be `v.get(field, default)` followed by an if/elif chain ending in a
+    bare `else`, so a value the chain had no branch for silently became whichever shape the tail
+    of the chain happened to build. `AnimalVisual` declares five tails; this file built three of
+    them, and `thin` and `fin` both landed on `thick`. Two pairs of animals with genuinely
+    different declared traits therefore shipped as the same mesh — measured on the generated art,
+    `dragon`/`wolf` and `lion`/`tiger` had identical POSITION+NORMAL hashes.
+
+    A missing branch is now a build failure that names the trait, which is the only way the
+    declared vocabulary and the built one can be kept the same size.
+    """
+    value = spec["visual"].get(field)
+    if value not in handled:
+        raise ValueError(
+            f"{spec['id']}: {field}={value!r} is not a shape this generator builds "
+            f"(it builds {sorted(handled)}). Add the branch or change the animal."
+        )
+    return value
+
+
+FEATURES = {"none", "mane", "patches", "mask", "dorsal", "antlers", "longneck"}
+
+
+def _feature(spec):
+    """`visual.feature`, optional, refused like any trait when there is no geometry for it."""
+    value = spec["visual"].get("feature", "none")
+    if value not in FEATURES:
+        raise ValueError(
+            f"{spec['id']}: feature={value!r} is not one this generator builds "
+            f"(it builds {sorted(FEATURES)}). Add the branch or change the animal."
+        )
+    return value
+
+
+def _head_sockets(top, forward):
+    """
+    Where a hat and a pair of glasses go, derived from the numbers that build the head.
+
+    Written next to `_head_parts` and from the same `top`/`forward` on purpose. The client used to
+    guess these from its own procedural rig, which is a second implementation of the same body plan
+    in another language — measured, a penguin's hat sat forty centimetres below the top of the
+    penguin. Then it guessed from the model's bounding box, which is the tip of a kangaroo's
+    thirty-centimetre ears rather than its skull. Only this file knows where the skull is.
+
+    The head is `sphere("head", (0, forward, top), (0.34, 0.36, 0.32))`, and `lib.sphere`'s size
+    is a full **diameter** — it scales a radius-0.5 sphere. So the crown is `top + 0.16` and the
+    front of the face is `forward + 0.18`. A first version read those as radii and was caught by
+    measurement rather than review: it put a human's hat socket at 1.70 m on a model whose top
+    vertex is at 1.54 — sixteen centimetres of air — which `animal-geometry.test.ts` now refuses.
+    """
+    return {
+        "socket_head": ("head", (0, forward, top + 0.16)),
+        "socket_face": ("head", (0, forward + 0.18, top + 0.05)),
+    }
+
+
+def _hand_sockets(bone, where, x):
+    """
+    `socket_hand_L` / `socket_hand_R`: where a glove goes, at the end of each forelimb.
+
+    Hand cosmetics used to hang on the avatar's own hand groups, which the client hides once a
+    model loads ("the model has its own arms") — so on every PC and mobile player, which is every
+    player not in a headset, equipped gloves were never drawn at all. The model's forelimb ends
+    here, and only this file knows where. Underscored names because three.js strips dots.
+    `where(x)` gives the point for the side whose sign `x` carries.
+    """
+    return {
+        "socket_hand_L": (f"{bone}.L", where(x)),
+        "socket_hand_R": (f"{bone}.R", where(-x)),
+    }
+
+
+def _head_parts(spec, mats, top, forward):
+    """Head, snout, ears and eyes, sitting at `top` and facing +Y."""
+    parts = [sphere("head", (0, forward, top), (0.34, 0.36, 0.32), mats["body"])]
+
+    snout = _trait(spec, "snout", {"long", "short", "beak", "flat"})
+    if snout == "long":
+        parts.append(sphere("snout", (0, forward + 0.20, top - 0.04), (0.17, 0.26, 0.15), mats["body"]))
+        parts.append(sphere("nose", (0, forward + 0.32, top - 0.04), (0.07, 0.06, 0.06), mats["accent"]))
+    elif snout == "short":
+        parts.append(sphere("snout", (0, forward + 0.15, top - 0.04), (0.20, 0.16, 0.16), mats["belly"]))
+        parts.append(sphere("nose", (0, forward + 0.22, top - 0.02), (0.08, 0.07, 0.06), mats["accent"]))
+    elif snout == "beak":
+        parts.append(
+            cone("beak", (0, forward + 0.20, top - 0.03), 0.09, 0.01, 0.20, mats["accent"],
+                 vertices=6, rotation=(math.radians(-90), 0, 0))
+        )
+    else:  # flat — a face, not a muzzle
+        parts.append(sphere("face", (0, forward + 0.16, top - 0.03), (0.22, 0.10, 0.20), mats["belly"]))
+
+    feature = _feature(spec)
+    # A panda's ears are black; everybody else's are the colour of their head.
+    ear_mat = mats["accent"] if feature == "patches" else mats["body"]
+    ears = _trait(spec, "ears", {"tall", "pointed", "round", "fin", "none"})
+    for side, x in (("L", 0.13), ("R", -0.13)):
+        if ears == "tall":
+            parts.append(lib.pin(
+                cone(f"ear.{side}", (x, forward - 0.04, top + 0.26), 0.06, 0.02, 0.30, ear_mat, vertices=6), "head"
+            ))
+        elif ears == "pointed":
+            parts.append(lib.pin(
+                cone(f"ear.{side}", (x, forward - 0.02, top + 0.19), 0.07, 0.01, 0.18, ear_mat, vertices=5), "head"
+            ))
+        elif ears == "round":
+            parts.append(lib.pin(sphere(f"ear.{side}", (x, forward - 0.02, top + 0.18), (0.13, 0.05, 0.13), ear_mat), "head"))
+        elif ears == "fin":
+            # A blade swept back off the side of the skull, not a cone standing up off it. Thin in
+            # X so it reads as a fin edge-on and disappears from the front, which is the whole
+            # visual joke of an animal with fins where its ears should be.
+            parts.append(lib.pin(
+                wedge(f"ear.{side}", (x + 0.05 * (1 if side == "L" else -1), forward - 0.08, top + 0.14),
+                      (0.03, 0.24, 0.22), mats["accent"],
+                      rotation=(math.radians(-10), 0, math.radians(14 if side == "L" else -14))), "head"
+            ))
+
+    for side, x in (("L", 0.12), ("R", -0.12)):
+        parts.append(lib.pin(sphere(f"eye.{side}", (x, forward + 0.14, top + 0.06), (0.06, 0.05, 0.06), mats["dark"]), "head"))
+
+    # Signature marks that live on the head. All pinned: they are small, they ride the skull
+    # rigidly, and heat weighting is not trusted with small islands (see `lib.pin`).
+    if feature == "mane":
+        # A halo round the face, wider and taller than the skull, and a drape down onto the chest.
+        # Behind the face rather than over it, so the eyes and muzzle stay in front of it.
+        parts.append(lib.pin(sphere("mane", (0, forward - 0.07, top - 0.03), (0.58, 0.34, 0.56), mats["accent"]), "head"))
+        parts.append(lib.pin(sphere("mane.2", (0, forward - 0.10, top - 0.22), (0.50, 0.36, 0.34), mats["accent"]), "head"))
+    elif feature == "patches":
+        # A panda's eye patches: teardrops round each eye, tilted down and out. Inboard of the
+        # eye rather than centred on it: centred, they reached past the edge of the skull and
+        # read from the front as a second pair of round ears.
+        for side, x in (("L", 0.10), ("R", -0.10)):
+            tilt = math.radians(-22 if side == "L" else 22)
+            parts.append(lib.pin(sphere(f"patch.{side}", (x, forward + 0.125, top + 0.04), (0.11, 0.07, 0.12),
+                                        mats["accent"], rotation=(0, tilt, 0)), "head"))
+    elif feature == "mask":
+        # The bandit band across the eyes, wrapping round the sides of the skull. The eyes still sit
+        # proud of it, and the short muzzle covers its lower edge, so it reads as a mask over a pale
+        # snout rather than as a dark face.
+        parts.append(lib.pin(sphere("mask", (0, forward + 0.075, top + 0.05), (0.40, 0.18, 0.11), mats["accent"]), "head"))
+    elif feature == "antlers":
+        # Two swept beams with a forward tine each, in the pale colour of bone. Kept under the
+        # capsule's height tolerance, which the tall ears already come close to.
+        for side, x in (("L", 1), ("R", -1)):
+            parts.append(lib.pin(cone(f"antler.{side}", (0.13 * x, forward - 0.06, top + 0.27), 0.028, 0.012, 0.30,
+                                      mats["belly"], vertices=6,
+                                      rotation=(math.radians(18), math.radians(32 * x), 0)), "head"))
+            parts.append(lib.pin(cone(f"tine.{side}", (0.15 * x, forward + 0.01, top + 0.31), 0.016, 0.006, 0.14,
+                                      mats["belly"], vertices=5,
+                                      rotation=(math.radians(-40), math.radians(12 * x), 0)), "head"))
+    return parts
+
+
+def _tail_parts(spec, mats, base_z, base_y):
+    """Tail running backwards along -Y from the hips."""
+    shape = _trait(spec, "tail", {"stub", "bushy", "thick", "thin", "fin"})
+    if shape == "stub":
+        return [sphere("tail", (0, base_y - 0.16, base_z), (0.13, 0.16, 0.13), mats["body"])]
+    if shape == "bushy":
+        return [
+            sphere("tail.1", (0, base_y - 0.17, base_z + 0.04), (0.17, 0.30, 0.17), mats["body"]),
+            sphere("tail.2", (0, base_y - 0.38, base_z + 0.11), (0.21, 0.32, 0.21), mats["belly"]),
+        ]
+    if shape == "thin":
+        # A whip, not a counterweight: half the thick tail's girth, carried level rather than
+        # drooping to the ground, and reaching further back for it. The radii are what separate it
+        # from `thick` — a lizard's or a big cat's tail is the same chain at a third the volume.
+        return [
+            sphere("tail.1", (0, base_y - 0.18, base_z + 0.01), (0.10, 0.28, 0.10), mats["body"]),
+            sphere("tail.2", (0, base_y - 0.40, base_z + 0.02), (0.08, 0.28, 0.08), mats["body"]),
+            sphere("tail.3", (0, base_y - 0.60, base_z + 0.02), (0.06, 0.24, 0.06), mats["accent"]),
+        ]
+    if shape == "fin":
+        # A caudal blade standing on edge: nearly flat in X, tall in Z. Two segments so the
+        # animation's travelling wave still has something to sweep — a rigid fin reads as a prop
+        # bolted to the hips the moment the animal moves.
+        #
+        # The stock is round and the fluke is a swept triangle. Both used to be boxes, and the
+        # fluke sat three centimetres clear of the stock — a floating slab behind the shark, found
+        # by `lib.detached_parts` rather than by eye.
+        return [
+            _segment("tail.1", (0, base_y + 0.02, base_z), (0, base_y - 0.30, base_z + 0.08), 0.12, 0.13,
+                     mats["body"], overlap=1.15),
+            wedge("tail.2", (0, base_y - 0.42, base_z + 0.16), (0.035, 0.26, 0.34), mats["accent"]),
+        ]
+    # thick — a kangaroo's counterweight, thinning as it goes and resting toward the ground
+    #
+    # The segments overlap generously on purpose. They used to meet with about two centimetres to
+    # spare, which held while the tail was static and came apart the moment it was animated: the
+    # hop swings the tail through nineteen degrees and the render showed three brown blobs
+    # trailing behind a kangaroo they were no longer attached to. Overlap is what lets a chain of
+    # spheres bend without opening a seam.
+    return [
+        sphere("tail.1", (0, base_y - 0.16, base_z - 0.03), (0.21, 0.32, 0.20), mats["body"]),
+        sphere("tail.2", (0, base_y - 0.38, base_z - 0.12), (0.17, 0.30, 0.16), mats["body"]),
+        sphere("tail.3", (0, base_y - 0.56, base_z - 0.20), (0.13, 0.26, 0.12), mats["accent"]),
+    ]
+
+
+def _jaw_bone(top, forward):
+    """
+    A jaw bone under the head, pointing down the snout.
+
+    The renderer drives this by name from each speaker's own measured mic level, so a model
+    without it is a model that cannot lip sync — which is how the first version of these files
+    came out, and the feature quietly stopped working for anyone using an art pack. Automatic
+    weights pick up the snout, nose and beak geometry because they sit closest to it.
+    """
+    return [("jaw", (0, forward + 0.05, top - 0.07), (0, forward + 0.28, top - 0.11), "head")]
+
+
+def _tail_bones(spec, base_z, base_y, parent):
+    # One chain per tail shape, and the count has to match `_tail_parts` or a segment ends up
+    # weighted to the wrong bone and trails behind the rest of the tail when it swings.
+    shape = _trait(spec, "tail", {"stub", "bushy", "thick", "thin", "fin"})
+    if shape == "stub":
+        return [("tail.1", (0, base_y, base_z), (0, base_y - 0.22, base_z), parent)]
+    if shape == "bushy":
+        return [
+            ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.08), parent),
+            ("tail.2", (0, base_y - 0.26, base_z + 0.08), (0, base_y - 0.52, base_z + 0.16), "tail.1"),
+        ]
+    if shape == "fin":
+        return [
+            ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.06), parent),
+            ("tail.2", (0, base_y - 0.26, base_z + 0.06), (0, base_y - 0.52, base_z + 0.14), "tail.1"),
+        ]
+    if shape == "thin":
+        # Carried level, so the chain runs straight back instead of dropping away like `thick`.
+        return [
+            ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z + 0.01), parent),
+            ("tail.2", (0, base_y - 0.26, base_z + 0.01), (0, base_y - 0.50, base_z + 0.02), "tail.1"),
+            ("tail.3", (0, base_y - 0.50, base_z + 0.02), (0, base_y - 0.72, base_z + 0.02), "tail.2"),
+        ]
+    return [
+        ("tail.1", (0, base_y, base_z), (0, base_y - 0.26, base_z - 0.08), parent),
+        ("tail.2", (0, base_y - 0.26, base_z - 0.08), (0, base_y - 0.50, base_z - 0.18), "tail.1"),
+        ("tail.3", (0, base_y - 0.50, base_z - 0.18), (0, base_y - 0.70, base_z - 0.26), "tail.2"),
+    ]
+
+
+# --------------------------------------------------------------------------------------------
+# Body plans
+# --------------------------------------------------------------------------------------------
+
+
+def _limb(name, a, b, width, depth, mat):
+    """
+    A box running from joint `a` to joint `b` in the sagittal plane (x fixed, y forward, z up).
+
+    Limbs used to be axis-aligned boxes, which is why every hind leg stood dead vertical: there
+    is no way to draw a Z-folded leg out of boxes that can only point straight down. This builds
+    the box along the segment between two joints, so the rig and the mesh are described by the
+    same two points and cannot disagree about where a knee is.
+    """
+    ay, az = a[1], a[2]
+    by, bz = b[1], b[2]
+    dy, dz = ay - by, az - bz
+    length = math.hypot(dy, dz)
+    # Rotating +Z by `angle` about X gives (0, -sin, cos); solve for the direction b -> a.
+    angle = math.atan2(-dy, dz)
+    centre = (a[0], (ay + by) / 2, (az + bz) / 2)
+    return box(name, centre, (width, depth, length + width * 0.5), mat, rotation=(angle, 0, 0))
+
+
+def _segment(name, a, b, width, depth, mat, overlap=1.3):
+    """
+    An ellipsoid laid along the segment from `a` to `b` (sagittal plane), for muscle and tail.
+
+    `overlap` lengthens it past both joints so a chain of them bends without opening a seam — the
+    tail's own history: segments that met with two centimetres to spare came apart the moment the
+    hop swung them, and read as a kangaroo followed by three loose lumps.
+    """
+    ay, az = a[1], a[2]
+    by, bz = b[1], b[2]
+    dy, dz = ay - by, az - bz
+    length = math.hypot(dy, dz) * overlap
+    angle = math.atan2(-dy, dz)
+    centre = (a[0], (ay + by) / 2, (az + bz) / 2)
+    return sphere(name, centre, (width, depth, length), mat, rotation=(angle, 0, 0))
+
+
+def _kangaroo_tail(spec, mats, rump):
+    """
+    The heavy tail a kangaroo rests on, as parts and bones together.
+
+    Only for `thick` tails on hoppers. The generic thick tail drooped about twenty centimetres and
+    stopped in mid-air, which is a wolf's tail on a kangaroo; a real one runs down to the ground
+    and takes weight when standing — the third leg of the tripod, and half of the silhouette.
+    """
+    x, y, z = rump
+    joints = [(x, y, z), (x, y - 0.26, z - 0.20), (x, y - 0.50, z - 0.42), (x, y - 0.74, z - 0.58)]
+    sizes = [(0.24, 0.36, 0.24), (0.19, 0.34, 0.18), (0.14, 0.32, 0.13), (0.10, 0.26, 0.09)]
+    parts, bones = [], []
+    for i in range(3):
+        width = sizes[i][0]
+        colour = mats["accent"] if i == 2 else mats["body"]
+        parts.append(_segment(f"tail.{i + 1}", joints[i], joints[i + 1], width, width * 0.95, colour, overlap=1.55))
+        bones.append((f"tail.{i + 1}", joints[i], joints[i + 1], "hips" if i == 0 else f"tail.{i}"))
+    # The tip, where the tail meets the ground.
+    parts.append(sphere("tail.tip", joints[3], (0.10, 0.14, 0.09), mats["accent"]))
+    return parts, bones
+
+
+def build_hopper(spec, mats):
+    """
+    Kangaroo, frog and raptor: a body leaning out over Z-folded hind legs, the tail behind.
+
+    The shape is the one the procedural avatar's `PLANS.hopper` already describes and the
+    generated model never had: haunches low and back, the thigh running forward-down to a knee
+    under the belly, the shin running back-down to a raised hock, a long foot forward along the
+    ground, the torso leaning out over the toes, small forearms held in front of the chest. The
+    first version stacked the body vertically on two straight boxes, and in real gameplay frames
+    the player's kangaroo read as a robot on stilts from behind — the single most-seen object in
+    the game.
+    """
+    hip_y, hip_z = -0.12, 0.74
+    # One long leaning torso over a heavy rump, rather than a stack of balls: in the first render
+    # the back read as a caterpillar of four separate lumps.
+    parts = [
+        sphere("hips", (0, -0.10, 0.74), (0.46, 0.52, 0.46), mats["body"]),
+        _segment("torso", (0, -0.06, 0.74), (0, 0.18, 1.12), 0.40, 0.40, mats["body"], overlap=1.35),
+        _segment("belly", (0, 0.06, 0.74), (0, 0.22, 1.02), 0.26, 0.22, mats["belly"], overlap=1.2),
+        _segment("neck", (0, 0.14, 1.06), (0, 0.24, 1.26), 0.20, 0.22, mats["body"], overlap=1.4),
+    ]
+    parts += _head_parts(spec, mats, 1.32, 0.26)
+
+    kangaroo_tail = spec["visual"].get("tail") == "thick"
+    if kangaroo_tail:
+        tail_parts, tail_bone_list = _kangaroo_tail(spec, mats, (0, -0.30, 0.66))
+        parts += tail_parts
+    else:
+        parts += _tail_parts(spec, mats, 0.72, -0.26)
+
+    for side, x in (("L", 0.17), ("R", -0.17)):
+        hip = (x, hip_y, hip_z)
+        knee = (x, 0.14, 0.46)
+        hock = (x, -0.16, 0.12)
+        toe = (x, 0.34, 0.045)
+        # The haunch: the widest mass of a kangaroo, sitting over the top of the thigh.
+        parts.append(sphere(f"haunch.{side}", (x * 0.9, 0.0, 0.62), (0.22, 0.42, 0.38), mats["body"]))
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.20, 0.26, mats["body"], overlap=1.35))
+        parts.append(_limb(f"shin.{side}", knee, hock, 0.12, 0.12, mats["body"]))
+        parts.append(box(f"foot.{side}", (x, (hock[1] + toe[1]) / 2, 0.045), (0.14, toe[1] - hock[1] + 0.06, 0.09), mats["accent"]))
+        shoulder = (x * 0.6, 0.22, 1.06)
+        paw = (x * 0.7, 0.38, 0.84)
+        parts.append(_limb(f"arm.{side}", shoulder, paw, 0.08, 0.08, mats["body"]))
+        parts.append(sphere(f"paw.{side}", paw, (0.09, 0.09, 0.08), mats["accent"]))
+
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", (0, hip_y, hip_z), (0, 0.02, 0.90), "root"),
+        ("spine", (0, 0.02, 0.90), (0, 0.20, 1.10), "hips"),
+        ("head", (0, 0.20, 1.12), (0, 0.30, 1.42), "spine"),
+    ]
+    bones += _jaw_bone(1.32, 0.26)
+    if kangaroo_tail:
+        bones += tail_bone_list
+    else:
+        bones += _tail_bones(spec, 0.72, -0.26, "hips")
+    for side, x in (("L", 0.17), ("R", -0.17)):
+        bones += [
+            (f"thigh.{side}", (x, hip_y, hip_z), (x, 0.14, 0.46), "hips"),
+            (f"shin.{side}", (x, 0.14, 0.46), (x, -0.16, 0.12), f"thigh.{side}"),
+            (f"foot.{side}", (x, -0.16, 0.10), (x, 0.34, 0.04), f"shin.{side}"),
+            (f"arm.{side}", (x * 0.6, 0.22, 1.06), (x * 0.7, 0.38, 0.84), "spine"),
+        ]
+    # The back of the leaning chest, where a pack rests: the chest sphere is centred on
+    # (0, 0.14, 1.01) and 0.38 deep (a diameter), so its back surface is near y = -0.05.
+    sockets = _head_sockets(1.32, 0.26)
+    sockets["socket_back"] = ("spine", (0, -0.05, 1.02))
+    sockets.update(_hand_sockets("arm", lambda x: (x * 0.7, 0.38, 0.84), 0.17))
+    return parts, bones, "hopper", sockets
+
+
+def build_upright(spec, mats):
+    """
+    Human, lion, deer, raccoon, koala, shark, dragon: a vertical torso on two straight legs.
+
+    Built the same way as the hopper — every limb is laid along the segment between its two
+    joints — so thighs taper into shins and arms hang from shoulders with the hand at the hip,
+    rather than the square pillars and box arms of the first version.
+
+    Proportions are an animal's standing up, not a mannequin's: a barrel of a torso, thighs as
+    wide as the hip joint they hang from, arms thick enough to touch the body, and rounded paws.
+    Rendered side by side, the first draft of this plan read as seven identical action figures
+    wearing different heads.
+    """
+    feature = _feature(spec)
+    longneck = feature == "longneck"
+    # A long neck carries the head up and forward off the shoulders, so it is seen from the side
+    # as a neck rather than as a head resting on a collar.
+    top, forward = (1.48, 0.20) if longneck else (1.38, 0.02)
+    parts = [
+        sphere("hips", (0, -0.01, 0.86), (0.40, 0.30, 0.28), mats["body"]),
+        _segment("torso", (0, 0, 0.84), (0, 0.01, 1.24), 0.46, 0.32, mats["body"], overlap=1.2),
+        _segment("belly", (0, 0.10, 0.90), (0, 0.11, 1.14), 0.30, 0.20, mats["belly"], overlap=1.1),
+        # No neck part on a short-necked plan. The first draft had one, sitting entirely inside
+        # the shoulders and the skull, so it drew nothing — and a closed island no bone can see
+        # gives heat weighting a singular block. Whether that solve fails then depends on
+        # summation order: 3 skins in 320, each leaving over a thousand vertices on no bone.
+        # `lib.hidden_parts` refuses such a part at build time now.
+        sphere("shoulders", (0, 0, 1.20), (0.52, 0.26, 0.18), mats["body"]),
+    ]
+    if longneck:
+        # Pinned to its own bone (below): it spans exactly that bone, so riding it rigidly is the
+        # right deformation, and it keeps the neck out of the heat solve — see the bone's comment.
+        parts.append(lib.pin(_segment("neck", (0, 0.0, 1.16), (0, forward - 0.03, top - 0.08), 0.17, 0.18,
+                                      mats["body"], overlap=1.2), "neck"))
+    if feature == "dorsal":
+        # A shark's fin, on a back that is vertical because this shark stands up: turned a quarter
+        # turn about X so its base runs up the spine and its point sweeps down toward the tail.
+        parts.append(lib.pin(wedge("dorsal", (0, -0.25, 1.06), (0.04, 0.34, 0.24), mats["accent"],
+                                   rotation=(math.radians(90), 0, 0)), "spine"))
+    parts += _head_parts(spec, mats, top, forward)
+    parts += _tail_parts(spec, mats, 0.86, -0.02)
+
+    for side, x in (("L", 0.13), ("R", -0.13)):
+        hip, knee, ankle = (x, 0, 0.86), (x, 0.03, 0.47), (x, 0, 0.09)
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.21, 0.22, mats["body"], overlap=1.2))
+        parts.append(_segment(f"shin.{side}", knee, ankle, 0.15, 0.16, mats["body"], overlap=1.15))
+        parts.append(sphere(f"foot.{side}", (x, 0.07, 0.05), (0.15, 0.30, 0.11), mats["accent"]))
+        sx = x * 1.9
+        shoulder, elbow, hand = (sx, 0, 1.18), (sx * 1.06, 0.02, 0.96), (sx * 1.06, 0.06, 0.77)
+        parts.append(_segment(f"upperarm.{side}", shoulder, elbow, 0.13, 0.13, mats["body"], overlap=1.25))
+        parts.append(_segment(f"forearm.{side}", elbow, hand, 0.11, 0.11, mats["body"], overlap=1.2))
+        parts.append(sphere(f"hand.{side}", hand, (0.12, 0.12, 0.12), mats["accent"]))
+
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", (0, 0, 0.86), (0, 0, 1.02), "root"),
+        ("spine", (0, 0, 1.02), (0, 0, 1.20), "hips"),
+    ]
+    if longneck:
+        # A neck bone of its own, the way the quadrupeds have one. With a single head bone
+        # running 0.41 m from inside the shoulders through the neck into the skull, heat
+        # weighting failed on 9 dragon builds in 40 — and on no other animal in 640.
+        neck_top = (0, forward - 0.03, top - 0.10)
+        bones += [
+            ("neck", (0, 0, 1.20), neck_top, "spine"),
+            ("head", neck_top, (0, forward, top + 0.08), "neck"),
+        ]
+    else:
+        bones.append(("head", (0, 0, 1.20), (0, forward, top + 0.08), "spine"))
+    bones += _jaw_bone(top, forward)
+    bones += _tail_bones(spec, 0.86, -0.02, "hips")
+    for side, x in (("L", 0.13), ("R", -0.13)):
+        sx = x * 1.9
+        bones += [
+            (f"thigh.{side}", (x, 0, 0.86), (x, 0.03, 0.47), "hips"),
+            (f"shin.{side}", (x, 0.03, 0.47), (x, 0, 0.10), f"thigh.{side}"),
+            (f"foot.{side}", (x, 0, 0.08), (x, 0.24, 0.04), f"shin.{side}"),
+            (f"arm.{side}", (sx, 0, 1.18), (sx * 1.06, 0.06, 0.77), "spine"),
+        ]
+    # Torso 0.32 deep (a diameter): the back surface is y = -0.16 at chest height.
+    sockets = _head_sockets(top, forward)
+    sockets["socket_back"] = ("spine", (0, -0.16, 1.10))
+    sockets.update(_hand_sockets("arm", lambda x: (x * 1.9 * 1.06, 0.06, 0.77), 0.13))
+    return parts, bones, "upright", sockets
+
+
+def build_waddler(spec, mats):
+    """
+    Penguin, bear, panda: a tall egg of a body on short legs.
+
+    It used to be `build_upright` with a wider chest, which kept a person's leg length — so the
+    penguin walked on two long black stilts and the bear and panda had the penguin's flippers for
+    arms. `PLANS.waddler` in the procedural avatar already puts the hip at 0.29 m; this matches it.
+    Every animal still fills the same capsule (fairness), so a waddler is tall by being mostly body.
+
+    Forelimbs come from `visual.forelimbs`: flippers are a penguin's, not a property of the plan.
+    """
+    v = spec["visual"]
+    flippers = v.get("forelimbs", "arms") == "flippers"
+    # A panda is a white bear in black stockings with a black saddle over the shoulders; without
+    # that it rendered as a polar bear. Limbs take the accent colour and a band crosses the back.
+    patches = _feature(spec) == "patches"
+    limb = mats["accent"] if patches else mats["body"]
+    top, forward = 1.30, 0.04
+    parts = [
+        _segment("body", (0, 0, 0.28), (0, 0.02, 1.16), 0.62, 0.52, mats["body"], overlap=1.12),
+        # The pale front is what makes a penguin a penguin (and a panda's chest a panda's). Set
+        # just inside the egg it was 98 % hidden on the penguin; it sits forward enough now that
+        # the whole front of the body reads as belly.
+        _segment("belly", (0, 0.19, 0.36), (0, 0.20, 1.02), 0.46, 0.30, mats["belly"], overlap=1.05),
+    ]
+    if patches:
+        # The saddle: a band a little proud of the egg at shoulder height, pinned to the spine so
+        # it moves with the chest. The pale belly still shows through in front.
+        parts.append(lib.pin(sphere("saddle", (0, -0.01, 1.00), (0.66, 0.56, 0.20), mats["accent"]), "spine"))
+    parts += _head_parts(spec, mats, top, forward)
+    # Against the egg where the egg is: at hip height it has narrowed to 0.18 m deep, and a tail
+    # placed for its widest point hung twelve centimetres behind every penguin, bear and panda.
+    parts += _tail_parts(spec, mats, 0.50, -0.10)
+
+    for side, x in (("L", 0.15), ("R", -0.15)):
+        hip, knee, ankle = (x, 0, 0.36), (x, 0.03, 0.20), (x, 0, 0.07)
+        parts.append(_segment(f"thigh.{side}", hip, knee, 0.15, 0.16, limb, overlap=1.3))
+        parts.append(_segment(f"shin.{side}", knee, ankle, 0.12, 0.13, limb, overlap=1.3))
+        parts.append(box(f"foot.{side}", (x, 0.08, 0.035), (0.16, 0.28, 0.07), mats["accent"]))
+        sx = 0.30 if side == "L" else -0.30
+        if flippers:
+            # A wing hanging from the shoulder and held away from the body at the tip, flat, so it
+            # reads as a flipper edge-on. The first version tilted the other way — tips pinned to
+            # the sides and the tops sticking out, a V — and in the accent colour, which on a
+            # penguin is the beak's yellow: two yellow sticks either side of the head.
+            parts.append(box(f"arm.{side}", (sx * 1.05, 0.0, 0.86), (0.05, 0.18, 0.46), mats["body"],
+                             rotation=(0, math.radians(-14 if side == "L" else 14), 0)))
+        else:
+            shoulder, paw = (sx, 0.04, 1.02), (sx * 1.1, 0.16, 0.74)
+            parts.append(_segment(f"arm.{side}", shoulder, paw, 0.14, 0.14, limb, overlap=1.2))
+            parts.append(sphere(f"paw.{side}", paw, (0.13, 0.13, 0.12), mats["accent"]))
+
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", (0, 0, 0.36), (0, 0, 0.72), "root"),
+        ("spine", (0, 0, 0.72), (0, 0.01, 1.14), "hips"),
+        ("head", (0, 0.01, 1.14), (0, 0.04, 1.42), "spine"),
+    ]
+    bones += _jaw_bone(top, forward)
+    bones += _tail_bones(spec, 0.50, -0.10, "hips")
+    for side, x in (("L", 0.15), ("R", -0.15)):
+        sx = 0.30 if side == "L" else -0.30
+        bones += [
+            (f"thigh.{side}", (x, 0, 0.36), (x, 0.03, 0.20), "hips"),
+            (f"shin.{side}", (x, 0.03, 0.20), (x, 0, 0.08), f"thigh.{side}"),
+            (f"foot.{side}", (x, 0, 0.07), (x, 0.22, 0.03), f"shin.{side}"),
+            (f"arm.{side}", (sx, 0.04, 1.08), (sx * 1.1, 0.12, 0.66), "spine"),
+        ]
+    # The egg is 0.52 deep (a diameter): its back surface is y = -0.26 at chest height.
+    sockets = _head_sockets(top, forward)
+    sockets["socket_back"] = ("spine", (0, -0.25, 0.96))
+    if flippers:
+        sockets.update(_hand_sockets("arm", lambda x: (x * 2.2, 0.0, 0.66), 0.15))
+    else:
+        sockets.update(_hand_sockets("arm", lambda x: (x * 2.2, 0.16, 0.74), 0.15))
+    return parts, bones, "waddler", sockets
+
+
+def build_quadruped(spec, mats):
+    """
+    Wolf, fox, tiger: a horizontal spine carried on four legs.
+
+    One continuous barrel from haunch to chest, and legs that taper from a muscled top to a slim
+    wrist. It was three equal spheres in a row on four square pillars, which in a side render read
+    as a caterpillar on table legs — the same defect the kangaroo's back had. The joints, and so
+    the bones and every clip, are where they were.
+    """
+    parts = [
+        _segment("barrel", (0, -0.36, 0.93), (0, 0.24, 0.97), 0.38, 0.38, mats["body"], overlap=1.22),
+        sphere("chest", (0, 0.20, 0.95), (0.42, 0.42, 0.44), mats["body"]),
+        sphere("hips", (0, -0.32, 0.94), (0.38, 0.34, 0.36), mats["body"]),
+        sphere("underside", (0, -0.04, 0.80), (0.28, 0.56, 0.16), mats["belly"]),
+        cone("neck", (0, 0.44, 1.12), 0.17, 0.13, 0.32, mats["body"], vertices=8,
+             rotation=(math.radians(58), 0, 0)),
+    ]
+    parts += _head_parts(spec, mats, 1.30, 0.58)
+    parts += _tail_parts(spec, mats, 0.96, -0.34)
+
+    # Front legs sit under the chest, hind legs under the hips; a hind thigh is deeper than a
+    # foreleg because that is where the drive comes from.
+    for side, x in (("L", 0.19), ("R", -0.19)):
+        for tag, y, thigh in (("front", 0.26, (0.15, 0.17)), ("back", -0.30, (0.17, 0.24))):
+            parts.append(_segment(f"{tag}upper.{side}", (x, y, 0.88), (x, y, 0.50), thigh[0], thigh[1],
+                                  mats["body"], overlap=1.2))
+            # Down into the paw: the first version's shin stopped five centimetres above it, and
+            # every wolf, fox and tiger stood on four paws floating free of its legs.
+            parts.append(_segment(f"{tag}lower.{side}", (x, y, 0.50), (x, y, 0.08), 0.11, 0.12,
+                                  mats["body"], overlap=1.15))
+            parts.append(sphere(f"{tag}paw.{side}", (x, y + 0.05, 0.05), (0.14, 0.22, 0.11), mats["accent"]))
+
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", (0, -0.34, 0.94), (0, -0.06, 0.94), "root"),
+        ("spine", (0, -0.06, 0.94), (0, 0.24, 0.98), "hips"),
+        ("neck", (0, 0.24, 0.98), (0, 0.48, 1.18), "spine"),
+        ("head", (0, 0.48, 1.18), (0, 0.72, 1.30), "neck"),
+    ]
+    bones += _jaw_bone(1.30, 0.58)
+    bones += _tail_bones(spec, 0.96, -0.34, "hips")
+    for side, x in (("L", 0.19), ("R", -0.19)):
+        for tag, y, parent in (("front", 0.26, "spine"), ("back", -0.30, "hips")):
+            bones += [
+                (f"{tag}upper.{side}", (x, y, 0.84), (x, y, 0.50), parent),
+                (f"{tag}lower.{side}", (x, y, 0.50), (x, y, 0.12), f"{tag}upper.{side}"),
+                (f"{tag}paw.{side}", (x, y, 0.10), (x, y + 0.20, 0.05), f"{tag}lower.{side}"),
+            ]
+    # On four legs the back is the *top* of the barrel — centred at z 0.94 and 0.38 tall — so a
+    # pack rides on it at z 1.13 rather than hanging off the rump.
+    sockets = _head_sockets(1.30, 0.58)
+    sockets["socket_back"] = ("spine", (0, -0.06, 1.13))
+    sockets.update(_hand_sockets("frontpaw", lambda x: (x, 0.31, 0.06), 0.19))
+    return parts, bones, "quadruped", sockets
+
+
+"""
+Every body plan `AnimalVisual.build` can name, including `quadruped` explicitly.
+
+It used to be looked up as `PLANS.get(plan_name, build_quadruped)` with no `quadruped` key, so an
+animal that declared nothing became a quadruped here while `Avatar.ts`'s procedural fallback made
+the same animal an `upright`. The wolf, the fox and the tiger were the three that declared
+nothing: four legs from their `.glb`, two legs when it failed to load. `build` is required in the
+type now and this table has no default, so neither renderer can invent one again.
+"""
+# --------------------------------------------------------------------------------------------
+# Source meshes: a sculpted body on the same skeleton
+# --------------------------------------------------------------------------------------------
+
+REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+SOURCES = os.path.join(REPO, "assets", "meshy", "animals")
+
+"""
+A source entry is art data, like the prompt that made the mesh: where each joint of the body
+plan's skeleton sits on that particular sculpt, after `_import_source` has normalised it (facing
++Y, feet on z = 0, the animal's height to its highest point, centred on x and, with `center_y`, on
+the middle of its feet). The skeleton, the bone names and therefore every clip and socket are the
+plan's own, so a sculpted wolf moves exactly as the primitive one did.
+
+`tools/blender/landmarks.py` proposes the joints by filling the mesh with voxels and following its
+legs up from the ground; each entry was then checked on a gridded render with the joints overlaid
+and corrected by hand. The build never measures anything, so a rebuild cannot move a joint.
+
+Keys, all optional unless the plan needs them:
+
+    spine      (rump, mid, withers): the hips and spine bones
+    neck       a point: a neck bone from the withers to it, which the head then hangs from
+    head       (start, end); jaw (start, end), derived from the head when absent
+    tail       joints from the root to the tip
+    leg, arm   biped (hopper / upright / waddler): (hip, knee, ankle, toe) and (shoulder, hand).
+               `arm: None` means forelimbs moulded against the body, which no arm bone can lift
+               away (the frog's) — they ride the spine, and the hand sockets with them.
+    foreleg, hindleg   quadruped: (top, knee, wrist or hock, toe)
+    A limb is the left side, mirrored for the right, or {"L": ..., "R": ...} when the sculpt is not
+    symmetric — Meshy's symmetry is not a mirror, and a hind leg a pace behind its twin skins badly
+    onto a mirrored bone.
+    arm_rest   degrees from straight down the arms are lowered to before the rest pose is fixed: a
+               sculpt asked for in an A-pose so its armpits can be skinned stands, at rest, like a
+               scarecrow, which is the mannequin look the arm clips were written to get rid of.
+    crown, face, back   the hat, glasses and pack sockets; eyes (left side), nose
+    paint      first-match colour rules (`_matches`); body colour where none matches
+    pins       rules whose faces ride one bone rigidly: antlers, wings, a mane's outline
+"""
+SOURCE_MESHES = {
+    "kangaroo": {
+        "path": os.path.join(SOURCES, "kangaroo.glb"),
+        "plan": "hopper",
+        "height": 1.75,
+        "triangles": 3900,
+        "spine": ((0, -0.10, 0.74), (0, 0.0, 0.92), (0, 0.26, 1.30)),
+        "head": ((0, 0.31, 1.32), (0, 0.42, 1.62)),
+        "jaw": ((0, 0.47, 1.47), (0, 0.66, 1.43)),
+        "leg": ((0.13, -0.10, 0.78), (0.13, 0.12, 0.52), (0.13, -0.04, 0.10), (0.17, 0.46, 0.02)),
+        "arm": ((0.12, 0.28, 1.15), (0.07, 0.37, 0.87)),
+        # Down from the rump, then back along the ground: two bones for the part lying on it, or one
+        # 0.4 m bone carries the whole ground run and the tail can only swing it as a stick.
+        "tail": ((0, -0.17, 0.56), (0, -0.16, 0.30), (0, -0.22, 0.07), (0, -0.44, 0.03), (0, -0.64, 0.02)),
+        "crown": (0, 0.44, 1.60),
+        "face": (0, 0.56, 1.53),
+        "back": (0, -0.13, 1.08),
+        "paint": [
+            {"mat": "dark", "sphere": (0.055, 0.53, 1.53), "r": 0.028},
+            {"mat": "dark", "sphere": (0, 0.665, 1.455), "r": 0.035},
+            {"mat": "accent", "box": ((-9, -0.12, -9), (9, 9, 0.045))},  # soles and toes
+            {"mat": "accent", "box": ((-9, -9, -9), (9, -0.48, 0.1))},  # tail tip
+            {"mat": "accent", "sphere": (0.07, 0.37, 0.87), "r": 0.06},  # paws
+            # The arms lie against the chest, and a rule written for "front of the torso" paints
+            # them cream along with it.
+            {"mat": "body", "capsule": ((0.12, 0.28, 1.15), (0.07, 0.37, 0.87)), "r": 0.05},
+            # Chest and belly: the front of a torso that leans forward as it rises.
+            {"mat": "belly", "box": ((-0.12, -9, 0.6), (0.12, 9, 1.36)),
+             "plane": ((0, 0.10, 0.9), (0, 1, -0.57)), "normal": ((0, 1, 0), 0.45)},
+        ],
+    },
+    "wolf": {
+        "path": os.path.join(SOURCES, "wolf.glb"),
+        "plan": "quadruped",
+        "height": 1.58,
+        "triangles": 3900,
+        "center_y": -0.017,
+        "spine": ((0, -0.583, 0.895), (0, -0.103, 0.923), (0, 0.357, 0.973)),
+        "neck": (0, 0.702, 1.27),
+        "head": ((0, 0.702, 1.27), (0, 1.142, 1.15)),
+        # The sculpt's hind legs stand a pace apart, so each side is its own measurement.
+        "foreleg": {"L": ((0.127, 0.352, 0.78), (0.125, 0.355, 0.45), (0.123, 0.357, 0.12), (0.145, 0.517, 0.02)),
+                    "R": ((-0.122, 0.376, 0.78), (-0.118, 0.404, 0.45), (-0.113, 0.433, 0.12), (-0.13, 0.597, 0.02))},
+        "hindleg": {"L": ((0.141, -0.433, 0.82), (0.151, -0.423, 0.56), (0.13, -0.57, 0.28), (0.184, -0.323, 0.04)),
+                    "R": ((-0.142, -0.448, 0.8), (-0.155, -0.464, 0.56), (-0.127, -0.662, 0.3), (-0.182, -0.483, 0.04))},
+        "tail": ((0, -0.695, 0.906), (0, -0.779, 0.778), (0, -0.834, 0.538), (0, -0.931, 0.359), (0, -1.038, 0.218)),
+        "crown": (0, 0.82, 1.498),
+        "face": (0, 0.981, 1.38),
+        "back": (0, -0.056, 1.172),
+        "paint": [
+            {"mat": "dark", "sphere": (0.071, 0.981, 1.341), "r": 0.024},
+            {"mat": "dark", "sphere": (0, 1.142, 1.15), "r": 0.035},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},  # paws
+            {"mat": "accent", "sphere": (0, -1.038, 0.218), "r": 0.13},  # tail tip
+            {"mat": "accent", "box": ((0.05, 0.72, 1.44), (0.4, 0.98, 1.7))},  # ears
+            # Pale throat, chest and the underside of the muzzle and barrel: a grey wolf's markings.
+            {"mat": "belly", "box": ((0, 0.95, 1.0), (0.1, 1.3, 1.2)), "normal": ((0, 0, -1), 0.3)},
+            {"mat": "belly", "box": ((0, 0.35, 0.55), (0.13, 0.98, 1.25)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.55, 0.5), (0.2, 0.35, 0.95)), "normal": ((0, 0, -1), 0.5)},
+        ],
+    },
+    "fox": {
+        "path": os.path.join(SOURCES, "fox.glb"),
+        "plan": "quadruped",
+        "height": 1.58,
+        "triangles": 3900,
+        "center_y": 0.053,
+        "spine": ((0, -0.453, 0.809), (0, -0.033, 0.847), (0, 0.387, 0.888)),
+        "neck": (0, 0.662, 1.211),
+        "head": ((0, 0.662, 1.211), (0, 1.036, 1.177)),
+        "foreleg": {"L": ((0.096, 0.374, 0.74), (0.096, 0.357, 0.43), (0.095, 0.34, 0.12), (0.105, 0.467, 0.02)),
+                    "R": ((-0.114, 0.406, 0.74), (-0.112, 0.432, 0.43), (-0.11, 0.457, 0.12), (-0.11, 0.587, 0.02))},
+        "hindleg": {"L": ((0.101, -0.286, 0.78), (0.103, -0.261, 0.52), (0.12, -0.433, 0.28), (0.166, -0.273, 0.04)),
+                    "R": ((-0.123, -0.318, 0.78), (-0.124, -0.338, 0.54), (-0.123, -0.562, 0.3), (-0.155, -0.513, 0.02))},
+        "tail": ((0, -0.562, 0.798), (0, -0.648, 0.631), (0, -0.728, 0.44), (0, -0.88, 0.261), (0, -1.011, 0.114)),
+        "crown": (0, 0.685, 1.425),
+        "face": (0, 0.86, 1.36),
+        "back": (0, -0.006, 1.034),
+        "paint": [
+            {"mat": "dark", "sphere": (0.065, 0.84, 1.33), "r": 0.022},
+            {"mat": "dark", "sphere": (0, 1.036, 1.177), "r": 0.03},
+            # The white tip of the brush, and the dark "socks" and ears a red fox is drawn with.
+            {"mat": "belly", "sphere": (0, -1.011, 0.114), "r": 0.17},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.30))},
+            {"mat": "accent", "box": ((0.04, 0.6, 1.36), (0.4, 0.85, 1.7))},
+            {"mat": "belly", "box": ((0, 0.75, 1.05), (0.14, 1.1, 1.24)), "normal": ((0, 0.3, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.3, 0.5), (0.12, 0.85, 1.2)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.4, 0.45), (0.16, 0.35, 0.85)), "normal": ((0, 0, -1), 0.5)},
+        ],
+    },
+    "tiger": {
+        "path": os.path.join(SOURCES, "tiger.glb"),
+        "plan": "quadruped",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": 0.187,
+        "spine": ((0, -0.707, 0.926), (0, -0.187, 0.906), (0, 0.313, 0.965)),
+        "neck": (0, 0.562, 1.236),
+        "head": ((0, 0.562, 1.236), (0, 0.906, 1.169)),
+        "foreleg": {"L": ((0.15, 0.319, 0.7), (0.138, 0.356, 0.41), (0.127, 0.394, 0.12), (0.149, 0.573, 0.02)),
+                    "R": ((-0.145, 0.316, 0.7), (-0.133, 0.362, 0.41), (-0.122, 0.408, 0.12), (-0.142, 0.593, 0.04))},
+        "hindleg": {"L": ((0.143, -0.599, 0.78), (0.144, -0.607, 0.56), (0.122, -0.742, 0.28), (0.137, -0.547, 0.04)),
+                    "R": ((-0.146, -0.509, 0.78), (-0.152, -0.475, 0.52), (-0.116, -0.517, 0.26), (-0.149, -0.207, 0.06))},
+        "tail": ((0, -0.808, 0.94), (0, -0.892, 0.829), (0, -0.97, 0.541), (0, -1.089, 0.307), (0, -1.29, 0.297)),
+        "crown": (0, 0.578, 1.493),
+        "face": (0, 0.84, 1.36),
+        "back": (0, -0.173, 1.194),
+        "paint": [
+            {"mat": "dark", "sphere": (0.07, 0.839, 1.33), "r": 0.022},
+            {"mat": "dark", "sphere": (0, 0.9, 1.19), "r": 0.03},
+            {"mat": "accent", "sphere": (0, -1.29, 0.297), "r": 0.1},  # tail tip
+            # White chin, cheeks, chest and belly.
+            {"mat": "belly", "box": ((0, 0.65, 1.05), (0.16, 1.0, 1.3)), "normal": ((0, 0.3, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.25, 0.5), (0.14, 0.8, 1.2)), "normal": ((0, 0.6, -0.8), 0.3)},
+            {"mat": "belly", "box": ((0, -0.7, 0.4), (0.2, 0.3, 0.85)), "normal": ((0, 0, -1), 0.35)},
+            # Stripes: rings round the tail and legs, vertical bands down the flanks and back.
+            {"mat": "accent", "box": ((-9, -1.4, 0.2), (9, -0.8, 1.1)), "stripes": ((0, -0.6, 0.8), 0.11, 0.35)},
+            {"mat": "accent", "box": ((0.04, -0.8, 0.7), (9, 0.35, 1.3)), "stripes": ((0, 1, 0.25), 0.13, 0.3)},
+            {"mat": "accent", "box": ((-9, -9, 0.08), (9, 9, 0.62)), "stripes": ((0, 0.2, 1), 0.12, 0.25)},
+        ],
+    },
+    "human": {
+        "path": os.path.join(SOURCES, "human.glb"),
+        "plan": "upright",
+        "height": 1.54,
+        "triangles": 3900,
+        "center_y": -0.121,
+        "arm_rest": 22,
+        "spine": ((0, 0.014, 0.7), (0, 0.029, 0.96), (0, 0.006, 1.26)),
+        "head": ((0, 0.006, 1.3), (0, 0.05, 1.538)),
+        "nose": (0, 0.148, 1.384),
+        "leg": ((0.083, 0.013, 0.7), (0.102, -0.015, 0.4), (0.122, -0.043, 0.1), (0.135, 0.121, 0.04)),
+        "arm": ((0.12, 0.029, 1.197), (0.503, 0.256, 1.097)),
+        # Over the middle of the skull rather than its highest vertex, which is the front of the hair:
+        # a person's head is only twenty centimetres deep, and a hat belongs on top of it, not on a fringe.
+        "crown": (0, 0.02, 1.532),
+        "face": (0, 0.125, 1.449),
+        # A stub inside the small of the back, where the plan's stub tail is: tail cosmetics hang on it.
+        "tail": ((0, -0.04, 0.76), (0, -0.10, 0.72)),
+        "back": (0, -0.065, 1.01),
+        # `body` is the shirt, `accent` the shorts, `belly` skin and `dark` eyes, hair and shoes.
+        "paint": [
+            {"mat": "dark", "sphere": (0.035, 0.114, 1.45), "r": 0.013},
+            {"mat": "dark", "box": ((-9, -9, 1.49), (9, 9, 9))},
+            {"mat": "dark", "box": ((-9, -9, 1.36), (9, 0.02, 9))},
+            {"mat": "belly", "box": ((-9, -9, 1.25), (9, 9, 9))},
+            {"mat": "belly", "box": ((0.27, -9, 0.9), (9, 9, 1.4))},
+            {"mat": "dark", "box": ((-9, -9, -9), (9, 9, 0.08))},
+            {"mat": "belly", "box": ((-9, -9, -9), (9, 9, 0.45))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.72))},
+        ],
+    },
+    "lion": {
+        "path": os.path.join(SOURCES, "lion.glb"),
+        "plan": "upright",
+        "height": 1.63,
+        "triangles": 3900,
+        "center_y": -0.06,
+        "arm_rest": 25,
+        "spine": ((0, 0.019, 0.64), (0, 0.011, 0.837), (0, -0.021, 1.06)),
+        "head": ((0, -0.021, 1.1), (0, 0.007, 1.629)),
+        "nose": (0, 0.39, 1.35),
+        "leg": ((0.127, 0.018, 0.64), (0.161, -0.017, 0.37), (0.194, -0.052, 0.1), (0.218, 0.12, 0.04)),
+        "arm": ((0.18, -0.013, 1.101), (0.512, 0.278, 1.092)),
+        "crown": (0, 0.0, 1.629),
+        "face": (0, 0.26, 1.45),
+        "tail": ((0, -0.10, 0.62), (0, -0.18, 0.58)),
+        "back": (0, -0.1, 0.884),
+        "paint": [
+            {"mat": "dark", "sphere": (0.07, 0.235, 1.45), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.39, 1.36), "r": 0.03},
+            # The face stays gold inside a brown mane that you can see from the far ridge.
+            {"mat": "body", "box": ((0, 0.2, 1.22), (0.15, 9, 1.56))},
+            {"mat": "accent", "box": ((0, -9, 1.12), (0.3, 9, 9))},
+            {"mat": "accent", "box": ((0, -9, 0.55), (0.3, 9, 0.9))},  # the hide round its hips
+        ],
+    },
+    "raccoon": {
+        "path": os.path.join(SOURCES, "raccoon.glb"),
+        "plan": "upright",
+        "height": 1.66,
+        "triangles": 3900,
+        "center_y": -0.01,
+        "arm_rest": 25,
+        "spine": ((0, -0.079, 0.3), (0, -0.076, 0.679), (0, -0.078, 1.08)),
+        "head": ((0, -0.078, 1.12), (0, -0.043, 1.604)),
+        "nose": (0, 0.348, 1.29),
+        "leg": ((0.165, -0.052, 0.3), (0.171, -0.071, 0.2), (0.176, -0.09, 0.1), (0.214, 0.13, 0.04)),
+        "arm": ((0.28, 0.168, 0.987), (0.468, 0.377, 1.041)),
+        "crown": (0, -0.05, 1.6),
+        "face": (0, 0.24, 1.43),
+        "tail": ((0, -0.30, 0.55), (0, -0.36, 0.40), (0, -0.40, 0.22), (0, -0.43, 0.08)),
+        "back": (0, -0.31, 0.76),
+        "paint": [
+            {"mat": "dark", "sphere": (0, 0.348, 1.29), "r": 0.03},
+            # The mask, a white muzzle under it, and the ringed tail the description promises.
+            {"mat": "accent", "box": ((0, 0.08, 1.37), (0.2, 9, 1.49)), "normal": ((0, 1, 0), 0.0)},
+            {"mat": "belly", "box": ((0, 0.2, 1.22), (0.12, 9, 1.37))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, -0.28, 0.65)), "stripes": ((0, 0.45, 1), 0.1, 0.4)},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},
+            {"mat": "accent", "sphere": (0.468, 0.377, 1.041), "r": 0.08},
+            {"mat": "belly", "box": ((0, 0.05, 0.4), (0.14, 9, 1.1)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "koala": {
+        "path": os.path.join(SOURCES, "koala.glb"),
+        "plan": "upright",
+        "height": 1.62,
+        "triangles": 3900,
+        "center_y": -0.071,
+        "arm_rest": 25,
+        "spine": ((0, -0.053, 0.42), (0, -0.054, 0.699), (0, -0.05, 1.02)),
+        "head": ((0, -0.05, 1.06), (0, -0.015, 1.555)),
+        "nose": (0, 0.315, 1.22),
+        "leg": ((0.145, -0.025, 0.42), (0.15, -0.027, 0.26), (0.155, -0.029, 0.1), (0.197, 0.091, 0.04)),
+        "arm": ((0.22, 0.164, 0.949), (0.388, 0.326, 0.992)),
+        "crown": (0, -0.011, 1.555),
+        "face": (0, 0.24, 1.38),
+        "tail": ((0, -0.15, 0.45), (0, -0.22, 0.42)),
+        "back": (0, -0.254, 0.9),
+        "paint": [
+            {"mat": "dark", "sphere": (0.08, 0.215, 1.38), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.315, 1.22), "r": 0.065},
+            {"mat": "belly", "box": ((0.18, -9, 1.3), (9, 9, 9)), "normal": ((0, 1, 0), 0.2)},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.06))},
+            {"mat": "accent", "sphere": (0.388, 0.326, 0.992), "r": 0.075},
+            {"mat": "belly", "box": ((0, 0.05, 0.5), (0.15, 9, 1.12)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "bear": {
+        "path": os.path.join(SOURCES, "bear.glb"),
+        "plan": "waddler",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": -0.047,
+        "arm_rest": 30,
+        "spine": ((0, -0.048, 0.32), (0, -0.005, 0.679), (0, -0.027, 1.04)),
+        "head": ((0, -0.027, 1.08), (0, -0.007, 1.517)),
+        "nose": (0, 0.311, 1.239),
+        "leg": ((0.153, -0.027, 0.32), (0.151, -0.043, 0.21), (0.148, -0.058, 0.1), (0.157, 0.167, 0.04)),
+        "arm": ((0.26, 0.115, 0.898), (0.501, 0.322, 0.834)),
+        "crown": (0, -0.03, 1.517),
+        "face": (0, 0.2, 1.38),
+        "tail": ((0, -0.22, 0.40), (0, -0.30, 0.36)),
+        "back": (0, -0.233, 0.784),
+        "paint": [
+            {"mat": "dark", "sphere": (0.08, 0.168, 1.38), "r": 0.02},
+            {"mat": "dark", "sphere": (0, 0.311, 1.239), "r": 0.04},
+            {"mat": "belly", "sphere": (0, 0.27, 1.24), "r": 0.09},  # the pale muzzle
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.07))},
+            {"mat": "accent", "sphere": (0.501, 0.322, 0.834), "r": 0.09},
+        ],
+    },
+    "panda": {
+        "path": os.path.join(SOURCES, "panda.glb"),
+        "plan": "waddler",
+        "height": 1.55,
+        "triangles": 3900,
+        "center_y": -0.015,
+        "arm_rest": 30,
+        # No neck to find — the skull sits straight on the shoulders — so the head pivots where they meet.
+        "spine": ((0, -0.016, 0.34), (0, 0.027, 0.799), (0, 0.04, 1.08)),
+        "head": ((0, 0.04, 1.12), (0, 0.021, 1.506)),
+        "nose": (0, 0.274, 1.354),
+        "leg": ((0.209, -0.022, 0.34), (0.216, -0.02, 0.22), (0.223, -0.018, 0.1), (0.236, 0.135, 0.06)),
+        "arm": ((0.32, 0.021, 0.87), (0.646, 0.165, 0.8)),
+        "crown": (0, 0.06, 1.506),
+        "face": (0, 0.23, 1.40),
+        "tail": ((0, -0.25, 0.52), (0, -0.36, 0.50)),
+        "back": (0, -0.194, 0.883),
+        # A white bear in black stockings, with a black saddle over the shoulders, black ears and
+        # the eye patches the flat face is recognised by.
+        "paint": [
+            {"mat": "dark", "sphere": (0, 0.274, 1.354), "r": 0.03},
+            {"mat": "accent", "sphere": (0.09, 0.205, 1.40), "r": 0.055},
+            {"mat": "accent", "box": ((0.12, -9, 1.45), (9, 9, 9))},
+            {"mat": "accent", "box": ((0.25, -9, 0.55), (9, 9, 1.15))},
+            {"mat": "accent", "box": ((-9, -9, 0.82), (9, 9, 1.05))},
+            {"mat": "accent", "box": ((-9, -9, -9), (9, 9, 0.42))},
+        ],
+    },
+    "deer": {
+        "path": os.path.join(SOURCES, "deer.glb"),
+        "plan": "upright",
+        "height": 1.79,
+        "triangles": 3900,
+        "center_y": -0.11,
+        "arm_rest": 22,
+        "spine": ((0, 0.009, 0.68), (0, 0.061, 0.917), (0, 0.094, 1.2)),
+        "head": ((0, 0.094, 1.24), (0, 0.125, 1.452)),
+        "nose": (0, 0.38, 1.318),
+        # Digitigrade: the knee forward, the hock behind, and the long bone below it is the foot.
+        "leg": ((0.101, -0.014, 0.68), (0.1, -0.052, 0.53), (0.1, -0.09, 0.38), (0.162, 0.07, 0.02)),
+        "arm": ((0.14, 0.145, 1.019), (0.476, 0.298, 1.13)),
+        "crown": (0, 0.128, 1.452),
+        "face": (0, 0.26, 1.40),
+        "tail": ((0, -0.08, 0.76), (0, -0.17, 0.76)),
+        "back": (0, -0.049, 0.983),
+        "paint": [
+            {"mat": "dark", "sphere": (0.059, 0.22, 1.40), "r": 0.018},
+            {"mat": "dark", "sphere": (0, 0.38, 1.318), "r": 0.03},
+            {"mat": "accent", "box": ((-9, -9, 1.5), (9, 9, 9))},  # antlers
+            {"mat": "dark", "box": ((-9, -9, -9), (9, 9, 0.06))},  # hooves
+            {"mat": "belly", "box": ((0, 0.25, 1.24), (0.1, 9, 1.34)), "normal": ((0, 0, -1), 0.0)},
+            {"mat": "belly", "box": ((0, 0.0, 0.6), (0.12, 9, 1.25)), "normal": ((0, 1, 0), 0.5)},
+        ],
+    },
+    "penguin": {
+        # Flippers asked for held out from the body, lowered to hang at rest.
+        "path": os.path.join(SOURCES, "penguin.glb"),
+        "plan": "waddler",
+        "height": 1.46,
+        "triangles": 3900,
+        "center_y": 0.12,
+        "arm_rest": 18,
+        "spine": ((0, -0.17, 0.3), (0, -0.12, 0.75), (0, -0.1, 1.08)),
+        "head": ((0, -0.1, 1.08), (0, -0.04, 1.46)),
+        "nose": (0, 0.28, 1.15),
+        "leg": ((0.15, -0.12, 0.28), (0.16, -0.1, 0.16), (0.17, -0.1, 0.06), (0.18, 0.16, 0.02)),
+        "arm": ((0.255, -0.08, 0.92), (0.64, -0.12, 0.545)),
+        "tail": ((0, -0.3, 0.35), (0, -0.42, 0.25), (0, -0.52, 0.18)),
+        "crown": (0, -0.06, 1.46),
+        "face": (0, 0.18, 1.27),
+        "back": (0, -0.312, 0.9),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.11, 0.095, 1.265), 'r': 0.018},
+            {'mat': 'belly', 'sphere': (0.11, 0.095, 1.265), 'r': 0.035},  # a pale ring, or a dark eye on a dark head is no eye
+            {'mat': 'accent', 'box': ((0, 0.16, 1.08), (0.07, 9, 1.24))},  # beak
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.06))},  # feet
+            {'mat': 'accent', 'sphere': (0.13, 0.0, 1.12), 'r': 0.06},  # an emperor's yellow ear patch
+            {'mat': 'belly', 'box': ((0, -0.12, 0.08), (0.24, 9, 1.16)), 'normal': ((0, 1, 0), 0.25)},
+        ],
+    },
+    "frog": {
+        # Its forearms are moulded against its belly, so no arm bone could lift them away: they ride the
+        # spine (`arm: None`), and so do the hand sockets.
+        "path": os.path.join(SOURCES, "frog.glb"),
+        "plan": "hopper",
+        "height": 1.48,
+        "triangles": 3900,
+        "center_y": -0.12,
+        "spine": ((0, 0.0, 0.62), (0, 0.04, 0.86), (0, 0.12, 1.08)),
+        "head": ((0, 0.12, 1.1), (0, 0.52, 1.3)),
+        "nose": (0, 0.563, 1.26),
+        "leg": ((0.15, 0.02, 0.6), (0.25, -0.01, 0.38), (0.22, -0.14, 0.12), (0.38, 0.14, 0.02)),
+        "arm": None,
+        "hand": (0.1, 0.2, 0.77),
+        "tail": ((0, -0.15, 0.62), (0, -0.24, 0.58)),
+        "crown": (0, 0.22, 1.425),
+        "face": (0, 0.46, 1.36),
+        "back": (0, -0.305, 0.95),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.12, 0.39, 1.42), 'r': 0.035},
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.04))},  # feet
+            {'mat': 'belly', 'box': ((0, 0.02, 0.45), (0.26, 9, 1.24)), 'normal': ((0, 1, 0), 0.3)},
+            {'mat': 'accent', 'box': ((-9, -9, 0.6), (9, -0.03, 1.35)), 'stripes': ((1, 0.3, 1), 0.15, 0.3)},
+            {'mat': 'accent', 'box': ((-9, -9, 0.05), (9, 9, 0.55)), 'stripes': ((0, 0.3, 1), 0.1, 0.3)},
+        ],
+    },
+    "shark": {
+        # Leans forward with its tail on the ground, more land shark than person in a costume. The fins
+        # are its arms and stay out: a shark with its fins at its sides is a fish in a bag.
+        "path": os.path.join(SOURCES, "shark.glb"),
+        "plan": "upright",
+        "height": 1.65,
+        "triangles": 3900,
+        "center_y": 0.06,
+        "spine": ((0, -0.06, 0.85), (0, 0.34, 1.0), (0, 0.69, 1.15)),
+        "head": ((0, 0.69, 1.18), (0, 1.174, 1.31)),
+        "leg": ((0.15, 0.19, 0.55), (0.27, 0.11, 0.3), (0.36, 0.0, 0.07), (0.38, 0.06, 0.02)),
+        "arm": ((0.28, 0.36, 1.05), (0.88, 0.06, 0.89)),
+        "tail": ((0, -0.01, 0.92), (0, -0.51, 0.68), (0, -0.91, 0.42), (0, -1.28, 0.18)),
+        "crown": (0, 0.64, 1.48),
+        "face": (0, 0.94, 1.42),
+        "back": (0, -0.36, 1.05),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.16, 0.825, 1.365), 'r': 0.025},
+            {'mat': 'accent', 'box': ((-9, -9, 1.55), (9, 9, 9))},  # dorsal fin tip
+            {'mat': 'accent', 'box': ((0.65, -9, -9), (9, 9, 9))},  # pectoral fin tips
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, -1.06, 9))},  # tail fin
+            {'mat': 'belly', 'box': ((0, -9, -9), (0.6, 9, 9)), 'normal': ((0, 0.3, -1), 0.35)},  # countershaded underside
+            {'mat': 'belly', 'box': ((0, 0.24, 0.3), (0.25, 9, 1.25)), 'normal': ((0, 1, 0), 0.5)},
+        ],
+    },
+    "dragon": {
+        # Meshy gave it wings the prompt said not to have. They stay — they read from across a map, which
+        # is the point of an epic animal — pinned to the spine, because a membrane that thin is what makes
+        # the heat solve fail. The tail curls to its left, so its joints are measured, not mirrored.
+        "path": os.path.join(SOURCES, "dragon.glb"),
+        "plan": "upright",
+        "height": 1.76,
+        "triangles": 3900,
+        "center_y": 0.5,
+        "arm_rest": 25,
+        "spine": ((0, -0.2, 0.56), (0, -0.1, 0.8), (0, -0.06, 1.04)),
+        "neck": (0, -0.05, 1.28),
+        "head": ((0, -0.05, 1.28), (0, 0.254, 1.3)),
+        "leg": ((0.15, -0.16, 0.56), (0.24, 0.04, 0.4), (0.22, -0.16, 0.16), (0.3, 0.19, 0.01)),
+        "arm": ((0.16, -0.04, 1.04), (0.46, 0.24, 0.8)),
+        "tail": ((0, -0.28, 0.55), (0.06, -0.62, 0.3), (0.25, -0.95, 0.22), (0.6, -1.28, 0.36)),
+        "crown": (0, -0.03, 1.554),
+        "face": (0, 0.16, 1.42),
+        "back": (0, -0.28, 0.9),
+        "pins": [
+            {'bone': 'spine', 'box': ((0.21, -0.8, 0.6), (9, -0.08, 9))},
+        ],
+        "paint": [
+            {'mat': 'belly', 'sphere': (0.07, 0.09, 1.4), 'r': 0.022},  # pale eyes: dark ones vanish on purple
+            {'mat': 'accent', 'box': ((-9, -9, 1.5), (9, 9, 9))},  # horns
+            {'mat': 'accent', 'box': ((0.21, -0.8, 0.6), (9, -0.08, 9))},  # wings
+            {'mat': 'accent', 'sphere': (0.46, 0.24, 0.8), 'r': 0.07},  # claws
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.05))},
+            {'mat': 'belly', 'box': ((0, -0.2, 0.3), (0.16, 9, 1.32)), 'normal': ((0, 1, 0), 0.5)},
+            {'mat': 'belly', 'box': ((-9, -9, 0.0), (9, -0.2, 0.6)), 'normal': ((0, 0, -1), 0.4), 'mirror': False},
+        ],
+    },
+    "raptor": {
+        # Its legs are a stride apart in the sculpt, so each side is its own measurement.
+        "path": os.path.join(SOURCES, "raptor.glb"),
+        "plan": "hopper",
+        "height": 1.6,
+        "triangles": 3900,
+        "center_y": 0.23,
+        "spine": ((0, -0.18, 0.92), (0, 0.17, 0.98), (0, 0.47, 1.08)),
+        # The head pivots half way up the neck: from the skull's own base, a hat on a skull this small
+        # and this flat would sit barely above the joint it turns on.
+        "neck": (0, 0.62, 1.22),
+        "head": ((0, 0.62, 1.22), (0, 1.191, 1.38)),
+        "leg": {'L': ((0.12, 0.02, 0.85), (0.15, -0.06, 0.52), (0.13, -0.36, 0.29), (0.1, -0.04, 0.01)), 'R': ((-0.12, 0.07, 0.85), (-0.15, 0.13, 0.55), (-0.15, 0.03, 0.2), (-0.15, 0.37, 0.08))},
+        "arm": ((0.15, 0.39, 1.02), (0.13, 0.49, 0.8)),
+        "tail": ((0, -0.28, 0.98), (0, -0.68, 0.88), (0, -1.08, 1.0), (0, -1.38, 1.35), (0, -1.68, 1.58)),
+        "crown": (0, 0.85, 1.45),
+        "face": (0, 1.02, 1.45),
+        "back": (0, 0.12, 1.15),
+        "paint": [
+            {'mat': 'dark', 'sphere': (0.135, 0.935, 1.43), 'r': 0.022},
+            {'mat': 'accent', 'box': ((-9, -9, -9), (9, 9, 0.05))},  # claws
+            {'mat': 'belly', 'box': ((-9, -9, -9), (9, 9, 9)), 'normal': ((0, 0.2, -1), 0.45)},  # pale underside
+            {'mat': 'accent', 'box': ((0.03, -1.83, 0.85), (9, 0.77, 1.6)), 'stripes': ((0, 1, 0.2), 0.16, 0.35)},  # back stripes
+        ],
+    },
+}
+
+
+def _mirror(point):
+    return (-point[0], point[1], point[2])
+
+
+def _sided(limb):
+    """A limb as (left, right): given per side, or the left side mirrored."""
+    if isinstance(limb, dict):
+        return limb["L"], limb["R"]
+    return limb, tuple(_mirror(p) for p in limb)
+
+
+def _matches(rule, c, n):
+    """
+    Whether a face (centre `c`, normal `n`) is inside a paint or pin rule's region.
+
+    Every condition a rule names must hold. Mirrored by default — a rule describes the left side
+    and the right side is its reflection — unless it says `"mirror": False`.
+    """
+    if rule.get("mirror", True) and c.x < 0:
+        c = Vector((-c.x, c.y, c.z))
+        n = Vector((-n.x, n.y, n.z))
+    if "sphere" in rule and (c - Vector(rule["sphere"])).length > rule["r"]:
+        return False
+    if "box" in rule:
+        lo, hi = rule["box"]
+        if not all(lo[a] <= c[a] <= hi[a] for a in range(3)):
+            return False
+    if "capsule" in rule:
+        a, b = Vector(rule["capsule"][0]), Vector(rule["capsule"][1])
+        axis = b - a
+        t = max(0.0, min(1.0, (c - a).dot(axis) / axis.length_squared))
+        if (c - (a + axis * t)).length > rule["r"]:
+            return False
+    if "plane" in rule:
+        point, normal = rule["plane"]
+        if (c - Vector(point)).dot(Vector(normal)) <= 0:
+            return False
+    if "normal" in rule:
+        direction, least = rule["normal"]
+        if n.dot(Vector(direction).normalized()) <= least:
+            return False
+    if "stripes" in rule:
+        direction, period, duty = rule["stripes"]
+        if (c.dot(Vector(direction)) / period) % 1.0 >= duty:
+            return False
+    return True
+
+
+def _import_source(src):
+    """
+    The source mesh, cleaned and normalised into builder space.
+
+    Meshy's files arrive split along every UV seam — measured, ~1,200 islands and 10,000
+    non-manifold edges per kangaroo — which automatic weighting reads as a thousand loose pieces.
+    Merged by distance they are one closed surface. Then it is turned to face +Y like every other
+    builder, stood on z = 0 at the body plan's height, and decimated to the character budget:
+    the 12,500 triangles Meshy returns are three times what sixteen animals on a Quest can afford.
+    """
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=src["path"])
+    new = [o for o in bpy.data.objects if o not in before]
+    meshes = [o for o in new if o.type == "MESH"]
+    if len(meshes) != 1:
+        raise AssertionError(f"{src['path']}: expected one mesh, found {len(meshes)}")
+    ob = meshes[0]
+    world = ob.matrix_world.copy()
+    ob.parent = None
+    ob.matrix_world = Matrix.Identity(4)
+    ob.data.transform(world)
+    for o in new:
+        if o is not ob:
+            bpy.data.objects.remove(o, do_unlink=True)
+
+    bm = bmesh.new()
+    bm.from_mesh(ob.data)
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-4)
+    bm.to_mesh(ob.data)
+    bm.free()
+    while ob.data.uv_layers:
+        ob.data.uv_layers.remove(ob.data.uv_layers[0])
+    ob.data.materials.clear()
+
+    ob.data.transform(Matrix.Rotation(math.pi, 4, "Z"))
+    zs = [v.co.z for v in ob.data.vertices]
+    ob.data.transform(Matrix.Scale(src["height"] / (max(zs) - min(zs)), 4))
+    xs = [v.co.x for v in ob.data.vertices]
+    # Centred on its feet as well as on x: Meshy centres a model on its bounding box, which for a
+    # raptor is half way down its tail, and the capsule a player collides with is under the feet.
+    ob.data.transform(Matrix.Translation((-(max(xs) + min(xs)) / 2, -src.get("center_y", 0.0),
+                                          -min(v.co.z for v in ob.data.vertices))))
+
+    bpy.context.view_layer.objects.active = ob
+    decimate = ob.modifiers.new("decimate", "DECIMATE")
+    decimate.ratio = min(1.0, src["triangles"] / max(1, len(ob.data.polygons)))
+    decimate.use_symmetry = True
+    decimate.symmetry_axis = "X"
+    bpy.ops.object.modifier_apply(modifier=decimate.name)
+    return ob
+
+
+def _paint_source(ob, src, mats):
+    """
+    Colour by region from the animal's own palette. The mesh arrives with no material at all, and
+    the game's art is flat palette colour rather than textures, so the regions are geometry — the
+    entry's `paint` rules, first match wins — not an image.
+    """
+    order = ("body", "belly", "accent", "dark")
+    for key in order:
+        ob.data.materials.append(mats[key])
+    rules = src.get("paint", ())
+    for poly in ob.data.polygons:
+        poly.material_index = 0
+        for rule in rules:
+            if _matches(rule, poly.center, poly.normal):
+                poly.material_index = order.index(rule["mat"])
+                break
+
+
+def _split_pins(ob, src):
+    """
+    The faces each `pins` rule claims, cut out into parts of their own and pinned to one bone.
+
+    Cut out rather than re-weighted afterwards, because a thin closed shell is exactly what makes
+    the heat solve singular (see `skin_parts`), and a dragon's wing membrane is the thinnest thing
+    in the roster. Pinned parts are joined back after the solve.
+    """
+    parts = []
+    for rule in src.get("pins", ()):
+        faces = [p.index for p in ob.data.polygons if _matches(rule, p.center, p.normal)]
+        if not faces:
+            raise AssertionError(f"{src['path']}: pin to {rule['bone']} matches no faces")
+        bm = bmesh.new()
+        bm.from_mesh(ob.data)
+        bm.faces.ensure_lookup_table()
+        chosen = set(faces)
+        piece = bpy.data.meshes.new(f"{ob.name}_pin_{rule['bone']}")
+        copy = bm.copy()
+        copy.faces.ensure_lookup_table()
+        bmesh.ops.delete(copy, geom=[f for f in copy.faces if f.index not in chosen], context="FACES")
+        copy.to_mesh(piece)
+        copy.free()
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.index in chosen], context="FACES")
+        bm.to_mesh(ob.data)
+        bm.free()
+        for slot in ob.data.materials:
+            piece.materials.append(slot)
+        part = bpy.data.objects.new(piece.name, piece)
+        bpy.context.scene.collection.objects.link(part)
+        parts.append(lib.pin(part, rule["bone"]))
+    return parts
+
+
+def build_from_source(spec, mats, src):
+    """A source mesh on its body plan's skeleton, with sockets at its own measured landmarks."""
+    ob = _import_source(src)
+    _paint_source(ob, src, mats)
+    pinned = _split_pins(ob, src)
+    plan = src["plan"]
+
+    rump, mid, withers = src["spine"]
+    bones = [
+        ("root", (0, 0, 0.0), (0, 0, 0.12), None),
+        ("hips", rump, mid, "root"),
+        ("spine", mid, withers, "hips"),
+    ]
+    head_parent = "spine"
+    if "neck" in src:
+        bones.append(("neck", withers, src["neck"], "spine"))
+        head_parent = "neck"
+    head = src["head"]
+    bones.append(("head", head[0], head[1], head_parent))
+    if "jaw" in src:
+        jaw = src["jaw"]
+    elif "nose" in src:
+        # Under the snout and out to its tip. On an upright head the head bone points up at the
+        # crown, so a jaw derived from it sat under the middle of the skull: behind the face, and
+        # driving the whole head when the renderer opens the mouth to a speaker's voice.
+        nose = Vector(src["nose"])
+        jaw = (tuple(nose + Vector((0, -0.14, -0.04))), tuple(nose + Vector((0, -0.01, -0.05))))
+    else:
+        # A head that points along the snout (a wolf's, a shark's): under its front half.
+        h0, h1 = Vector(head[0]), Vector(head[1])
+        jaw = (tuple(h0.lerp(h1, 0.55) - Vector((0, 0, 0.06))), tuple(h1 - Vector((0, 0.03, 0.06))))
+    bones.append(("jaw", jaw[0], jaw[1], "head"))
+    tail = src.get("tail", ())
+    for i in range(len(tail) - 1):
+        bones.append((f"tail.{i + 1}", tail[i], tail[i + 1], "hips" if i == 0 else f"tail.{i}"))
+
+    sockets = {
+        "socket_head": ("head", src["crown"]),
+        "socket_face": ("head", src["face"]),
+        "socket_back": ("spine", src["back"]),
+    }
+    if plan == "quadruped":
+        for tag, key, parent in (("front", "foreleg", "spine"), ("back", "hindleg", "hips")):
+            for side, (top, knee, low, toe) in zip("LR", _sided(src[key])):
+                bones += [
+                    (f"{tag}upper.{side}", top, knee, parent),
+                    (f"{tag}lower.{side}", knee, low, f"{tag}upper.{side}"),
+                    (f"{tag}paw.{side}", low, toe, f"{tag}lower.{side}"),
+                ]
+                if tag == "front":
+                    paw = Vector(low).lerp(Vector(toe), 0.5)
+                    sockets[f"socket_hand_{side}"] = (f"frontpaw.{side}", (paw.x, paw.y, 0.06))
+    else:
+        for side, (hip, knee, ankle, toe) in zip("LR", _sided(src["leg"])):
+            bones += [
+                (f"thigh.{side}", hip, knee, "hips"),
+                (f"shin.{side}", knee, ankle, f"thigh.{side}"),
+                (f"foot.{side}", ankle, toe, f"shin.{side}"),
+            ]
+        if src["arm"] is None:
+            for side, hand in zip("LR", (src["hand"], _mirror(src["hand"]))):
+                sockets[f"socket_hand_{side}"] = ("spine", hand)
+        else:
+            for side, (shoulder, hand) in zip("LR", _sided(src["arm"])):
+                bones.append((f"arm.{side}", shoulder, hand, "spine"))
+                sockets[f"socket_hand_{side}"] = (f"arm.{side}", hand)
+    return [ob] + pinned, bones, plan, sockets
+
+
+def rest_arms(mesh, arm, src, sockets):
+    """
+    Lower a sculpt's A-pose arms by `arm_rest` and make that the rest pose.
+
+    The pose is applied to the mesh through its own skin weights and then fixed as the skeleton's
+    rest, so every clip — keyed relative to rest — swings arms that hang at the sides. Hand sockets
+    move with their bones. Returns the sockets, with hands where the hands now are.
+    """
+    target = src.get("arm_rest")
+    if target is None or src.get("arm") is None:
+        return sockets
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    down = Vector((0, 0, -1))
+    moved = {}
+    for side in "LR":
+        bone = arm.data.bones[f"arm.{side}"]
+        pb = arm.pose.bones[f"arm.{side}"]
+        direction = (bone.tail_local - bone.head_local).normalized()
+        excess = direction.angle(down) - math.radians(target)
+        if excess <= 0:
+            continue
+        turn = Quaternion(direction.cross(down).normalized(), excess)
+        rest = bone.matrix_local.to_quaternion()
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = rest.inverted() @ turn @ rest
+        moved[bone.name] = pb
+    bpy.ops.object.mode_set(mode="OBJECT")
+    bpy_update()
+    if not moved:
+        return sockets
+    out = dict(sockets)
+    for name, (bone_name, pos) in sockets.items():
+        if bone_name in moved:
+            delta = moved[bone_name].matrix @ arm.data.bones[bone_name].matrix_local.inverted()
+            out[name] = (bone_name, tuple(delta @ Vector(pos)))
+    # Bake the pose into the mesh, then make it the skeleton's rest, then bind again with the same
+    # weights (the vertex groups are untouched by both steps).
+    modifier = next(m for m in mesh.modifiers if m.type == "ARMATURE")
+    bpy.context.view_layer.objects.active = mesh
+    bpy.ops.object.modifier_apply(modifier=modifier.name)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode="POSE")
+    bpy.ops.pose.armature_apply(selected=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
+    modifier = mesh.modifiers.new("Armature", "ARMATURE")
+    modifier.object = arm
+    bpy_update()
+    return out
+
+
+PLANS = {
+    "hopper": build_hopper,
+    "upright": build_upright,
+    "waddler": build_waddler,
+    "quadruped": build_quadruped,
+}
+
+
+# --------------------------------------------------------------------------------------------
+# Animation
+# --------------------------------------------------------------------------------------------
+
+
+def _legs(plan):
+    """(front-ish, back-ish) bone name pairs, so one animator drives two and four legs alike."""
+    if plan == "quadruped":
+        return [
+            ("frontupper.L", "frontlower.L"), ("frontupper.R", "frontlower.R"),
+            ("backupper.L", "backlower.L"), ("backupper.R", "backlower.R"),
+        ]
+    return [("thigh.L", "shin.L"), ("thigh.R", "shin.R")]
+
+
+# --------------------------------------------------------------------------------------------
+# The hopper's run: a real bound
+# --------------------------------------------------------------------------------------------
+
+# Share of the hopper's run cycle spent with both feet planted. The client (`Avatar.ts`,
+# `BOUND_STANCE`) reads the same number: it drives the stance by distance and the flight by time.
+BOUND_STANCE = 1 / 3
+# Frames in the bound: 24 intervals, so the stance is exactly eight of them.
+BOUND_FRAMES = 25
+# How far the planted feet travel under the body during the stance, in model metres, at most:
+# sized to the kangaroo's reach (hip 0.68 m over its ankle on 0.79 m of leg). A rig with shorter
+# legs gets the longest stride it can reach, and the client measures it out of the clip.
+BOUND_STRIDE = 0.6
+# Height of the flight arc, and how far the body sinks over its feet in the stance, in model metres.
+BOUND_RISE = 0.2
+BOUND_SINK = 0.06
+# How far the feet tuck up under the body at the top of the flight.
+BOUND_TUCK = 0.12
+# How far the heel lifts as the toes push off, and how far the foot trails as it leaves the ground.
+BOUND_TOE_OFF = math.radians(30)
+# The flight lasts as long as a fall from `BOUND_RISE` under the game's gravity (24 m/s²,
+# `DEFAULT_MOVEMENT.gravity`), which is what the client plays it against: `BOUND_FLIGHT` there.
+BOUND_FLIGHT = 2 * math.sqrt(2 * BOUND_RISE / 24)
+# The ground speed the feet are matched to as they land and leave: the middle of a run. A foot that
+# stopped swinging just before touchdown arrived at the full speed of the body and skidded to a halt;
+# swung back at this speed instead, it lands at the difference — 2 m/s at 3 or at 7.2 m/s.
+BOUND_MATCH_SPEED = 5.0
+# Directions of a carried tail's bones in the side view, root first (180 degrees is straight back):
+# down and back from the rump, then flattening out behind. On the kangaroo the tip rides 6–32 cm off
+# the ground through the bound.
+TAIL_CARRY = [math.radians(a) for a in (-120.0, -145.0, -165.0, -175.0)]
+
+
+def _plane(v):
+    """An armature-space point in the side view: (forward, up). The bound happens in this plane."""
+    return (v.y, v.z)
+
+
+def _angle(a, b):
+    return math.atan2(b[1] - a[1], b[0] - a[0])
+
+
+def _wrap(a):
+    return (a + math.pi) % math.tau - math.pi
+
+
+def _pitch_sign(arm, bone):
+    """
+    Which way a positive local-X rotation turns `bone` in the side view: +1 or -1.
+
+    Measured by posing it rather than derived from its roll, because the rigs are built from
+    measured points and the sign is whatever the bone's frame came out as. A bone whose local X is
+    not across the body would not swing in the side view at all, and the bound refuses that.
+    """
+    pb = arm.pose.bones[bone]
+    pb.rotation_mode = "QUATERNION"
+    before = _angle(_plane(pb.head), _plane(pb.tail))
+    pb.rotation_quaternion = Euler((math.radians(10), 0, 0), "XYZ").to_quaternion()
+    bpy.context.view_layer.update()
+    after = _angle(_plane(pb.head), _plane(pb.tail))
+    pb.rotation_quaternion = Quaternion()
+    bpy.context.view_layer.update()
+    turned = math.degrees(_wrap(after - before))
+    if abs(turned) < 8:
+        raise ValueError(f"{bone} does not swing in the side view (turned {turned:.1f} degrees for 10)")
+    return 1 if turned > 0 else -1
+
+
+def _bound_pose(phase, stride=BOUND_STRIDE):
+    """
+    The bound at `phase` of its cycle (0..1): body height offset, how far the toes are from where
+    they stand at rest (forward, up), and how far the heel is lifted (radians, toe-down).
+
+    The toes are the contact: in the stance they travel back under the body at a constant rate —
+    which is what lets the client drive this half by distance and have them stay where they landed
+    — and the heel rises off the ground over its last third, so the foot leaves the ground the way
+    it pushed off it rather than snapping to point down at the first frame of the flight.
+    """
+    s = BOUND_STANCE
+    if phase < s:
+        u = phase / s
+        heel = BOUND_TOE_OFF * _smooth((u - 0.65) / 0.35)
+        return -BOUND_SINK * math.sin(math.pi * u), stride * (0.5 - u), 0.0, heel
+    u = (phase - s) / (1 - s)
+    # Ballistic: a parabola in time, which is what the client plays the flight against.
+    rise = BOUND_RISE * 4 * u * (1 - u)
+    # Forward through the air from behind to in front — a Hermite curve that leaves and lands moving
+    # back under the body at `BOUND_MATCH_SPEED`, as a planted foot does: trailing after the push-off,
+    # swung forward, then drawn back to meet the ground rather than slapped onto it.
+    m = -BOUND_MATCH_SPEED * BOUND_FLIGHT
+    travel = (
+        (2 * u**3 - 3 * u**2 + 1) * (-stride / 2)
+        + (u**3 - 2 * u**2 + u) * m
+        + (-2 * u**3 + 3 * u**2) * (stride / 2)
+        + (u**3 - u**2) * m
+    )
+    heel = BOUND_TOE_OFF * (1 - u) ** 2 - math.radians(6) * math.sin(math.pi * u)
+    return rise, travel, rise + BOUND_TUCK * math.sin(math.pi * u), heel
+
+
+def _smooth(t):
+    t = min(1.0, max(0.0, t))
+    return t * t * (3 - 2 * t)
+
+
+def _ik(hip, ankle, l1, l2, rest_bend):
+    """Two-bone IK in the side view: the thigh's and shin's angles that put the ankle at `ankle`."""
+    reach = math.dist(hip, ankle)
+    span = min(max(reach, abs(l1 - l2) + 1e-3), l1 + l2 - 1e-3)
+    base = _angle(hip, ankle)
+    open_ = math.acos((l1**2 + span**2 - l2**2) / (2 * l1 * span))
+    for a1 in (base + open_, base - open_):
+        knee = (hip[0] + l1 * math.cos(a1), hip[1] + l1 * math.sin(a1))
+        a2 = _angle(knee, ankle)
+        bend = (knee[0] - hip[0]) * math.sin(a2) - (knee[1] - hip[1]) * math.cos(a2)
+        # The knee folds the way it does at rest: the other root is the same leg bent backwards.
+        if bend * rest_bend > 0:
+            return a1, a2
+    return base, base
+
+
+def _set_leg(arm, r, d):
+    pose = arm.pose.bones
+    for name, a in zip((r["upper"], r["lower"], r["foot"]), d):
+        pose[name].rotation_quaternion = Euler((math.radians(a), 0, 0), "XYZ").to_quaternion()
+    bpy.context.view_layer.update()
+    return _plane(pose[r["lower"]].tail), _plane(pose[r["foot"]].tail)
+
+
+def _solve_leg(arm, r, hip, ankle, a3):
+    """
+    Local-X rotations (degrees) for thigh, shin and foot that put the ankle at `ankle` and point the
+    foot along `a3`, refined against the rig's own forward kinematics.
+
+    The planar solution is exact only for a leg whose bones turn about an axis straight across the
+    body. A frog's legs splay, so their local X is not quite across it and the first answer misses
+    by centimetres; a few Newton steps on the posed rig close that, whatever the bones' frames are.
+    """
+    a1, a2 = _ik(hip, ankle, r["l1"], r["l2"], r["bend"])
+    s1, s2, s3 = r["signs"]
+    d1 = _wrap(a1 - r["a1"])
+    d2 = _wrap(a2 - r["a2"]) - d1
+    d3 = _wrap(a3 - r["a3"]) - d1 - d2
+    d = [s1 * math.degrees(d1), s2 * math.degrees(d2), s3 * math.degrees(d3)]
+    step = 0.5
+    for _ in range(12):
+        got, toe = _set_leg(arm, r, d)
+        err = (got[0] - ankle[0], got[1] - ankle[1])
+        if math.hypot(*err) < 0.002:
+            break
+        cols = []
+        for k in (0, 1):
+            trial = list(d)
+            trial[k] += step
+            moved, _ = _set_leg(arm, r, trial)
+            cols.append(((moved[0] - got[0]) / step, (moved[1] - got[1]) / step))
+        (j00, j10), (j01, j11) = cols
+        det = j00 * j11 - j01 * j10
+        if abs(det) < 1e-9:
+            break
+        d[0] -= (j11 * err[0] - j01 * err[1]) / det
+        d[1] -= (-j10 * err[0] + j00 * err[1]) / det
+    # Then the foot, alone: turn it until it points along `a3`.
+    for _ in range(8):
+        got, toe = _set_leg(arm, r, d)
+        miss = _wrap(_angle(got, toe) - a3)
+        if abs(miss) < math.radians(0.5):
+            break
+        trial = list(d)
+        trial[2] += step
+        moved_ankle, moved_toe = _set_leg(arm, r, trial)
+        rate = _wrap(_angle(moved_ankle, moved_toe) - _angle(got, toe)) / step
+        if abs(rate) < 1e-6:
+            break
+        d[2] -= miss / rate
+    return d
+
+
+def bound(arm, legs, arms, tail_bones):
+    """
+    The hopper's run, as the bound a kangaroo actually makes: both feet planted while the body
+    passes over them, then a ballistic flight with the feet swung forward to land.
+
+    It replaces a sine gait that was measured through three.js at 7.2 m/s: the foot nearest the
+    ground moved *forward* at up to 13.8 m/s — skating — and at the top of the hop the feet were at
+    their lowest, so the body stretched up and down and never left the ground.
+
+    The feet are placed by two-bone IK refined on the posed rig, and every frame is checked by
+    posing it and measuring where the ankle and toes landed. The stride is the longest of
+    `BOUND_STRIDE` and shorter that this rig's legs reach; the client reads it back out of the clip.
+
+    Returns None, keying nothing, for a rig whose feet cannot land together: the raptor's sculpt
+    stands mid-stride with one foot 8 cm off the ground, and its two legs measure 0.72 m and 0.67 m.
+    """
+    # Measure the rig with no clip driving it: an assigned action would overwrite a test pose.
+    arm.animation_data.action = None
+    pose = arm.pose.bones
+    # Unassigning the action leaves the last keyed values on the bones; the rest pose is identity.
+    for pb in pose:
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = Quaternion()
+        pb.location = (0, 0, 0)
+    bpy.context.view_layer.update()
+    rest = {}
+    for upper, lower in legs:
+        foot = lower.replace("shin", "foot")
+        hip, knee, ankle, toe = (
+            _plane(pose[upper].head), _plane(pose[upper].tail), _plane(pose[lower].tail), _plane(pose[foot].tail)
+        )
+        rest[upper] = {
+            "upper": upper, "lower": lower, "foot": foot, "hip": hip, "ankle": ankle, "toe": toe,
+            "l1": math.dist(hip, knee), "l2": math.dist(ankle, knee), "l3": math.dist(ankle, toe),
+            "bend": (knee[0] - hip[0]) * (ankle[1] - knee[1]) - (knee[1] - hip[1]) * (ankle[0] - knee[0]),
+            "a1": _angle(hip, knee), "a2": _angle(knee, ankle), "a3": _angle(ankle, toe),
+            "signs": (_pitch_sign(arm, upper), _pitch_sign(arm, lower), _pitch_sign(arm, foot)),
+        }
+    tails = {
+        tb: {"angle": _angle(_plane(pose[tb].head), _plane(pose[tb].tail)), "sign": _pitch_sign(arm, tb)}
+        for tb in tail_bones
+    }
+    # Both feet land together, so they share one track: a sculpt that stands with its feet a pace
+    # apart (the raptor) bounds with them side by side.
+    centre = sum(r["toe"][0] for r in rest.values()) / len(rest)
+    n = BOUND_FRAMES
+    phases = [(f - 1) / (n - 1) for f in range(1, n + 1)]
+
+    def targets(stride):
+        out = {}
+        for f, phase in zip(range(1, n + 1), phases):
+            rise, travel, lift, heel = _bound_pose(phase % 1.0, stride)
+            for upper, r in rest.items():
+                toe = (centre + travel, r["toe"][1] + lift)
+                a3 = r["a3"] - heel
+                ankle = (toe[0] - r["l3"] * math.cos(a3), toe[1] - r["l3"] * math.sin(a3))
+                out[(f, upper)] = (rise, (r["hip"][0], r["hip"][1] + rise), ankle, toe, a3)
+        return out
+
+    # The longest stride this rig's legs reach on every frame, with a little bend left in the knee.
+    stride = BOUND_STRIDE
+    while True:
+        plan = targets(stride)
+        if all(math.dist(hip, ankle) <= 0.97 * (rest[u]["l1"] + rest[u]["l2"]) for (_, u), (_, hip, ankle, _, _) in plan.items()):
+            break
+        stride = round(stride - 0.05, 2)
+        if stride < 0.2:
+            return None
+
+    root_rest = arm.data.bones["root"].matrix_local.to_3x3().inverted()
+    solved = {}
+    for f in range(1, n + 1):
+        rise = plan[(f, legs[0][0])][0]
+        pose["root"].location = root_rest @ Vector((0, 0, rise))
+        for upper, r in rest.items():
+            _, hip, ankle, _, a3 = plan[(f, upper)]
+            solved[(f, upper)] = _solve_leg(arm, r, hip, ankle, a3)
+
+    clip = Clip(arm, "run", n)
+    for f, phase in zip(range(1, n + 1), phases):
+        clip.key("root", f, (0, 0, 0), loc=(0, 0, plan[(f, legs[0][0])][0]))
+        for upper, r in rest.items():
+            for name, angle in zip((upper, r["lower"], r["foot"]), solved[(f, upper)]):
+                clip.key(name, f, (angle, 0, 0))
+        # Leaning into the run, and pitching a little further over the feet as they land.
+        clip.key("spine", f, (-8.0 - 3.0 * math.cos(math.tau * phase), 0, 0))
+        for bone in arms:
+            clip.key(bone, f, (-12.0 * math.sin(math.tau * phase), 0, 0))
+        # The tail is carried: a long tail (the kangaroo's runs down to the ground and back along it)
+        # is set to a gentle curve streaming back from the rump, its tip clear of the ground even as
+        # the body sinks into the stance, and swings a few degrees with the hop. Lifting only its
+        # root was the first attempt: the part that lay along the ground turned up into a hook.
+        # A stub tail just swings.
+        carried = len(tail_bones) >= 3
+        total = 0.0
+        for i, tb in enumerate(tail_bones):
+            r = tails[tb]
+            swing = math.radians(5.0) * math.sin(math.tau * phase - i * 0.5)
+            if carried:
+                want = TAIL_CARRY[min(i, len(TAIL_CARRY) - 1)] + swing
+                delta = _wrap(want - r["angle"]) - total
+            else:
+                delta = swing
+            total += delta
+            clip.key(tb, f, (r["sign"] * math.degrees(delta), 0, 0))
+
+    # Check every frame by playing the clip: the ankle where it was placed, and through the stance
+    # the toes on the ground and travelling exactly as planned — planted. (Their absolute place may
+    # differ by a centimetre or two on a splayed foot, whose length in the side view changes as it
+    # turns; what a viewer sees slide is the toes moving against the ground, and that is checked.)
+    first = {}
+    for f, phase in zip(range(1, n + 1), phases):
+        bpy.context.scene.frame_set(f)
+        for upper, r in rest.items():
+            _, _, ankle, toe, _ = plan[(f, upper)]
+            got = _plane(pose[r["lower"]].tail)
+            if math.dist(ankle, got) > 0.01:
+                raise ValueError(f"bound frame {f}: {r['foot']} ankle at {got}, wanted {ankle}")
+            if phase <= BOUND_STANCE * 0.65:
+                toes = _plane(pose[r["foot"]].tail)
+                start, planned = first.setdefault(upper, (toes, toe))
+                moved = (toes[0] - start[0] - (toe[0] - planned[0]), toes[1] - start[1])
+                # 1.5 cm across a stance is a few centimetres a second; the gait this replaced skated at 13.8 m/s.
+                if math.hypot(*moved) > 0.015:
+                    raise ValueError(f"bound frame {f}: {r['foot']} toes slide {math.hypot(*moved):.3f} m in the stance")
+    bpy.context.scene.frame_set(1)
+    return clip
+
+
+def animate(arm, plan, tail_bones):
+    """
+    Key the five clips.
+
+    The cycles are sine-driven rather than hand-posed: the phase offsets are what make a gait
+    read, and they are easier to get right as numbers than as poses. Quadrupeds use a diagonal
+    pattern — front-left with back-right — because a four-legged walk with both left legs moving
+    together reads as a pantomime horse.
+    """
+    legs = _legs(plan)
+    # Arms exist on the two-legged plans only; a quadruped's front limbs are already in `legs`.
+    arms = [b for b in ("arm.L", "arm.R") if b in arm.pose.bones]
+    """
+    Phase per leg, in fractions of a cycle.
+
+    Quadrupeds move diagonally — front-left with back-right — because a four-legged walk with both
+    left legs together reads as a pantomime horse.
+
+    A hopper's legs stay in phase, which is the whole point of it. Both hind feet leave and land
+    together; that is what a kangaroo *is*, and the game is named after it. The first version gave
+    hoppers the same alternating stride as a person, so the signature animal of Kangaroo Chase ran
+    like a man in a costume — and the procedural avatar it replaced had hopped correctly, so the
+    model was a regression in exactly the thing players look at most.
+    """
+    if plan == "quadruped":
+        phases = [0.0, 0.5, 0.5, 0.0]
+    elif plan == "hopper":
+        phases = [0.0, 0.0]
+    else:
+        phases = [0.0, 0.5]
+
+    hopping = plan == "hopper"
+    waddling = plan == "waddler"
+
+    def gait(name, swing, lift, bob, lean):
+        clip = Clip(arm, name, LENGTHS[name])
+        n = LENGTHS[name]
+        steps = [1, n // 4, n // 2, (3 * n) // 4]
+        # A waddler takes small steps and gets its speed from the roll, so the legs swing about
+        # half as far; a full human stride under a rolling body reads as a stagger.
+        if waddling:
+            swing *= 0.5
+            lift *= 0.45
+        # A hop is one launch per cycle, not two footfalls, so the body rises once and higher —
+        # and it is the arc that sells the weight, not the legs.
+        rise = bob * (2.6 if hopping else 1.0)
+        for (upper, lower), phase in zip(legs, phases):
+            ukeys, lkeys = [], []
+            for f in steps:
+                t = (f - 1) / n + phase
+                ukeys.append((f, (swing * math.sin(t * math.tau), 0, 0)))
+                # The lower joint only ever folds one way; a knee that bends backwards is the
+                # thing people notice before anything else about a walk.
+                lkeys.append((f, (-lift * max(0.0, math.sin(t * math.tau + 1.2)), 0, 0)))
+            clip.cycle(upper, ukeys)
+            clip.cycle(lower, lkeys)
+        # Negative is forward on these rigs. It was `+lean`, and measured through the real clips
+        # every animal's run leaned *back* — the kangaroo's head 0.225 m behind where it idles —
+        # which reads as braking, not running. A runner leans into the run.
+        clip.cycle("spine", [(f, (-lean, 0, 0)) for f in steps])
+        if waddling:
+            # A waddle is a roll, not a stride.
+            #
+            # `visual.build` has said "waddler" since the roster was written and the animation
+            # ignored it, so the penguin marched past like a small man in a dinner jacket. What
+            # makes a waddle is the body tipping side to side over each planted foot while the
+            # legs barely swing — so the roll goes on the hips, a quarter-cycle behind the legs,
+            # which is the moment the weight has finished transferring.
+            clip.cycle(
+                "hips",
+                [(f, (0, 14.0 * math.sin(((f - 1) / n - 0.25) * math.tau), 0)) for f in steps],
+            )
+        # Arms, counter-swinging against the legs.
+        #
+        # They were never keyed at all, which is why every screenshot showed a kangaroo sprinting
+        # past with two rigid blocks held out at its sides like a mannequin. Counter-swing is what
+        # makes a two-legged run read as a run rather than a slide: the arm opposite the forward
+        # leg comes forward, which is also how a real kangaroo balances a hop.
+        for index, bone in enumerate(arms):
+            phase = 0.5 if index else 0.0
+            clip.cycle(
+                bone,
+                [(f, (-swing * 0.75 * math.sin(((f - 1) / n + phase + 0.5) * math.tau), 0, 0)) for f in steps],
+            )
+        clip.cycle(
+            "root",
+            [(f, (0, 0, 0)) for f in steps],
+        )
+        # Vertical travel on the root. Twice per stride for a walker, once for a hopper: a hop is
+        # a single launch and a single landing, and bobbing twice makes it read as a jog.
+        for f in steps + [n]:
+            t = (f - 1) / n
+            lift_curve = math.sin(t * math.pi) ** 0.7 if hopping else abs(math.sin(t * math.tau))
+            clip.key("root", f, (0, 0, 0), loc=(0, 0, rise * lift_curve))
+        # The tail is the counterweight, so on a hopper it swings in pitch against the body rather
+        # than wagging sideways: down on the launch, up as the legs come forward for the landing.
+        for i, tb in enumerate(tail_bones):
+            if hopping:
+                # Amplitude falls off along the chain. Bones are parented in sequence, so giving
+                # every segment the same nineteen degrees compounds to nearly sixty at the tip —
+                # which swung the end of the tail far enough to pull the spheres apart and left a
+                # kangaroo hopping ahead of three loose brown lumps. Tapering keeps the whole tail
+                # inside the arc the geometry can bend through.
+                amplitude = swing * 0.42 / (1 + i)
+                clip.cycle(
+                    tb,
+                    [(f, (-amplitude * math.sin(((f - 1) / n) * math.tau + i * 0.2), 0, 0)) for f in steps],
+                )
+            else:
+                clip.cycle(tb, [(f, (0, 0, swing * 0.35 * math.sin(((f - 1) / n) * math.tau + i * 0.4))) for f in steps])
+        return clip
+
+    gait("walk", swing=22.0, lift=26.0, bob=0.035, lean=2.0)
+    if not (hopping and bound(arm, legs, arms, tail_bones)):
+        gait("run", swing=38.0, lift=44.0, bob=0.075, lean=8.0)
+
+    # Idle: breathing, not stillness. A model that holds one pose exactly reads as frozen, which
+    # is a state this game actually has, so idle must not look like it.
+    idle = Clip(arm, "idle", LENGTHS["idle"])
+    n = LENGTHS["idle"]
+    idle.cycle("spine", [(1, (0, 0, 0)), (n // 2, (2.5, 0, 0))])
+    idle.cycle("head", [(1, (0, 0, 0)), (n // 3, (-3.0, 2.0, 0)), (2 * n // 3, (1.5, -2.0, 0))])
+    for f in (1, n // 2, n):
+        idle.key("root", f, (0, 0, 0), loc=(0, 0, 0.012 * math.sin(((f - 1) / n) * math.tau)))
+    for i, tb in enumerate(tail_bones):
+        idle.cycle(tb, [(1, (0, 0, 0)), (n // 2, (0, 0, 5.0 + 2.0 * i))])
+    for bone in arms:
+        idle.cycle(bone, [(1, (0, 0, 0)), (n // 2, (4.5, 0, 0))])
+
+    # Jump: crouch, extend, tuck. Not a loop — the renderer plays it once.
+    jump = Clip(arm, "jump", LENGTHS["jump"])
+    for (upper, lower), _ in zip(legs, phases):
+        jump.key(upper, 1, (0, 0, 0))
+        jump.key(upper, 4, (34, 0, 0))
+        jump.key(upper, 9, (-30, 0, 0))
+        jump.key(upper, 16, (14, 0, 0))
+        jump.key(upper, LENGTHS["jump"], (0, 0, 0))
+        jump.key(lower, 1, (0, 0, 0))
+        jump.key(lower, 4, (-46, 0, 0))
+        jump.key(lower, 9, (-8, 0, 0))
+        jump.key(lower, 16, (-34, 0, 0))
+        jump.key(lower, LENGTHS["jump"], (0, 0, 0))
+    jump.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    jump.key("root", 4, (0, 0, 0), loc=(0, 0, -0.12))
+    jump.key("root", 9, (0, 0, 0), loc=(0, 0, 0.10))
+    jump.key("root", LENGTHS["jump"], (0, 0, 0), loc=(0, 0, 0))
+    for bone in arms:
+        jump.key(bone, 1, (0, 0, 0))
+        jump.key(bone, 4, (26, 0, 0))
+        jump.key(bone, 9, (-52, 0, 0))
+        jump.key(bone, LENGTHS["jump"], (0, 0, 0))
+    for i, tb in enumerate(tail_bones):
+        jump.key(tb, 1, (0, 0, 0))
+        jump.key(tb, 9, (-20.0 / (1 + i), 0, 0))
+        jump.key(tb, LENGTHS["jump"], (0, 0, 0))
+
+    # Hit: a recoil that is legible from across the map, which is where tags happen.
+    hit = Clip(arm, "hit", LENGTHS["hit"])
+    # A recoil throws the head *back*. These were negative, which on these rigs is forward, so a
+    # tagged animal nodded into the hit (head +0.07 m forward at the peak) instead of reeling.
+    hit.key("spine", 1, (0, 0, 0))
+    hit.key("spine", 3, (24, 0, 8))
+    hit.key("spine", 9, (-8, 0, -3))
+    hit.key("spine", LENGTHS["hit"], (0, 0, 0))
+    for bone in arms:
+        hit.key(bone, 1, (0, 0, 0))
+        hit.key(bone, 3, (-34, 0, 0))
+        hit.key(bone, LENGTHS["hit"], (0, 0, 0))
+    hit.key("head", 1, (0, 0, 0))
+    hit.key("head", 3, (28, 0, 12))
+    hit.key("head", LENGTHS["hit"], (0, 0, 0))
+
+    _emotes(arm, legs, arms, tail_bones)
+
+
+def _emotes(arm, legs, arms, tail_bones):
+    """
+    The seven emotes.
+
+    Posed on whatever bones the body actually has rather than on a fixed skeleton: a quadruped has
+    no `arm.L`, and a frog has no tail, so each loop runs over what the builder produced. That is
+    why a wave reads on a kangaroo and on a wolf without two versions of it.
+
+    They are one-shot clips, not cycles — the renderer plays each once and falls back to the
+    movement clips — so the last frame returns to the rest pose and nothing is keyed to loop.
+    """
+    hips = [upper for upper, _ in legs]
+    knees = [lower for _, lower in legs]
+
+    def settle(clip, length):
+        """Return every posed bone to rest on the final frame, so the blend out is clean."""
+        for bone in (["spine", "head", "root"] + arms + hips + knees + tail_bones):
+            if bone in arm.pose.bones:
+                clip.key(bone, length, (0, 0, 0), loc=(0, 0, 0) if bone == "root" else None)
+
+    # Wave: one arm up, two beats of the wrist. A quadruped has no arm to raise, so it rocks its
+    # whole front end instead — the gesture still reads as "over here".
+    n = LENGTHS["emote_wave"]
+    wave = Clip(arm, "emote_wave", n)
+    raised = arms[:1] or hips[:1]
+    for bone in raised:
+        wave.key(bone, 1, (0, 0, 0))
+        wave.key(bone, 6, (-96, 0, 18))
+        wave.key(bone, 13, (-96, 0, -16))
+        wave.key(bone, 20, (-96, 0, 18))
+        wave.key(bone, 27, (-96, 0, -10))
+    wave.key("spine", 1, (0, 0, 0))
+    wave.key("spine", 13, (-6, 0, 4))
+    wave.key("head", 1, (0, 0, 0))
+    wave.key("head", 13, (-8, 0, 6))
+    settle(wave, n)
+
+    # Dance: a hip sway with a counter-rotating head, the two things that make anything read as
+    # dancing. Four beats over a second and a half.
+    n = LENGTHS["emote_dance"]
+    dance = Clip(arm, "emote_dance", n)
+    for beat in range(5):
+        f = 1 + beat * (n - 1) // 4
+        side = 1 if beat % 2 == 0 else -1
+        dance.key("spine", f, (0, 0, 14 * side))
+        dance.key("head", f, (-4, 0, -10 * side))
+        dance.key("root", f, (0, 0, 6 * side), loc=(0, 0, 0.05 if beat % 2 else 0.0))
+        for i, bone in enumerate(arms):
+            dance.key(bone, f, (-52 - 20 * side * (1 if i == 0 else -1), 0, 22 * side))
+        for i, tb in enumerate(tail_bones):
+            dance.key(tb, f, (0, 0, -18 * side / (1 + i)))
+    settle(dance, n)
+
+    # Taunt (a point, on the two-legged plans): lean in, one arm straight out, hold, withdraw.
+    n = LENGTHS["emote_taunt"]
+    taunt = Clip(arm, "emote_taunt", n)
+    taunt.key("spine", 1, (0, 0, 0))
+    taunt.key("spine", 8, (14, 0, 0))
+    taunt.key("spine", 26, (14, 0, 0))
+    taunt.key("head", 1, (0, 0, 0))
+    taunt.key("head", 8, (6, 0, 0))
+    taunt.key("head", 26, (6, 0, 0))
+    for bone in arms[:1] or hips[:1]:
+        taunt.key(bone, 1, (0, 0, 0))
+        taunt.key(bone, 8, (-78, 0, 0))
+        taunt.key(bone, 26, (-72, 0, 0))
+    settle(taunt, n)
+
+    # Sit: fold the legs, drop the root, let the tail flop. The one emote that changes silhouette.
+    n = LENGTHS["emote_sit"]
+    sit = Clip(arm, "emote_sit", n)
+    for bone in hips:
+        sit.key(bone, 1, (0, 0, 0))
+        sit.key(bone, 10, (64, 0, 0))
+        sit.key(bone, 28, (64, 0, 0))
+    for bone in knees:
+        sit.key(bone, 1, (0, 0, 0))
+        sit.key(bone, 10, (-88, 0, 0))
+        sit.key(bone, 28, (-88, 0, 0))
+    sit.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    sit.key("root", 10, (0, 0, 0), loc=(0, 0, -0.30))
+    sit.key("root", 28, (0, 0, 0), loc=(0, 0, -0.30))
+    sit.key("spine", 10, (-10, 0, 0))
+    sit.key("spine", 28, (-10, 0, 0))
+    for i, tb in enumerate(tail_bones):
+        sit.key(tb, 10, (18.0 / (1 + i), 0, 0))
+        sit.key(tb, 28, (14.0 / (1 + i), 0, 0))
+    settle(sit, n)
+
+    # Backflip: crouch, launch, a full rotation on the root, land. The root carries the spin so it
+    # works on any body plan; the legs only have to tuck.
+    n = LENGTHS["emote_backflip"]
+    flip = Clip(arm, "emote_backflip", n)
+    flip.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    flip.key("root", 5, (0, 0, 0), loc=(0, 0, -0.18))
+    flip.key("root", 11, (-170, 0, 0), loc=(0, 0, 0.55))
+    flip.key("root", 17, (-340, 0, 0), loc=(0, 0, 0.30))
+    flip.key("root", 22, (-360, 0, 0), loc=(0, 0, -0.08))
+    flip.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in hips:
+        flip.key(bone, 1, (0, 0, 0))
+        flip.key(bone, 5, (40, 0, 0))
+        flip.key(bone, 13, (72, 0, 0))
+        flip.key(bone, 22, (26, 0, 0))
+    for bone in knees:
+        flip.key(bone, 5, (-56, 0, 0))
+        flip.key(bone, 13, (-96, 0, 0))
+        flip.key(bone, 22, (-30, 0, 0))
+    for bone in arms:
+        flip.key(bone, 1, (0, 0, 0))
+        flip.key(bone, 11, (-120, 0, 0))
+        flip.key(bone, 22, (-20, 0, 0))
+    settle(flip, n)
+
+    # Power nap: sink, tip over, breathe. Twice the length of the others because the joke is that
+    # it takes a while.
+    n = LENGTHS["emote_sleep"]
+    sleep = Clip(arm, "emote_sleep", n)
+    sleep.key("root", 1, (0, 0, 0), loc=(0, 0, 0))
+    sleep.key("root", 16, (0, 0, 0), loc=(0, 0, -0.34))
+    sleep.key("root", 30, (-72, 0, 0), loc=(0, 0, -0.44))
+    sleep.key("root", 56, (-72, 0, 0), loc=(0, 0, -0.44))
+    sleep.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in hips:
+        sleep.key(bone, 16, (58, 0, 0))
+        sleep.key(bone, 56, (58, 0, 0))
+    for bone in knees:
+        sleep.key(bone, 16, (-84, 0, 0))
+        sleep.key(bone, 56, (-84, 0, 0))
+    # The breath: a slow rise and fall on the spine while it is down.
+    sleep.key("spine", 30, (-6, 0, 0))
+    sleep.key("spine", 40, (2, 0, 0))
+    sleep.key("spine", 50, (-6, 0, 0))
+    sleep.key("head", 30, (-18, 0, 10))
+    sleep.key("head", 56, (-18, 0, 10))
+    settle(sleep, n)
+
+    # Victory hop: three bounces, arms up, chest out. The one you press after winning a bout.
+    n = LENGTHS["emote_victory"]
+    victory = Clip(arm, "emote_victory", n)
+    for i, f in enumerate((1, 12, 23)):
+        victory.key("root", f, (0, 0, 0), loc=(0, 0, 0))
+        victory.key("root", f + 5, (0, 0, 0), loc=(0, 0, 0.26 - i * 0.05))
+    victory.key("root", n, (0, 0, 0), loc=(0, 0, 0))
+    for bone in arms:
+        victory.key(bone, 1, (0, 0, 0))
+        victory.key(bone, 6, (-142, 0, 0))
+        victory.key(bone, 17, (-128, 0, 0))
+        victory.key(bone, 28, (-142, 0, 0))
+    for bone in hips:
+        victory.key(bone, 6, (-16, 0, 0))
+        victory.key(bone, 17, (-16, 0, 0))
+    victory.key("spine", 6, (-12, 0, 0))
+    victory.key("spine", 17, (-8, 0, 0))
+    victory.key("head", 6, (-14, 0, 0))
+    settle(victory, n)
+
+
+# --------------------------------------------------------------------------------------------
+# Entry point
+# --------------------------------------------------------------------------------------------
+
+
+def skin_parts(parts, bones, name):
+    """
+    Join, rig and weight an animal: heat weighting for the body, rigid pins for the rest.
+
+    Pinned parts are joined in *after* the heat solve, not before. `lib.pin` only relabels
+    weights once the solve is done, so a pinned part used to be solved anyway — and small closed
+    islands are exactly what destabilise it. Measured with the dragon's long neck: the whole solve
+    failed on 9 roster builds in 40 (every other animal: 0 in 640), a failure that depends on
+    floating-point summation order, so it came and went with build order and process state. A
+    neck bone of its own brought it to 2 in 40, and "pinning" the neck changed nothing, because
+    pinning never took it out of the solve. Keeping pinned parts out of it does.
+
+    Ears and eyes are the original reason pins exist: heat weighting skipped them — measured,
+    every animal's 440 eye vertices and every round-eared animal's 104 ear vertices came out on
+    the exporter's `neutral_bone` and stayed put while the head moved.
+    """
+    pinned = [p for p in parts if lib.is_pinned(p)]
+    free = [p for p in parts if not lib.is_pinned(p)]
+    mesh = join(free, name)
+    arm = armature(f"{name}_rig", bones)
+    skin(mesh, arm)
+    lib.join_into(mesh, pinned)
+    lib.apply_pins(mesh)
+    return mesh, arm
+
+
+def build_animal(spec, out_path, capsule):
+    lib.reset()
+    lib.reset_materials()
+    v = spec["visual"]
+    mats = {
+        "body": material(f"{spec['id']}_body", v["body"]),
+        "accent": material(f"{spec['id']}_accent", v["accent"]),
+        "belly": material(f"{spec['id']}_belly", v["belly"]),
+        "dark": material(f"{spec['id']}_eye", 0x14181F, roughness=0.35),
+    }
+
+    plan_name = v.get("build")
+    if plan_name not in PLANS:
+        raise ValueError(
+            f"{spec['id']}: build={plan_name!r} is not a body plan (have {sorted(PLANS)})"
+        )
+    source = SOURCE_MESHES.get(spec["id"])
+    if source and os.path.exists(source["path"]):
+        if source["plan"] != plan_name:
+            raise ValueError(f"{spec['id']}: source mesh is rigged as {source['plan']}, spec says {plan_name}")
+        parts, bones, plan, sockets = build_from_source(spec, mats, source)
+    else:
+        parts, bones, plan, sockets = PLANS[plan_name](spec, mats)
+
+        # A part drawn wholly inside other parts is invisible, and worse than invisible: see
+        # `lib.hidden_parts`. Refused before it can reach the weighting step it destabilises.
+        hidden = lib.hidden_parts(parts)
+        if hidden:
+            raise AssertionError(f"{spec['id']}: parts hidden inside other parts: {hidden}")
+        # And the opposite: a part touching nothing floats. Measured on the art as it shipped, this
+        # was every upright and waddler animal's arms, all four paws of every quadruped, the shark's
+        # tail fin and — once the arms were fixed — every waddler's tail. None of it looked wrong in
+        # the numbers; all of it looked wrong in a render.
+        loose = lib.detached_parts(parts)
+        if loose:
+            raise AssertionError(f"{spec['id']}: parts touching nothing: {loose}")
+
+    mesh, arm = skin_parts(parts, bones, spec["id"])
+    # Anything else auto-weighting dropped would ride `neutral_bone` and stay behind in every clip.
+    # Refused here rather than shipped: `animal-motion.test.ts` checks the files, this stops the build.
+    left = lib.unweighted_vertices(mesh)
+    if left:
+        raise AssertionError(f"{spec['id']}: {left} vertices have no bone weight")
+    if source and os.path.exists(source["path"]):
+        sockets = rest_arms(mesh, arm, source, sockets)
+
+    # Sockets go on before a single clip is keyed. `bone_socket` places each one in world space
+    # against the bone's *current* pose, and once `animate` has run that is whatever frame of the
+    # last clip happens to be active — measured, it put a human's hat socket 0.24 m behind the
+    # skull and swayed a penguin's sideways by 9 cm, both from a victory pose frozen into rest.
+    for name, (bone, world_pos) in sockets.items():
+        lib.bone_socket(arm, bone, name, world_pos)
+
+    tail_bones = [b[0] for b in bones if b[0].startswith("tail")]
+    animate(arm, plan, tail_bones)
+
+    # The model has to fit the capsule every animal shares, or it floats, sinks, or sticks out of
+    # its own hitbox. Checked rather than trusted: the numbers above were typed by hand.
+    mesh.data.calc_loop_triangles()
+    zs = [(mesh.matrix_world @ v0.co).z for v0 in mesh.data.vertices]
+    height, lowest = max(zs) - min(zs), min(zs)
+    target = capsule["standHeight"]
+    if abs(height - target) > target * 0.22:
+        raise AssertionError(f"{spec['id']}: {height:.2f}m tall against a {target}m capsule")
+    if abs(lowest) > 0.10:
+        raise AssertionError(f"{spec['id']}: feet at z={lowest:.2f}, expected the origin")
+
+    # Face the glTF convention: the front of an asset faces +Z.
+    #
+    # Every builder above works facing Blender +Y, and the exporter maps +Y to glTF −Z. So every
+    # animal shipped facing backwards. Measured by loading the real files through three.js's own
+    # GLTFLoader and attaching them to an Avatar, in body space where gameplay forward is +Z: the
+    # wolf's snout at z −0.63 and its tail reaching +1.03, the kangaroo's snout at −0.09 and its tail
+    # at +0.71. Every animal ran tail first. Nothing caught it because nothing asked which way the
+    # nose points — the geometry tests hash positions, and a turned-round mesh hashes the same.
+    #
+    # Fixed here, not by rotating models on load: an art pack authored to the spec already faces
+    # +Z, and a client-side flip would turn every correct model round to fix ours. Rotating the
+    # armature object turns the skinned mesh and the sockets with it (both are its children), and
+    # leaves every clip untouched, because clips are keyed in bone-local space.
+    arm.rotation_euler = (0.0, 0.0, math.pi)
+    bpy_update()
+
+    tris = lib.triangle_count(mesh)
+    # Normals stay: they have to follow the bones on a skinned mesh. UVs go — nothing here
+    # samples a texture, so they are coordinates into an image that does not exist.
+    size = lib.export_glb(out_path, animated=True, uvs=False)
+    return {"id": spec["id"], "plan": plan, "triangles": tris, "bytes": size, "height": round(height, 3)}

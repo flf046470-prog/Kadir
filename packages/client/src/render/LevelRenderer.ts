@@ -1,0 +1,1043 @@
+import { DistantLand } from './DistantLand.js';
+import * as THREE from 'three';
+import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
+import type { BoxCollider, Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
+import { terrainGeometry } from './Terrain.js';
+import { cliffGeometry } from './Cliffs.js';
+import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
+import type { PerformanceProfile } from '../platform/Platform.js';
+import type { AssetLibrary } from './AssetLibrary.js';
+
+/**
+ * Which authored model stands in for which prop kind, and how many variants it has.
+ *
+ * `palm` and `tree` share a model deliberately — the jungle needs two silhouettes far less than
+ * it needs four different trees, and the variant picker already gives it those. `torch` has no
+ * model and keeps its procedural shape, which is the point of the table: a kind missing from here
+ * is not broken, it is simply still procedural.
+ */
+const MODEL_PROPS: Record<string, { base: string; variants: number }> = {
+  rock: { base: 'rock', variants: 4 },
+  boulder: { base: 'boulder-tall', variants: 2 },
+  bush: { base: 'bush', variants: 4 },
+  flower: { base: 'flower', variants: 3 },
+  mushroom: { base: 'mushroom', variants: 3 },
+  tree: { base: 'tree', variants: 4 },
+  palm: { base: 'tree', variants: 4 },
+  vine: { base: 'vine', variants: 3 },
+  stalagmite: { base: 'stalagmite', variants: 3 },
+  crystal: { base: 'crystal', variants: 3 },
+  banner: { base: 'banner', variants: 2 },
+};
+
+export const MATERIAL_COLORS: Record<SurfaceMaterial, number> = {
+  dirt: 0x6d5535,
+  rock: 0x7b7f86,
+  wood: 0x7a5230,
+  foliage: 0x3f8f4a,
+  water: 0x2f7fa8,
+  metal: 0x9aa3ad,
+  sand: 0xd8c48c,
+  stone: 0x8c8f94,
+  // Pale blue-white with enough blue in it to separate from snow at a distance; flat-shaded
+  // low-poly ice reads as grey the moment the hue goes out of it.
+  ice: 0xa8d8ea,
+  snow: 0xeef4f8,
+  // Iron-oxide ochre, and a darker, greyer version of it for the cliffs — close enough to read as
+  // the same country, far enough apart that a wall never disappears into the ground in front of it.
+  redEarth: 0xb06437,
+  redRock: 0x8a5539,
+};
+
+const PROP_TINTS = [0x3f8f4a, 0x2f7a3c, 0x57a05a, 0x76b06a];
+
+/**
+ * Which surface's detail a prop borrows.
+ *
+ * Only the normal, roughness and occlusion are taken — never the albedo — because a prop carries
+ * its own colour per instance and multiplying two greens together darkens every leaf in the world.
+ * So this is a question about *surface*, not about hue: a crystal wants ice's polish and its
+ * cracks, a log wants wood's grain, a stalagmite wants rock's creases.
+ */
+const PROP_SURFACES: Record<string, SurfaceMaterial> = {
+  tree: 'foliage',
+  palm: 'foliage',
+  bush: 'foliage',
+  vine: 'foliage',
+  flower: 'foliage',
+  mushroom: 'foliage',
+  rock: 'rock',
+  boulder: 'rock',
+  stalagmite: 'stone',
+  banner: 'wood',
+  torch: 'wood',
+  crystal: 'ice',
+};
+
+/**
+ * Builds the visible world from a `LevelDef`.
+ *
+ * Static geometry is merged per material and props are drawn with `InstancedMesh`, so the whole
+ * jungle costs a few dozen draw calls instead of a few thousand — the single most important
+ * thing for holding frame rate on a phone or a Quest.
+ */
+/**
+ * One colour per door, so the lobby is navigable by memory rather than by reading eight labels.
+ * Warm for the chasing modes, cold for the timed ones, red for the fight.
+ */
+const PORTAL_COLORS: Record<string, number> = {
+  'kangaroo-chase': 0xffb703,
+  infection: 0x8ac926,
+  duel: 0xff6b35,
+  hunt: 0xef476f,
+  'freeze-tag': 0x4cc9f0,
+  hill: 0xffd166,
+  boxing: 0xdc2626,
+  parkour: 0x9b5de5,
+  'roo-ball': 0x2fae5a,
+};
+
+/**
+ * What each door says on it.
+ *
+ * Colour alone makes a lobby you have to memorise, which is fine on your hundredth visit and
+ * useless on your first — and this is the screen a new player lands on. Taken from a table rather
+ * than from the mode registry because the renderer already has the level and a level is plain
+ * data; importing the gameplay modules here to read eight display names would be the wrong
+ * dependency for the wrong reason.
+ */
+const PORTAL_LABELS: Record<string, string> = {
+  'kangaroo-chase': 'Kangaroo Chase',
+  infection: 'Infection',
+  duel: 'Conversion Duel',
+  hunt: 'The Hunt',
+  'freeze-tag': 'Freeze Tag',
+  hill: 'King of the Hill',
+  boxing: 'VR Boxing',
+  parkour: 'Parkour Race',
+  'roo-ball': 'Roo Ball',
+};
+
+export class LevelRenderer {
+  /** Hills, peaks or mesas beyond the edge cliffs; see `DistantLand`. */
+  private readonly distantLand: DistantLand;
+  readonly group = new THREE.Group();
+  /**
+   * Everything holding GPU memory, released together in `dispose()`.
+   *
+   * Textures belong here as much as geometry and materials do: the portal signs are drawn onto
+   * canvases at runtime, and a material's `dispose()` does not touch its `map`. Leaving them out
+   * would leak eight 512x128 textures every time a level is torn down and rebuilt, which is once
+   * per round.
+   */
+  private disposables: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [];
+  private instanced: THREE.InstancedMesh[] = [];
+  private checkpointRings: THREE.Mesh[] = [];
+  private portals: { group: THREE.Group; arch: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
+  private portalVeils: THREE.Mesh[] = [];
+  /** Every water material this level built — one per `kind:water` collider bucket, usually one. */
+  private waterMaterials: THREE.MeshStandardMaterial[] = [];
+
+  /** Instanced meshes built from procedural geometry, replaced if authored models arrive. */
+  private proceduralProps: THREE.InstancedMesh[] = [];
+  /** Rock sphere colliders drawn as smooth balls until the rock models arrive. */
+  private rockSpheres: { mesh: THREE.InstancedMesh; colliders: Collider[]; seeds: number[] }[] = [];
+  /** Fallen logs (`BoxCollider.drawAs`), drawn as plain wooden cylinders until the log model arrives. */
+  private logs: { mesh: THREE.InstancedMesh; colliders: BoxCollider[] } | null = null;
+  private disposed = false;
+
+  constructor(
+    private readonly level: LevelDef,
+    private readonly profile: PerformanceProfile,
+    private readonly assets?: AssetLibrary,
+  ) {
+    this.buildBackdrop();
+    this.distantLand = new DistantLand(this.level);
+    this.group.add(this.distantLand.mesh);
+    this.buildColliders();
+    this.buildProps();
+    this.buildCheckpoints();
+    this.buildPortals();
+    if (this.assets) {
+      void this.upgradeProps(this.assets);
+      void this.upgradeRockSpheres(this.assets);
+      void this.upgradeLogs(this.assets);
+    }
+  }
+
+  /**
+   * Distant ground, far outside the play area, so the world does not end in mid-air.
+   *
+   * The level is a set of floor slabs with nothing underneath them, and at 0.0075 fog density the
+   * edge is only about 40% hazed at the distance a player reaches it — so walking to the boundary
+   * and looking out showed sky *below* the ground as well as above it, and the whole map read as
+   * a slab floating in blue. Caught in a screenshot, not in code: it is invisible from anywhere
+   * near the middle of the map and unmissable from the rim.
+   *
+   * Purely decorative. No collider, no entry in the `LevelDef`, nothing the simulation can see —
+   * so it cannot change where anyone can stand, and client and server still build the same world.
+   *
+   * Placed below the lowest floor rather than level with the ground: the slabs then read as a
+   * plateau standing above a plain, which is a landscape, instead of a sheet lying on another
+   * sheet, which is a seam.
+   */
+  private buildBackdrop(): void {
+    let lowest = 0;
+    for (const collider of this.level.colliders) {
+      lowest = Math.min(lowest, colliderBottom(collider));
+    }
+
+    // Wide enough that its own edge is beyond the fog: at this density anything past ~250 m is
+    // fully hazed into the sky colour, so the plain has no visible end of its own.
+    const geometry = new THREE.PlaneGeometry(1400, 1400);
+    /**
+     * Tinted from the level's own ground rather than a fixed green.
+     *
+     * The first version hard-coded a jungle green, which was invisible while one map existed and
+     * absurd the moment a second one did: a glacier ringed by a green plain. The colour is taken
+     * from whichever material covers the most ground and darkened, so a distant plain always
+     * belongs to the map in front of it.
+     */
+    // Standard like everything else, and rough: the backdrop is a distant plain seen through fog,
+    // so a specular response on it would put a sheen on the horizon.
+    const material = new THREE.MeshStandardMaterial({ color: this.backdropColor(), roughness: 1, metalness: 0 });
+    const plane = new THREE.Mesh(geometry, material);
+    plane.rotation.x = -Math.PI / 2;
+    plane.position.y = lowest - 14;
+    // Never casts or receives: it is scenery at a distance, and shadowing a 1400 m plane would
+    // cost the whole shadow map's resolution for something nobody stands on.
+    plane.castShadow = false;
+    plane.receiveShadow = false;
+    // Drawn first, so it can never z-fight its way in front of real geometry.
+    plane.renderOrder = -1;
+    this.disposables.push(geometry, material);
+    this.group.add(plane);
+  }
+
+  /** The colour of whichever material covers the most ground, darkened into a distance. */
+  private backdropColor(): number {
+    const area = new Map<SurfaceMaterial, number>();
+    for (const collider of this.level.colliders) {
+      if (collider.kind === 'heightfield') {
+        const key = collider.surface.material;
+        area.set(key, (area.get(key) ?? 0) + ((heightfieldMaxX(collider) - collider.minX) * (heightfieldMaxZ(collider) - collider.minZ)) / 4);
+        continue;
+      }
+      if (collider.kind !== 'box') continue;
+      // Floors only: a tall wall has a large face and covers no ground.
+      if (collider.half.y > Math.min(collider.half.x, collider.half.z)) continue;
+      const key = collider.surface.material;
+      area.set(key, (area.get(key) ?? 0) + collider.half.x * collider.half.z);
+    }
+    let best: SurfaceMaterial = 'dirt';
+    let most = -1;
+    for (const [material, value] of area) {
+      if (value > most) {
+        most = value;
+        best = material;
+      }
+    }
+    return new THREE.Color(MATERIAL_COLORS[best] ?? 0x5a6b45).multiplyScalar(0.72).getHex();
+  }
+
+  /**
+   * Swap the procedural prop shapes for the authored models, once they have downloaded.
+   *
+   * Late and optional, for the same reason the avatars upgrade late: the world must be standing
+   * the instant a match starts, and a cone is a better tree than an empty clearing while a few
+   * hundred kilobytes are in flight. If a file is missing the cone simply stays.
+   *
+   * Each kind becomes one instanced mesh *per variant*, with the instances dealt out between
+   * them. Four rocks drawn two hundred times each is four draw calls; the same two hundred rocks
+   * all identical is one draw call and a world that looks stamped out — and the repetition is far
+   * more noticeable than any single model's quality.
+   */
+  private async upgradeProps(assets: AssetLibrary): Promise<void> {
+    const byKind = this.propsByKind();
+    const built: THREE.InstancedMesh[] = [];
+
+    for (const [kind, props] of byKind) {
+      const model = MODEL_PROPS[kind];
+      if (!model) continue;
+
+      const variants = await Promise.all(
+        Array.from({ length: model.variants }, (_, i) => assets.loadGeometry(`/models/props/${model.base}-${i + 1}.glb`)),
+      );
+      const usable = variants.filter((g): g is THREE.BufferGeometry => g !== null);
+      if (usable.length === 0) continue;
+      // The renderer can be torn down while a download is in flight — a player leaving a match is
+      // the common case — and adding meshes to a disposed group leaks every one of them.
+      if (this.disposed) return;
+
+      const budget = Math.min(props.length, this.profile.foliageBudget);
+      // Vertex colours carry the two-tone baked in by the Blender pass, so the material is white
+      // and does the multiplying. No `instanceColor` here: it would multiply again and tint the
+      // moss along with the stone.
+      //
+      // `flatShading` is load-bearing, not a style choice. The prop files deliberately ship
+      // without a normal attribute — glTF requires a renderer to compute flat normals when it is
+      // absent, which is what makes them a third of the size. `GLTFLoader` sets this flag itself
+      // for exactly that case, but this material is built here rather than by the loader, so
+      // nothing had set it: the shader got no normals, Lambert returned no diffuse light, and
+      // every bush and fern in the world rendered solid black.
+      const material = createSurfaceMaterial(PROP_SURFACES[kind] ?? 'foliage', surfaceQualityFor(this.profile), {
+        color: 0xffffff,
+        vertexColors: true,
+        detailOnly: true,
+        flatShading: true,
+      });
+      this.disposables.push(material);
+
+      const perVariant: PropInstance[][] = usable.map(() => []);
+      for (let i = 0; i < budget; i++) {
+        const prop = props[i] as PropInstance;
+        (perVariant[i % usable.length] as PropInstance[]).push(prop);
+      }
+
+      const matrix = new THREE.Matrix4();
+      const position = new THREE.Vector3();
+      const quaternion = new THREE.Quaternion();
+      const scale = new THREE.Vector3();
+      const up = new THREE.Vector3(0, 1, 0);
+
+      for (let v = 0; v < usable.length; v++) {
+        const list = perVariant[v] as PropInstance[];
+        if (list.length === 0) continue;
+        const mesh = new THREE.InstancedMesh(usable[v] as THREE.BufferGeometry, material, list.length);
+        mesh.castShadow = this.profile.shadows && kind !== 'flower' && kind !== 'bush';
+        mesh.receiveShadow = true;
+        for (let i = 0; i < list.length; i++) {
+          const prop = list[i] as PropInstance;
+          position.set(prop.position.x, prop.position.y, prop.position.z);
+          quaternion.setFromAxisAngle(up, prop.yaw);
+          scale.setScalar(prop.scale);
+          matrix.compose(position, quaternion, scale);
+          mesh.setMatrixAt(i, matrix);
+        }
+        mesh.instanceMatrix.needsUpdate = true;
+        this.group.add(mesh);
+        built.push(mesh);
+      }
+
+      // Only now is the procedural version redundant. Removing it earlier would blink the world
+      // empty for however long the download took.
+      for (const mesh of this.proceduralProps) {
+        if (mesh.userData.kind !== kind) continue;
+        mesh.removeFromParent();
+        mesh.dispose();
+        this.instanced = this.instanced.filter((m) => m !== mesh);
+      }
+      this.proceduralProps = this.proceduralProps.filter((m) => m.userData.kind !== kind);
+    }
+
+    this.instanced.push(...built);
+  }
+
+  private propsByKind(): Map<string, PropInstance[]> {
+    const byKind = new Map<string, PropInstance[]>();
+    // `LevelBuilder.rocks` puts a rock prop on every boulder collider it makes, which drew each
+    // boulder twice — a ball and a rock through it. With models to load, the collider is drawn as
+    // a rock itself (`upgradeRockSpheres`), fitted to what a player collides with, so the prop
+    // on top of it is skipped: 130 of the glacier's 144 boulders, ~900 triangles each.
+    const boulders = this.assets ? rockSphereSites(this.level) : null;
+    for (const prop of this.level.props) {
+      if (boulders && prop.kind === 'rock' && boulders.has(siteKey(prop.position.x, prop.position.z))) continue;
+      const list = byKind.get(prop.kind) ?? [];
+      list.push(prop);
+      byKind.set(prop.kind, list);
+    }
+    return byKind;
+  }
+
+  /**
+   * The material for one surface kind.
+   *
+   * `MATERIAL_COLORS` survives as the tint and as the whole appearance on the lowest tier, where
+   * textures are skipped entirely — a device that cannot afford a shadow map is not handed a
+   * triplanar shader either. Everywhere else the colour is carried by the generated albedo and this
+   * value only shades it.
+   */
+  private material(material: SurfaceMaterial): THREE.Material {
+    const color = MATERIAL_COLORS[material] ?? 0x888888;
+    const isWater = material === 'water';
+    const mat = createSurfaceMaterial(material, surfaceQualityFor(this.profile), {
+      color,
+      ...(isWater ? { transparent: true, opacity: 0.72 } : {}),
+      flatShading: true,
+    });
+    this.disposables.push(mat);
+    if (isWater) this.waterMaterials.push(mat);
+    return mat;
+  }
+
+  /** One mesh per (material × shape), instanced across every collider that uses it. */
+  private buildColliders(): void {
+    const buckets = new Map<string, { collider: Collider; index: number }[]>();
+    const logs: BoxCollider[] = [];
+    const cliffs = new Map<SurfaceMaterial, BoxCollider[]>();
+    this.level.colliders.forEach((collider, index) => {
+      if (collider.kind === 'heightfield') {
+        this.buildTerrain(collider);
+        return;
+      }
+      if (collider.kind === 'box' && collider.drawAs === 'log') {
+        logs.push(collider);
+        return;
+      }
+      // `enclose` only ever builds them square to the axes; a turned one is drawn as the box it is.
+      if (collider.kind === 'box' && collider.drawAs === 'cliff' && collider.yaw === 0) {
+        const list = cliffs.get(collider.surface.material) ?? [];
+        list.push(collider);
+        cliffs.set(collider.surface.material, list);
+        return;
+      }
+      const key = `${collider.kind}:${collider.surface.material}`;
+      const list = buckets.get(key) ?? [];
+      list.push({ collider, index });
+      buckets.set(key, list);
+    });
+
+    const box = new THREE.BoxGeometry(1, 1, 1);
+    const sphere = new THREE.IcosahedronGeometry(1, 1);
+    const cylinder = new THREE.CylinderGeometry(1, 1, 1, 8, 1);
+    this.disposables.push(box, sphere, cylinder);
+
+    const matrix = new THREE.Matrix4();
+    const quaternion = new THREE.Quaternion();
+    const position = new THREE.Vector3();
+    const scale = new THREE.Vector3();
+
+    for (const [key, list] of buckets) {
+      const kind = key.split(':')[0] as Collider['kind'];
+      const material = list[0]?.collider.surface.material ?? 'dirt';
+      const geometry = kind === 'box' ? box : kind === 'sphere' ? sphere : cylinder;
+      const mesh = new THREE.InstancedMesh(geometry, this.material(material), list.length);
+      mesh.castShadow = this.profile.shadows;
+      mesh.receiveShadow = true;
+
+      list.forEach((entry, i) => {
+        mesh.setMatrixAt(i, colliderMatrix(entry.collider, matrix, position, quaternion, scale));
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+      this.group.add(mesh);
+      this.instanced.push(mesh);
+      if (kind === 'sphere' && ROCK_BALL_MATERIALS.has(material)) {
+        this.rockSpheres.push({
+          mesh,
+          colliders: list.map((entry) => entry.collider),
+          seeds: list.map((entry) => entry.index),
+        });
+      }
+    }
+    if (logs.length > 0) this.buildLogs(logs);
+    for (const [material, walls] of cliffs) this.buildCliffs(material, walls);
+  }
+
+  /** The walls round the map, as one mesh of carved rock per surface. See `Cliffs.ts`. */
+  private buildCliffs(material: SurfaceMaterial, walls: BoxCollider[]): void {
+    const geometry = cliffGeometry(walls, this.level.seed);
+    this.disposables.push(geometry);
+    const mesh = new THREE.Mesh(geometry, this.material(material));
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'cliff';
+    this.group.add(mesh);
+  }
+
+  /**
+   * Fallen logs, as round logs rather than as the boxes that collide.
+   *
+   * Until the model loads — and for good without one — a cylinder lying along the box's local X,
+   * which is inscribed in it: its top is the box's top and its sides are the box's sides, so a
+   * player standing on one is standing on what they see. Only the box's four long edges are not
+   * drawn, where a capsule's rounded foot meets the corner of a solid it cannot see by at most a
+   * few centimetres.
+   */
+  private buildLogs(colliders: BoxCollider[]): void {
+    const geometry = new THREE.CylinderGeometry(1, 1, 2, 10, 1);
+    geometry.rotateZ(Math.PI / 2);
+    this.disposables.push(geometry);
+    const mesh = new THREE.InstancedMesh(geometry, this.material('wood'), colliders.length);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'log';
+    this.placeLogs(mesh, colliders);
+    this.group.add(mesh);
+    this.instanced.push(mesh);
+    this.logs = { mesh, colliders };
+  }
+
+  /** One instance per log: the unit shape (±1 on every axis) scaled to the box's half extents. */
+  private placeLogs(mesh: THREE.InstancedMesh, colliders: BoxCollider[]): void {
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    colliders.forEach((c, i) => {
+      position.set(c.center.x, c.center.y, c.center.z);
+      quaternion.setFromAxisAngle(UP, c.yaw);
+      scale.set(c.half.x, c.half.y, c.half.z);
+      mesh.setMatrixAt(i, matrix.compose(position, quaternion, scale));
+    });
+    mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /**
+   * The log model, fitted to each fallen log's box by its *body* (`fitLogBody`), with the bark and
+   * moss baked into its vertex colours — the same look the decorative log props had.
+   */
+  private async upgradeLogs(assets: AssetLibrary): Promise<void> {
+    if (!this.logs) return;
+    const source = await assets.loadGeometry(`/models/props/${LOG_MODEL}.glb`);
+    if (!source || this.disposed || !this.logs) return;
+    const geometry = fitLogBody(source);
+    // Same material as every other prop: see `upgradeProps` for why `flatShading` is load-bearing.
+    const material = createSurfaceMaterial('wood', surfaceQualityFor(this.profile), {
+      color: 0xffffff,
+      vertexColors: true,
+      detailOnly: true,
+      flatShading: true,
+    });
+    this.disposables.push(geometry, material);
+    const { mesh: old, colliders } = this.logs;
+    const mesh = new THREE.InstancedMesh(geometry, material, colliders.length);
+    mesh.castShadow = old.castShadow;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'log';
+    this.placeLogs(mesh, colliders);
+    this.group.add(mesh);
+    this.instanced.push(mesh);
+    // The cylinder goes only once the model is in, so a slow download never blinks logs out.
+    old.removeFromParent();
+    old.dispose();
+    this.instanced = this.instanced.filter((m) => m !== old);
+    this.logs = { mesh, colliders };
+  }
+
+  /**
+   * One terrain collider, as its own mesh: a grid is not a unit shape an instance can scale.
+   *
+   * Its own material rather than the instanced boxes' one of the same surface, because the boxes
+   * are flat-shaded on the untextured tier and a flat-shaded grid shows every 2 m cell as a facet.
+   */
+  private buildTerrain(collider: HeightfieldCollider): void {
+    const geometry = terrainGeometry(collider);
+    const color = MATERIAL_COLORS[collider.surface.material] ?? 0x888888;
+    const material = createSurfaceMaterial(collider.surface.material, surfaceQualityFor(this.profile), { color, flatShading: false });
+    this.disposables.push(geometry, material);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    this.group.add(mesh);
+  }
+
+  /**
+   * Rock sphere colliders, drawn as rocks.
+   *
+   * Every boulder the level builders scatter is a physics sphere, and it used to be drawn as one:
+   * a smooth grey ball, 190 of them across the three maps (144 on the glacier alone), sitting
+   * beside Meshy-sculpted rock props and reading as a different game. `rockball-N` is the same
+   * four rocks at 320 triangles instead of ~1,150 — full-detail rocks at every sphere would have
+   * cost 167k triangles on the glacier, against a Quest scene that measures 410k in total.
+   *
+   * Each model is normalised to fill the unit cube, so the rock's top is the sphere's top and a
+   * player standing on one is standing on what they see. It keeps the collider's own surface
+   * material (textured, triplanar) rather than the prop's baked moss, so an outback boulder stays
+   * the outback's rock. Yaw comes from the collider index, so every client draws the same rock.
+   */
+  private async upgradeRockSpheres(assets: AssetLibrary): Promise<void> {
+    if (this.rockSpheres.length === 0) return;
+    const loaded = await Promise.all(
+      Array.from({ length: ROCK_BALL_VARIANTS }, (_, i) => assets.loadGeometry(`/models/props/rockball-${i + 1}.glb`)),
+    );
+    const variants = loaded.filter((g): g is THREE.BufferGeometry => g !== null).map(fillUnitCube);
+    if (variants.length === 0) return;
+    if (this.disposed) {
+      for (const geometry of variants) geometry.dispose();
+      return;
+    }
+    this.disposables.push(...variants);
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    for (const { mesh, colliders, seeds } of this.rockSpheres) {
+      const perVariant: number[][] = variants.map(() => []);
+      colliders.forEach((_, i) => (perVariant[(seeds[i] as number) % variants.length] as number[]).push(i));
+      for (let v = 0; v < variants.length; v++) {
+        const members = perVariant[v] as number[];
+        if (members.length === 0) continue;
+        const rocks = new THREE.InstancedMesh(variants[v] as THREE.BufferGeometry, mesh.material, members.length);
+        rocks.castShadow = mesh.castShadow;
+        rocks.receiveShadow = true;
+        members.forEach((c, i) => {
+          const collider = colliders[c] as Collider;
+          if (collider.kind !== 'sphere') return;
+          const seed = seeds[c] as number;
+          position.set(collider.center.x, collider.center.y, collider.center.z);
+          quaternion.setFromAxisAngle(UP, ((seed * 2.399963) % (Math.PI * 2)));
+          scale.setScalar(collider.radius);
+          rocks.setMatrixAt(i, matrix.compose(position, quaternion, scale));
+        });
+        rocks.instanceMatrix.needsUpdate = true;
+        this.group.add(rocks);
+        this.instanced.push(rocks);
+      }
+      // The ball goes only once the rocks are in, so a slow download never blinks boulders out.
+      mesh.removeFromParent();
+      mesh.dispose();
+      this.instanced = this.instanced.filter((m) => m !== mesh);
+    }
+    this.rockSpheres = [];
+  }
+
+  /** Decorative props: instanced, budgeted by quality tier, sorted so nearby ones survive culling. */
+  private buildProps(): void {
+    const byKind = this.propsByKind();
+
+    const matrix = new THREE.Matrix4();
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+
+    for (const [kind, props] of byKind) {
+      const geometry = propGeometry(kind);
+      if (!geometry) continue;
+      this.disposables.push(geometry);
+      const budget = Math.min(props.length, this.profile.foliageBudget);
+      // White, because `instanceColor` below carries each prop's own tint and three.js multiplies
+      // it into the diffuse term.
+      const material = createSurfaceMaterial(PROP_SURFACES[kind] ?? 'foliage', surfaceQualityFor(this.profile), {
+        color: 0xffffff,
+        detailOnly: true,
+        flatShading: true,
+      });
+      this.disposables.push(material);
+      const mesh = new THREE.InstancedMesh(geometry, material, budget);
+      mesh.castShadow = this.profile.shadows && kind !== 'flower' && kind !== 'bush';
+      mesh.receiveShadow = true;
+      mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(budget * 3), 3);
+
+      const color = new THREE.Color();
+      for (let i = 0; i < budget; i++) {
+        const prop = props[i] as PropInstance;
+        position.set(prop.position.x, prop.position.y, prop.position.z);
+        quaternion.setFromAxisAngle(up, prop.yaw);
+        scale.setScalar(prop.scale);
+        matrix.compose(position, quaternion, scale);
+        mesh.setMatrixAt(i, matrix);
+        color.setHex(propColor(kind, prop.tint));
+        mesh.setColorAt(i, color);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+      // Tagged so `upgradeProps` can retire exactly the kind it replaced, and no other.
+      mesh.userData.kind = kind;
+      this.group.add(mesh);
+      this.instanced.push(mesh);
+      this.proceduralProps.push(mesh);
+    }
+  }
+
+  /**
+   * The doors in the lobby, one per mode.
+   *
+   * Drawn as a stand-in arch immediately and upgraded to the Blender model when it arrives, the
+   * same two-stage trick the props use: a player who spawns into the lobby on a cold cache should
+   * see eight doorways, not eight gaps where the doorways will be.
+   *
+   * Colour is per mode and applied here rather than baked, so one 22 KB arch serves all eight and
+   * the palette can change without regenerating anything.
+   */
+  private buildPortals(): void {
+    for (const portal of this.level.portals) {
+      const group = new THREE.Group();
+      group.position.set(portal.position.x, portal.position.y, portal.position.z);
+      group.rotation.y = portal.yaw;
+
+      const colour = PORTAL_COLORS[portal.modeId] ?? 0x9aa5b1;
+
+      // The veil: a disc that faces whoever walks up to it. Basic rather than standard, and
+      // additive, because this is the one thing in the lobby that should read as light rather
+      // than as a lit surface — it is how you tell a door from a rock at fifty metres.
+      const veilGeometry = new THREE.CircleGeometry(1.5, 24);
+      this.disposables.push(veilGeometry);
+      const veilMaterial = new THREE.MeshBasicMaterial({
+        color: colour,
+        transparent: true,
+        opacity: 0.5,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      });
+      this.disposables.push(veilMaterial);
+      const veil = new THREE.Mesh(veilGeometry, veilMaterial);
+      veil.position.y = 1.75;
+      group.add(veil);
+      this.portalVeils.push(veil);
+
+      // The arch. A torus stands in until the model loads; both are the same size, so the swap
+      // does not make the door jump.
+      const archGeometry = new THREE.TorusGeometry(1.7, 0.18, 6, 20);
+      this.disposables.push(archGeometry);
+      const archMaterial = new THREE.MeshStandardMaterial({
+        color: colour,
+        emissive: colour,
+        emissiveIntensity: 0.35,
+        roughness: 0.6,
+        metalness: 0.1,
+        flatShading: true,
+      });
+      this.disposables.push(archMaterial);
+      const arch = new THREE.Mesh(archGeometry, archMaterial);
+      arch.position.y = 1.75;
+      arch.castShadow = this.profile.shadows;
+      group.add(arch);
+
+      const sign = this.portalSign(PORTAL_LABELS[portal.modeId] ?? portal.modeId, colour);
+      if (sign) {
+        // Above the arch rather than across the opening, so it never sits between you and the
+        // thing you are walking into.
+        sign.position.y = 3.9;
+        group.add(sign);
+      }
+
+      this.group.add(group);
+      this.portals.push({ group, arch, material: archMaterial });
+    }
+
+    if (this.assets && this.level.portals.length > 0) void this.upgradePortals(this.assets);
+  }
+
+  /**
+   * A name board for one door, as a camera-facing sprite.
+   *
+   * A sprite rather than text geometry because it stays legible from any angle in the ring and
+   * costs one quad; and drawn at 2x with `depthTest` left on, so an arch behind a tree reads as
+   * being behind the tree rather than floating in front of it — the opposite of a player
+   * nameplate, which you *do* want to see through the world.
+   */
+  private portalSign(text: string, colour: number): THREE.Sprite | null {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    ctx.font = 'bold 60px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    /**
+     * A dark board behind the letters, sized to the text.
+     *
+     * Coloured text alone was legible against the jungle floor and marginal against the sky:
+     * measured in the lobby, "Parkour Race" is violet and the sky behind it is bright blue, which
+     * is two similarly-light colours with an outline between them. A board makes every door read
+     * the same regardless of what is behind it, and the mode colour still does its job as the
+     * thing you recognise from across the ring.
+     */
+    const width = Math.min(480, ctx.measureText(text).width + 56);
+    const plate = new Path2D();
+    plate.roundRect(256 - width / 2, 18, width, 92, 18);
+    ctx.fillStyle = 'rgba(12,16,22,0.82)';
+    ctx.fill(plate);
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = `#${colour.toString(16).padStart(6, '0')}`;
+    ctx.stroke(plate);
+
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+    ctx.strokeText(text, 256, 64);
+    ctx.fillStyle = `#${colour.toString(16).padStart(6, '0')}`;
+    ctx.fillText(text, 256, 64);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.disposables.push(texture);
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
+    this.disposables.push(material);
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(3.2, 0.8, 1);
+    return sprite;
+  }
+
+  /** Swap the stand-in torus for the generated arch once it has downloaded. */
+  private async upgradePortals(assets: AssetLibrary): Promise<void> {
+    const geometry = await assets.loadGeometry('/models/props/portal.glb');
+    if (!geometry || this.disposed) return;
+    this.disposables.push(geometry);
+    for (const entry of this.portals) {
+      entry.group.remove(entry.arch);
+      const mesh = new THREE.Mesh(geometry, entry.material);
+      mesh.castShadow = this.profile.shadows;
+      mesh.receiveShadow = true;
+      entry.group.add(mesh);
+      entry.arch = mesh;
+    }
+  }
+
+  private buildCheckpoints(): void {
+    const geometry = new THREE.TorusGeometry(1.6, 0.14, 6, 20);
+    this.disposables.push(geometry);
+    for (const checkpoint of this.level.checkpoints) {
+      const material = new THREE.MeshBasicMaterial({
+        color: checkpoint.finish ? 0xffd166 : 0x4cc9f0,
+        transparent: true,
+        opacity: 0.75,
+      });
+      this.disposables.push(material);
+      const ring = new THREE.Mesh(geometry, material);
+      ring.position.set(checkpoint.position.x, checkpoint.position.y + 1.6, checkpoint.position.z);
+      ring.rotation.x = Math.PI / 2;
+      ring.visible = false; // shown only in parkour
+      this.group.add(ring);
+      this.checkpointRings.push(ring);
+    }
+  }
+
+  /** Parkour shows the route; other modes hide it so the map reads clean. */
+  setCheckpointsVisible(visible: boolean, activeIndex = -1): void {
+    this.checkpointRings.forEach((ring, index) => {
+      ring.visible = visible;
+      const material = ring.material as THREE.MeshBasicMaterial;
+      material.opacity = index === activeIndex ? 0.95 : 0.35;
+    });
+  }
+
+  /**
+   * Doors are for the lobby. In a match they would be eight glowing rings in the middle of the
+   * map that do nothing, which reads as scenery nobody can explain.
+   */
+  setPortalsVisible(visible: boolean): void {
+    for (const entry of this.portals) entry.group.visible = visible;
+  }
+
+  animate(time: number): void {
+    // A slow breath on the veils. Enough to say "this is live" without becoming a strobe in a
+    // headset, where eight of them are in view at once.
+    for (let i = 0; i < this.portalVeils.length; i++) {
+      const veil = this.portalVeils[i] as THREE.Mesh;
+      const material = veil.material as THREE.MeshBasicMaterial;
+      material.opacity = 0.34 + Math.sin(time * 1.6 + i * 0.8) * 0.12;
+    }
+
+    for (let i = 0; i < this.checkpointRings.length; i++) {
+      const ring = this.checkpointRings[i] as THREE.Mesh;
+      if (!ring.visible) continue;
+      ring.rotation.z = time * 0.7 + i;
+    }
+
+    // Water was a perfectly still, glossy surface — the ripple normal map is real but frozen, so a
+    // river read as varnished glass rather than moving water. `flowOffset` is `applyTriplanar`'s
+    // generic per-material UV scroll (see surfaces.ts); water is the only material that ever moves
+    // it. Different rates on each axis so the drift reads as a current rather than a diagonal
+    // texture repeat sliding past.
+    for (const mat of this.waterMaterials) {
+      const flow = mat.userData.flowOffset as { value: THREE.Vector2 } | undefined;
+      if (flow) flow.value.set(time * 0.035, time * 0.05);
+    }
+  }
+
+  /** How far a camera must see to show the land beyond the map from anywhere on it. */
+  get viewReach(): number {
+    return this.distantLand.reach;
+  }
+
+  dispose(): void {
+    // Read by `upgradeProps`, which can still be awaiting a download when a player leaves.
+    this.disposed = true;
+    this.distantLand.dispose();
+    for (const mesh of this.instanced) mesh.dispose();
+    for (const item of this.disposables) item.dispose();
+    this.group.clear();
+  }
+}
+
+function propGeometry(kind: string): THREE.BufferGeometry | null {
+  switch (kind) {
+    case 'tree':
+      return new THREE.ConeGeometry(3.2, 9, 7, 1);
+    case 'palm':
+      return new THREE.ConeGeometry(2.4, 6, 5, 1);
+    case 'bush':
+      return new THREE.IcosahedronGeometry(0.9, 0);
+    case 'flower':
+      return new THREE.ConeGeometry(0.18, 0.55, 4, 1);
+    case 'rock':
+    case 'boulder':
+      return new THREE.DodecahedronGeometry(1, 0);
+    case 'mushroom':
+      return new THREE.SphereGeometry(1, 8, 5, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    case 'stalagmite':
+      return new THREE.ConeGeometry(0.8, 3, 5, 1);
+    case 'crystal':
+      return new THREE.OctahedronGeometry(0.6, 0);
+    case 'vine':
+      return new THREE.CylinderGeometry(0.06, 0.06, 2.4, 4);
+    case 'banner':
+      return new THREE.PlaneGeometry(1.2, 1.8);
+    case 'torch':
+      return new THREE.CylinderGeometry(0.08, 0.08, 1.1, 4);
+    default:
+      return null;
+  }
+}
+
+function propColor(kind: string, tint: number): number {
+  switch (kind) {
+    case 'tree':
+    case 'palm':
+    case 'bush':
+      return PROP_TINTS[tint % PROP_TINTS.length] ?? 0x3f8f4a;
+    case 'flower':
+      return [0xff7ab6, 0xffd166, 0xf4978e, 0xa0e7e5][tint % 4] ?? 0xffd166;
+    case 'rock':
+    case 'boulder':
+    case 'stalagmite':
+      return 0x7b7f86;
+    case 'mushroom':
+      return 0xef476f;
+    case 'crystal':
+      return 0x6ee7ff;
+    case 'vine':
+      return 0x7a5230;
+    case 'banner':
+      return [0xef476f, 0xffd166, 0x06d6a0][tint % 3] ?? 0xffd166;
+    default:
+      return 0xcccccc;
+  }
+}
+
+const UP = new THREE.Vector3(0, 1, 0);
+
+/** Surfaces whose sphere colliders are boulders, and are drawn with `rockball-N`. */
+const ROCK_BALL_MATERIALS = new Set<SurfaceMaterial>(['rock', 'redRock']);
+const ROCK_BALL_VARIANTS = 4;
+
+function siteKey(x: number, z: number): string {
+  return `${x.toFixed(3)},${z.toFixed(3)}`;
+}
+
+/** Where the level has a boulder collider, keyed by its ground position. */
+function rockSphereSites(level: LevelDef): Set<string> {
+  const sites = new Set<string>();
+  for (const collider of level.colliders) {
+    if (collider.kind === 'sphere' && ROCK_BALL_MATERIALS.has(collider.surface.material)) {
+      sites.add(siteKey(collider.center.x, collider.center.z));
+    }
+  }
+  return sites;
+}
+
+/**
+ * A copy of `source` centred on the origin and stretched to fill [-1, 1] on every axis, so that
+ * scaling it by a sphere collider's radius makes its extremes the sphere's. Vertex colours are
+ * dropped: the collider's material colours it.
+ */
+/** The model a fallen log is drawn with. Its siblings have root flares and stubs a box cannot follow. */
+export const LOG_MODEL = 'log-1';
+
+/**
+ * A log model normalised so its **body** spans ±1 on every axis: its length along X, the ground
+ * it lies on to the top of its bark along Y, and its girth along Z. Scaled by a fallen log's half
+ * extents it then lies in that log's box, top to top.
+ *
+ * Not the bounding box, which is what `fillUnitCube` fits: `log-1` carries a knot and a broken
+ * stub that reach 1.03 m and ±0.58 m where the bark is at 0.96 m and ±0.48 m, so fitted by its
+ * bounds the bark sat inside the box and a player stood on air over it. Nor the highest vertex
+ * along each stretch, which was the first fit: those are the bumps, and the bark a foot meets is
+ * below them — measured 1.5–11 % of the radius low on top and 5–21 % narrow at the sides.
+ *
+ * So the bark is found the way a player meets it: rays down onto the centreline, and in from both
+ * sides at mid-height, at sixteen stations along the length. The median of each is the body, so a
+ * stub under one ray cannot move it, and a regenerated model still fits.
+ */
+export function fitLogBody(source: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geometry = source.clone();
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox as THREE.Box3;
+  const length = Math.max(box.max.x - box.min.x, 1e-6);
+  const centreZ = (box.min.z + box.max.z) / 2;
+  const bottom = box.min.y;
+  const probe = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  const ray = new THREE.Raycaster();
+  const stations = Array.from({ length: 16 }, (_, k) => box.min.x + ((k + 0.5) / 16) * length);
+  const median = (values: number[], fallback: number): number => {
+    const sorted = [...values].sort((a, b) => a - b);
+    return sorted.length ? (sorted[sorted.length >> 1] as number) : fallback;
+  };
+
+  const tops: number[] = [];
+  for (const x of stations) {
+    ray.set(new THREE.Vector3(x, box.max.y + 1, centreZ), new THREE.Vector3(0, -1, 0));
+    const hit = ray.intersectObject(probe)[0];
+    if (hit) tops.push(hit.point.y);
+  }
+  const top = median(tops, box.max.y);
+  const middle = (bottom + top) / 2;
+  const sides: number[] = [];
+  const reach = box.max.z - box.min.z + 1;
+  for (const x of stations) {
+    for (const side of [-1, 1]) {
+      ray.set(new THREE.Vector3(x, middle, centreZ + side * reach), new THREE.Vector3(0, 0, -side));
+      const hit = ray.intersectObject(probe)[0];
+      if (hit) sides.push(Math.abs(hit.point.z - centreZ));
+    }
+  }
+  const halfWidth = median(sides, (box.max.z - box.min.z) / 2);
+  (probe.material as THREE.Material).dispose();
+
+  geometry.translate(-(box.min.x + box.max.x) / 2, -(bottom + top) / 2, -centreZ);
+  geometry.scale(2 / length, 2 / Math.max(top - bottom, 1e-6), 1 / Math.max(halfWidth, 1e-6));
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+export function fillUnitCube(source: THREE.BufferGeometry): THREE.BufferGeometry {
+  const geometry = source.clone();
+  geometry.deleteAttribute('color');
+  geometry.computeBoundingBox();
+  const box = geometry.boundingBox as THREE.Box3;
+  const centre = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  geometry.translate(-centre.x, -centre.y, -centre.z);
+  geometry.scale(2 / Math.max(size.x, 1e-6), 2 / Math.max(size.y, 1e-6), 2 / Math.max(size.z, 1e-6));
+  // The prop files ship without normals (a renderer computes flat ones, and it is a third of the
+  // bytes), which is right for a prop's material and wrong for this one: the collider material
+  // blends its triplanar normal map by the *vertex* normal, falls back to "straight up" when there
+  // is none, and so lit every face of the rock as the same flat top — measured as a uniformly
+  // white blob under the lab's light and a black one in the game's canyon.
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+/**
+ * The matrix a collider is drawn with, for the unit box/sphere/cylinder geometry this renderer
+ * instances. Exported so `collider-render-agreement.test.ts` checks the transform that is really
+ * drawn against the physics, rather than a copy of it that could drift the way the two once had:
+ * physics applied the mirror of this rotation, and 222 boxes collided somewhere else.
+ */
+export function colliderMatrix(
+  collider: Collider,
+  out = new THREE.Matrix4(),
+  position = new THREE.Vector3(),
+  quaternion = new THREE.Quaternion(),
+  scale = new THREE.Vector3(),
+): THREE.Matrix4 {
+  position.set(collider.center.x, collider.center.y, collider.center.z);
+  quaternion.setFromAxisAngle(UP, collider.kind === 'box' ? collider.yaw : 0);
+  if (collider.kind === 'box') scale.set(collider.half.x * 2, collider.half.y * 2, collider.half.z * 2);
+  else if (collider.kind === 'sphere') scale.setScalar(collider.radius);
+  else if (collider.kind === 'cylinder') scale.set(collider.radius, collider.halfHeight * 2, collider.radius);
+  // Terrain is its own mesh in world coordinates (`terrainGeometry`), never an instance of a unit shape.
+  else return out.identity();
+  return out.compose(position, quaternion, scale);
+}

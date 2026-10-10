@@ -1,0 +1,54 @@
+import type { PlayerRole } from '@kc/core';
+
+/**
+ * What the HUD's role badge says for each role, and which colour it wears: the threat red, the
+ * prey blue, everything else grey.
+ *
+ * A `Record` over `PlayerRole`, so a role the game gains without a badge here is a type error. It
+ * was a `switch` ending in `default: return 'WARM-UP'`, and the Hunt's two roles were never added
+ * to it: a whole Hunt was played with the badge reading WARM-UP — measured in a store screenshot
+ * at 3:44 left with four survivors standing — and the hunter was never told they were the hunter.
+ * The role-change toast said "You are now WARM-UP".
+ */
+export const ROLE_BADGES: Record<PlayerRole, { label: string; tone: 'threat' | 'prey' | 'other' }> = {
+  idle: { label: 'WARM-UP', tone: 'other' },
+  runner: { label: 'RUNNER', tone: 'prey' },
+  chaser: { label: 'CHASER', tone: 'threat' },
+  infected: { label: 'INFECTED', tone: 'threat' },
+  racer: { label: 'RACER', tone: 'other' },
+  fighter: { label: 'FIGHTER', tone: 'other' },
+  spectator: { label: 'SPECTATING', tone: 'other' },
+  hunter: { label: 'HUNTER', tone: 'threat' },
+  survivor: { label: 'SURVIVOR', tone: 'prey' },
+  red: { label: 'RED TEAM', tone: 'other' },
+  blue: { label: 'BLUE TEAM', tone: 'other' },
+};
+
+/**
+ * What a mode calls a role, where that is not the role's own name.
+ *
+ * Conversion Duel runs its two species on `chaser` and `runner`. The badge said RUNNER beside a
+ * tally reading KANGAROO 3 · HUMAN 3, under a headline counting "humans left": three names for
+ * one thing on one screen, in a store screenshot. The tally reads its labels from here too, so the
+ * two cannot drift apart again.
+ */
+export const MODE_ROLE_NAMES: Readonly<Record<string, Partial<Record<PlayerRole, string>>>> = {
+  duel: { chaser: 'KANGAROO', runner: 'HUMAN' },
+};
+
+/**
+ * The badge for a role as it arrives off the wire or in an event, where it is only a string, in
+ * the words of the mode being played. The tone is the role's own: a species is still the threat
+ * or the prey.
+ */
+export function roleBadge(role: string, modeId?: string): { label: string; tone: 'threat' | 'prey' | 'other' } {
+  const badge = ROLE_BADGES[role as PlayerRole] ?? ROLE_BADGES.idle;
+  const named = modeId ? MODE_ROLE_NAMES[modeId]?.[role as PlayerRole] : undefined;
+  return named ? { label: named, tone: badge.tone } : badge;
+}
+
+/** The badge's CSS class: `.kc-role--chaser` is the threat colour, `--runner` the prey's. */
+export function roleBadgeClass(role: string): string {
+  const { tone } = roleBadge(role);
+  return `kc-role kc-role--${tone === 'threat' ? 'chaser' : tone === 'prey' ? 'runner' : 'other'}`;
+}
