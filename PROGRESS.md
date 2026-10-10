@@ -3,6 +3,12 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (10th run) — still blocked on owner (docs-only)
+
+**Checked:** branch current at 698b898 (the punch-speed fix landed after the 9th-run note: turning no longer punches, cheat punch capped at `maxSpeed`). PR #4 still has only Vercel bot comments, no owner answer.
+**Not run:** `npm run verify` (docs-only; dependencies not installed this run).
+**Next session — first task:** owner answers one of: glacier balance, Ultimate Edition Phase 1 approval, per-grip feel spec, hosting. Until then only docs/test hygiene is safe.
+
 ## 2026-10-10 (9th run) — still blocked on owner; per-grip feel is not a small change (no code change)
 
 **Checked:** branch current (2f3ecbc); PR #4 comments (30) contain only Vercel bot notices, no owner answer on glacier balance, Ultimate Edition Phase 1, or hosting.
