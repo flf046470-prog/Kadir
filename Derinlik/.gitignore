@@ -1,9 +1,9 @@
 # Unreal Engine generated / local
-Binaries/
-Intermediate/
-Saved/
-DerivedDataCache/
-Build/
+/Binaries/
+/Intermediate/
+/Saved/
+/DerivedDataCache/
+/Build/
 .vs/
 .vscode/
 .idea/
@@ -16,5 +16,11 @@ Build/
 Plugins/*/Binaries/
 Plugins/*/Intermediate/
 # Packaged builds
-Packaged/
-Windows/
+/Packaged/
+/Windows/
+
+# Secrets
+.env
+*.key
+__pycache__/
+*.pyc
