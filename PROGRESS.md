@@ -3,6 +3,19 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (8th run) — no safe autonomous task left; owner decisions needed (no code change)
+
+**Checked:** branch `claude/kangaroo-chase-game-w62laa` at 393b5a5 is current; PR #4 has no owner
+approval for Ultimate Edition Phase 1 (only Vercel bot + old comments). TODO.md "Next up" items 1, 2, 4, 5
+all need the account holder, hardware, or a store account.
+
+**Blocked on the owner (pick any to unblock):**
+1. Glacier balance: smaller play area / fewer pillars / shorter tag immunity (runs 3-7 ruled out all bot causes).
+2. Approve Ultimate Edition Phase 1 (`docs/ULTIMATE_EDITION_ROADMAP.md`).
+3. Hosted server / domain (Railway trial ended 2026-09-22).
+
+**Not run:** `npm run verify` (docs-only). **Next session — first task:** if the owner has answered 1 or 2, do that; otherwise implement per-grip feel (`GripKind` is read only by a test, see TODO "Known gaps") as a small, tested change.
+
 ## 2026-10-10 (7th run) — experiment: chaser awareness 80 m does not fix glacier (reverted)
 
 **Done (measured, 6 seeds x 6 bots x 90 s, `measure-stuck.ts`)**
