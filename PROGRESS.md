@@ -3,6 +3,17 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (3rd run) — harness counts tags; chaser `routeOut` cleared
+
+**Done**
+- `scripts/measure-stuck.ts`: tag count was always 0 (`sim.events` is a `SimEventQueue`, not an array). Now drains the queue each tick and prints `tags N (per match)`.
+- Measured (16 seeds x 6 bots x 90 s), chaser `routeOut` off vs on: outback 220 vs 213 tags, stuck 4.4 % both; jungle 231 vs 231, 7.1 % both; glacier 45 vs 45, 6.6 % both. The chaser change does not hurt tag rate (outback diff -3 %, within noise). No code change to `bot.ts`.
+- New observation: **glacier-world has only ~2.8 tags per 90 s match** versus 13-14 on outback/jungle — chasing there is barely working (balance or navigation).
+
+**Tests:** `tsc --noEmit` and oxlint on the script only; `npm run verify` not run (script-only change).
+
+**Next session — first task:** find why glacier tags are ~5x rarer (measure-stuck by role/cell on glacier-world, check whether chasers fail on seracs/crevasse), then try the flee-steering wall-slide fix across all three maps.
+
 ## 2026-10-10 (2nd run) — gorge floor follow-up: measured, no code change
 
 **Done**

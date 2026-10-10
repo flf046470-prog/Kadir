@@ -50,6 +50,8 @@ for (let seed = 1; seed <= seeds; seed++) {
       if (Math.hypot(intent.moveX, intent.moveZ) > 0.5) moving.add(`p${i}`);
     }
     sim.step();
+    // The queue is not an array and nothing drains it here; count tags per tick and drain.
+    for (const e of sim.events.drain()) if (e.type === 'tag') tags++;
     for (const [id, p] of sim.players) {
       const t = trail.get(id)!;
       t.push({ x: p.position.x, z: p.position.z });
@@ -67,12 +69,12 @@ for (let seed = 1; seed <= seeds; seed++) {
       }
     }
   }
-  tags += sim.events?.filter?.((e: { type?: string }) => e.type === 'tag').length ?? 0;
 }
 
 console.log('by role:', [...roles.entries()].map(([r, n]) => `${r} ${((100 * n) / Math.max(1, stuckTicks)).toFixed(0)}%`).join(', '));
 const top = [...cells.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
 console.log(`${levelId}: ${seeds} seeds x ${BOTS} bots x ${seconds}s`);
+console.log(`tags ${tags} (${(tags / seeds).toFixed(1)} per ${seconds}s match)`);
 console.log(`stuck ${((100 * stuckTicks) / botTicks).toFixed(1)} % of ${(botTicks / 60).toFixed(0)} bot-seconds`);
 for (const [k, n] of top) {
   const y = ys.get(k)!.sort((a, b) => a - b);
