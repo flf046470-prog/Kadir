@@ -3,6 +3,28 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 — Ultimate Edition Phase 1 APPROVED by the owner, in progress (interactive session)
+
+**The owner approved Phase 1 in full in the chat** ("Faz 1 hallet ... her şeyi şimdiden
+onaylıyorum"). The approval was never on PR #4, which is why the routine runs kept reporting
+"blocked". An interactive session is working through `docs/ULTIMATE_EDITION_ROADMAP.md` → Phase 1,
+so do not start a parallel change to the same files.
+
+**Done and pushed:**
+- 698b898: turning no longer punches; a cheat's punch is capped at a human hand.
+- 3f488f3: Hunt concealment by line of sight; far players no longer blink; a far newcomer is no
+  longer drawn at the origin.
+
+**In this commit:** the headset's real refresh rate reaches the frame governor
+(`platform/vr/displayRate.ts`).
+
+**Still to do in Phase 1:**
+- 1.4: `HudModel` plus a VR wrist HUD.
+- 1.5: document drift — TODO.md (protocol 4, test count, crevasse), ARCHITECTURE.md §2.3/§8, and
+  splitting CLAUDE.md.
+
+The glacier-balance and per-grip-feel questions are still open; they are not part of Phase 1.
+
 ## 2026-10-10 (10th run) — still blocked on owner (docs-only)
 
 **Checked:** branch current at 698b898 (the punch-speed fix landed after the 9th-run note: turning no longer punches, cheat punch capped at `maxSpeed`). PR #4 still has only Vercel bot comments, no owner answer.

@@ -174,6 +174,11 @@ export class Renderer {
   private lastDemotion: number | null = null;
   private currentTier: QualityTier = 'medium';
   private governorEnabled = true;
+  /**
+   * The headset's own refresh rate while one is presenting, else 0 (`platform/vr/displayRate.ts`).
+   * The governor holds whichever is higher, this or the profile's target.
+   */
+  private displayHz = 0;
 
   /** Fired when the governor changes tier, so the UI/analytics can react. */
   onTierChange: ((tier: QualityTier) => void) | null = null;
@@ -469,7 +474,7 @@ export class Renderer {
       samples: this.frameTimes.length,
       sinceChangeMs: now - this.lastTierChange,
       sinceDemotionMs: this.lastDemotion === null ? Infinity : now - this.lastDemotion,
-      floorFps: this.profile.targetFps,
+      floorFps: Math.max(this.profile.targetFps, this.displayHz),
     });
     if (!next || next === this.currentTier) return;
 
@@ -478,6 +483,11 @@ export class Renderer {
     this.lastTierChange = now;
     this.frameTimes.length = 0;
     this.onTierChange?.(next);
+  }
+
+  /** The refresh rate a presenting headset runs at; 0 when none is. */
+  setDisplayRate(hz: number): void {
+    this.displayHz = hz;
   }
 
   render(): void {

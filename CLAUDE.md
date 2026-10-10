@@ -352,9 +352,10 @@ profile's target now and `budgetMs(tier, floorFps)` takes the larger of the two;
 **53 fps**. `DEMOTE_FACTOR` is still the shared 1.35, so a sustained 60 fps in a headset is still
 tolerated — narrowing that is a decision for a real device, not an assumption.
 
-`fpsFloor(kind)` is the one place that knows a headset's display rate. The player's `targetFps` is
-floored by it rather than overriding it: in VR "target 60" is not a request for less work, it is a
-request to stop noticing.
+`fpsFloor(kind)` is the *minimum* a headset is held to (72). The player's `targetFps` is floored
+by it rather than overriding it: in VR "target 60" is not a request for less work, it is a request
+to stop noticing. The display's *actual* rate comes from `platform/vr/displayRate.ts`; see
+"A 90 Hz headset was held to 72" below.
 
 **Geometry, counted in a real browser** by patching `gl.drawElements`/`drawElementsInstanced`/
 `drawArrays` in the page. `jungle-world`, six players, per **scene pass**:
@@ -2721,6 +2722,38 @@ test:
 - no snap on a tracking change: the controller test.
 
 Probes: `.probe/punch.ts`, `.probe/flick.ts`.
+
+## A 90 Hz headset was held to 72
+
+Phase 1's third item. `VR_DISPLAY_HZ` (72, a Quest's default) was the only display rate, so every
+headset was judged against it. PC headsets run at 80–144 Hz and a Quest can be set to 90 or 120.
+Concretely, a 90 Hz headset holding 60 fps reprojects every third frame, and the governor passed
+it: 16.7 ms against 72's threshold of 13.9 × 1.35 = 18.75. Against its own 90 Hz, the threshold
+is 11.1 × 1.35 = 15.0, and it drops a tier.
+
+`displayRateOf(session.frameRate, meter.rate())` gives the rate to hold. `VRInput.updateTracking`
+hands it to `Renderer.setDisplayRate` every XR frame, and the governor holds
+`max(profile.targetFps, displayHz)`.
+- **The session's own rate wins** where the browser reports one (the WebXR frame-rate API).
+- **Otherwise the frames are the evidence, read from the fastest ones.** The *average* interval is
+  the game's rate, not the display's, and a game that cannot keep up reads as a slow display — the
+  very failure this exists to catch. So `FrameRateMeter` takes the 10th-percentile interval and
+  only believes it if it lands within 4 % of a rate headsets ship at (72/80/90/120/144). A game
+  reprojecting at 45 Hz reads as no rate at all and holds the floor.
+- **Never below 72**, whatever is reported.
+- **Nothing asks the headset to change its rate.** 72 → 90 on a Quest costs a quarter more GPU
+  time against a budget measured at 72. That trade needs a real device, not a default.
+
+`displayRate.test.ts` and `session.test.ts` cover it. Four mutations, each failing only its own
+test:
+- not wired into `VRInput`;
+- no 72 floor;
+- the average interval instead of the fastest;
+- no snapping to known rates.
+
+**The fake renderer in `session.test.ts` has no `rig.rotation`.** Entering and leaving a session
+never needed one, but `updateTracking` turns the rig. A test that steps tracking must add it, or it
+throws and every mutation "fails" for the wrong reason, which is what happened first.
 
 ## The hunter is no longer sent who they cannot see — and far players stopped blinking
 

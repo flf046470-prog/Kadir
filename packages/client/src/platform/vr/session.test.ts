@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { detectDevice } from '../detect.js';
-import { Buttons } from '@kc/core';
+import { Buttons, DEFAULT_SETTINGS } from '@kc/core';
 
 import { VRInput, VR_BINDINGS } from './VRInput.js';
 import type { Renderer } from '../../render/Renderer.js';
@@ -166,6 +166,30 @@ describe('entering VR', () => {
     await input.enterVr();
     await input.exitVr();
     expect(end).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * Every headset used to be held to 72 fps, a Quest's default; a 90 Hz PC headset could sit at 72
+ * and reproject with the governor content. The session's own rate reaches the governor now
+ * (`displayRate.ts`), and this is the wire between them.
+ */
+describe('the headset sets the frame budget', () => {
+  it('holds the governor to the rate the session reports', async () => {
+    restore = withNavigator({
+      isSessionSupported: async () => true,
+      requestSession: async () => ({ end: async () => {}, frameRate: 90 }),
+    });
+    const { renderer } = fakeRenderer();
+    const setDisplayRate = vi.fn();
+    Object.assign(renderer, { setDisplayRate });
+    Object.assign(renderer.renderer.xr, { isPresenting: true });
+    // Tracking also turns the rig, which entering and leaving a session never touched.
+    Object.assign(renderer.rig, { rotation: { y: 0 } });
+    const input = new VRInput(renderer);
+    await input.enterVr();
+    input.updateTracking(1 / 90, DEFAULT_SETTINGS);
+    expect(setDisplayRate).toHaveBeenLastCalledWith(90);
   });
 });
 

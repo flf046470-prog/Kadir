@@ -4,6 +4,7 @@ import type { InputIntent, Settings } from '@kc/core';
 import type { PlatformInput } from '../Platform.js';
 import type { Renderer } from '../../render/Renderer.js';
 import { grabThresholdFor, handScaleFrom, hapticFor, pinchStrength } from './comfort.js';
+import { FrameRateMeter, displayRateOf } from './displayRate.js';
 import type { HapticEvent } from './comfort.js';
 
 interface HandTracker {
@@ -117,6 +118,8 @@ export class VRInput implements PlatformInput {
   private headYaw = 0;
   private headPitch = 0;
   private session: XRSession | null = null;
+  /** The headset's refresh rate as its frames show it, for when the session does not say. */
+  private readonly frames = new FrameRateMeter();
   private buttons = 0;
 
   /** Fired when the XR session starts/ends so the app can switch UI hosts. */
@@ -199,6 +202,10 @@ export class VRInput implements PlatformInput {
 
   /** Called every XR frame before `sample`, to differentiate hand positions over real time. */
   updateTracking(dt: number, settings: Settings): void {
+    if (this.isPresenting) {
+      this.frames.push(dt * 1000);
+      this.renderer.setDisplayRate(displayRateOf(this.session?.frameRate, this.frames.rate()));
+    }
     const xrCamera = this.renderer.renderer.xr.getCamera();
     xrCamera.getWorldPosition(WORLD);
     const rigY = this.renderer.rig.position.y;
@@ -389,6 +396,8 @@ export class VRInput implements PlatformInput {
 
   private onSessionEnd = (): void => {
     this.session = null;
+    this.frames.reset();
+    this.renderer.setDisplayRate(0);
     this.onSessionChange?.(false);
   };
 }
