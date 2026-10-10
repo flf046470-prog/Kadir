@@ -3,6 +3,18 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-10 (6th run) — seracs probe: near-misses are tag immunity, not ice slip (no code change)
+
+**Done (measured, glacier-world, 6 seeds x 6 bots x 90 s, untracked `.probe/serac.ts`)**
+- Logged chaser vs. runners standing in the seracs zone (x 24..38, z -16..-2) within 25 m: 3376 samples, 14 tags (baseline reproduced). Chaser closes the gap in 52 % of samples.
+- Of the samples within 5 m, the largest buckets are runner `invulnTimer > 0` with the chaser busy (cooldown/immunity), i.e. just-tagged players, and both stationary. That is the tag-immunity rule working, not a steering failure.
+- Only ~155 of 3376 samples (~5 %) are "runner vulnerable, chaser free, <5 m, same level (dy 0)". The ice-overshoot hypothesis is not supported: chasers are near and not sliding past.
+- Many runners are stationary (speed 0) at 10-25 m while the chaser moves at 9-12 m/s: the shortage looks like runner/chaser distribution and immunity time (2 s victim + 1.5 s tagger) on a small shelf map, i.e. map balance, not bot navigation.
+
+**Not run:** `npm run verify` (docs-only; no code changed).
+
+**Next session — first task:** decide with the owner whether glacier needs a balance change (smaller play area, fewer pillars, or shorter immunity) before more bot work; if continuing on bots, sample why stationary runners at 10-25 m are not being approached (chaser target selection: is it chasing a different runner?).
+
 ## 2026-10-10 (5th run) — experiment: chaser `avoidObstacle` does not fix glacier tags (reverted)
 
 **Done (measured, 6 seeds x 6 bots x 90 s, `measure-stuck.ts`)**
