@@ -3,6 +3,15 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-11 — Phase 1.5 document drift (routine)
+
+**Done:** TODO.md (tests 1388, protocol 4, glacier crevasse wedge struck out as fixed in `version` 7);
+ARCHITECTURE.md (hand-displacement cap in §2.3, headset-rate target in §8, Hunt line-of-sight in §5).
+**Tests:** `npm run verify` green end to end (1388 passed, 12 skipped).
+**Still open in Phase 1:** 1.4 `HudModel` + VR wrist HUD; 1.5 split of CLAUDE.md (2924 lines, needs a
+"no line lost" check). Interactive session idle since 2026-10-10 18:08 UTC.
+**Next session — first task:** 1.4 `HudModel` extraction from `Hud.ts` with a coverage test.
+
 ## 2026-10-10 — Ultimate Edition Phase 1 APPROVED by the owner, in progress (interactive session)
 
 **The owner approved Phase 1 in full in the chat** ("Faz 1 hallet ... her şeyi şimdiden

@@ -93,7 +93,8 @@ interface InputIntent {
   hands?: HandIntent[2]   // VR only: pose + velocity per hand, in body-local space
 }
 ```
-VR hand physics is *additive*: `hands` is optional, so PC/Mobile players run the exact same
+VR hand physics is *additive*: `hands` is optional (the server caps each hand's per-tick
+displacement at a human limit, so a spoofed hand cannot out-punch a real one), so PC/Mobile players run the exact same
 simulation minus hand forces. This is why the game is genuinely cross-play instead of three games.
 
 ## 3. Simulation model
@@ -142,7 +143,8 @@ client                          server
 * Snapshots are **delta-encoded against the last snapshot the client acknowledged**, 20 Hz,
   with a per-entity dirty mask. A 16-player room costs ~6–10 KB/s down at full activity.
 * Interest management: entities beyond `cullDistance` are sent at reduced rate (5 Hz) and hands
-  are dropped entirely — the biggest bandwidth win in a VR game.
+  are dropped entirely — the biggest bandwidth win in a VR game. In modes that hide players
+  (Hunt), a player the viewer cannot see by line of sight is not sent at all.
 
 ## 6. Authority & security
 
@@ -188,7 +190,7 @@ shelf is a one-line decision to reverse; an unverified grant path bolted on late
 
 | | Mobile (low) | Mobile (high) / PC (low) | PC (high) | VR |
 | --- | --- | --- | --- | --- |
-| Target | 30–60 fps | 60 fps | 120+ fps | 72–90 fps, no reprojection |
+| Target | 30–60 fps | 60 fps | 120+ fps | the headset's own refresh rate (72/90/120 Hz, read from the XR session), no reprojection |
 | Draw calls | < 120 | < 250 | < 800 | < 200 |
 | Shadow | off | single cascade | 3 cascades | single cascade, static bake |
 | Players rendered | 8 near + billboards | 16 | 16 | 12 near |
