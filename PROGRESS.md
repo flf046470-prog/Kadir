@@ -3,6 +3,18 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-11 (4th run) — 1.5 CLAUDE.md split blocked by the permission classifier (routine)
+
+**Done:** nothing changed in code. Verified branch `claude/kangaroo-chase-game-w62laa` is current at 95f6332.
+**Blocked:** the planned first task (split CLAUDE.md, 2924 lines, into an index + `docs/memory/*.md`
+with a "no line lost" check) was refused by the auto-mode classifier as self-modification of the
+agent's own instruction file. It was not worked around. Plan if the owner approves: split by `## `
+section into ~10 topic files, keep the preamble + Standing rules in CLAUDE.md, add an index, and
+verify the multiset of non-blank lines is identical before/after.
+**Not run:** `npm run verify` (docs-only).
+**Next session — first task:** owner approves (or declines) the CLAUDE.md split; otherwise only
+owner/hardware-gated items remain (glacier balance, per-grip feel spec, hosting, headset pass).
+
 ## 2026-10-11 (3rd run) — VR wrist HUD built from `HudModel` (routine)
 
 **Done:** `ui/wristPanel.ts` (pure `wristLines(HudModel)`, `WRIST_FIELDS` / `WRIST_EXEMPT`),
