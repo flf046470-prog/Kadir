@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fbm, heightToNormal, ridged, valueNoise, worley } from './noise.js';
+import { fbm, heightToNormal, ridged, valueNoise, worley, worleyEdge } from './noise.js';
 import type { FbmOptions } from './noise.js';
 
 /**
@@ -90,6 +90,21 @@ describe('procedural noise', () => {
     expect(max - min).toBeGreaterThan(0.3);
     expect(min).toBeGreaterThanOrEqual(0);
     expect(max).toBeLessThanOrEqual(1);
+  });
+
+  it('tiles worleyEdge, and draws thin lines rather than a field', () => {
+    for (const v of [0, 0.23, 0.61, 0.88]) {
+      expect(worleyEdge(0, v, 5, 5)).toBeCloseTo(worleyEdge(1, v, 5, 5), 12);
+      expect(worleyEdge(v, 0, 5, 5)).toBeCloseTo(worleyEdge(v, 1, 5, 5), 12);
+    }
+    // Lines: near zero on a small share of the tile, well away from it over most of it. Taking
+    // the nearest point twice would make it zero everywhere, which also "tiles".
+    const samples: number[] = [];
+    for (let i = 0; i < 4096; i++) samples.push(worleyEdge((i % 64) / 64, Math.floor(i / 64) / 64, 5, 5));
+    const onEdge = samples.filter((d) => d < 0.05).length / samples.length;
+    expect(onEdge).toBeGreaterThan(0.01);
+    expect(onEdge).toBeLessThan(0.2);
+    expect(Math.max(...samples)).toBeGreaterThan(0.4);
   });
 
   it('is deterministic, so client and server agree and a reload looks the same', () => {

@@ -59,21 +59,37 @@ describe('surface textures', () => {
       const { albedo, normal, orm, size } = surfaceTextureData(material, SEAM_SIZE);
       for (const [name, map] of [['albedo', albedo], ['normal', normal], ['orm', orm]] as const) {
         for (const axis of ['x', 'y'] as const) {
-          let interior = 0;
+          // Mean difference across each line of adjacent pairs: the line between columns (or rows)
+          // i and i+1, for every i inside the tile, and the seam line between the last and first.
+          const lines: number[] = [];
           let seam = 0;
-          for (let k = 0; k < size; k++) {
-            for (let i = 0; i < size - 1; i++) {
+          for (let i = 0; i < size - 1; i++) {
+            let line = 0;
+            for (let k = 0; k < size; k++) {
               const a = axis === 'x' ? (k * size + i) * 4 : (i * size + k) * 4;
               const b = axis === 'x' ? (k * size + i + 1) * 4 : ((i + 1) * size + k) * 4;
-              interior += Math.abs((map[a] ?? 0) - (map[b] ?? 0));
+              line += Math.abs((map[a] ?? 0) - (map[b] ?? 0));
             }
+            lines.push(line / size);
+          }
+          for (let k = 0; k < size; k++) {
             const last = axis === 'x' ? (k * size + size - 1) * 4 : ((size - 1) * size + k) * 4;
             const first = axis === 'x' ? k * size * 4 : k * 4;
             seam += Math.abs((map[last] ?? 0) - (map[first] ?? 0));
           }
-          const interiorMean = interior / (size * (size - 1));
+          const interiorMean = lines.reduce((sum, line) => sum + line, 0) / lines.length;
           const seamMean = seam / size;
-          expect(seamMean, `${material}/${name} seam on ${axis}`).toBeLessThanOrEqual(interiorMean * 1.6 + 1);
+          /**
+           * Within the interior lines' own spread, not merely near their mean. A surface drawn
+           * with thin lines — ice's fractures — has single lines far above the mean wherever a
+           * crack runs along them, and the seam is entitled to be one: measured on the ice, the
+           * seam line read 15.1 against an interior median of 5.9 and an interior worst of 14.9,
+           * because a fracture runs along it, while the field itself is periodic to floating
+           * point (the test below). A tile that does not meet is two unrelated lines side by side
+           * and stands clear of both bounds; the mean bound alone is kept for the smooth maps.
+           */
+          const worst = Math.max(...lines);
+          expect(seamMean, `${material}/${name} seam on ${axis}`).toBeLessThanOrEqual(Math.max(interiorMean * 1.6 + 1, worst * 1.05));
         }
       }
     }
@@ -95,8 +111,14 @@ describe('surface textures', () => {
      * gets checked — exactly, to floating point.
      */
     for (const material of texturedMaterials()) {
-      const { height, stain, seed } = recipeFor(material);
+      const { height, stain, shade, seed } = recipeFor(material);
       for (const t of [0, 0.13, 0.5, 0.77, 0.94]) {
+        if (shade) {
+          for (const [a, b, axis] of [[shade(0, t, seed, 0.5), shade(1, t, seed, 0.5), 'u'], [shade(t, 0, seed, 0.5), shade(t, 1, seed, 0.5), 'v']] as const) {
+            expect(a.roughness, `${material} shade roughness wrap on ${axis}`).toBeCloseTo(b.roughness, 10);
+            a.rgb.forEach((c, k) => expect(c, `${material} shade colour wrap on ${axis}`).toBeCloseTo(b.rgb[k] ?? NaN, 10));
+          }
+        }
         expect(height(0, t, seed), `${material} height wrap on u`).toBeCloseTo(height(1, t, seed), 10);
         expect(height(t, 0, seed), `${material} height wrap on v`).toBeCloseTo(height(t, 1, seed), 10);
         if (stain) {
@@ -209,5 +231,35 @@ describe('surface textures', () => {
       // A few clipped pixels are a highlight; a third of them is a recipe that has left the range.
       expect(saturated / (SIZE * SIZE)).toBeLessThan(0.05);
     }
+  });
+
+  it('draws ice as clear blue sheets with white fractures, not soft worms', () => {
+    /**
+     * Ice used to be ridged noise — creases along the contours of smooth blobs — with its colour a
+     * function of that one height. In a render of the glacier it read as the light on the floor of a
+     * swimming pool. Now the sheet is clear, glossy blue, and its fractures are white and rougher:
+     * a fracture plane scatters light. So the brightest texels must be the rough ones, and they
+     * must be a small minority — lines, not a web over everything.
+     *
+     * Frost is not in the tile at all (a feature that size repeats visibly every six metres); the
+     * shader lays it in world space, and `surfaces.test.ts` holds that half.
+     */
+    const { albedo, orm, size } = surfaceTextureData('ice', 128);
+    const texels = Array.from({ length: size * size }, (_, i) => ({
+      bright: ((albedo[i * 4] ?? 0) + (albedo[i * 4 + 1] ?? 0) + (albedo[i * 4 + 2] ?? 0)) / 765,
+      blue: ((albedo[i * 4 + 2] ?? 0) - (albedo[i * 4] ?? 0)) / 255,
+      rough: (orm[i * 4 + 1] ?? 0) / 255,
+    }));
+    const mean = (list: typeof texels, key: 'rough' | 'blue' | 'bright') => list.reduce((sum, t) => sum + t[key], 0) / list.length;
+    const cracks = texels.filter((t) => t.rough > 0.36);
+    const sheet = texels.filter((t) => t.rough <= 0.3);
+    expect(sheet.length / texels.length).toBeGreaterThan(0.9);
+    expect(cracks.length / texels.length).toBeGreaterThan(0.002);
+    expect(cracks.length / texels.length).toBeLessThan(0.08);
+    // The sheet is distinctly blue and glossy; the fractures are brighter and whiter.
+    expect(mean(sheet, 'rough')).toBeLessThan(0.3);
+    expect(mean(sheet, 'blue')).toBeGreaterThan(0.25);
+    expect(mean(cracks, 'bright')).toBeGreaterThan(mean(sheet, 'bright') + 0.05);
+    expect(mean(cracks, 'blue')).toBeLessThan(mean(sheet, 'blue'));
   });
 });

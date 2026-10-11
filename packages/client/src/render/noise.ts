@@ -150,6 +150,45 @@ export function worley(u: number, v: number, cells: number, seed: number): numbe
 }
 
 /**
+ * Distance to the nearest *edge* between Worley cells — second-nearest feature point less the
+ * nearest, scaled like `worley` — so 0 on a boundary and rising into each cell.
+ *
+ * Cell edges are straight lines meeting at angles, which is what a fracture network in ice, a
+ * claypan's cracks or a dried mud flat looks like. Ridged fBm draws its creases along the contours
+ * of smooth noise instead, so they wander and loop, and on a glacier that read as the light pattern
+ * on the floor of a swimming pool.
+ */
+export function worleyEdge(u: number, v: number, cells: number, seed: number): number {
+  const cx = Math.floor(u * cells);
+  const cy = Math.floor(v * cells);
+  let first = Number.POSITIVE_INFINITY;
+  let second = Number.POSITIVE_INFINITY;
+  // The second-nearest point can sit two cells away, so the neighbourhood is 5×5, not 3×3.
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -2; dx <= 2; dx++) {
+      const gx = cx + dx;
+      const gy = cy + dy;
+      const px = (gx + hash2(gx, gy, cells, seed)) / cells;
+      const py = (gy + hash2(gx, gy, cells, seed + 7919)) / cells;
+      let ddx = px - u;
+      let ddy = py - v;
+      if (ddx > 0.5) ddx -= 1;
+      if (ddx < -0.5) ddx += 1;
+      if (ddy > 0.5) ddy -= 1;
+      if (ddy < -0.5) ddy += 1;
+      const d = Math.sqrt(ddx * ddx + ddy * ddy);
+      if (d < first) {
+        second = first;
+        first = d;
+      } else if (d < second) {
+        second = d;
+      }
+    }
+  }
+  return Math.min(1, (second - first) * cells);
+}
+
+/**
  * Turn a height field into a tangent-space normal map, in place, as RGB bytes.
  *
  * Central differences rather than a Sobel kernel: the height field here is already smooth (it came

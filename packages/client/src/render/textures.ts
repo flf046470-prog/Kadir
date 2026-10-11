@@ -1,4 +1,4 @@
-import { fbm, heightToNormal, ridged, valueNoise, worley } from './noise.js';
+import { fbm, heightToNormal, ridged, valueNoise, worley, worleyEdge } from './noise.js';
 import type { FbmOptions } from './noise.js';
 import type { SurfaceMaterial } from '@kc/core';
 
@@ -54,6 +54,54 @@ interface Recipe {
   height: (u: number, v: number, seed: number) => number;
   /** Optional extra colour variation that does not come from the height — veins, grain, grime. */
   stain?: (u: number, v: number, seed: number) => number;
+  /**
+   * Colour and roughness written directly, for a surface whose look is not a function of its
+   * height: ice is clear in one place and frosted white in the next at the same height, and a
+   * colour that only swings with height cannot say that. Overrides `color`, `contrast`, `stain`
+   * and `roughness` where present; `height` still drives the normal and the occlusion.
+   */
+  shade?: (u: number, v: number, seed: number, h: number) => Shade;
+}
+
+/** Linear colour 0..1 and roughness 0..1 at one texel. */
+interface Shade {
+  rgb: [number, number, number];
+  roughness: number;
+}
+
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+function mix3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+/**
+ * The parts of glacier ice inside one tile, shared by its height and its colour so the two cannot
+ * disagree about where a crack is.
+ *
+ * - `crack`: fractures — Worley cell edges, which run straight and meet at angles, kept only where
+ *   a broad mask allows so they stay open lines rather than closing into a pavement of polygons.
+ * - `bubble`: air trapped as the ice formed — small white dots, sparse.
+ * - `depth`: how far down the eye sees into clear ice, so it is not one flat blue.
+ *
+ * Frost and snow lying on the ice are *not* here. They are the largest features ice has, and a
+ * feature as big as a quarter of the tile repeats visibly every six metres: drawn into the tile,
+ * the glacier came out stamped with the same white cloud in a grid. The shader lays them in world
+ * space instead (`TRI_FROST` in `surfaces.ts`), where nothing repeats.
+ */
+function iceFields(u: number, v: number, s: number): { crack: number; bubble: number; depth: number } {
+  const open = smoothstep(0.52, 0.62, fbm(u, v, { octaves: 3, frequency: 3, lacunarity: 2, gain: 0.5 }, s + 59));
+  const coarse = (1 - smoothstep(0.008, 0.035, worleyEdge(u, v, 5, s + 61))) * open;
+  const fine = (1 - smoothstep(0.006, 0.02, worleyEdge(u, v, 14, s + 67))) * open * 0.2;
+  const crack = Math.max(coarse, fine);
+  const pit = worley(u, v, 48, s + 71);
+  const keep = valueNoise(u * 48, v * 48, 48, s + 73) > 0.7 ? 1 : 0;
+  const bubble = (1 - smoothstep(0.06, 0.16, pit)) * keep;
+  const depth = fbm(u, v, BROAD, s + 21);
+  return { crack, bubble, depth };
 }
 
 /**
@@ -167,31 +215,43 @@ const RECIPES: Record<SurfaceMaterial, Recipe> = {
     height: (u, v, s) => fbm(u, v, BROAD, s) * 0.7 + ridged(u, v, { ...CREASE, frequency: 6 }, s + 17) * 0.3,
   },
   /**
-   * Ice: broad smooth sheets cut by sharp cracks.
+   * Glacier ice: clear blue sheets with frost lying over them, a fracture network, and air bubbles.
    *
-   * The cracks are ridged noise at a low frequency and high contrast, and they are most of why a
-   * glacier reads as ice rather than as pale plastic. Roughness varies — scuffed in the cracks,
-   * smoother where the sheet is intact — because a uniformly shiny surface reads as plastic no
-   * matter what colour it is.
+   * It used to be ridged fBm — creases along the contours of smooth noise — cubed to keep them
+   * narrow. Those creases wander and loop, and in a render of the glacier's rink and walls they
+   * read as the light pattern on the floor of a swimming pool: soft bright worms on pale blue,
+   * nothing that says ice. What does is in `iceFields` — cracks that run straight and stop, and
+   * bubbles — and, in the shader, frost: white and matte beside ice that is blue and glossy.
    *
-   * It is deliberately *not* mirror-smooth, and that was learned the hard way. At 0.06 the shelf
-   * became a true mirror, and a mirror-flat floor seen from a player's eye height reflects the sky
-   * back almost perfectly: the ice vanished, and the map rendered as rocks floating in a void with
-   * no ground under them at all. Physically right and unplayable. Real glacier ice is scuffed,
-   * wind-scoured and dusted with snow, so this range is both more honest and readable.
+   * The average colour is kept where the glacier was art-directed — its fog cap, exposure and dust
+   * were measured against it. And it is deliberately *not* mirror-smooth anywhere: at 0.06 the shelf
+   * became a true mirror that reflected the sky back from eye height, and the ground vanished.
    */
   ice: {
     color: [0.62, 0.79, 0.86],
-    contrast: 0.32,
-    roughness: [0.58, 0.24],
+    contrast: 0,
+    roughness: [0.4, 0.2],
     metalness: 0,
-    bump: 2.8,
+    bump: 2.2,
     height: (u, v, s) => {
-      const cracks = ridged(u, v, { octaves: 3, frequency: 3, lacunarity: 2.4, gain: 0.65 }, s);
-      // Raised to a power so the crease stays narrow instead of spreading into a smear.
-      return Math.pow(cracks, 3.2) * 0.75 + fbm(u, v, BROAD, s + 21) * 0.25;
+      const f = iceFields(u, v, s);
+      // A crack is a groove; the rest is wind-scoured, almost flat.
+      return 0.6 - f.crack * 0.35 + (fbm(u, v, FINE, s + 9) - 0.5) * 0.14;
     },
-    stain: (u, v, s) => fbm(u, v, { ...BROAD, frequency: 2 }, s + 41),
+    shade: (u, v, s) => {
+      const f = iceFields(u, v, s);
+      // Clear ice, brightened towards the palette's mean: frost (added in world space) is what
+      // whitens a glacier, and the tile alone must still read as ice where there is none.
+      const clear = mix3([0.48, 0.69, 0.8], [0.62, 0.8, 0.88], f.depth);
+      // A fracture plane scatters light, so a crack in clear ice shows white.
+      let rgb = mix3(clear, [0.86, 0.93, 0.97], f.crack * 0.75);
+      rgb = mix3(rgb, [0.9, 0.95, 0.98], f.bubble);
+      // Wind scour: faint streaks one way, 24 cells along u against 4 along v.
+      const scour = (fbm(u * 6, v, { octaves: 3, frequency: 4, lacunarity: 2, gain: 0.5 }, s + 31) - 0.5) * 0.05;
+      rgb = [rgb[0] + scour, rgb[1] + scour, rgb[2] + scour];
+      const roughness = 0.24 + f.crack * 0.22 + (fbm(u, v, FINE, s + 37) - 0.5) * 0.08;
+      return { rgb, roughness };
+    },
   },
   /** Packed snow: fine granular sparkle over soft drifts. */
   snow: {
@@ -239,22 +299,28 @@ export function surfaceTextureData(material: SurfaceMaterial, size: number): Sur
       const h = Math.min(1, Math.max(0, recipe.height(u, v, seed)));
       height[y * size + x] = h;
 
-      // Colour swings around the base rather than only downward, so a material keeps its intended
-      // average brightness however much contrast it asks for.
-      const swing = (h - 0.5) * recipe.contrast;
-      const stain = recipe.stain ? (recipe.stain(u, v, seed) - 0.5) * 0.14 : 0;
-
       const i = (y * size + x) * 4;
-      albedo[i] = (r + swing + stain) * 255;
-      albedo[i + 1] = (g + swing + stain) * 255;
-      albedo[i + 2] = (b + swing + stain) * 255;
+      const shade = recipe.shade?.(u, v, seed, h);
+      if (shade) {
+        albedo[i] = shade.rgb[0] * 255;
+        albedo[i + 1] = shade.rgb[1] * 255;
+        albedo[i + 2] = shade.rgb[2] * 255;
+      } else {
+        // Colour swings around the base rather than only downward, so a material keeps its intended
+        // average brightness however much contrast it asks for.
+        const swing = (h - 0.5) * recipe.contrast;
+        const stain = recipe.stain ? (recipe.stain(u, v, seed) - 0.5) * 0.14 : 0;
+        albedo[i] = (r + swing + stain) * 255;
+        albedo[i + 1] = (g + swing + stain) * 255;
+        albedo[i + 2] = (b + swing + stain) * 255;
+      }
       albedo[i + 3] = 255;
 
       // Ambient occlusion from the height itself: the low places are the ones light struggles to
       // reach. Cheap, and on a surface this shallow it is indistinguishable from a baked cavity
       // map — which would need the geometry this texture has not seen.
       orm[i] = (0.45 + 0.55 * h) * 255;
-      orm[i + 1] = (roughLow + (roughHigh - roughLow) * h) * 255;
+      orm[i + 1] = (shade ? shade.roughness : roughLow + (roughHigh - roughLow) * h) * 255;
       orm[i + 2] = recipe.metalness * 255;
       orm[i + 3] = 255;
     }
@@ -282,6 +348,7 @@ export function recipeFor(material: SurfaceMaterial): {
   seed: number;
   height: (u: number, v: number, seed: number) => number;
   stain?: ((u: number, v: number, seed: number) => number) | undefined;
+  shade?: ((u: number, v: number, seed: number, h: number) => Shade) | undefined;
 } {
   const recipe = RECIPES[material] ?? RECIPES.rock;
   return {
@@ -290,6 +357,7 @@ export function recipeFor(material: SurfaceMaterial): {
     seed: seedFor(material),
     height: recipe.height,
     ...(recipe.stain ? { stain: recipe.stain } : {}),
+    ...(recipe.shade ? { shade: recipe.shade } : {}),
   };
 }
 

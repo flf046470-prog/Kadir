@@ -180,3 +180,75 @@ describe('surface quality tiers', () => {
     expect(a.normalMap).toBe(b.normalMap);
   });
 });
+
+describe('the triplanar shader patch', () => {
+  /**
+   * Run the patch over three.js's own standard-material source, as a renderer would at compile
+   * time. The compile itself needs a browser; which code goes into it does not.
+   */
+  const patch = (material: THREE.MeshStandardMaterial) => {
+    const shader = {
+      uniforms: {},
+      defines: {} as Record<string, string>,
+      vertexShader: THREE.ShaderLib.standard.vertexShader,
+      fragmentShader: THREE.ShaderLib.standard.fragmentShader,
+    };
+    material.onBeforeCompile(shader as never, null as never);
+    return shader;
+  };
+  const profile = (tier: 'low' | 'medium' | 'high') => profileFor('pc', tier, DEFAULT_SETTINGS);
+  const count = (text: string, needle: string) => text.split(needle).length - 1;
+
+  it('breaks the tile on the world at the top tier, and nowhere it costs a headset', () => {
+    /**
+     * One texture every few metres is a grid the eye finds at once on an eighty-metre floor. At
+     * the top tier every map is read twice, at two scales crossed by a world-space noise, with a
+     * broad brightness swell. The middle tier is what a Quest runs, and props never show their
+     * tile twice, so neither pays for the second read.
+     */
+    const high = surfaceQualityFor(profile('high'));
+    const world = patch(createSurfaceMaterial('dirt', high, { color: 0xffffff }));
+    expect(world.defines.TRI_VARIED).toBe('');
+    expect(world.fragmentShader).toContain('triCross');
+
+    const prop = patch(createSurfaceMaterial('foliage', high, { color: 0xffffff, detailOnly: true, vertexColors: true }));
+    expect(prop.defines.TRI_VARIED).toBeUndefined();
+    const medium = patch(createSurfaceMaterial('dirt', surfaceQualityFor(profile('medium')), { color: 0xffffff }));
+    expect(medium.defines.TRI_VARIED).toBeUndefined();
+
+    // The variant is part of the program's identity, or the two would share one compiled program.
+    const keyHigh = createSurfaceMaterial('rock', high, { color: 0xffffff }).customProgramCacheKey();
+    const keyMedium = createSurfaceMaterial('rock', surfaceQualityFor(profile('medium')), { color: 0xffffff }).customProgramCacheKey();
+    expect(keyHigh).not.toBe(keyMedium);
+  });
+
+  it('lays frost on ice in world space, where it cannot repeat, and on nothing else', () => {
+    /**
+     * Frost is the largest feature glacier ice has. Drawn into its six-metre tile it stamped the
+     * same white cloud on the glacier in a grid; laid in world space by the shader, no patch is
+     * the same as another.
+     */
+    const high = surfaceQualityFor(profile('high'));
+    const ice = patch(createSurfaceMaterial('ice', high, { color: 0xffffff }));
+    expect(ice.defines.TRI_FROST).toBe('');
+    expect(ice.fragmentShader).toContain('triFrostAmt = smoothstep');
+    expect(patch(createSurfaceMaterial('snow', high, { color: 0xffffff })).defines.TRI_FROST).toBeUndefined();
+    // Only where the world varies: the middle tier is a headset's.
+    expect(patch(createSurfaceMaterial('ice', surfaceQualityFor(profile('medium')), { color: 0xffffff })).defines.TRI_FROST).toBeUndefined();
+    const keyIce = createSurfaceMaterial('ice', high, { color: 0xffffff }).customProgramCacheKey();
+    const keySnow = createSurfaceMaterial('snow', high, { color: 0xffffff }).customProgramCacheKey();
+    expect(keyIce.split(':').slice(1)).not.toEqual(keySnow.split(':').slice(1));
+  });
+
+  it('reads the packed occlusion/roughness/metalness map once, not once per channel', () => {
+    // It was read three times — nine fetches a pixel for one texture — which is what pays for the
+    // second read of every map above.
+    const fragment = patch(createSurfaceMaterial('rock', surfaceQualityFor(profile('high')), { color: 0xffffff })).fragmentShader;
+    expect(count(fragment, 'triSample( roughnessMap')).toBe(1);
+    expect(fragment).toContain('metalnessFactor *= triOrm.b');
+    expect(fragment).toContain('float triAo = triOrm.r');
+    for (const chunk of ['map_fragment', 'roughnessmap_fragment', 'metalnessmap_fragment', 'aomap_fragment', 'normal_fragment_maps']) {
+      expect(fragment, chunk).not.toContain(`#include <${chunk}>`);
+    }
+  });
+});

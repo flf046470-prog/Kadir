@@ -206,8 +206,10 @@ export function disposeSurfaceTextures(): void {
  * faces cross-fade rather than switching, which is what removes the hard line a projection-per-face
  * approach leaves behind.
  */
-function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, withNormal: boolean): void {
+function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, withNormal: boolean, varied: boolean, frost: boolean): void {
   material.onBeforeCompile = (shader) => {
+    if (varied) shader.defines = { ...shader.defines, TRI_VARIED: '' };
+    if (varied && frost) shader.defines = { ...shader.defines, TRI_FROST: '' };
     shader.uniforms.uTriplanarScale = { value: 1 / tile };
     // A per-material scroll, in tile units, left at zero for every material except water — see
     // `LevelRenderer.animate`, the one place that ever writes to it. Kept generic rather than
@@ -273,10 +275,64 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
            return sum > 1e-4 ? w / sum : vec3( 0.0, 1.0, 0.0 );
          }
 
+         // Set by the colour block, read by roughness and normal: how much frost lies here.
+         float triFrostAmt = 0.0;
+
+         #ifdef TRI_VARIED
+           // Breaking the tile. One texture repeated every few metres is a grid the eye finds at
+           // once on a floor eighty metres long, and no real ground is a grid.
+           //
+           // Near, every map is read twice: as laid, and turned 38 degrees and offset at the same
+           // scale, crossed by a smooth world-space noise — so the grain never changes size, and
+           // no period survives the crossing. (Read at a larger scale instead, the second copy's
+           // coarser grain showed as blotches of a different material.) Far, a third read at 3.4
+           // times the scale takes over, because past twenty metres a single tile shrinks to a
+           // few pixels and a wall becomes wallpaper; at that distance the larger grain reads as
+           // the rock's own larger features.
+           float triHash( vec2 p ) {
+             p = fract( p * vec2( 123.34, 456.21 ) );
+             p += dot( p, p + 45.32 );
+             return fract( p.x * p.y );
+           }
+           float triNoise( vec2 p ) {
+             vec2 i = floor( p );
+             vec2 f = fract( p );
+             vec2 k = f * f * ( 3.0 - 2.0 * f );
+             return mix(
+               mix( triHash( i ), triHash( i + vec2( 1.0, 0.0 ) ), k.x ),
+               mix( triHash( i + vec2( 0.0, 1.0 ) ), triHash( i + vec2( 1.0, 1.0 ) ), k.x ),
+               k.y
+             );
+           }
+           // Where a fragment is on the ground, or up a wall: x and z on a floor; along the wall and
+           // up it on a wall, so a pattern drawn there is laid out the way the wall is, not
+           // smeared diagonally across it.
+           vec2 triPlace() {
+             float floorish = smoothstep( 0.4, 0.75, abs( vTriNormal.y ) );
+             return mix( vec2( vTriWorld.x + vTriWorld.z, vTriWorld.y ), vTriWorld.xz, floorish );
+           }
+           float triCross() {
+             return smoothstep( 0.3, 0.7, triNoise( triPlace() / 9.0 ) );
+           }
+           float triFar() {
+             return smoothstep( 18.0, 55.0, distance( vTriWorld, cameraPosition ) );
+           }
+           vec4 triTex( sampler2D tex, vec2 uv, float cross ) {
+             vec4 a = texture2D( tex, uv + uFlowOffset );
+             vec4 b = texture2D( tex, mat2( 0.788, 0.616, -0.616, 0.788 ) * uv + vec2( 0.37, 0.71 ) + uFlowOffset );
+             vec4 c = texture2D( tex, mat2( 0.423, -0.906, 0.906, 0.423 ) * uv * 0.29 + vec2( 0.53, 0.19 ) + uFlowOffset );
+             return mix( mix( a, b, cross ), c, triFar() * 0.75 );
+           }
+         #else
+           float triCross() { return 0.0; }
+           vec4 triTex( sampler2D tex, vec2 uv, float cross ) { return texture2D( tex, uv + uFlowOffset ); }
+         #endif
+
          vec4 triSample( sampler2D tex, vec3 w, float scale ) {
-           vec4 x = texture2D( tex, vTriWorld.zy * scale + uFlowOffset );
-           vec4 y = texture2D( tex, vTriWorld.xz * scale + uFlowOffset );
-           vec4 z = texture2D( tex, vTriWorld.xy * scale + uFlowOffset );
+           float cross = triCross();
+           vec4 x = triTex( tex, vTriWorld.zy * scale, cross );
+           vec4 y = triTex( tex, vTriWorld.xz * scale, cross );
+           vec4 z = triTex( tex, vTriWorld.xy * scale, cross );
            return x * w.x + y * w.y + z * w.z;
          }`,
       )
@@ -285,27 +341,68 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
         `#ifdef USE_MAP
            vec3 triW = triWeights();
            vec4 sampledDiffuseColor = triSample( map, triW, uTriplanarScale );
+           #ifdef TRI_VARIED
+             // Broad swells of brightness, what a few hundred metres of real ground has — drier
+             // here, damper there — and what a single tile cannot.
+             float triSwell = triNoise( triPlace() / 41.0 + 7.3 ) * 0.65 + triNoise( triPlace() / 13.0 + 2.1 ) * 0.35;
+             sampledDiffuseColor.rgb *= mix( 0.84, 1.12, triSwell );
+           #endif
+           #ifdef TRI_FROST
+             // Frost and wind-packed snow lying on glacier ice, in world space so no patch repeats.
+             // Mostly on what faces up, as snow lies; a little on walls, where rime clings.
+             // The field is warped by a second noise so its edges wander like drifted snow rather
+             // than following the lattice the noise is built on.
+             vec2 triFp = triPlace();
+             vec2 triWarp = vec2( triNoise( triFp / 5.0 + 11.0 ), triNoise( triFp / 5.0 + 23.0 ) ) - 0.5;
+             triFp += triWarp * 4.0;
+             float triFrostField = triNoise( triFp / 7.0 + 3.7 ) * 0.6 + triNoise( triFp / 2.3 + 1.1 ) * 0.4;
+             triFrostAmt = smoothstep( 0.5, 0.66, triFrostField ) * mix( 0.12, 1.0, clamp( vTriNormal.y, 0.0, 1.0 ) );
+             // Ice cliffs are laid down in layers and show it in faint horizontal bands, broken
+             // along their length.
+             float triWall = 1.0 - smoothstep( 0.4, 0.75, abs( vTriNormal.y ) );
+             float triBand = triNoise( vec2( ( vTriWorld.x + vTriWorld.z ) * 0.08, vTriWorld.y * 0.9 + triWarp.x * 1.5 ) );
+             sampledDiffuseColor.rgb *= mix( 1.0, mix( 0.88, 1.05, triBand ), triWall );
+             sampledDiffuseColor.rgb = mix( sampledDiffuseColor.rgb, vec3( 0.88, 0.93, 0.97 ), triFrostAmt );
+           #endif
            diffuseColor *= sampledDiffuseColor;
          #endif`,
       )
       .replace(
         '#include <roughnessmap_fragment>',
         `float roughnessFactor = roughness;
+         // One read of the packed occlusion/roughness/metalness texture for all three. It was read
+         // three times — once per channel, nine fetches a pixel for one texture — which is what
+         // pays for reading every map twice above.
+         vec4 triOrm = vec4( 1.0 );
+         #if defined( USE_ROUGHNESSMAP ) || defined( USE_METALNESSMAP )
+           #ifdef USE_ROUGHNESSMAP
+             triOrm = triSample( roughnessMap, triWeights(), uTriplanarScale );
+           #else
+             triOrm = triSample( metalnessMap, triWeights(), uTriplanarScale );
+           #endif
+         #endif
          #ifdef USE_ROUGHNESSMAP
-           roughnessFactor *= triSample( roughnessMap, triWeights(), uTriplanarScale ).g;
-         #endif`,
+           roughnessFactor *= triOrm.g;
+         #endif
+         // Frost is matte where the ice under it is glossy.
+         roughnessFactor = mix( roughnessFactor, 0.78, triFrostAmt );`,
       )
       .replace(
         '#include <metalnessmap_fragment>',
         `float metalnessFactor = metalness;
          #ifdef USE_METALNESSMAP
-           metalnessFactor *= triSample( metalnessMap, triWeights(), uTriplanarScale ).b;
+           metalnessFactor *= triOrm.b;
          #endif`,
       )
       .replace(
         '#include <aomap_fragment>',
         `#ifdef USE_AOMAP
-           float ambientOcclusion = ( triSample( aoMap, triWeights(), uTriplanarScale ).r - 1.0 ) * aoMapIntensity + 1.0;
+           #if defined( USE_ROUGHNESSMAP ) || defined( USE_METALNESSMAP )
+             float triAo = triOrm.r;
+           #else
+             float triAo = triSample( aoMap, triWeights(), uTriplanarScale ).r;
+           #endif
+           float ambientOcclusion = ( triAo - 1.0 ) * aoMapIntensity + 1.0;
            reflectedLight.indirectDiffuse *= ambientOcclusion;
          #endif`,
       );
@@ -354,6 +451,8 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
              tnX.zyx * triWn.x + tnY.xzy * triWn.y + tnZ.xyz * triWn.z
            );
 
+           // Frost fills the cracks it lies over.
+           triBlended = normalize( mix( triBlended, triWorldN, triFrostAmt * 0.8 ) );
            normal = normalize( ( viewMatrix * vec4( triBlended, 0.0 ) ).xyz );
          #endif`,
       );
@@ -361,7 +460,7 @@ function applyTriplanar(material: THREE.MeshStandardMaterial, tile: number, with
   };
 
   // Changing the shader after a material has been compiled needs a new program.
-  material.customProgramCacheKey = () => `triplanar:${tile}:${withNormal ? 1 : 0}`;
+  material.customProgramCacheKey = () => `triplanar:${tile}:${withNormal ? 1 : 0}:${varied ? 1 : 0}:${frost ? 1 : 0}`;
   material.needsUpdate = true;
 }
 
@@ -448,7 +547,11 @@ export function createSurfaceMaterial(
   });
 
   if (quality.triplanar) {
-    applyTriplanar(standard, TILE_METRES[material] ?? 3, quality.normalMap && !options.detailOnly);
+    // Varied only at the full tier and on the world, not on props: a prop is a few metres across
+    // and never shows its tile twice, and the second read of every map is a cost a headset at the
+    // basic tier does not pay.
+    const full = quality.normalMap && !options.detailOnly;
+    applyTriplanar(standard, TILE_METRES[material] ?? 3, full, full, material === 'ice');
   }
   textures.users.add(standard);
   standard.addEventListener('dispose', () => textures.users.delete(standard));

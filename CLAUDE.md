@@ -2061,6 +2061,55 @@ when the files arrive — same slots, so no recompile — and a missing file lea
   would need its licence read against a web build's extractability first, the same test Fab and the
   Unity store failed.
 
+## Ground stopped tiling, and ice stopped being a swimming pool
+
+Asked for ground, ice and the rest to look like the real world (`Gerçek dünya gibi olsa`). Judged on
+the fixed-camera probe (`packages/client/probe-surfaces.html`, untracked; `?wide=<material>` lays one
+material over a 160 m floor with a 22 m wall, `&view=high` looks down from 30 m), before against
+after:
+
+- **Every surface was a grid.** One 3–6 m tile repeated across an 80 m floor is a lattice the eye
+  finds at once. At the full tier (`TRI_VARIED`, world materials only, never props) each map is read
+  as laid *and* turned 38° and offset at the **same** scale, crossed by a world-space noise (9 m),
+  with a third read at 3.4× scale taking over from 18 to 55 m, and a broad 41 m / 13 m brightness
+  swell. The second read at a *larger* scale was tried first: its coarser grain showed as blotches
+  of a different material. Cost is paid for by reading the packed ORM texture **once**: it was read
+  three times (roughness, metalness, occlusion), nine fetches a pixel for one texture.
+- **Ice read as the light on a pool floor.** Ridged fBm creases follow the contours of smooth noise,
+  so they wander and loop. Ice is now a clear blue, glossy sheet (`shade` writes colour and roughness
+  directly), with open fractures from `worleyEdge` (cell edges run straight and meet at angles,
+  masked so they stay lines, not a pavement), and bubbles.
+- **Frost cannot live in the tile.** Put there first, the glacier came out stamped with the same white
+  cloud every six metres — the largest feature a surface has is the one that shows its period. It is
+  laid in world space by the shader (`TRI_FROST`, ice only), warped so its edges wander, mostly on
+  what faces up, matte, and it flattens the normal (frost fills the cracks). Ice walls get faint
+  horizontal layers. A pattern on a wall uses `triPlace` (along the wall, up it): the first version
+  folded height into x/z and smeared it diagonally into camouflage stripes.
+- **The seam test was wrong for thin lines, not the ice.** It held the seam row to 1.6× the mean
+  adjacent-row difference; a fracture running along the seam put it at 15.1 against an interior
+  median of 5.9 and interior worst of 14.9, while the field is periodic to floating point. The seam
+  is now held within the interior lines' own spread as well.
+- **Poly Haven `snow_02` (CC0) was tried and rejected**: regraded onto the palette, its footprint
+  shadows read as ink scribbles. Snow stays `Snow006`. Poly Haven has no ice texture.
+
+Six mutations, each caught by its own test (`surfaces.test.ts` patches three.js's real standard
+shader source in node): no `TRI_VARIED`, ORM read per channel, frost on nothing, ice without
+`shade`, an unperiodic term in the ice, and `worleyEdge` taking the nearest point twice.
+
+## Parked: planted strides for every walking animal
+
+Started and parked when the request above came in; **the work is in `docs/wip/planted-gaits.patch`**
+(`git apply` it). Measured first: every non-bounding walk and run slid its lowest foot at roughly the
+body's speed — 1.9–2.4 m/s in a 2.4 m/s walk, up to 7.7 m/s in a 7 m/s run (`.probe/slip.ts`).
+The patch has `characters.stride_gait` (IK-planted stance, Hermite swing, body lowered as far as
+the stride needs because the sculpts stand with straight legs) building on all sixteen, and on the
+client `measureGait`/`gaitRate` (stance by distance, flights by time) plus a fix to
+`measureBound`, which took an alternating run's left foot for a bound unless the right foot is
+also down. Measured with it (`.probe/gaitslip.ts`): human/wolf/deer/koala walks plant at
+0.03–0.14 m/s. Not finished: `measureGait` returns null for the fox's walk and the tiger's, lion's
+and raptor's runs; a walk blended with idle at 1.5 m/s still slides; and short-legged animals
+(penguin, bear, panda, raccoon) cannot plant at 7 m/s at any cadence a viewer could read.
+
 ## Loose balls you can kick, catch and throw (Escape Simulator 2's lesson)
 
 ES2's appeal is a room made of things that answer your hands; this game's VR is climbing with
