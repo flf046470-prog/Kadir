@@ -99,8 +99,11 @@ export interface BoxCollider extends ColliderBase {
    *
    * `cliff` is a boundary wall `LevelBuilder.enclose` put up: drawn as carved rock with a ragged
    * crest (`render/Cliffs.ts`), never in front of the box and never lower than its top.
+   *
+   * `branch` is a climbable tree branch (`LevelBuilder.tree`): drawn as a round, tapering bough
+   * inscribed in the box — its top is the box's top — rather than as a square plank.
    */
-  drawAs?: 'log' | 'cliff';
+  drawAs?: 'log' | 'cliff' | 'branch';
 }
 
 export interface SphereCollider extends ColliderBase {

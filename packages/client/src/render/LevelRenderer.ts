@@ -374,6 +374,7 @@ export class LevelRenderer {
   private buildColliders(): void {
     const buckets = new Map<string, { collider: Collider; index: number }[]>();
     const logs: BoxCollider[] = [];
+    const branches: BoxCollider[] = [];
     const cliffs = new Map<SurfaceMaterial, BoxCollider[]>();
     this.level.colliders.forEach((collider, index) => {
       if (collider.kind === 'heightfield') {
@@ -382,6 +383,10 @@ export class LevelRenderer {
       }
       if (collider.kind === 'box' && collider.drawAs === 'log') {
         logs.push(collider);
+        return;
+      }
+      if (collider.kind === 'box' && collider.drawAs === 'branch') {
+        branches.push(collider);
         return;
       }
       // `enclose` only ever builds them square to the axes; a turned one is drawn as the box it is.
@@ -399,7 +404,9 @@ export class LevelRenderer {
 
     const box = new THREE.BoxGeometry(1, 1, 1);
     const sphere = new THREE.IcosahedronGeometry(1, 1);
-    const cylinder = new THREE.CylinderGeometry(1, 1, 1, 8, 1);
+    // Twelve sides, not eight: a trunk is the cylinder players look at most, from a metre away, and
+    // at eight it was an octagonal post.
+    const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12, 1);
     this.disposables.push(box, sphere, cylinder);
 
     const matrix = new THREE.Matrix4();
@@ -430,6 +437,7 @@ export class LevelRenderer {
       }
     }
     if (logs.length > 0) this.buildLogs(logs);
+    if (branches.length > 0) this.buildBranches(branches);
     for (const [material, walls] of cliffs) this.buildCliffs(material, walls);
   }
 
@@ -442,6 +450,29 @@ export class LevelRenderer {
     mesh.receiveShadow = true;
     mesh.userData.kind = 'cliff';
     this.group.add(mesh);
+  }
+
+  /**
+   * Tree branches, as boughs rather than the planks that collide.
+   *
+   * Drawn as square boxes, every tree in the jungle was a post with planks nailed round it. A
+   * branch is an oval inscribed in its box — top on the box's top, sides on its sides, so a player
+   * standing on one stands on what they see — tapering towards the tip by `BRANCH_TAPER` (the top
+   * there sits a couple of centimetres under the box's), and carried `BRANCH_ROOT` metres back into
+   * the trunk, because a flat end against a round trunk left a gap either side of every branch.
+   */
+  private buildBranches(colliders: BoxCollider[]): void {
+    const geometry = branchGeometry();
+    this.disposables.push(geometry);
+    const mesh = new THREE.InstancedMesh(geometry, this.material('wood'), colliders.length);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'branch';
+    const matrix = new THREE.Matrix4();
+    colliders.forEach((c, i) => mesh.setMatrixAt(i, branchMatrix(c, matrix)));
+    mesh.instanceMatrix.needsUpdate = true;
+    this.group.add(mesh);
+    this.instanced.push(mesh);
   }
 
   /**
@@ -1025,6 +1056,32 @@ export function fillUnitCube(source: THREE.BufferGeometry): THREE.BufferGeometry
  * drawn against the physics, rather than a copy of it that could drift the way the two once had:
  * physics applied the mirror of this rotation, and 222 boxes collided somewhere else.
  */
+/** How much thinner a branch is at its tip than where it leaves the trunk. */
+export const BRANCH_TAPER = 0.85;
+/** How far a branch is drawn back into its trunk, so its root meets the bark all round. */
+export const BRANCH_ROOT = 0.25;
+
+/**
+ * A unit bough: an oval of radius 1 at local z = -0.5, `BRANCH_TAPER` at z = +0.5, capped. Scaled
+ * by `branchMatrix` to a branch box's half width and half height, and to its length.
+ */
+export function branchGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.CylinderGeometry(BRANCH_TAPER, 1, 1, 10, 1);
+  // A cylinder stands along +Y with its top at +0.5; laid down along +Z, so the tip points out.
+  geometry.rotateX(Math.PI / 2);
+  return geometry;
+}
+
+/** Where `branchGeometry` goes for one branch box: its yaw, its cross-section, its length and root. */
+export function branchMatrix(collider: BoxCollider, out = new THREE.Matrix4()): THREE.Matrix4 {
+  const quaternion = new THREE.Quaternion().setFromAxisAngle(UP, collider.yaw);
+  const length = collider.half.z * 2 + BRANCH_ROOT;
+  // Local +Z points out of the trunk (`LevelBuilder.tree`), so the root is extended towards -Z.
+  const back = new THREE.Vector3(0, 0, -BRANCH_ROOT / 2).applyQuaternion(quaternion);
+  const position = new THREE.Vector3(collider.center.x + back.x, collider.center.y, collider.center.z + back.z);
+  return out.compose(position, quaternion, new THREE.Vector3(collider.half.x, collider.half.y, length));
+}
+
 export function colliderMatrix(
   collider: Collider,
   out = new THREE.Matrix4(),

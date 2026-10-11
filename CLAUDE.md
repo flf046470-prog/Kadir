@@ -2096,6 +2096,18 @@ Six mutations, each caught by its own test (`surfaces.test.ts` patches three.js'
 shader source in node): no `TRI_VARIED`, ORM read per channel, frost on nothing, ice without
 `shade`, an unperiodic term in the ice, and `worleyEdge` taking the nearest point twice.
 
+## Trees were posts with planks nailed round them
+
+Seen in a real game frame: every jungle branch was drawn as the box it collides as — 56 × 36 cm,
+square, flat-ended — and every trunk as an eight-sided post. `LevelBuilder.tree` marks branches
+`drawAs: 'branch'` and `LevelRenderer.buildBranches` draws them as one instanced mesh of oval boughs
+inscribed in their boxes (`branchMatrix`): the top is the box's top where the branch leaves the
+trunk, tapering `BRANCH_TAPER` towards the tip (2.7 cm lower there), and carried `BRANCH_ROOT` back
+into the trunk — a flat end against round bark left a ~7 cm gap either side of every branch.
+Collision is untouched, so no map `version` moves. Trunks (every collider cylinder) have twelve sides.
+`LevelRenderer.branches.test.ts` puts every vertex of every drawn branch into its box's frame; four
+mutations (no root, round instead of oval, not marked, root extended outwards) each fail it.
+
 ## Parked: planted strides for every walking animal
 
 Started and parked when the request above came in; **the work is in `docs/wip/planted-gaits.patch`**
