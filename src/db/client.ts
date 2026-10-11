@@ -54,11 +54,44 @@ declare global {
   var __fiorematchDb: ReturnType<typeof createClient> | undefined;
 }
 
+/**
+ * Whether the URL points at a pooler running in *transaction* mode.
+ *
+ * It matters because such a pooler hands a different backend connection to
+ * each statement, so a `PREPARE` on one and its `EXECUTE` on another is a
+ * protocol error rather than a slow path. postgres-js prepares by default, so
+ * against a transaction pooler the first query that repeats fails with
+ * `prepared statement "s1" does not exist` — intermittently, under
+ * concurrency, which is the worst way for this to show up.
+ *
+ * Detected from the port rather than configured, because the port is what
+ * actually decides the behaviour: Supavisor and PgBouncer both use 6543 for
+ * transaction mode and 5432 for session mode. An operator pasting the string
+ * their dashboard gave them gets the right setting without having to know
+ * this exists.
+ */
+export function isTransactionPooler(url: string): boolean {
+  try {
+    return new URL(url).port === "6543";
+  } catch {
+    // A string postgres-js can still parse but `URL` cannot; let the driver
+    // report the problem rather than guessing at prepared statements here.
+    return false;
+  }
+}
+
 function createClient() {
-  const client = postgres(connectionString(), {
+  const url = connectionString();
+  const client = postgres(url, {
     max: poolMax(),
     // Fail fast rather than hanging a request behind an unreachable database.
-    connect_timeout: 10
+    connect_timeout: 10,
+    /**
+     * Off only where it has to be. Prepared statements are a real saving on a
+     * direct connection or a session-mode pooler, and an error on a
+     * transaction-mode one.
+     */
+    prepare: !isTransactionPooler(url)
   });
   return drizzle(client, { schema });
 }
