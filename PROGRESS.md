@@ -3,6 +3,19 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-11 (2nd run) — Phase 1.4 `HudModel` extracted (routine)
+
+**Done:** `packages/client/src/ui/hudModel.ts` — pure `buildHudModel()` (headline, timer, role badge,
+tally, local bout, scoreboard, charge, gadget strip, status) with no DOM. `Hud.ts` now only draws the
+model (`drawTally`/`drawBout`/`drawGadgets`); visible output is unchanged by construction.
+**Tests:** new `hudModel.test.ts` (7). `npm run typecheck` clean; `npm test` 1395 passed, 12 skipped
+(before the final test-file typo fix; hudModel tests re-run green). Lint has only pre-existing warnings.
+`npm run verify` (build/hostile/shell) not run this session.
+**Not done in 1.4:** the VR wrist HUD consumer and the coverage test that refuses a model field with
+no VR consumer (needs the wrist panel to exist first; same pattern as `event-coverage.test.ts`).
+**Next session — first task:** build the VR wrist panel from `HudModel` (see `VRPanels.ts`), then add the
+coverage test. Then 1.5: split CLAUDE.md (2924 lines) with a "no line lost" check.
+
 ## 2026-10-11 — Phase 1.5 document drift (routine)
 
 **Done:** TODO.md (tests 1388, protocol 4, glacier crevasse wedge struck out as fixed in `version` 7);

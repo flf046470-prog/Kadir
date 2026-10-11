@@ -1,10 +1,10 @@
-import { GADGET_SLOTS, getGadget } from '@kc/core';
 import type { ModeStateView, PlayerState, SimEvent } from '@kc/core';
-import { clear, el, formatTime } from './dom.js';
+import { clear, el } from './dom.js';
 import type { MobileButtonState, MobileInput } from '../platform/mobile/MobileInput.js';
 import { ChatPanel } from './ChatPanel.js';
-import { roleBadge, roleBadgeClass } from './roles.js';
-import { scoreRows } from './scores.js';
+import { buildHudModel } from './hudModel.js';
+import type { HudBout, HudModel, HudTallyItem } from './hudModel.js';
+import { roleBadge } from './roles.js';
 
 export interface HudOptions {
   root: HTMLElement;
@@ -274,28 +274,31 @@ export class Hud {
   update(state: ModeStateView, local: PlayerState | undefined): void {
     this.localRole = local?.role ?? '';
     this.modeId = state.modeId;
-    this.headline.textContent = state.headline;
-    this.timer.textContent = state.phase === 'playing' ? formatTime(state.timeRemaining) : state.phase.toUpperCase();
-
-    this.updateTally(state);
-    this.updateBout(state);
-
-    const role = local?.role ?? 'idle';
-    this.role.textContent = roleBadge(role, state.modeId).label;
-    this.role.className = roleBadgeClass(role);
-
     // Short screens (landscape phones) only have room for a few rows.
-    const limit = globalThis.innerHeight < 480 ? 4 : 6;
+    const model = buildHudModel({
+      state,
+      local,
+      localId: this.options.localId,
+      nameOf: this.options.nameOf,
+      scoreLimit: globalThis.innerHeight < 480 ? 4 : 6,
+    });
+    this.headline.textContent = model.headline;
+    this.timer.textContent = model.timer;
+    this.drawTally(model.tally);
+    this.drawBout(model.bout);
+    this.role.textContent = model.roleLabel;
+    this.role.className = model.roleClass;
+
     clear(this.scores);
-    for (const row of scoreRows(state.scores, this.options.localId, (id) => this.options.nameOf?.(id), limit)) {
+    for (const row of model.scores) {
       this.scores.append(el('div', {}, el('span', {}, row.label), el('span', {}, String(row.score))));
     }
 
-    if (local) {
-      this.chargeFill.style.width = `${Math.round(local.charge * 100)}%`;
-      this.chargeFill.style.opacity = local.charge > 0.02 ? '1' : '0.15';
-      this.cash = local.gadgets.cash;
-      this.updateGadgets(local);
+    if (local && model.charge !== null) {
+      this.chargeFill.style.width = `${Math.round(model.charge * 100)}%`;
+      this.chargeFill.style.opacity = model.charge > 0.02 ? '1' : '0.15';
+      this.cash = model.cash;
+      this.drawGadgets(model);
       if (this.shopOpen) this.renderShop();
     }
   }
@@ -306,43 +309,32 @@ export class Hud {
    * Everything here comes from the local player's own state, which the HUD is already handed —
    * no protocol change was needed to show any of it. It simply was never drawn.
    */
-  private updateGadgets(local: PlayerState): void {
-    const g = local.gadgets;
-    const carrying = g.slots.some((id) => id !== null);
-    const status = statusLabel(g);
-    if (!carrying && g.cash === 0 && g.armour === 0 && !status) {
+  private drawGadgets(model: HudModel): void {
+    if (!model.gadgetsVisible) {
       this.gadgetBar.classList.add('kc-hidden');
       return;
     }
     this.gadgetBar.classList.remove('kc-hidden');
     clear(this.gadgetBar);
 
-    if (g.cash > 0) this.gadgetBar.append(el('span', { class: 'kc-pill kc-currency' }, `🪙 ${g.cash}`));
-    if (g.armour > 0) this.gadgetBar.append(el('span', { class: 'kc-pill' }, `🛡 ${Math.ceil(g.armour)}`));
+    if (model.cash > 0) this.gadgetBar.append(el('span', { class: 'kc-pill kc-currency' }, `🪙 ${model.cash}`));
+    if (model.armour > 0) this.gadgetBar.append(el('span', { class: 'kc-pill' }, `🛡 ${Math.ceil(model.armour)}`));
 
-    for (let i = 0; i < g.slots.length; i++) {
-      const id = g.slots[i];
-      if (!id) continue;
-      const def = getGadget(id);
-      const cooldown = g.cooldowns[id] ?? 0;
-      const charges = g.charges[id];
-      // A slot reads: name, then what stops you using it — the remaining cooldown if it is
-      // recharging, otherwise how many uses are left. Both at once is noise.
-      const detail = cooldown > 0.05 ? `${cooldown.toFixed(1)}s` : charges === undefined ? '' : `×${charges}`;
+    for (const slot of model.slots) {
       this.gadgetBar.append(
         el(
           'span',
           {
-            class: `kc-slot${i === g.selected ? ' kc-slot--on' : ''}${cooldown > 0.05 ? ' kc-slot--cooling' : ''}`,
-            title: `${GADGET_SLOTS[i] ?? ''}`,
+            class: `kc-slot${slot.selected ? ' kc-slot--on' : ''}${slot.cooling ? ' kc-slot--cooling' : ''}`,
+            title: slot.hint,
           },
-          el('b', {}, def?.name ?? id),
-          detail ? el('i', {}, detail) : null,
+          el('b', {}, slot.name),
+          slot.detail ? el('i', {}, slot.detail) : null,
         ),
       );
     }
 
-    if (status) this.gadgetBar.append(el('span', { class: 'kc-pill kc-pill--warn' }, status));
+    if (model.status) this.gadgetBar.append(el('span', { class: 'kc-pill kc-pill--warn' }, model.status));
   }
 
   /** Current stock, pushed in whenever it changes. */
@@ -556,29 +548,15 @@ export class Hud {
    * what everyone is playing for leaves the screen. Fighters are counted separately rather than
    * folded into a side, because for the twenty seconds of a bout they are on neither.
    */
-  private updateTally(state: ModeStateView): void {
-    const tally = state.tally;
-    if (!tally) {
+  private drawTally(items: HudTallyItem[] | null): void {
+    if (!items) {
       this.tally.hidden = true;
       return;
     }
     this.tally.hidden = false;
     clear(this.tally);
-    // Roo Ball's tally is goals per team, not heads per role.
-    const sides =
-      'red' in tally
-        ? ([['red', 'RED'], ['blue', 'BLUE']] as const)
-        : ([
-            ['chaser', roleBadge('chaser', state.modeId).label],
-            ['runner', roleBadge('runner', state.modeId).label],
-            ['fighter', 'IN THE RING'],
-          ] as const);
-    for (const [role, label] of sides) {
-      const count = tally[role] ?? 0;
-      if (count === 0 && role === 'fighter') continue;
-      this.tally.append(
-        el('span', { class: `kc-tally-item kc-tally--${role}` }, `${label} ${count}`),
-      );
+    for (const item of items) {
+      this.tally.append(el('span', { class: `kc-tally-item kc-tally--${item.role}` }, item.text));
     }
   }
 
@@ -594,19 +572,14 @@ export class Hud {
    * sent to the whole room, but a player fighting for their species does not need a list of other
    * people's fights on top of their own.
    */
-  private updateBout(state: ModeStateView): void {
-    const mine = state.bouts?.find((b) => b.a === this.options.localId || b.b === this.options.localId);
-    if (!mine) {
+  private drawBout(bout: HudBout | null): void {
+    if (!bout) {
       this.bout.hidden = true;
       return;
     }
-    const opponent = mine.a === this.options.localId ? mine.bName : mine.aName;
     this.bout.hidden = false;
     clear(this.bout);
-    this.bout.append(
-      el('span', { class: 'kc-bout-label' }, `FIGHT · ${opponent}`),
-      el('span', { class: 'kc-bout-clock' }, mine.remaining.toFixed(1)),
-    );
+    this.bout.append(el('span', { class: 'kc-bout-label' }, bout.label), el('span', { class: 'kc-bout-clock' }, bout.clock));
   }
 
   /** Translate a gameplay event the local player is involved in into feedback. */
@@ -664,13 +637,3 @@ export class Hud {
     this.element.remove();
   }
 }
-
-/** The one status effect worth shouting about, longest-lasting first. */
-function statusLabel(g: PlayerState['gadgets']): string {
-  if (g.frozen > 0) return `FROZEN ${g.frozen.toFixed(1)}s`;
-  if (g.snared > 0) return `SNARED ${g.snared.toFixed(1)}s`;
-  if (g.smoked > 0) return 'BLINDED';
-  if (g.revealed > 0) return 'REVEALED';
-  return '';
-}
-
