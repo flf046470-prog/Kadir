@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE, resolveSession, type SessionUser } from "./session";
+import { emailVerificationRequired, emailVerified } from "./email-verification";
 
 /**
  * Authorization helpers for route handlers and server components.
@@ -32,6 +33,31 @@ export async function requireUser(): Promise<Authorized | Unauthorized> {
     };
   }
   return { user };
+}
+
+/**
+ * The signed-in member, but only once they have proved they own their address.
+ *
+ * Used by the handlers that reach another person — a like, a message, an
+ * invitation. Not by the ones that only touch the member's own account, so
+ * somebody whose verification mail went to spam can still sign in, see their
+ * profile and press resend rather than finding a product that refuses to load.
+ *
+ * Returns 403 rather than 401: the session is perfectly good, and answering
+ * 401 would make the client discard a valid cookie and show a login form that
+ * cannot fix anything.
+ *
+ * A no-op where `REQUIRE_EMAIL_VERIFICATION` is unset, which is every
+ * development and test environment. The flag is read per call rather than at
+ * import, so a test can turn it on for one case.
+ */
+export async function requireVerifiedUser(): Promise<Authorized | Unauthorized> {
+  const result = await requireUser();
+  if (isUnauthorized(result)) return result;
+  if (!emailVerificationRequired()) return result;
+  if (await emailVerified(result.user.id)) return result;
+
+  return { response: apiError("email_unverified", 403) };
 }
 
 export function isUnauthorized(result: Authorized | Unauthorized): result is Unauthorized {

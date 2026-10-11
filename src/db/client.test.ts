@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { isTransactionPooler } from "./client";
 
 /**
  * `client.ts` builds its pool on first use and memoises it on `globalThis`, so
@@ -56,5 +57,60 @@ describe("the connection string", () => {
 
     const { db } = await freshModule();
     expect(() => db.select).toThrow(/DATABASE_URL.*POSTGRES_URL/s);
+  });
+});
+
+/**
+ * The other decision a deployment can get wrong silently.
+ *
+ * Against a transaction-mode pooler, postgres-js's default prepared statements
+ * fail with `prepared statement "s1" does not exist` — not on the first query,
+ * but on a later one under concurrency, once the pooler hands a different
+ * backend to the EXECUTE than it did to the PREPARE. That is a production-only
+ * failure no amount of local testing against a direct connection reaches,
+ * which is why the rule is pinned here rather than left to whoever pastes the
+ * connection string.
+ */
+describe("spotting a transaction-mode pooler", () => {
+  it("knows Supabase's transaction pooler by its port", () => {
+    expect(
+      isTransactionPooler(
+        "postgres://postgres.abcdefgh:pw@aws-0-eu-central-1.pooler.supabase.com:6543/postgres"
+      )
+    ).toBe(true);
+  });
+
+  it("leaves session mode and direct connections alone", () => {
+    // Session mode is the same host on 5432 and does support prepared
+    // statements, so turning them off there would be a silent cost.
+    expect(
+      isTransactionPooler(
+        "postgres://postgres.abcdefgh:pw@aws-0-eu-central-1.pooler.supabase.com:5432/postgres"
+      )
+    ).toBe(false);
+    expect(
+      isTransactionPooler("postgres://postgres:pw@db.abcdefgh.supabase.co:5432/postgres")
+    ).toBe(false);
+    expect(isTransactionPooler("postgres://fiorematch:pw@127.0.0.1:5432/fiorematch_dev")).toBe(
+      false
+    );
+  });
+
+  /**
+   * A portless URL is the default 5432, and a direct connection. Guessing
+   * "pooler" from a hostname containing the word would be wrong for anyone
+   * running a session-mode pooler of their own, so only the port is read.
+   */
+  it("treats a portless URL as a direct connection", () => {
+    expect(isTransactionPooler("postgres://postgres:pw@db.abcdefgh.supabase.co/postgres")).toBe(
+      false
+    );
+  });
+
+  it("does not throw on a string it cannot parse", () => {
+    // postgres-js accepts some forms `URL` rejects; the driver should report
+    // that, not this predicate.
+    expect(() => isTransactionPooler("not a url")).not.toThrow();
+    expect(isTransactionPooler("not a url")).toBe(false);
   });
 });

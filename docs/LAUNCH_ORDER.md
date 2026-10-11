@@ -78,16 +78,36 @@ Stage 5 requires.
 
 Gated by Stage 0.1. This is the only stage that cannot be pulled forward.
 
-1. **Sightengine account** (free tier is enough at launch) — the classifier half.
-2. **Implement the two drivers** against the interface in
-   `src/lib/safety/screening-drivers.ts`. Each is a contained piece against a
-   documented seam; the pipeline that consumes them is built and tested.
+Every item here is configuration or an account — the code for all of it is
+written and tested. `SIGNUPS` is last on the list for a reason: it is the only
+step that is visible to the public, and each step above it is something that
+has to be true *before* a stranger can create an account, not after.
+
+1. **A database.** `DATABASE_URL` (or `POSTGRES_URL`) on the deployment, with
+   `npm run db:migrate` run against it. Registration validates, hashes and
+   then writes; without this the write is the only part that fails, so the
+   form behaves correctly right up to the point of creating the account. Check
+   it with `/api/health`, which answers 503 when the database is unreachable.
+2. **Sightengine account** (free tier is enough at launch) — the classifier half.
+   PhotoDNA is the other half and is already approved; both drivers are written
+   (`src/lib/safety/photodna.ts`, `src/lib/safety/sightengine.ts`), so this is
+   two keys rather than an implementation.
 3. **Set `REQUIRE_PHOTO_SCREENING=true`.** With it on, an unconfigured driver
    throws instead of quietly letting photos through.
 4. **Upload a photo end to end** on the deployed site and confirm it goes
    `pending` → `approved`, and that a pending photo is invisible to everyone but
    its owner.
-5. **Flip `SIGNUPS` off `closed`.**
+5. **A mail provider**, and `REQUIRE_EMAIL_VERIFICATION=true` with it. Without
+   verification an account can be created on an address nobody owns, which is
+   how one person signs another up and how a reported account becomes three.
+   Set `RESEND_API_KEY` and verify the sending domain in the provider's
+   dashboard — an unverified domain means the API accepts every call and
+   nothing arrives, which looks like success from this side. Register once
+   against the deployed site and read the mail before moving on.
+6. **Flip `SIGNUPS` off `closed`** — and redeploy. The marketing pages are
+   statically generated, so they read this at build time: changing the variable
+   alone leaves every join button saying "coming soon" while the API happily
+   accepts registrations.
 
 Two things to settle with a Turkish lawyer while the application is pending, not
 after: how member photos going to Microsoft and to a classifier is recorded

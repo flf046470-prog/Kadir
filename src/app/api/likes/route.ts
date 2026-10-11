@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { requireUser, isUnauthorized, apiError } from "@/auth/guard";
+import { requireVerifiedUser, isUnauthorized, apiError } from "@/auth/guard";
 import { recordLike, type LikeKind } from "@/db/interactions";
 import { passReasons, type PassReasonId } from "@/lib/domain/taxonomies";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -8,7 +8,7 @@ import { isUuid } from "@/lib/uuid";
 const VALID_KINDS: LikeKind[] = ["like", "pass", "super_like"];
 
 export async function POST(request: NextRequest) {
-  const auth = await requireUser();
+  const auth = await requireVerifiedUser();
   if (isUnauthorized(auth)) return auth.response;
 
   // Bounds automated swiping without getting in a real member's way.

@@ -90,6 +90,19 @@ advice behind that lint assumes an app talking to PostgREST, and this one does
 not. Do it before the first row exists; it is reversible per table with
 `DISABLE ROW LEVEL SECURITY`.
 
+**A new migration reopens the door.** `ENABLE ROW LEVEL SECURITY` is per table,
+so every table a later migration adds arrives with RLS *off* and is readable
+with the publishable key the moment it exists — and the tables worth adding are
+exactly the ones worth reading: `email_verification_tokens`, added in `0020`,
+holds the hashes behind every verification link. So this is not a one-time
+step at setup; it is part of applying a migration to a Supabase deployment.
+This finds whatever has been missed:
+
+```sql
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public' AND NOT rowsecurity;
+```
+
 ### 2. Photos
 
 Photos need object storage. Without it the app writes to local disk, and on a
