@@ -19,6 +19,8 @@ import { Shell } from './ui/Shell.js';
 import { TuningStore } from './game/TuningStore.js';
 import { SocialClient, parseSocialRow, vrSocialRows } from './social/SocialClient.js';
 import { VRMenu } from './ui/VRPanels.js';
+import { VRWristHud } from './ui/VRWristHud.js';
+import { buildHudModel } from './ui/hudModel.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
 import { crashNotice, installCrashSurface, configuredRelease, setRoundContext, startErrorReporting } from './telemetry/errors.js';
@@ -273,6 +275,7 @@ async function main(): Promise<void> {
   let game: GameClient | null = null;
   let hud: Hud | null = null;
   let vrMenu: VRMenu | null = null;
+  let wristHud: VRWristHud | null = null;
   let tuningMenu: VRMenu | null = null;
   let friendsMenu: VRMenu | null = null;
   /** Which way a tap on a tuning row moves the value. Flipped from a row in the panel. */
@@ -332,9 +335,17 @@ async function main(): Promise<void> {
       profileForQuality: profile,
       tuning,
       callbacks: {
-        onModeState: (state) => hud?.update(state, game?.localPlayer),
+        onModeState: (state) => {
+          hud?.update(state, game?.localPlayer);
+          if (wristHud) {
+            wristHud.update(
+              buildHudModel({ state, local: game?.localPlayer, localId: session?.playerId ?? '', nameOf: (id) => game?.nameOf(id), scoreLimit: 3 }),
+            );
+          }
+        },
         onResults: (result, rewards) => {
           hud?.setVisible(false);
+          wristHud?.setVisible(false);
           // The round is over, so the menu is a title screen again rather than a pause menu —
           // the results screen owns what happens next, and "Resume" would resume nothing.
           setInMatch(false);
@@ -396,6 +407,10 @@ async function main(): Promise<void> {
     });
     if (input instanceof MobileInput) hud.attachTouchControls(input);
     hud.setVisible(false);
+    if (device.kind === 'vr') {
+      wristHud ??= new VRWristHud(renderer);
+      wristHud.setVisible(true);
+    }
 
     game.start();
     void game.audio.resume();

@@ -3,6 +3,17 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-11 (3rd run) — VR wrist HUD built from `HudModel` (routine)
+
+**Done:** `ui/wristPanel.ts` (pure `wristLines(HudModel)`, `WRIST_FIELDS` / `WRIST_EXEMPT`),
+`ui/VRWristHud.ts` (canvas quad on the left controller, redraws only when text changes), wired in
+`main.ts` (`onModeState`; hidden on results). `wristPanel.test.ts` (5) is the coverage test: a
+`HudModel` field in neither list fails it.
+**Tests:** `npm run verify` exit 0 (typecheck, 1400 passed / 12 skipped, builds, hostile, shell).
+**Not verified:** the panel has never been rendered on a headset or in an XR emulator; placement
+(position/tilt on the wrist) is a guess and needs hardware.
+**Next session — first task:** 1.5 split CLAUDE.md (2924 lines) with a "no line lost" check.
+
 ## 2026-10-11 (2nd run) — Phase 1.4 `HudModel` extracted (routine)
 
 **Done:** `packages/client/src/ui/hudModel.ts` — pure `buildHudModel()` (headline, timer, role badge,
