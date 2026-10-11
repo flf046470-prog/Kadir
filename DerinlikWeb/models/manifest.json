@@ -1,0 +1,29 @@
+{
+  "chair": {
+    "place": "Sakarya basement and control room, SIFIR-17 lab, PALIMPSEST archive"
+  },
+  "crate": {
+    "place": "Sakarya basement, reactor hall"
+  },
+  "sconce": {
+    "place": "wall lights in Nevşehir"
+  },
+  "candles": {
+    "place": "niche tops in the Paris ossuary"
+  },
+  "candelabrum": {
+    "place": "Paris final chamber"
+  },
+  "valve": {
+    "place": "SIFIR-17 corridor walls"
+  },
+  "recorder": {
+    "place": "PALIMPSEST archive desk"
+  },
+  "cabinet": {
+    "place": "SIFIR-17 laboratory"
+  },
+  "radio": {
+    "place": "Sakarya control room console, SIFIR-17 lab table"
+  }
+}

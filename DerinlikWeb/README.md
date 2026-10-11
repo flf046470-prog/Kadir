@@ -1,0 +1,43 @@
+# DERİNLİK — The Depths: Echoes of the Forgotten (tarayıcı sürümü)
+
+Birinci şahıs psikolojik korku oyunu. Dört bölüm (~25 dakika), üç son. Kurulum gerektirmez: tek bir HTML dosyası, Three.js ile çalışır.
+
+| Bölüm | Yer | Ne olur |
+|---|---|---|
+| 1 · KAPI | Sakarya, bodrum | E-posta, kameranın gördüğü duvar yazısı, çömelerek geçilen tünel, gizli mühürlü taş, çarpan kapı, çekilmemiş kaset, ilk Yankı Geçidi |
+| 2 · HAFIZA | Nevşehir, yeraltı şehri | Üç taş kadranı, yalnızca kamerada görünen simgelere göre çevir. Kil tablet, “Diğer Ekin” |
+| 3 · SIFIR-17 | Kola Yarımadası, 1986/2028 | Volkova koridorda devriye geziyor (gizlenme), deney günlüğü, 417 Hz rezonans konsolu |
+| 4 · SON TANIK | Paris, PALİMPSEST arşivi | Dr. Camille Moreau, Élise'in çizimi, dört mühür, son karar |
+
+**Sonlar:** A *Unutulan* (SİL) · B *Yeni Dünya* (YAYINLA) · C *Son Bekçi* (kapının içinde kal). C yalnızca dört gizli kamera kanıtı (Sakarya duvarı, Diğer Ekin, denek kaydı, Élise'in çizimi) ve dört mühürle açılır.
+
+## Oynamak
+- **Bilgisayarda:** `dist/index.html` dosyasını Chrome, Edge ya da Firefox ile aç. Three.js `cdn.jsdelivr.net` üzerinden yüklendiği için internet bağlantısı gerekir.
+- **Kontroller:** W A S D + fare (fare kilitlenemezse sol tıkla sürükleyerek bak) · Shift koş · F el feneri · Q / sağ tık video kamera · C / Ctrl çömel · E etkileşim · Tab kanıt arşivi · Esc duraklat.
+- **Telefon / tablet:** sol altta hareket çubuğu, sağda düğmeler, ekranın sağ yarısında sürükleyerek bak.
+- **Kayıt:** her bölüm başında tarayıcıya kaydedilir; başlangıç ekranında “Devam et” çıkar. Bozuk kayıt sessizce silinir.
+
+## Derlemek
+```bash
+# 1) Blender ile özgün sahne objelerini üret (isteğe bağlı; yoksa oyun gri kutularla çalışır)
+blender -b --factory-startup -P DerinlikWeb/tools/make_props.py
+# 2) game.html + models/*.glb -> dist/index.html (modeller base64 olarak gömülür)
+python3 DerinlikWeb/build.py
+```
+Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install python3-numpy`).
+
+## Dosyalar
+| Dosya | İçerik |
+|---|---|
+| `game.html` | Oyunun tamamı: sahneler, ışık, ses sentezi, oyuncu, kapılar, kamera, kanıt/Yankı/mühür, düşman, kayıt, menüler, dokunmatik kontroller |
+| `tools/make_props.py` | Blender betiği: sandalye, sandık, duvar apliği, mum kümesi, şamdan, vana çarkı, makaralı kayıt cihazı, dosya dolabı, Sovyet radyosu |
+| `models/` | Betiğin ürettiği GLB dosyaları ve `manifest.json` |
+| `build.py` | `dist/index.html` üretir |
+
+## Varlıklar ve lisans
+- Bütün dokular, sesler ve modeller kodla üretilir; üçüncü taraf dosya yoktur.
+- Three.js 0.160.0 (MIT) CDN'den yüklenir. Yazı tipleri: IBM Plex Sans Condensed ve VT323 (SIL Open Font License), Google Fonts'tan.
+- Meshy.ai modelleri bu sürümde **yok**: bulut ortamından `api.meshy.ai` adresine erişim engelli (HTTP 403). Kendi bilgisayarında `python Derinlik/Tools/Meshy/meshy_generate.py` ile üretilen `Derinlik/SourceArt/Meshy/<Ad>/model.glb` dosyasını `DerinlikWeb/models/<ad>.glb` olarak kopyala, `models/manifest.json`'a `"<ad>": {"place": "..."}` ekle ve `game.html` içinde `prop('<ad>', [x, y, z], dönüş)` satırıyla yerleştir; `build.py` onu da gömer. Dokulu Meshy modelleri birkaç MB tutabilir; tek dosyalı sayfa için toplam boyutu 16 MB'ın altında tut.
+
+## Testler
+Oyun, `window.__derinlik` test kancalarıyla (zamanı `advance()` ile ilerletme, `DEBUG.manual`, `DEBUG.enemyOff`) Playwright + Chromium'da otomatik oynatıldı. Senaryolar: dört bölümün baştan sona oynanışı ve üç son; gizlenme, yakalanma ve kayıt noktası; duraklatma; kayıttan devam; bozuk kayıt.
