@@ -3,6 +3,16 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-11 (5th run) — still blocked on owner decisions (routine, docs-only)
+
+**Checked:** branch `claude/kangaroo-chase-game-w62laa` is current at 8197a8f; no new commits since the 4th run.
+Every remaining TODO "Next up" item is gated on the account holder or hardware (hosted server/domain, store pages,
+headset pass, Capacitor). Per-grip feel changes the deterministic sim and needs a feel spec; the CLAUDE.md split
+was refused by the permission classifier last run and was not retried.
+**Not run:** `npm run verify` (no code change).
+**Next session — first task:** owner answers one of: approve/decline the CLAUDE.md split, glacier balance,
+per-grip feel spec, hosting. Until then nothing safe and useful is left to do autonomously.
+
 ## 2026-10-11 (4th run) — 1.5 CLAUDE.md split blocked by the permission classifier (routine)
 
 **Done:** nothing changed in code. Verified branch `claude/kangaroo-chase-game-w62laa` is current at 95f6332.
