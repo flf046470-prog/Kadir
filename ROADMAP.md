@@ -174,7 +174,7 @@ passes. Writing the code does not tick it.
 
 | when | item | blocks |
 | --- | --- | --- |
-| now | **B1. GitHub access for this repository.** Pushes return 403: reconnect GitHub at https://claude.ai/connect-github and install the Claude GitHub App on the repository. | every push, including the scheduled sessions' |
+| now | **B1. GitHub access for this repository.** Pushes return 403 ("Claude doesn't have GitHub access to flf046470-prog/Kadir"). Install the Claude GitHub App at https://github.com/apps/claude/installations/select_target, or re-link it from https://claude.ai/customize/connectors?auth_start=github&auth_start_force=1. | every push, including the scheduled sessions' |
 | now | **B2. `MESHY_API_KEY` as an environment secret**, and rotate both keys pasted in chat. | A13, A16 |
 | now | **B3. One scheduled routine, not two.** "Kangaroo Chase" (hourly, :15) failed on 2026-10-16 with the usage limit reached. "derinlik oyun" (hourly, :03) sends only "devam et" to a fresh session, which has no context to continue, and its last run finished in 26 s. Keep one routine with the full prompt, every 3–4 hours, so a run has the time to finish an item. | the whole of Track A |
 | November | **B4. Hosting** (Railway plan or another container host), then the **domain**, which fixes the Android package id for good (`CLAUDE.md`: "Release identity is one irreversible decision"), then the privacy policy at a URL (A8). | crossplay online, Coming Soon pages, the Quest app |

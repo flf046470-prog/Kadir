@@ -2986,7 +2986,8 @@ over a bed listed first reads water every tick (the old rule read dirt on 156 of
   branch). Bots always steer, so the bot A/B came out **byte-identical** on all three maps, after a
   wet-tick count proved bots do stand in the creek (0 → 1,243 grounded ticks on water in two rounds).
   That is the "identical results" tell explained, not ignored: a friction change cannot move a bot.
-  A player who lets go in the creek now coasts 6.1 m instead of 1.8 m.
+  A player who lets go in the creek now coasts 6.1 m instead of 1.8 m, and a landing in any of
+  the three pools throws spray (`Effects.ts`'s `water` entry) instead of rock dust.
 - The outback's design text called the creek "the slowest surface". Water has never changed
   anyone's speed: it is the slipperiest footing in the game (0.3; ice is 0.35). Whether wading should
   slow you is a design question, measured on the jungle river, and it is in roadmap item A6.
