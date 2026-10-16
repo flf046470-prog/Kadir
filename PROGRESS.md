@@ -9,6 +9,21 @@ status of record; this file is the hand-off between sessions.
 **Not run:** `npm run verify` (no code change).
 **Next session — first task:** unchanged: owner approves/declines the CLAUDE.md split, glacier balance, per-grip feel spec, or hosting.
 
+## 2026-10-16 — surfaces, branches, and a twelve-month plan with work in it (interactive)
+
+**Done (committed, not pushed — pushes return 403, see B1):**
+- 4bb36cb: ground stops tiling (`TRI_VARIED`), ice is clear sheets with fractures, frost in world
+  space (`TRI_FROST`), and the ORM texture is read once.
+- 7cffbd5: tree branches are drawn as oval boughs, trunks have twelve sides.
+- `ROADMAP.md` → "The next twelve months" rewritten as two tracks. Track A is an ordered list
+  (A1–A26) that needs no account; Track B is the account holder's, by month.
+- `TODO.md` → "Next up" now points at Track A.
+
+**Parked:** planted gaits, in `docs/wip/planted-gaits.patch` (state in `CLAUDE.md`, "Parked").
+
+**Next session — first task:** Track A, item A1 (the outback creek's water z-fights its bed).
+"Blocked on the owner" applies to Track B only.
+
 ## 2026-10-11 (5th run) — still blocked on owner decisions (routine, docs-only)
 
 **Checked:** branch `claude/kangaroo-chase-game-w62laa` is current at 8197a8f; no new commits since the 4th run.

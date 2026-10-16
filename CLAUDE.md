@@ -2957,6 +2957,23 @@ and the sized phases are in `docs/ULTIMATE_EDITION_ROADMAP.md`. Four findings ar
   Nanite and the material layering that make Unreal look real. Megascans/Fab-Standard licences
   forbid extractable delivery.
 
+## The plan has two tracks, and only one of them waits on the owner
+
+The scheduled sessions spent five runs reporting "nothing safe and useful is left to do" while most
+of the Ultimate Edition phases were untouched. The reason was the old twelve-month plan, which listed
+only store milestones, every one of them gated on an account. `ROADMAP.md` → "The next twelve months"
+now has **Track A**, an ordered list (A1, A2, …) that needs no account, key or hardware except
+A13/A16 (Meshy). It also has **Track B**, the account holder's items by month. A session takes the
+first unticked Track A item, finishes it to its exit test and ticks it. Track B being blocked is
+never a reason to stop.
+
+The two routines, measured on 2026-10-16 (`list_triggers`):
+- "Kangaroo Chase" failed on the usage limit.
+- "derinlik oyun" sends only "devam et" to a fresh session, which has no context to continue from,
+  and its last run finished in 26 s.
+
+Changing them is the owner's call (B3).
+
 ## How to find defects here
 
 Measurement beats reading the code, every time. What has actually worked:

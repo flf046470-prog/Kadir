@@ -165,13 +165,9 @@ the live server for something only the new commit has — a `hello` at the curre
 
 ## Next up (in order)
 
-The dated plan is `ROADMAP.md` → "The next twelve months". In order:
-
-1. One hosted server for every store. The code is done (`pack:steam --online`, `check:crossplay`);
-   the server and its domain are the account holder's (Railway's trial ended 2026-09-22).
-2. Steam and Epic Coming Soon pages: art from `npm run pack:pc:listing`, the trailer from
-   `npm run pack:trailer`, copy from `docs/PC_LISTINGS.md` (accounts and fees are the account
-   holder's).
-3. ~~The glacier crevasse bot wedge~~ — fixed in glacier `version` 7 (26 % → 6.0 % stuck).
-4. Hardware pass: VR on a real headset, system requirements on real PCs, real-machine footage.
-5. Capacitor shell for Play / App Store; region sharding when festival numbers ask for it.
+`ROADMAP.md` → "The next twelve months" has two tracks. **A scheduled session takes the first
+unticked item of Track A** (A1, A2, …), finishes it to its exit test and ticks it there. Track A
+needs no account, key or hardware, except A13 and A16, which need the Meshy key (B2). Track B is
+the account holder's: GitHub access (B1, pushes return 403 today), the Meshy key, hosting and
+domain, store accounts, hardware and the release decisions. "Blocked on the account holder" is
+true of Track B only, and never a reason to stop Track A.
