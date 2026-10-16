@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Translator } from "@/lib/i18n";
 import type { CommunityStats } from "@/lib/community";
-import { getAirbnbUrl, getPaymentConfig } from "@/lib/config";
+import { getAirbnbUrl } from "@/lib/config";
 import { CommunityForm } from "./community-form";
 import { CtaLink, SectionHeading } from "./ui";
 import { ContourField } from "./visuals";
@@ -168,7 +168,7 @@ export function SupportSection({
   path: (href: string) => string;
   compact?: boolean;
 }) {
-  const payments = getPaymentConfig();
+
 
   const options = [
     { title: t("support.follow"), note: t("support.followNote"), href: path("/updates"), cta: t("cta.followJourney") },
@@ -206,28 +206,19 @@ export function SupportSection({
           ))}
         </div>
 
-        {/* Financial support: the honest state of it, not a mock checkout. */}
+        {/* Patreon securely hosts all creator membership payments. */}
         <Reveal className="card-stone mt-6 p-6 md:p-8">
-          <div className="flex flex-wrap items-start justify-between gap-6">
-            <div className="max-w-lg">
-              <h3 className="font-display text-2xl">{t("support.build")}</h3>
-              <p className="mt-3 text-sm text-fog">{t("support.notConnected")}</p>
-            </div>
-            <span className="rounded-full border border-fog/25 px-5 py-3 text-xs tracking-[0.14em] text-fog/70 uppercase">
-              {t("support.comingSoon")}
-            </span>
-          </div>
-
-          {payments.enabled ? (
-            <p className="mt-6 text-sm text-fog">
-              A payment provider is configured. Amounts:{" "}
-              {payments.presetAmounts.join(", ")} {payments.defaultCurrency}.
-            </p>
-          ) : null}
-
-          <p className="mt-6 border-t border-fog/10 pt-6 text-xs leading-relaxed text-fog/70">
-            {t("support.disclaimer")}
+          <h3 className="font-display text-2xl">{t("support.build")}</h3>
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-fog">
+            Support the independent Patagonia Underground concept through its
+            official Patreon creator page. Memberships are handled by Patreon.
           </p>
+          <a href="https://www.patreon.com/cw/Umut414"
+            rel="noopener noreferrer" target="_blank"
+            className="mt-8 inline-flex rounded-full bg-snow px-7 py-4 text-xs font-semibold tracking-[.13em] text-basalt uppercase hover:bg-ember">
+            Patreon — Support the vision ↗
+          </a>
+          <p className="mt-6 border-t border-fog/10 pt-6 text-xs leading-relaxed text-fog/70">{t("support.disclaimer")}</p>
         </Reveal>
       </div>
     </section>
