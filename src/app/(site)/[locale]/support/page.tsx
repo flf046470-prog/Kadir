@@ -14,7 +14,7 @@ export async function generateMetadata({
   const { settings, path } = await getPageContext(params);
   const title = "Support the project";
   const description =
-    "Ways to help Patagonia Underground take its next step — following, joining the list, sending an idea. Financial support is not open, and no payment system is connected.";
+    "Ways to help Patagonia Underground take its next step — following, joining the list, sending an idea. Monthly memberships are available through Patreon, which handles payments.";
   return {
     title,
     description,
