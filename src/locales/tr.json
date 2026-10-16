@@ -103,5 +103,6 @@
   "misc.privacy": "Gizlilik",
   "misc.terms": "Koşullar",
   "misc.loading": "Yükleniyor",
-  "gallery.counter": "{n} / {total}"
+  "gallery.counter": "{n} / {total}",
+  "nav.immersive": "3D / AR / VR"
 }

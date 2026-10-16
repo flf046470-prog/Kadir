@@ -134,5 +134,6 @@
   "gallery.previous": "Previous image",
   "gallery.next": "Next image",
   "gallery.counter": "{n} / {total}",
-  "gallery.drawing": "Drawing, not a photograph"
+  "gallery.drawing": "Drawing, not a photograph",
+  "nav.immersive": "3D / AR / VR"
 }
