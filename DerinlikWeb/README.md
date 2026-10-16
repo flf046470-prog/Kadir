@@ -21,7 +21,9 @@ Birinci şahıs psikolojik korku oyunu. Dört bölüm (~25 dakika), üç son. Ku
 ```bash
 # 1) Blender ile özgün sahne objelerini üret (isteğe bağlı; yoksa oyun gri kutularla çalışır)
 blender -b --factory-startup -P DerinlikWeb/tools/make_props.py
-# 2) game.html + models/*.glb -> dist/index.html (modeller base64 olarak gömülür)
+# 2) Blender ile gerçekçi PBR dokuları pişir (toprak, çamur, buz, kırağı, kar, tüf, kireçtaşı, tuğla, pas…; ~10 dk)
+blender -b --factory-startup -P DerinlikWeb/tools/bake_textures.py
+# 3) game.html + models/*.glb + textures/* + src/fx-*.js -> dist/index.html (hepsi tek dosyaya gömülür)
 python3 DerinlikWeb/build.py
 ```
 Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install python3-numpy`).
@@ -32,6 +34,10 @@ Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install
 | `game.html` | Oyunun tamamı: sahneler, ışık, ses sentezi, oyuncu, kapılar, kamera, kanıt/Yankı/mühür, düşman, kayıt, menüler, dokunmatik kontroller |
 | `tools/make_props.py` | Blender betiği: sandalye, sandık, duvar apliği, mum kümesi, şamdan, vana çarkı, makaralı kayıt cihazı, dosya dolabı, Sovyet radyosu |
 | `models/` | Betiğin ürettiği GLB dosyaları ve `manifest.json` |
+| `tools/bake_textures.py` | Blender betiği: 16 gerçek-dünya yüzeyinin dikişsiz PBR dokuları (renk, normal, AO/pürüzlülük/metal) |
+| `textures/` | Pişirilmiş dokular (~5 MB JPEG) |
+| `src/fx-materials.js` | Dokuları malzemelere giydirir; bölüme göre zeminler (çamur, toprak, ıslak beton), duvar dibinde nem ve tuz izi, SIFIR-17'de kırağı, su birikintileri, donmuş su, buz sarkıtları, kar yığını, alev isi |
+| `src/README.md` | Gerçekçilik modüllerinin sözleşmesi |
 | `build.py` | `dist/index.html` üretir |
 
 ## Varlıklar ve lisans
