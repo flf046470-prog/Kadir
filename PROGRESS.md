@@ -21,7 +21,11 @@ status of record; this file is the hand-off between sessions.
 
 **Parked:** planted gaits, in `docs/wip/planted-gaits.patch` (state in `CLAUDE.md`, "Parked").
 
-**Next session — first task:** Track A, item A1 (the outback creek's water z-fights its bed).
+- A1 done: the creek runs in a channel; the ground probe reports the higher of two equally flat
+  surfaces, so players stand in the water in every pool; water wins depth ties in the renderer.
+  Details and measurements in `CLAUDE.md` ("Water sat in the plane of its bed").
+
+**Next session — first task:** Track A, item A2 (planted strides, `docs/wip/planted-gaits.patch`).
 "Blocked on the owner" applies to Track B only.
 
 ## 2026-10-11 (5th run) — still blocked on owner decisions (routine, docs-only)

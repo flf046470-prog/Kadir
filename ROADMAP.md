@@ -67,10 +67,13 @@ passes. Writing the code does not tick it.
 
 **October–November 2026: finish what is open, then measure the two platforms against each other**
 
-- [ ] **A1. Water fights the ground.** The outback creek's top (y −15) is coplanar with the bed under
-  it, so the two z-fight: a jagged, flickering edge in every gorge frame. Water wins coplanar ties
-  in the renderer; a test refuses any water top coplanar with a solid top it overlaps.
-  Exit: a gorge frame with a straight, still shoreline.
+- [x] **A1. Water fights the ground.** The outback creek's top (y −15) was coplanar with the bed under
+  it on 96 % of its area. Done: the creek runs in a channel 0.3 m deep (outback `version` 7), and
+  water wins depth ties in the renderer. The ground probe now reports the higher of two equally
+  flat surfaces, so the water is the ground in every pool (before, in three of the four, players
+  stood on the floor under it). `levels.test.ts` refuses an authored solid in a pool's plane.
+  Measured: 0 coplanar samples; bots byte-identical on all three maps, because friction acts only
+  on a released stick.
 - [ ] **A2. Planted strides for every walking animal.** The work is `docs/wip/planted-gaits.patch`;
   its state and its measurements are in `CLAUDE.md` ("Parked"). Exit: median planted-foot slip
   ≤ 0.1 m/s in the walk and the run for every animal whose legs can plant at that speed. Animals
@@ -88,7 +91,10 @@ passes. Writing the code does not tick it.
 **December 2026: the chase itself**
 
 - [ ] **A6. Time to first sighting, per map** (Phase 4), via `captureView`. Tag feedback across the
-  HUD, audio, haptics and effects. Exit: the density figures in `CLAUDE.md` ("Map density") held or
+  HUD, audio, haptics and effects. And water. It is the slipperiest footing in the game (friction 0.3,
+  ice is 0.35) and changes no one's speed, while the outback's design always meant its creek to slow
+  you. Wading as a speed cap, against water as it is, measured on the jungle river, which is the main
+  case. Exit: the density figures in `CLAUDE.md` ("Map density") held or
   improved on all three maps.
 - [ ] **A7. Bots where they are weak** (Phase 5). The outback scree, the canyon ramp corner, and the
   glacier's rare chases (about 1.7 a round). Exit: stuck share and chases per round, 6 bots × 16

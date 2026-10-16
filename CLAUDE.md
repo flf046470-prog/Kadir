@@ -650,6 +650,9 @@ These silently invalidated real measurements in this repo. Check them before bel
 - **Each landed projectile emits two `gadgetHit` events** — one from `applyPayload` carrying the
   damage dealt, one from `detonate` with magnitude 1 meaning "direct hit". Counting events as hits
   reports a 100 % hit rate; the real figure is about half.
+- **Surface friction acts only when the stick is released.** Bots always steer, so a friction or
+  ground-material change cannot move a bot A/B. Identical numbers there are expected, not a dead
+  probe: count what the change touches (ticks on the surface) before reading them.
 - Roles are assigned when the round starts, not in `addPlayer`. Read `player.role` before the
   countdown ends and everyone is `idle`.
 - A mode's countdown freezes players, and a round reset restores the state you were watching. Both
@@ -2956,6 +2959,40 @@ and the sized phases are in `docs/ULTIMATE_EDITION_ROADMAP.md`. Four findings ar
 - **Unreal for the maps was declined, with reasons, in the roadmap.** A glTF export loses Lumen,
   Nanite and the material layering that make Unreal look real. Megascans/Fab-Standard licences
   forbid extractable delivery.
+
+## Water sat in the plane of its bed, and nobody ever stood in it
+
+Roadmap item A1. The outback creek's top was y −15, and so was the rock bed under it, on 96 % of
+the water's area (rays down every half metre, past the water). Two surfaces in one plane: the
+renderer drew whichever won each pixel, and physics stood every player on the rock.
+
+That second half was a **physics bug, not a level bug**, and it was in every pool. `probeGround`
+reaches `groundProbe + stepOffset / 2` (0.345 m) below a grounded body's feet, so the floor under a
+shallow pool is in it too. Between equally flat contacts it kept the **first in collider order**,
+and a bed is built before its water. Measured: standing in the jungle's cave pool read water for 2
+ticks, then rock for 103; so did the canyon pool; the creek read rock throughout. Only the jungle
+river, whose bed is over 0.345 m down, was ever water. Now the higher of two equally flat contacts
+wins (`GROUND_TIE`), which is the one the snap puts the feet on anyway. `physics.test.ts`: a pool
+over a bed listed first reads water every tick (the old rule read dirt on 156 of 159).
+
+- The creek runs in a channel 0.3 m deep, the bed split in three (outback `version` 7). The cave
+  mouth's floor slab also ran 3.5 m into the creek at y −15; it stops at the bank now.
+- **The terrain grid lays two flat triangles in the jungle river's plane** (NW and SE corners,
+  ~2 m² each): a 2 m cell's diagonal runs along the corner, so all three vertices sit on the bank at
+  0. Avoiding it would narrow the river by a cell. Water materials get `polygonOffset` (−1, −1) so
+  water wins the depth tie; it is GL state, so no second program. `levels.test.ts` still refuses any
+  **authored** solid in a pool's plane, and says why terrain is exempt.
+- **Surface friction acts only on a released stick** (`locomotion.ts`, the `throttle ≤ 0.02`
+  branch). Bots always steer, so the bot A/B came out **byte-identical** on all three maps, after a
+  wet-tick count proved bots do stand in the creek (0 → 1,243 grounded ticks on water in two rounds).
+  That is the "identical results" tell explained, not ignored: a friction change cannot move a bot.
+  A player who lets go in the creek now coasts 6.1 m instead of 1.8 m.
+- The outback's design text called the creek "the slowest surface". Water has never changed
+  anyone's speed: it is the slipperiest footing in the game (0.3; ice is 0.35). Whether wading should
+  slow you is a design question, measured on the jungle river, and it is in roadmap item A6.
+
+Mutations, each failing its own test: the channel flat again (3,032 coplanar points), the cave slab
+back (42), the tie rule off (dirt 156 of 159), and no depth offset.
 
 ## The plan has two tracks, and only one of them waits on the owner
 

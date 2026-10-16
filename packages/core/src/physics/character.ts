@@ -64,6 +64,9 @@ export function makeMoveResult(): MoveResult {
   };
 }
 
+/** Two ground normals closer than this are equally flat (a box top and a flat terrain cell differ by rounding). */
+const GROUND_TIE = 1e-6;
+
 const _p0: Vec3 = { x: 0, y: 0, z: 0 };
 const _p1: Vec3 = { x: 0, y: 0, z: 0 };
 const _onSeg: Vec3 = { x: 0, y: 0, z: 0 };
@@ -303,6 +306,9 @@ function probeGround(
   let bestSurface = out.groundSurface;
   let bestNormalX = out.groundNormal.x;
   let bestNormalZ = out.groundNormal.z;
+  // Height of the chosen contact, for breaking a tie between equally flat surfaces. A contact from
+  // the move pass is one the body is resting on, so it sits at the feet.
+  let bestY = out.grounded ? position.y : Number.NEGATIVE_INFINITY;
   let snapY = Number.NEGATIVE_INFINITY;
 
   world.queryCapsule(_p0, _p1, shape.radius, (index, collider) => {
@@ -310,8 +316,15 @@ function probeGround(
     const res = closestPointSegmentCollider(_onSeg, _onCol, _normal, _p0, _p1, collider);
     if (shape.radius - res.distance <= 0) return;
     if (_normal.y < params.minGroundNormalY) return;
-    if (_normal.y > bestNy) {
+    // The flattest surface wins, and between two equally flat ones the higher, which is the one the
+    // body stands on. The probe reaches a third of a metre below the feet, so a floor under a
+    // shallow pool or under a plank is in it too; picking the first in collider order reported that
+    // floor as the ground, and the water a player was standing in was never the ground at all.
+    const flatter = _normal.y > bestNy + GROUND_TIE;
+    const tied = !flatter && _normal.y >= bestNy - GROUND_TIE && _onCol.y > bestY;
+    if (flatter || tied) {
       bestNy = _normal.y;
+      bestY = _onCol.y;
       bestNormalX = _normal.x;
       bestNormalZ = _normal.z;
       bestIndex = index;

@@ -78,6 +78,36 @@ describe('moveCapsule', () => {
     expect(Math.abs(vel.y)).toBeLessThan(1);
   });
 
+  it('reports the surface it stands on, not a flatter-or-equal floor the probe reaches below it', () => {
+    /**
+     * The ground probe reaches a third of a metre under the feet, so the floor under a shallow pool
+     * is in it too, and both are equally flat. It used to keep the first in collider order: in every
+     * pool on every map whose bed was listed before its water, a player standing in the water was
+     * reported as standing on the rock, so the water's friction, its splash and its landing sound
+     * never happened (measured: the jungle cave pool read water for 2 ticks, then rock for 103).
+     */
+    const water = { ...DEFAULT_SURFACE, material: 'water' as const, friction: 0.3, flags: SurfaceFlags.Water };
+    const world = new PhysicsWorld([
+      box(0, -1, 0, 50, 1, 50, 0), // the bed, top at y = 0, listed first
+      { ...box(0, 0.1, 0, 5, 0.2, 5, 1), surface: water }, // a pool 0.3 m deep over it, top at y = 0.3
+    ]);
+    const pos = vec3(0, 1, 0);
+    const vel = vec3(0, 0, 0);
+    const out = makeMoveResult();
+    let grounded = false;
+    const seen: string[] = [];
+    for (let i = 0; i < 180; i++) {
+      vel.x = i > 90 ? 3 : 0; // stand, then wade
+      vel.y -= 20 * (1 / 60);
+      moveCapsule(world, pos, vel, SHAPE, 1 / 60, DEFAULT_MOVE_PARAMS, out, grounded);
+      grounded = out.grounded;
+      if (i > 20 && grounded) seen.push(out.groundSurface.material);
+    }
+    expect(pos.y).toBeCloseTo(0.3, 2);
+    expect(seen.length).toBeGreaterThan(100);
+    expect(seen.filter((m) => m !== 'water')).toEqual([]);
+  });
+
   it('slides along a wall instead of passing through it', () => {
     const world = makeWorld();
     const pos = vec3(5, 0, 0);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { capsuleFits } from '../physics/character.js';
+import { SurfaceFlags } from '../physics/types.js';
 import type { Collider, RaycastResult } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
 import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
@@ -138,6 +139,45 @@ describe('every map', () => {
         }
       }
       expect(drops.slice(0, 5), `${entry.id}: ${drops.length} death drops`).toEqual([]);
+    }
+  });
+});
+
+describe('water', () => {
+  it('never lies in the plane of the ground under it, on any map', () => {
+    /**
+     * The outback's creek had its top at y −15 over a bed whose top was y −15, on 96 % of its area.
+     * Two surfaces in one plane: the renderer drew whichever won each pixel, a jagged shoreline
+     * that flickered as the camera moved, and physics stood every player on the rock, so the water
+     * was never the ground. Rays down every half metre of every pool, past the water, must find the
+     * solid under it clearly below the surface (or clearly above it: a rock standing in a pool).
+     *
+     * Authored solids only. The terrain grid lays a flat triangle in the jungle river's plane at two
+     * of its corners (about 2 m² each), where a 2 m cell's diagonal runs along the corner so all three
+     * vertices sit on the bank at height 0; avoiding it would narrow the river by a cell. The
+     * renderer draws water in front of ground at the same depth for that (`LevelRenderer.material`).
+     * A face pointing down is a trunk's base inside the pool, which nobody can see.
+     */
+    const ray = (): RaycastResult => ({
+      hit: false, distance: 0, point: vec3(), normal: vec3(), colliderIndex: -1, surface: SURFACES.rock,
+    });
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      const world = new PhysicsWorld(level.colliders);
+      const coplanar: string[] = [];
+      for (const w of level.colliders) {
+        if (w.kind !== 'box' || !(w.surface.flags & SurfaceFlags.Water)) continue;
+        const top = w.center.y + w.half.y;
+        for (let x = -w.half.x + 0.25; x < w.half.x; x += 0.5) {
+          for (let z = -w.half.z + 0.25; z < w.half.z; z += 0.5) {
+            const from = vec3(w.center.x + x, top + 3, w.center.z + z);
+            const hit = world.raycast(ray(), from, vec3(0, -1, 0), 6, { rejectFlags: SurfaceFlags.Water });
+            if (!hit.hit || level.colliders[hit.colliderIndex]?.kind === 'heightfield' || hit.normal.y < 0.5) continue;
+            if (Math.abs(hit.point.y - top) < 0.05) coplanar.push(`(${from.x}, ${from.z})`);
+          }
+        }
+      }
+      expect(coplanar.slice(0, 5), `${entry.id}: ${coplanar.length} points where water and ground share a plane`).toEqual([]);
     }
   });
 });

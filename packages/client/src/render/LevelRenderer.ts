@@ -366,7 +366,18 @@ export class LevelRenderer {
       flatShading: true,
     });
     this.disposables.push(mat);
-    if (isWater) this.waterMaterials.push(mat);
+    if (isWater) {
+      // Water wins a depth tie with the ground. Where a bank meets a pool's edge the terrain grid
+      // can lay a flat triangle in the water's own plane (the jungle river's NW and SE corners, about
+      // 2 m² each, where a cell's diagonal runs along the corner), and two surfaces at one depth
+      // flicker as the camera moves. A depth offset is GL state, not a shader define, so it costs no
+      // second program. The levels test still refuses an authored solid in a pool's plane: this is
+      // for the shoreline the terrain grid cannot avoid, not cover for a level that gets it wrong.
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = -1;
+      mat.polygonOffsetUnits = -1;
+      this.waterMaterials.push(mat);
+    }
     return mat;
   }
 

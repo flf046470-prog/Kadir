@@ -69,4 +69,23 @@ describe('water animation wiring', () => {
 
     renderer.dispose();
   });
+
+  it('draws water in front of ground at the same depth, and nothing else that way', () => {
+    // A flat terrain triangle in the jungle river's plane flickered against the water over it.
+    const level = buildLevel('jungle-world');
+    const renderer = new LevelRenderer(level, profileFor('pc', 'high', DEFAULT_SETTINGS));
+    const water = waterMaterials(renderer);
+    expect(water.length).toBeGreaterThan(0);
+    for (const mat of water) {
+      expect(mat.polygonOffset).toBe(true);
+      expect(mat.polygonOffsetFactor).toBeLessThan(0);
+      expect(mat.polygonOffsetUnits).toBeLessThan(0);
+    }
+    renderer.group.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return;
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      for (const mat of mats) if (!water.includes(mat as THREE.MeshStandardMaterial)) expect(mat.polygonOffset).toBe(false);
+    });
+    renderer.dispose();
+  });
 });

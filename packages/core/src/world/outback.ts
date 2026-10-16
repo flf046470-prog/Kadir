@@ -25,10 +25,10 @@ export const OUTBACK_SEED = hashString('kangaroo-chase/outback-station/v1');
  *                        trees are the only cover and they are also the only way up.
  *   The Gorge (x ≈ -74)  a creek cut fifteen metres into the rock. The one place on the map with
  *                        no sightline at all — and you pay for it in the creek, whose water is the
- *                        slowest surface here, and in the climb back out.
+ *                        slipperiest footing in the game, and in the climb back out.
  *   Station   (x ≈ +76)  an abandoned sheep station: shed, tank, windmill, fences. Man-made right
- *                        angles and corrugated iron, which is the only slippery surface on the map
- *                        and sits on the roof you most want to run along.
+ *                        angles and corrugated iron, the map's other slippery surface, which sits
+ *                        on the roof you most want to run along.
  *
  *   The Track            a dirt road linking the gorge to the station across the south of the
  *                        flat. Straight, fast, and completely exposed — the honest shortcut.
@@ -82,7 +82,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     // 4: loose balls in the lobby.
     // 5: the station's scrub logs are solid, and the fallen gum is drawn as a log.
     // 6: the apron is terrain that rolls and rises to the edge, instead of a flat sheet to a wall.
-    version: 6,
+    // 7: the creek runs in a channel cut 0.3 m into the bed, so the water is the ground in it.
+    version: 7,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -277,8 +278,13 @@ function buildGumFlat(b: LevelBuilder, rand: Rand): void {
  * The gorge: a creek bed cut into the rock, and the only place here you cannot be seen.
  *
  * Fifteen metres down, walls on both sides, and a strip of water along the bottom. The water is
- * the price — it is the slowest surface on the map — so the gorge buys you invisibility and costs
- * you the ability to outrun anyone who followed you in.
+ * the price. Its friction is 0.3 against the bed's 1, so a runner in it cannot stop or cut short
+ * (measured: a coast from full speed is 6.1 m in the creek and 1.8 m on the bed), and whoever
+ * followed them in only has to keep going straight. The gorge buys you invisibility and costs you
+ * the juke.
+ *
+ * This comment used to call the water "the slowest surface on the map". Water has never changed
+ * anyone's speed, only their braking, and until version 7 nobody stood on it at all (see the bed).
  */
 function buildGorge(b: LevelBuilder, rand: Rand): void {
   const FLOOR_Y = -15;
@@ -286,10 +292,25 @@ function buildGorge(b: LevelBuilder, rand: Rand): void {
   // The bed itself, running north-south so it cuts across anyone crossing the map east-west. It runs
   // under the west wall (x −90.5) rather than stopping at −89: it used to, and the whole west side
   // of the gorge was a 1.5 m slot to the kill plane, 88 m long, at the foot of the way out.
-  b.box(vec3(-75, FLOOR_Y - 1, 0), vec3(16, 1, 44), 'redRock', 0, 'gorge');
+  //
+  // The bed is three boxes, not one, because the creek runs in a channel cut into it. As one slab
+  // its top was level with the water's, which put two surfaces in the same plane: the renderer drew
+  // whichever won each pixel, a flickering jagged shoreline, and physics stood every player on the
+  // rock, so the water was never the ground — no splash, no water friction, nothing. Measured: the
+  // water's top coincided with the rock on 96 % of its area.
+  const CREEK_WEST = -78.5;
+  const CREEK_EAST = -69.5;
+  const CHANNEL_DEPTH = 0.3;
+  const bedBottom = FLOOR_Y - 2;
+  const bed = (x0: number, x1: number, top: number): void => {
+    b.box(vec3((x0 + x1) / 2, (top + bedBottom) / 2, 0), vec3((x1 - x0) / 2, (top - bedBottom) / 2, 44), 'redRock', 0, 'gorge');
+  };
+  bed(-91, CREEK_WEST, FLOOR_Y);
+  bed(CREEK_WEST, CREEK_EAST, FLOOR_Y - CHANNEL_DEPTH);
+  bed(CREEK_EAST, -59, FLOOR_Y);
   // The creek. A shallow channel down the middle rather than the whole floor: there is a dry route
   // through, it is just the one everybody can predict.
-  b.box(vec3(-74, FLOOR_Y - 0.6, 0), vec3(4.5, 0.6, 44), 'water', 0, 'gorge');
+  b.box(vec3((CREEK_WEST + CREEK_EAST) / 2, FLOOR_Y - 0.6, 0), vec3((CREEK_EAST - CREEK_WEST) / 2, 0.6, 44), 'water', 0, 'gorge');
 
   // Walls. Sheer on the east side (the side you arrive from, so entering is a commitment) and
   // stepped on the west, which is the way out. The east face is split to leave the scree notch.
@@ -345,7 +366,9 @@ function buildGorge(b: LevelBuilder, rand: Rand): void {
   b.box(vec3(-65.5, FLOOR_Y + 7, 22), vec3(7.5, 1, 9), 'redRock', 0, 'cave');
   // Closed at the north end so it is properly dark; the east face itself is its back wall.
   b.box(vec3(-65.5, FLOOR_Y + 3, 30.5), vec3(7.5, 4, 1), 'redRock', 0, 'cave');
-  b.box(vec3(-65.5, FLOOR_Y - 1, 13), vec3(7.5, 1, 1.5), 'redRock', 0, 'cave');
+  // The mouth's floor stops at the creek's bank. It used to run 3.5 m into the creek level with the
+  // water, the same two-surfaces-in-one-plane fault as the bed (see above).
+  b.box(vec3((CREEK_EAST - 58) / 2, FLOOR_Y - 1, 13), vec3((CREEK_EAST + 58) / -2, 1, 1.5), 'redRock', 0, 'cave');
   for (let i = 0; i < 7; i++) {
     const x = -72 + rand.range(0, 13);
     const z = 15 + rand.range(0, 14);
