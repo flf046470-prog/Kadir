@@ -1,0 +1,86 @@
+[
+  {
+    "file": "wood_floor_deck-Diffuse.jpg",
+    "bytes": 925789,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_diff_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/wood_floor_deck"
+  },
+  {
+    "file": "wood_floor_deck-nor_gl.jpg",
+    "bytes": 665094,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_nor_gl_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/wood_floor_deck"
+  },
+  {
+    "file": "wood_floor_deck-arm.jpg",
+    "bytes": 719383,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/wood_floor_deck/wood_floor_deck_arm_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/wood_floor_deck"
+  },
+  {
+    "file": "rock_face-Diffuse.jpg",
+    "bytes": 732721,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face/rock_face_diff_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rock_face"
+  },
+  {
+    "file": "rock_face-nor_gl.jpg",
+    "bytes": 1139857,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face/rock_face_nor_gl_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rock_face"
+  },
+  {
+    "file": "rock_face-arm.jpg",
+    "bytes": 458661,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rock_face/rock_face_arm_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rock_face"
+  },
+  {
+    "file": "rough_linen-Diffuse.jpg",
+    "bytes": 835801,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_linen/rough_linen_diff_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rough_linen"
+  },
+  {
+    "file": "rough_linen-nor_gl.jpg",
+    "bytes": 916843,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_linen/rough_linen_nor_gl_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rough_linen"
+  },
+  {
+    "file": "rough_linen-arm.jpg",
+    "bytes": 1191393,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/rough_linen/rough_linen_arm_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/rough_linen"
+  },
+  {
+    "file": "grass_ground-Diffuse.jpg",
+    "bytes": 876584,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_diff_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/grass_ground"
+  },
+  {
+    "file": "grass_ground-nor_gl.jpg",
+    "bytes": 1310516,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_nor_gl_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/grass_ground"
+  },
+  {
+    "file": "grass_ground-arm.jpg",
+    "bytes": 896135,
+    "source": "https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/grass_ground/grass_ground_arm_1k.jpg",
+    "license": "CC0",
+    "authorSource": "https://polyhaven.com/a/grass_ground"
+  }
+]
