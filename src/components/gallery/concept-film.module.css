@@ -1,0 +1,17 @@
+.film { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); align-items: center; gap: clamp(28px,5vw,78px); margin: 40px 0 0; padding: clamp(20px,3vw,42px); border: 1px solid #e2e9d324; border-radius: 15px; background: radial-gradient(ellipse at 15% 30%,#25383d66,transparent 65%),#101916; color: #eeeade; }
+.stage { display: flex; justify-content: center; overflow: hidden; min-width: 0; border: 1px solid #e4ebd323; border-radius: 10px; background: #050b0d; }
+.video { display: block; width: 100%; height: auto; max-height: 640px; aspect-ratio: 9/16; object-fit: contain; }
+.label { display: block; color: #abbfb6; font-size: 10px; line-height: 1.7; letter-spacing: .16em; text-transform: uppercase; }
+.caption h3 { max-width: 420px; margin: 18px 0 0; font-family: var(--font-display); font-size: clamp(30px,3.4vw,49px); font-weight: 350; line-height: 1.09; letter-spacing: -.035em; }
+.caption p { max-width: 350px; margin: 23px 0 0; color: #b8c4b9; font-size: 13px; line-height: 1.85; }
+.caption a { display: inline-flex; align-items: center; gap: 28px; min-height: 44px; margin-top: 24px; color: #eeeade; font-size: 12px; text-decoration: none; border-bottom: 1px solid #dddcc14d; }
+.caption a:hover { color: #ebcead; border-color: currentColor; }
+.film :focus-visible { outline: 2px solid #e2bba0; outline-offset: 5px; }
+@media (max-width: 650px) {
+  .film { grid-template-columns: 1fr; gap: 25px; padding: 16px; }
+  .video { max-height: 580px; }
+  .caption { padding: 6px 6px 12px; }
+  .caption h3 { font-size: 35px; }
+  .caption p { margin-top: 16px; }
+  .caption a { margin-top: 17px; }
+}
