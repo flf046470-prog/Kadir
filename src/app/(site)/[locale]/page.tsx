@@ -3,7 +3,7 @@ import Link from "next/link";
 import { CommunityForm } from "@/components/community-form";
 import { CommunityVote } from "@/components/community-vote";
 import { ExploreScene } from "@/components/explore/explore-section";
-import { HeroBackdrop, ScrollCue } from "@/components/hero";
+import { SeasonalHome } from "@/components/seasons/seasonal-home";
 import { Reveal } from "@/components/reveal";
 import {
   CommunityStatsRow,
@@ -16,7 +16,7 @@ import { ShareRow } from "@/components/share";
 import { StorySequence } from "@/components/story/story-sequence";
 import { EditorialGallery } from "@/components/gallery/editorial-gallery";
 import { galleryLabels, toGalleryItems } from "@/components/gallery/to-items";
-import { SocialRow, StatusPill } from "@/components/site-chrome";
+import { SocialRow } from "@/components/site-chrome";
 import { CtaLink, EmptyState, PhaseRail, PostCard, Prose, SectionHeading } from "@/components/ui";
 import { ContourField, CrossSectionDiagram, OrientationMap } from "@/components/visuals";
 import { getCommunityStats, getPublishedIdeas } from "@/lib/community";
@@ -54,45 +54,7 @@ export default async function HomePage({ params }: { params: Promise<{ locale: s
 
   return (
     <>
-      {/* ── 01 · Hero ─────────────────────────────────────────────────── */}
-      <section
-        data-motion="hero"
-        className="relative flex min-h-[92svh] items-end overflow-hidden pt-28 pb-14 md:min-h-screen md:pb-20"
-      >
-        <HeroBackdrop />
-        <div data-motion="hero-content" className="shell relative w-full">
-          <StatusPill label={settings["brand.statusLabel"]} note={settings["brand.statusNote"]} />
-
-          <h1 className="mt-8 max-w-5xl font-display text-[3rem] leading-[0.95] tracking-tight md:text-[6.5rem]">
-            {settings["brand.projectName"]}
-          </h1>
-
-          <p
-            dir="auto"
-            className="mt-6 max-w-2xl font-display text-xl leading-snug text-mist md:text-3xl"
-          >
-            {settings["brand.heroLine"]}
-          </p>
-
-          <p dir="auto" className="mt-6 max-w-xl text-[0.95rem] leading-relaxed text-fog">
-            {settings["brand.heroIntro"]}
-          </p>
-
-          <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:items-center">
-            <CtaLink href="#explore">{t("cta.explore")}</CtaLink>
-            <CtaLink href="#community" variant="ghost">
-              {t("cta.join")}
-            </CtaLink>
-          </div>
-
-          <div className="mt-12 flex flex-wrap items-center justify-between gap-6 border-t border-fog/10 pt-6">
-            <p className="label text-fog">{settings["brand.locationLabel"]}</p>
-            <div className="hidden md:block">
-              <ScrollCue label={t("cta.followJourney")} />
-            </div>
-          </div>
-        </div>
-      </section>
+      <SeasonalHome locale={locale} initialDate={new Date().toISOString()} />
 
       {/* ── 02 · The project ──────────────────────────────────────────── */}
       <section className="relative overflow-hidden py-24 md:py-32">
