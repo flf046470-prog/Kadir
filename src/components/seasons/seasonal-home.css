@@ -1,0 +1,36 @@
+
+.ss-hero{--season-shift:0px;background:#0c151a}
+.ss-scene{transform:translate3d(0,var(--season-shift),0) scale(1.04)}
+.ss-photograph{transition:filter 1s ease,opacity 1s ease}
+.ss-hero[data-season="spring"] .ss-photograph{filter:saturate(1.24) brightness(1.13)}
+.ss-hero[data-season="summer"] .ss-photograph{filter:saturate(1.12) brightness(1.12)}
+.ss-hero[data-season="autumn"] .ss-photograph{filter:sepia(.23) saturate(1.24) brightness(.87)}
+.ss-hero[data-season="winter"] .ss-photograph{filter:saturate(.65) hue-rotate(10deg) brightness(.88)}
+.ss-light{position:absolute;inset:0;background:linear-gradient(150deg,#17345319,transparent 50%,#0004)}
+.ss-hero[data-season="spring"] .ss-light{background:linear-gradient(140deg,#a5c88222,transparent 57%)}
+.ss-hero[data-season="autumn"] .ss-light{background:linear-gradient(140deg,#d677292b,transparent 60%)}
+.ss-hero[data-season="summer"] .ss-light{background:linear-gradient(140deg,#ffd39328,transparent 60%)}
+.ss-overline{font-size:.65rem;font-weight:650;letter-spacing:.23em;text-transform:uppercase;color:#e9f3f4b5}
+.ss-title{font-family:var(--font-fraunces),Georgia,serif;font-size:clamp(4.2rem,11vw,9.6rem);line-height:.91;letter-spacing:-.075em;color:white;text-shadow:0 4px 42px #0009}
+.ss-pill{display:inline-flex;align-items:center;justify-content:center;gap:1.2rem;min-height:48px;padding:.8rem 1.55rem;border-radius:99px;font-size:.8rem;font-weight:650;transition:transform .22s,background-color .22s}
+.ss-pill:hover{transform:translateY(-2px)}
+.ss-light-pill{background:#f4f5f2;color:#151f21}.ss-light-pill:hover{background:#dfe8e8}
+.ss-border-pill{border:1px solid #ffffff85;color:white;background:#07141a55;backdrop-filter:blur(10px)}
+.ss-border-pill:hover{background:#ffffff20}
+.ss-picked{border-color:#d9e0e5b8;color:white;background:#ffffff23}
+.ss-choice:focus-visible,.ss-gallery button:focus-visible{outline:3px solid white;outline-offset:3px}
+.ss-concept,.ss-gallery{background:#080e12}
+.ss-weather{position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:1}
+.ss-weather i{position:absolute;display:block;animation:ss-fall linear infinite}
+.ss-winter i{border-radius:50%;background:white;box-shadow:0 0 8px #ecf3ff70;opacity:.74}
+.ss-autumn i{background:#b9692b;clip-path:polygon(50% 0,62% 25%,96% 17%,78% 52%,96% 80%,57% 75%,50% 100%,29% 70%,2% 73%,20% 45%,4% 14%,37% 26%);opacity:.8}
+.ss-autumn i:nth-child(3n){background:#e4b05d}.ss-autumn i:nth-child(5n){background:#914325}
+.ss-spring i{border-radius:60% 0 65% 0;background:#f1cadf;opacity:.65}
+@keyframes ss-fall{from{transform:translate3d(0,-150px,0) rotate(0)}to{transform:translate3d(var(--drift),370px,0) rotate(600deg)}}
+.ss-sun{position:absolute;right:0;top:0;width:60vw;height:60vw;max-height:800px;border-radius:50%;background:radial-gradient(circle,#ffe1a32f,transparent 64%);pointer-events:none}
+.ss-tulip-photo{position:absolute;inset:auto 0 0 auto;height:33%;width:80%;z-index:1;background:url('https://thumb.wikimedia.org/wikipedia/commons/thumb/3/31/Campo_de_Tulipanes.jpg/1280px-Campo_de_Tulipanes.jpg') center 55%/cover;opacity:.66;mask-image:linear-gradient(to top,#000,#0007 58%,transparent);-webkit-mask-image:linear-gradient(to top,#000,#0007 58%,transparent)}
+.ss-tulips{position:absolute;bottom:2%;left:0;right:0;height:130px;z-index:2;pointer-events:none}
+.ss-tulip{position:absolute;bottom:0;width:clamp(24px,3.6vw,55px);height:auto;transform-origin:center bottom;filter:drop-shadow(0 2px 8px #07130c6e);animation:ss-grow 1.4s cubic-bezier(.12,.9,.3,1) backwards}
+@keyframes ss-grow{from{opacity:0;transform:scaleY(.05) rotate(-12deg)}to{opacity:1;transform:scaleY(1) rotate(0)}}
+@media(max-width:700px){.ss-title{font-size:clamp(3.85rem,15vw,6.5rem)}.ss-tulip-photo{width:100%;height:22%}.ss-tulips{height:85px}.ss-weather i:nth-child(n+35){display:none}}
+@media(prefers-reduced-motion:reduce){.ss-scene{transform:none}.ss-weather,.ss-sun{display:none}.ss-tulip{animation:none}.ss-photograph,.ss-pill{transition:none}}
