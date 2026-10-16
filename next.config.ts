@@ -22,7 +22,12 @@ const nextConfig: NextConfig = {
     deviceSizes: [360, 480, 640, 828, 1080, 1200, 1600, 1920, 2560],
   },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      { source: "/:locale/immersive", headers: [{key:"Permissions-Policy",value:"camera=(self), xr-spatial-tracking=(self), microphone=(), geolocation=()"}] },
+      { source: "/immersive/skysphere-residence.usdz", headers: [{key:"Content-Type",value:"model/vnd.usdz+zip"}] },
+      { source: "/:locale", headers: [{key:"X-Frame-Options",value:"SAMEORIGIN"}] },
+    ];
   },
   // The locale proxy normally rewrites "/" to the visitor's language. This is
   // the safety net: if the proxy is ever skipped, the root still resolves to a
