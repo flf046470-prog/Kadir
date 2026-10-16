@@ -27,7 +27,7 @@ const stone=await textured('Natural stone','rock_face','#c4baa2',3,.95);
 const roofGrass=await textured('Living roof','grass_ground','#9da36b',6,1);
 const fabric=await textured('Woven linen','rough_linen','#e4d5bb',2.5,.96);
 const standard=(name,color,roughness=.6,metalness=0,extra={})=>(mats[name]=new T.MeshStandardMaterial({name,color,roughness,metalness,...extra}));
-const cream=standard('Warm plaster','#c6bda9',.9),dark=standard('Bronze frames','#4f493d',.35,.8),white=standard('Porcelain','#e9e5d9',.17),black=standard('Kitchen stone','#34372f',.28,.1),brass=standard('Brushed brass','#bfa477',.3,.85),green=standard('Olive foliage','#566944',.95),rug=standard('Wool rug','#93897a',1),water=standard('Courtyard basin','#314f4b',.13,.35),light=standard('Warm light','#ffe7be',.45,0,{emissive:'#ffc985',emissiveIntensity:1.5});
+const cream=standard('Warm plaster','#c6bda9',.9),dark=standard('Bronze frames','#4f493d',.35,.8),white=standard('Porcelain','#e9e5d9',.17),black=standard('Kitchen stone','#34372f',.28,.1),brass=standard('Brushed brass','#bfa477',.3,.85),green=standard('Olive foliage','#566944',.95),rug=standard('Wool rug','#93897a',1),_water=standard('Courtyard basin','#314f4b',.13,.35),light=standard('Warm light','#ffe7be',.45,0,{emissive:'#ffc985',emissiveIntensity:1.5});
 const glass=new T.MeshPhysicalMaterial({name:'Architectural glazing',color:'#c0d7d5',roughness:.055,metalness:0,transmission:.68,thickness:.035,ior:1.45,transparent:true,opacity:.42,side:T.DoubleSide});mats.Glass=glass;
 const collision=[];
 function mesh(name,g,m,x=0,y=0,z=0){const o=new T.Mesh(g,m);o.name=name;o.position.set(x,y,z);o.castShadow=m!==glass;o.receiveShadow=true;group.add(o);return o;}
@@ -76,7 +76,7 @@ for(const x of [-5.35,-4.4]){cyl('Stool seat',x,.86,1.05,.27,.09,fabric);legs(x,
 box('Refrigerator',-6.2,1.37,-4.25,1.0,2.45,.72,dark,.025,true);box('Fridge handle',-5.78,1.5,-3.85,.035,.55,.04,brass,.01);
 
 // Dining.
-const table=ball('Oak dining table',-4.3,.95,4.5,1.45,.1,.78,wood);legs(-4.3,4.5,2.55,1.2,.76);collision.push({x:-4.3,z:4.5,w:2.8,d:1.45});
+const _table=ball('Oak dining table',-4.3,.95,4.5,1.45,.1,.78,wood);legs(-4.3,4.5,2.55,1.2,.76);collision.push({x:-4.3,z:4.5,w:2.8,d:1.45});
 for(const x of [-5.1,-3.55]){chair(x,3.35,0);chair(x,5.63,Math.PI);}chair(-6.05,4.5,Math.PI/2);chair(-2.58,4.5,-Math.PI/2);cyl('Dining vase',-4.3,1.1,4.5,.15,.25,white);
 
 // Bedroom.
