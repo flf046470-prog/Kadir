@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { EditorialGallery } from "@/components/gallery/editorial-gallery";
+import { ConceptFilm } from "@/components/gallery/concept-film";
 import { galleryLabels, toGalleryItems } from "@/components/gallery/to-items";
 import { Reveal } from "@/components/reveal";
 import { CtaLink, EmptyState, PageHeader, SectionHeading } from "@/components/ui";
@@ -15,7 +16,7 @@ export async function generateMetadata({
   const { settings, path } = await getPageContext(params);
   const title = "Gallery — Trevelin and the project";
   const description =
-    "Photographs of Trevelin and Patagonia, and images of the project itself. Every image is labelled with what it actually is, plus its photographer and licence.";
+    "Trevelin, Patagonia and SkySphere: project images, drawings and a short architectural concept film. Concept visualizations are clearly labelled.";
   return {
     title,
     description,
@@ -32,7 +33,7 @@ const SEASONS = [
 ];
 
 export default async function GalleryPage({ params }: { params: Promise<{ locale: string }> }) {
-  const { t, path } = await getPageContext(params);
+  const { locale, t, path } = await getPageContext(params);
   const patagonia = getGalleryImages("patagonia");
   const project = getGalleryImages("project");
   const labels = galleryLabels(t);
@@ -102,6 +103,7 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
               />
             )}
           </div>
+          <ConceptFilm locale={locale} />
         </section>
       </div>
     </>
