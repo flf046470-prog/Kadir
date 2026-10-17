@@ -47,17 +47,21 @@ const scene = ({ w, h, bg, size = 'cover', pos = '50% 50%', filter = '', shade =
   </div>`;
 
 const vignette = (k) => `radial-gradient(ellipse at 50% 50%, rgba(5,5,6,0) 35%, rgba(5,5,6,${k}) 100%)`;
+// Plates: k_paris (the ossuary portal; its inscription sits in the top 30% of the plate, so the wide crops start below
+// it), k_gate (the lit Sakarya gate). The Kola plates wait for the chapter's realism pass.
+const parisLow = (w) => ({ bg: 'k_paris', size: `${w}% auto`, pos: '50% 100%' });   // skull corridor, no inscription
 const ASSETS = [
   // store
-  { file: 'header_capsule_920x430.png', ...{ w: 920, h: 430, bg: 'k_kola', pos: '50% 46%', shade: `linear-gradient(rgba(5,5,6,.25), rgba(5,5,6,.45)), ${vignette(.7)}`, logo: { size: 104, y: 50 } } },
-  { file: 'small_capsule_462x174.png', ...{ w: 462, h: 174, bg: 'k_kola', pos: '50% 46%', shade: `linear-gradient(rgba(5,5,6,.35), rgba(5,5,6,.5)), ${vignette(.6)}`, logo: { size: 62, y: 52, sub: false } } },
-  { file: 'main_capsule_1232x706.png', ...{ w: 1232, h: 706, bg: 'k_gate', pos: '50% 42%', shade: `linear-gradient(rgba(5,5,6,0) 40%, rgba(5,5,6,.85) 92%), ${vignette(.55)}`, logo: { size: 132, y: 80 } } },
-  { file: 'vertical_capsule_748x896.png', ...{ w: 748, h: 896, bg: 'k_copy', pos: '50% 50%', shade: `linear-gradient(rgba(5,5,6,.1) 45%, rgba(5,5,6,.9) 88%), ${vignette(.5)}`, logo: { size: 104, y: 84 } } },
-  { file: 'page_background_1438x810.png', ...{ w: 1438, h: 810, bg: 'k_kola', pos: '50% 50%', filter: 'saturate(.55) brightness(.5) blur(2px)', shade: vignette(.85) } },
+  { file: 'header_capsule_920x430.png', ...{ w: 920, h: 430, ...parisLow(122), shade: `linear-gradient(rgba(5,5,6,.35), rgba(5,5,6,.55)), ${vignette(.75)}`, logo: { size: 104, y: 50 } } },
+  { file: 'small_capsule_462x174.png', ...{ w: 462, h: 174, ...parisLow(134), shade: `linear-gradient(rgba(5,5,6,.4), rgba(5,5,6,.55)), ${vignette(.65)}`, logo: { size: 62, y: 52, sub: false } } },
+  // the gate kept whole above the title: the plate is shown at 88% height on the brick-dark ground, edges faded into it
+  { file: 'main_capsule_1232x706.png', ...{ w: 1232, h: 706, bg: 'k_gate', size: 'auto 88%', pos: '50% 0%', shade: `linear-gradient(90deg, #050506 2%, rgba(5,5,6,0) 12%, rgba(5,5,6,0) 88%, #050506 98%), linear-gradient(rgba(5,5,6,0) 55%, rgba(5,5,6,.92) 84%), ${vignette(.55)}`, logo: { size: 128, y: 84 } } },
+  { file: 'vertical_capsule_748x896.png', ...{ w: 748, h: 896, bg: 'k_paris', pos: '50% 50%', shade: `linear-gradient(rgba(5,5,6,0) 50%, rgba(5,5,6,.9) 88%), ${vignette(.5)}`, logo: { size: 104, y: 85 } } },
+  { file: 'page_background_1438x810.png', ...{ w: 1438, h: 810, bg: 'k_gate', pos: '50% 50%', filter: 'saturate(.5) brightness(.45) blur(3px)', shade: vignette(.85) } },
   // library
-  { file: 'library_capsule_600x900.png', ...{ w: 600, h: 900, bg: 'k_copy', pos: '50% 50%', shade: `linear-gradient(rgba(5,5,6,.1) 45%, rgba(5,5,6,.9) 88%), ${vignette(.5)}`, logo: { size: 84, y: 85 } } },
-  { file: 'library_header_920x430.png', ...{ w: 920, h: 430, bg: 'k_kola', pos: '50% 46%', shade: `linear-gradient(rgba(5,5,6,.25), rgba(5,5,6,.45)), ${vignette(.7)}`, logo: { size: 104, y: 50 } } },
-  { file: 'library_hero_3840x1240.png', ...{ w: 3840, h: 1240, bg: 'k_paris', pos: '50% 55%', shade: vignette(.45) } },
+  { file: 'library_capsule_600x900.png', ...{ w: 600, h: 900, bg: 'k_paris', pos: '50% 50%', shade: `linear-gradient(rgba(5,5,6,0) 50%, rgba(5,5,6,.9) 88%), ${vignette(.5)}`, logo: { size: 84, y: 86 } } },
+  { file: 'library_header_920x430.png', ...{ w: 920, h: 430, ...parisLow(122), shade: `linear-gradient(rgba(5,5,6,.35), rgba(5,5,6,.55)), ${vignette(.75)}`, logo: { size: 104, y: 50 } } },
+  { file: 'library_hero_3840x1240.png', ...{ w: 3840, h: 1240, bg: 'k_paris', pos: '50% 72%', shade: vignette(.45) } },
 ];
 
 const browser = await chromium.launch();
