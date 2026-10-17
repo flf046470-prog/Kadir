@@ -3,6 +3,12 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-17 (6th run) — still blocked on owner decisions (routine, docs-only)
+
+**Checked:** branch `claude/kangaroo-chase-game-w62laa` is current at 01119e6; no new commits and no owner answer on PR #4 (only Vercel bot notices).
+**Not run:** `npm run verify` (no code change).
+**Next session — first task:** unchanged: owner approves/declines the CLAUDE.md split, glacier balance, per-grip feel spec, or hosting.
+
 ## 2026-10-11 (5th run) — still blocked on owner decisions (routine, docs-only)
 
 **Checked:** branch `claude/kangaroo-chase-game-w62laa` is current at 8197a8f; no new commits since the 4th run.
