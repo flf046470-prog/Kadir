@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Son Doong: Derinlik</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #d8e6d0; font-family: Georgia, "Times New Roman", serif; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: crosshair; }
+  #hud { position: fixed; top: 12px; left: 14px; font: 14px monospace; text-shadow: 0 0 4px #000; pointer-events: none; line-height: 1.6; }
+  .bar { display: inline-block; width: 140px; height: 9px; border: 1px solid #8a9; vertical-align: middle; margin-left: 6px; }
+  .bar i { display: block; height: 100%; }
+  #zone { position: fixed; top: 12px; right: 16px; font: 14px monospace; text-align: right; pointer-events: none; }
+  #msg { position: fixed; bottom: 34px; left: 50%; transform: translateX(-50%); max-width: 760px; text-align: center; font-size: 18px; text-shadow: 0 0 6px #000, 0 0 2px #000; pointer-events: none; transition: opacity .6s; }
+  .panel { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.82); z-index: 5; }
+  .panel.on { display: flex; }
+  .box { max-width: 660px; width: calc(100% - 48px); background: #0c120e; border: 1px solid #3c5a45; padding: 26px 30px; box-shadow: 0 0 40px #0a2a18; }
+  .box h2 { margin: 0 0 12px; color: #9fe3b5; font-weight: normal; letter-spacing: 2px; }
+  .box p { line-height: 1.55; white-space: pre-wrap; }
+  .cipher { font: 22px monospace; letter-spacing: 4px; color: #ffcf7a; text-align: center; margin: 14px 0; word-break: break-all; }
+  input { font: 20px monospace; width: 100%; box-sizing: border-box; padding: 8px; background: #000; color: #9fe3b5; border: 1px solid #3c5a45; text-transform: uppercase; }
+  button { font: 15px Georgia, serif; margin-top: 14px; padding: 8px 18px; background: #1b2e22; color: #d8e6d0; border: 1px solid #3c5a45; cursor: pointer; }
+  button:hover { background: #2a4734; }
+  #morse { height: 70px; display: flex; align-items: center; justify-content: center; }
+  #morse span { width: 46px; height: 46px; border-radius: 50%; background: #031; box-shadow: none; }
+  #morse span.lit { background: #8fffd0; box-shadow: 0 0 30px #5fffc0; }
+  small { color: #7b8f80; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="zone"></div>
+<div id="msg"></div>
+
+<div class="panel on" id="title"><div class="box">
+  <h2>SON DOONG: DERİNLİK</h2>
+  <p>Quảng Bình, Vietnam. Dünyanın en büyük mağarası Hang Sơn Đoòng.
+Altı kişilik turist grubu rehberle birlikte içeri giriyor.
+
+Kimse geri dönmeyecek. Biri hariç... belki.
+
+<small>WASD / Ok tuşları: yürü   •   Fare: fener yönü   •   F: feneri aç/kapat
+E: incele / etkileşim   •   J: günlük (bulunan notlar)   •   Esc: kapat
+
+Fenerin ışığı gölgeleri durdurur, ama pil sonsuz değildir.
+Şifrelerin cevapları oyunun içinde saklı. Hiçbir ipucu boşuna değildir.</small></p>
+  <button id="startBtn">Mağaraya gir</button> <button id="contBtn" style="display:none">Kaldığın yerden devam</button>
+</div></div>
+
+<div class="panel" id="note"><div class="box">
+  <h2 id="noteT"></h2><p id="noteB"></p>
+  <button onclick="closePanels()">Kapat (Esc)</button>
+</div></div>
+
+<div class="panel" id="puzzle"><div class="box">
+  <h2 id="pzT"></h2><p id="pzB"></p>
+  <div class="cipher" id="pzC"></div>
+  <div id="morse" style="display:none"><span id="morseLamp"></span></div>
+  <input id="pzIn" autocomplete="off" spellcheck="false" placeholder="cevap">
+  <button id="pzBtn">Gir</button> <button onclick="closePanels()">Vazgeç</button>
+  <p id="pzR"><small></small></p>
+</div></div>
+
+<div class="panel" id="journal"><div class="box" style="max-height:80vh;overflow:auto">
+  <h2>GÜNLÜK</h2><div id="jList"></div>
+  <button onclick="closePanels()">Kapat</button>
+</div></div>
+
+<div class="panel" id="end"><div class="box">
+  <h2 id="endT"></h2><p id="endB"></p>
+  <button onclick="location.reload()">Yeniden</button>
+</div></div>
+
+<script>
+"use strict";
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+const shade = document.createElement("canvas"), sctx = shade.getContext("2d");
+const T = 32; // tile size
+let W, H;
+function resize() { W = cv.width = shade.width = innerWidth; H = cv.height = shade.height = innerHeight; }
+addEventListener("resize", resize); resize();
+
+// ---------- seeded rng ----------
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+// answers are stored hashed so the source does not give them away
+function hash(s) { let h = 5381; for (const ch of s) h = (Math.imul(h, 33) ^ ch.charCodeAt(0)) >>> 0; return h.toString(36); }
+const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
+
+// ---------- zones ----------
+const ZONES = [
+  { name: "Giriş Galerisi", sub: "Hang Sơn Đoòng — 0 m", seed: 11, w: 90, h: 40, fill: 0.40,
+    floor: "#2a2620", wall: "#0f0d0b", ambient: 0.10, monsters: 0, tint: null },
+  { name: "Dolin Ormanı", sub: "−420 m • tavandan sızan ışık, dev eğrelti otları", seed: 23, w: 110, h: 50, fill: 0.43,
+    floor: "#17301c", wall: "#081208", ambient: 0.16, monsters: 4, tint: "rgba(40,120,50,0.10)" },
+  { name: "Yeraltı Okyanusu", sub: "−1100 m • sonu görünmeyen siyah su", seed: 37, w: 110, h: 56, fill: 0.47,
+    floor: "#122030", wall: "#03070d", ambient: 0.08, monsters: 6, tint: "rgba(20,60,140,0.12)", water: true },
+  { name: "Öteki Ekosistem", sub: "−2600 m • burası Dünya değil", seed: 59, w: 120, h: 56, fill: 0.45,
+    floor: "#251633", wall: "#0b0412", ambient: 0.12, monsters: 8, tint: "rgba(150,40,200,0.10)", glow: true },
+  { name: "Kapı Odası", sub: "−∞ • taşlar nefes alıyor", seed: 71, w: 70, h: 40, fill: 0.36,
+    floor: "#2b1410", wall: "#0d0303", ambient: 0.14, monsters: 5, tint: "rgba(200,60,20,0.10)" },
+];
+
+// notes: [zoneIndex, title, body]
+const NOTES = [
+  [0, "Tur broşürü", "SON DOONG KEŞİF TURU\nRehber: Bay Hồ.  Grup: Elif, Marco, Aiko, Daniel, Sena ve sen.\n\n\"Mağaranın adı 'Dağ Nehri Mağarası' demektir. Kelimenin tam anlamıyla: HANG = mağara, SƠN = dağ, ĐOÒNG = nehir.\nVietnamcadaki işaretleri unutun; taşa yazılan her şey yalın harflerle yazılır.\""],
+  [0, "Rehberin defteri (yırtık)", "...2009'da haritalandı diyorlar. Yalan. Biz daha eskiyiz.\nKapılar beş. Her kapı bir öncekinin cevabını bilmeyene kapalıdır.\nYeşil kapının anahtarı mağaranın kendi adıdır — ama yalnızca SON kelimesi."],
+  [1, "Elif'in telefonu", "Son kayıt, 03:12\n\"Ağaçların arasında birileri var... bizim gibi yürümüyorlar.\nKapının üstünde harfler var, her harf başka bir harfe kaymış. Anahtar kelimeyi tekrar tekrar altına yaz, her harfi anahtarın harfi kadar GERİ say. A=0 diye düşün...\""],
+  [1, "Kazınmış taş", "VIGENÈRE BİLİYORDU.\nSarkıtlar sayılmaz, harfler sayılır. Z'den sonra yine A gelir."],
+  [2, "Marco'nun su geçirmez not defteri", "Kıyıda bir panel var, dört rakam istiyor. Yanında yarısı silinmiş bir yazı:\n\n1) Kızıl olanın kaç küçük ayı var?\n2) Halkaların efendisi Güneş'ten kaçıncı?\n3) Güneş'in ışığı bize kaç dakikada ulaşır (tam sayı, aşağı yuvarla)?\n4) Kızıl olan kaçıncı?"],
+  [2, "Islak fotoğrafın arkası", "Aiko'nun yazısı: \"Kızıl olan = kapının öbür tarafı. Oraya gidiyoruz. Hepimiz.\""],
+  [3, "Daniel'in ses kaydı (deşifre)", "\"Mantarlar yanıp sönüyor... rastgele değil. Uzun ve kısa. Uzun ve kısa.\nEski telsizciler bunu bilir. Harfler arasında daha uzun bir karanlık var.\nKelime, kızıl olanın iki ayından BÜYÜK olanı.\""],
+  [3, "Biyolüminesan duvar", "Burada nefes alan bir şey var. Duvarlar ılık. Aynı sembol tekrar ediyor: ◯ ve iki küçük nokta."],
+  [4, "Sena'nın son satırları", "\"Kapı bir yer adı istiyor. Kızıl gezegenin en yüksek yeri.\nAma taştaki yazı bir AYNADAN okunuyor: alfabe ters dönmüş. A, Z olur. B, Y olur.\nAynanın önceki dört cevabı da bildiği söyleniyor... sadece bilenler geçer.\""],
+  [4, "Rehber Hồ", "Seni bekledim. Diğerleri geçti. Onlar artık kapının öbür tarafında, kızıl tozun altında.\nSen de sorulara cevap verdin mi? Her biri sana bir şey öğretti: anahtarı, sırayı, sesi, aynayı."],
+];
+
+// puzzles: one per zone 1..4, gate at the right end
+const PUZZLES = {
+  1: { title: "Yeşil Kapı", body: "Kök sarmaşıkların arasındaki taş kapıda harfler kazınmış. Altında bir oyuk: kelimeyi söyle.", cipher: "NWFZOCWYNVL", ans: hash("KIRMIZIKAPI"),
+       ok: "Kapı kökleriyle birlikte geri çekiliyor. Duvardaki yazı şimdi okunuyor: KIRMIZI KAPI." },
+  2: { title: "Kıyı Paneli", body: "Paslanmamış, eski olmayan bir metal panel. Dört boşluk. Her yanlış denemede su biraz daha yükseliyor gibi.", cipher: "_ _ _ _", ans: hash("2684"),
+       ok: "Panel derin bir tonla titreşiyor. Siyah suyun içinden bir taş köprü yükseliyor." },
+  3: { title: "Işıyan Göz", body: "Dev, yarı canlı bir mantar kümesi yanıp sönüyor. Desen tekrar ediyor. Ne söylüyor?", cipher: "", morse: "PHOBOS", ans: hash("PHOBOS"),
+       ok: "Mantarlar aynı anda sönüyor. Karanlıkta bir yol açılıyor." },
+  4: { title: "Portal", body: "Halka şeklinde dev bir yapı. Merkezde ayna gibi bir taş. Üzerindeki yazı:", cipher: "LOBNKFH", ans: hash("OLYMPUS"),
+       ok: "" },
+};
+const MORSE = { P: ".--.", H: "....", O: "---", B: "-...", S: "..." };
+
+// ---------- state ----------
+let S, map, zone, items, monsters, tourists, particles = [];
+const keys = {}; let mouse = { x: 0, y: 0 };
+let running = false, last = 0, flicker = 0;
+
+function freshState() { return { zone: 0, hp: 100, bat: 100, sanity: 100, notes: [], solved: [], lightOn: true, alone: false }; }
+function save() { try { localStorage.setItem("sondoong", JSON.stringify(S)); } catch (e) {} }
+function load() { try { return JSON.parse(localStorage.getItem("sondoong")); } catch (e) { return null; } }
+
+function buildZone(i) {
+  zone = ZONES[i]; const r = rng(zone.seed);
+  const w = zone.w, h = zone.h;
+  map = []; for (let y = 0; y < h; y++) { map.push([]); for (let x = 0; x < w; x++) map[y].push(x < 1 || y < 1 || x >= w - 1 || y >= h - 1 || r() < zone.fill ? 1 : 0); }
+  for (let k = 0; k < 4; k++) { // cellular automata smoothing
+    const n = map.map(row => row.slice());
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) { let c = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) c += map[y + dy][x + dx]; n[y][x] = c >= 5 ? 1 : 0; }
+    map = n;
+  }
+  // carve a guaranteed winding path left -> right
+  let cy = h >> 1;
+  for (let x = 2; x < w - 2; x++) { cy += Math.round((r() - 0.5) * 2.2); cy = Math.max(4, Math.min(h - 5, cy)); for (let dy = -2; dy <= 2; dy++) for (let dx = 0; dx <= 1; dx++) map[cy + dy][x + dx] = 0; }
+  for (let dy = -3; dy <= 3; dy++) for (let dx = 0; dx < 5; dx++) { map[(h >> 1) + dy][2 + dx] = 0; map[cy + dy][w - 7 + dx] = 0; }
+  zone.start = { x: 4 * T, y: (h >> 1) * T + T / 2 }; zone.exit = { x: (w - 4) * T, y: cy * T + T / 2 };
+  // water: low lying floor near middle rows becomes "water" (slow)
+  zone.waterMap = map.map((row, y) => row.map((v, x) => zone.water && !v && Math.sin(x * 0.15) * 6 + Math.cos(y * 0.3) * 4 > 6 ? 1 : 0));
+
+  const floors = []; for (let y = 2; y < h - 2; y++) for (let x = 6; x < w - 8; x++) if (!map[y][x]) floors.push([x, y]);
+  const pick = () => { const f = floors.splice((r() * floors.length) | 0, 1)[0]; return { x: f[0] * T + T / 2, y: f[1] * T + T / 2 }; };
+  items = [];
+  NOTES.forEach((n, ni) => { if (n[0] === i) items.push({ ...pick(), type: "note", id: ni }); });
+  for (let k = 0; k < 3 + i; k++) items.push({ ...pick(), type: "battery" });
+  for (let k = 0; k < 2 + (i >> 1); k++) items.push({ ...pick(), type: "med" });
+  if (i >= 1) items.push({ x: zone.exit.x, y: zone.exit.y, type: "gate", id: i });
+  else items.push({ x: zone.exit.x, y: zone.exit.y, type: "exit" });
+  zone.deco = []; for (let k = 0; k < 220; k++) { const f = floors[(r() * floors.length) | 0]; if (f) zone.deco.push({ x: f[0] * T + r() * T, y: f[1] * T + r() * T, s: r(), k: r() }); }
+
+  monsters = []; for (let k = 0; k < zone.monsters; k++) { const p = pick(); monsters.push({ ...p, hx: p.x, hy: p.y, vx: 0, vy: 0, seen: 0 }); }
+  P.x = zone.start.x; P.y = zone.start.y;
+  tourists = [];
+  if (i === 0 && !S.alone) {
+    ["Rehber Hồ", "Elif", "Marco", "Aiko", "Daniel", "Sena"].forEach((n, k) => tourists.push({ name: n, x: P.x + 40 + k * 22, y: P.y + (k % 2 ? 18 : -18), gone: false, col: ["#e8c070", "#e07a7a", "#7ab0e0", "#e0a0d0", "#90d090", "#d0d070"][k] }));
+    zone.vanishAt = [0.18, 0.30, 0.42, 0.54, 0.66, 0.78].map(f => f * w * T);
+  }
+  document.getElementById("zone").innerHTML = `<b>${zone.name}</b><br><small>${zone.sub}</small>`;
+  say(`${zone.name} — ${zone.sub}`, 5);
+}
+
+const P = { x: 0, y: 0, r: 9, ang: 0, hurt: 0 };
+const solid = (x, y) => { const tx = Math.floor(x / T), ty = Math.floor(y / T); return !map[ty] || map[ty][tx] !== 0; };
+function moveCircle(o, dx, dy, r) {
+  if (!solid(o.x + dx + Math.sign(dx) * r, o.y) && !solid(o.x + dx + Math.sign(dx) * r, o.y + r * .7) && !solid(o.x + dx + Math.sign(dx) * r, o.y - r * .7)) o.x += dx;
+  if (!solid(o.x, o.y + dy + Math.sign(dy) * r) && !solid(o.x + r * .7, o.y + dy + Math.sign(dy) * r) && !solid(o.x - r * .7, o.y + dy + Math.sign(dy) * r)) o.y += dy;
+}
+
+// ---------- messages / panels ----------
+let msgTimer = 0;
+function say(t, sec = 4) { const m = document.getElementById("msg"); m.textContent = t; m.style.opacity = 1; msgTimer = sec; }
+let panelOpen = false;
+function openPanel(id) { closePanels(); document.getElementById(id).classList.add("on"); panelOpen = true; }
+function closePanels() { document.querySelectorAll(".panel").forEach(p => { if (p.id !== "title" || running) p.classList.remove("on"); }); panelOpen = !running; stopMorse(); }
+window.closePanels = closePanels;
+
+function showNote(id) {
+  const n = NOTES[id];
+  if (!S.notes.includes(id)) { S.notes.push(id); save(); }
+  document.getElementById("noteT").textContent = n[1]; document.getElementById("noteB").textContent = n[2];
+  openPanel("note");
+}
+function showJournal() {
+  document.getElementById("jList").innerHTML = S.notes.length ? S.notes.map(id => `<h3 style="color:#ffcf7a;font-weight:normal">${NOTES[id][1]}</h3><p>${NOTES[id][2].replace(/</g, "&lt;")}</p>`).join("") : "<p>Henüz bir şey bulmadın.</p>";
+  openPanel("journal");
+}
+
+let currentPz = 0, morseTimer = null;
+function stopMorse() { if (morseTimer) clearTimeout(morseTimer); morseTimer = null; document.getElementById("morseLamp").classList.remove("lit"); }
+function playMorse(word) {
+  const unit = 230, seq = [];
+  [...word].forEach((ch, ci) => { [...MORSE[ch]].forEach((s, si) => { seq.push([1, s === "." ? 1 : 3]); seq.push([0, 1]); }); seq.push([0, 2]); });
+  seq.push([0, 6]);
+  let i = 0; const lamp = document.getElementById("morseLamp");
+  const step = () => { const [on, d] = seq[i]; lamp.classList.toggle("lit", !!on); i = (i + 1) % seq.length; morseTimer = setTimeout(step, d * unit); };
+  step();
+}
+function openPuzzle(i) {
+  const p = PUZZLES[i]; currentPz = i;
+  document.getElementById("pzT").textContent = p.title; document.getElementById("pzB").textContent = p.body;
+  document.getElementById("pzC").textContent = p.cipher;
+  document.getElementById("morse").style.display = p.morse ? "flex" : "none";
+  document.getElementById("pzR").innerHTML = "<small>Cevabı bilmiyorsan geri dön ve ipuçlarını ara (J: günlük).</small>";
+  const inp = document.getElementById("pzIn"); inp.value = "";
+  openPanel("puzzle"); if (p.morse) playMorse(p.morse); setTimeout(() => inp.focus(), 30);
+}
+function submitPuzzle() {
+  const p = PUZZLES[currentPz], v = norm(document.getElementById("pzIn").value);
+  if (hash(v) === p.ans) {
+    S.solved.push(currentPz); save(); closePanels();
+    if (currentPz === 4) return ending();
+    say(p.ok, 6); advance();
+  } else {
+    S.sanity = Math.max(0, S.sanity - 8); flicker = 0.6;
+    document.getElementById("pzR").innerHTML = `<small style="color:#e07a7a">${["Taş soğuyor. Yanlış.", "Bir şey karanlıkta kıkırdıyor.", "Hayır. Bir daha düşün.", "Kulağının dibinde biri fısıldıyor: 'yaklaştın mı sanıyorsun?'"][(Math.random() * 4) | 0]}</small>`;
+  }
+}
+document.getElementById("pzBtn").onclick = submitPuzzle;
+document.getElementById("pzIn").addEventListener("keydown", e => { if (e.key === "Enter") submitPuzzle(); e.stopPropagation(); });
+
+function advance() { S.zone++; S.bat = Math.min(100, S.bat + 25); save(); fade = 1; setTimeout(() => buildZone(S.zone), 500); }
+function ending() {
+  running = false;
+  document.getElementById("endT").textContent = "OLYMPUS MONS";
+  document.getElementById("endB").textContent = "Ayna taş çözülüyor. Halkanın içinde kızıl bir ufuk, iki küçük ay ve sonsuz bir toz fırtınası.\n\nAyağının altında beş çift ayak izi var. Hepsi aynı yöne gidiyor.\n\nArkanda mağara kapanırken bir ses duyuyorsun: \"Hoş geldin. Mars sadece ilk kapıydı.\"\n\n— SON —\n\nTebrikler. Bu şifreleri çözebilen çok az kişi oldu.";
+  openPanel("end"); try { localStorage.removeItem("sondoong"); } catch (e) {}
+}
+function death(why) {
+  running = false;
+  document.getElementById("endT").textContent = "KARANLIK SENİ ALDI";
+  document.getElementById("endB").textContent = why + "\n\nGrubun yedinci üyesi olarak listeye eklendin.\nKayıt noktası: bu bölgenin başı.";
+  S.hp = 100; S.sanity = 70; S.bat = Math.max(S.bat, 50); save();
+  openPanel("end");
+}
+
+// ---------- input ----------
+addEventListener("keydown", e => {
+  if (e.key === "Escape") { closePanels(); return; }
+  if (!running || panelOpen) return;
+  keys[e.key.toLowerCase()] = true;
+  if (e.key === "f" || e.key === "F") { S.lightOn = !S.lightOn; }
+  if (e.key === "j" || e.key === "J") showJournal();
+  if (e.key === "e" || e.key === "E") interact();
+});
+addEventListener("keyup", e => { keys[e.key.toLowerCase()] = false; });
+cv.addEventListener("mousemove", e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+
+function interact() {
+  let best = null, bd = 48;
+  for (const it of items) { const d = Math.hypot(it.x - P.x, it.y - P.y); if (d < bd && it.type !== "battery" && it.type !== "med") { bd = d; best = it; } }
+  if (!best) return;
+  if (best.type === "note") showNote(best.id);
+  else if (best.type === "gate") openPuzzle(best.id);
+  else if (best.type === "exit") {
+    if (!S.alone) say("Grup henüz burada değil... ya da hiç gelmeyecek. Biraz daha ilerle.", 3);
+    else { say("Arkanda giriş çöküyor. Geri dönüş yok.", 5); advance(); }
+  }
+}
+
+// ---------- loop ----------
+let fade = 0, cam = { x: 0, y: 0 }, time = 0;
+function update(dt) {
+  time += dt;
+  const sp = (zone.waterMap[Math.floor(P.y / T)]?.[Math.floor(P.x / T)] ? 70 : 130) * dt;
+  let dx = (keys.d || keys.arrowright ? 1 : 0) - (keys.a || keys.arrowleft ? 1 : 0), dy = (keys.s || keys.arrowdown ? 1 : 0) - (keys.w || keys.arrowup ? 1 : 0);
+  if (dx && dy) { dx *= .707; dy *= .707; }
+  moveCircle(P, dx * sp, dy * sp, P.r);
+  P.ang = Math.atan2(mouse.y - (P.y - cam.y), mouse.x - (P.x - cam.x));
+
+  if (S.lightOn) { S.bat -= dt * 1.1; if (S.bat <= 0) { S.bat = 0; S.lightOn = false; say("Fenerin pili bitti.", 3); } }
+  const dark = !S.lightOn;
+  S.sanity = Math.max(0, Math.min(100, S.sanity + (dark ? -2.2 : 0.4) * dt * (zone.monsters ? 1 : 0.3)));
+  if (S.sanity <= 0) { S.hp -= 6 * dt; if (Math.random() < dt) say("Duvarlar adını söylüyor.", 2); }
+
+  // pickups
+  for (let k = items.length - 1; k >= 0; k--) {
+    const it = items[k]; if (Math.hypot(it.x - P.x, it.y - P.y) > 18) continue;
+    if (it.type === "battery") { S.bat = Math.min(100, S.bat + 35); items.splice(k, 1); say("Pil buldun. (+35)", 2); }
+    else if (it.type === "med") { S.hp = Math.min(100, S.hp + 30); S.sanity = Math.min(100, S.sanity + 15); items.splice(k, 1); say("İlk yardım çantası. (+30)", 2); }
+  }
+
+  // tourists follow and vanish one by one
+  if (tourists.length) {
+    tourists.forEach((t, k) => {
+      if (t.gone) return;
+      const tx = P.x - 30 - k * 18, ty = P.y + Math.sin(time + k) * 14, d = Math.hypot(tx - t.x, ty - t.y);
+      if (d > 4) moveCircle(t, (tx - t.x) / d * Math.min(d, 120 * dt), (ty - t.y) / d * Math.min(d, 120 * dt), 7);
+    });
+    const next = tourists.findIndex(t => !t.gone);
+    if (next >= 0 && P.x > zone.vanishAt[next]) {
+      const t = tourists[next]; t.gone = true; flicker = 1.2;
+      for (let q = 0; q < 30; q++) particles.push({ x: t.x, y: t.y, vx: (Math.random() - .5) * 90, vy: (Math.random() - .5) * 90, l: 1.2, c: t.col });
+      const lines = [
+        "Fener bir an söndü. Yandığında Rehber Hồ yoktu. Sadece ipi yerde kıvrılıyordu.",
+        "Elif'in çığlığı yukarıdan geldi. Sonra hiç gelmedi.",
+        "Marco arkandaydı. Şimdi sadece ıslak ayak izleri var — duvarın İÇİNE doğru.",
+        "Aiko'nun kamerası yerde yanıp sönüyor. Son kare: senin sırtın.",
+        "Daniel 'duydunuz mu?' dedi. Kimse cevap vermedi. Daniel de.",
+        "Sena elini tutuyordu. Bir anda elin boş kaldı. Hâlâ sıcaktı.",
+      ];
+      say(lines[next], 6); S.sanity -= 10;
+      if (next === tourists.length - 1) { S.alone = true; save(); setTimeout(() => say("Yalnızsın. Çıkışa ulaş — E ile.", 5), 6500); }
+    }
+  }
+
+  // monsters: freeze in the flashlight cone, stalk in darkness
+  for (const m of monsters) {
+    const dxp = P.x - m.x, dyp = P.y - m.y, d = Math.hypot(dxp, dyp);
+    let lit = false;
+    if (S.lightOn && d < 280) { let a = Math.atan2(m.y - P.y, m.x - P.x) - P.ang; a = Math.atan2(Math.sin(a), Math.cos(a)); lit = Math.abs(a) < 0.45; }
+    if (lit) { m.seen = Math.min(1, m.seen + dt * 2); m.x -= dxp / d * 40 * dt; m.y -= dyp / d * 40 * dt; }
+    else if (d < 420) { const s = (dark ? 105 : 72) * dt; moveCircle(m, dxp / d * s, dyp / d * s, 10); m.seen = Math.max(0, m.seen - dt); }
+    else { moveCircle(m, Math.sin(time * .7 + m.hx) * 30 * dt, Math.cos(time * .5 + m.hy) * 30 * dt, 10); }
+    if (d < 20) { S.hp -= 28 * dt; S.sanity -= 10 * dt; P.hurt = 0.3; }
+  }
+  if (P.hurt > 0) P.hurt -= dt;
+  if (S.hp <= 0) return death(["Soğuk eller seni duvarın içine çekti.", "Karanlıkta bir şey adını bildi."][(Math.random() * 2) | 0]);
+
+  particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt; }); particles = particles.filter(p => p.l > 0);
+  if (flicker > 0) flicker -= dt;
+  if (fade > 0) fade -= dt * 1.2;
+  if (msgTimer > 0 && (msgTimer -= dt) <= 0) document.getElementById("msg").style.opacity = 0;
+  if ((time | 0) % 5 === 0 && Math.random() < dt) save();
+}
+
+function draw() {
+  cam.x = P.x - W / 2; cam.y = P.y - H / 2;
+  ctx.fillStyle = zone.wall; ctx.fillRect(0, 0, W, H);
+  const x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T)), x1 = Math.min(zone.w, x0 + W / T + 2), y1 = Math.min(zone.h, y0 + H / T + 2);
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+    if (map[y][x]) continue;
+    ctx.fillStyle = zone.waterMap[y][x] ? `hsl(210,50%,${10 + Math.sin(time * 2 + x + y) * 3}%)` : zone.floor;
+    ctx.fillRect(x * T - cam.x, y * T - cam.y, T + 1, T + 1);
+  }
+  // decoration: plants / stones / glowing fungi
+  for (const d of zone.deco) {
+    const sx = d.x - cam.x, sy = d.y - cam.y; if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) continue;
+    if (S.zone === 1) { ctx.strokeStyle = `hsl(${110 + d.k * 30},45%,${18 + d.s * 14}%)`; ctx.lineWidth = 2; ctx.beginPath(); for (let b = 0; b < 5; b++) { const a = b * 1.25 + d.k * 6; ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a) * (8 + d.s * 10), sy + Math.sin(a) * (8 + d.s * 10)); } ctx.stroke(); }
+    else if (S.zone === 3) { ctx.fillStyle = `hsla(${170 + d.k * 120},90%,60%,${0.3 + 0.3 * Math.sin(time * 2 + d.k * 9)})`; ctx.beginPath(); ctx.arc(sx, sy, 2 + d.s * 4, 0, 7); ctx.fill(); }
+    else { ctx.fillStyle = `rgba(0,0,0,${0.2 + d.s * .2})`; ctx.beginPath(); ctx.arc(sx, sy, 1 + d.s * 3, 0, 7); ctx.fill(); }
+  }
+  // items
+  for (const it of items) {
+    const sx = it.x - cam.x, sy = it.y - cam.y;
+    if (it.type === "note") { ctx.fillStyle = "#e8dcb0"; ctx.fillRect(sx - 6, sy - 8, 12, 16); }
+    if (it.type === "battery") { ctx.fillStyle = "#e0d040"; ctx.fillRect(sx - 4, sy - 7, 8, 14); }
+    if (it.type === "med") { ctx.fillStyle = "#eee"; ctx.fillRect(sx - 7, sy - 7, 14, 14); ctx.fillStyle = "#c22"; ctx.fillRect(sx - 2, sy - 5, 4, 10); ctx.fillRect(sx - 5, sy - 2, 10, 4); }
+    if (it.type === "gate" || it.type === "exit") {
+      const c = ["#ccc", "#5f5", "#59f", "#c6f", "#f53"][it.type === "exit" ? 0 : it.id];
+      ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.shadowColor = c; ctx.shadowBlur = 20 + Math.sin(time * 3) * 8;
+      ctx.beginPath(); ctx.arc(sx, sy, it.id === 4 ? 34 : 22, 0, 7); ctx.stroke(); ctx.shadowBlur = 0;
+    }
+  }
+  tourists.forEach(t => { if (!t.gone) { ctx.fillStyle = t.col; ctx.beginPath(); ctx.arc(t.x - cam.x, t.y - cam.y, 7, 0, 7); ctx.fill(); } });
+  particles.forEach(p => { ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, p.l); ctx.fillRect(p.x - cam.x, p.y - cam.y, 2, 2); }); ctx.globalAlpha = 1;
+  // monsters: tall shadows with eyes
+  for (const m of monsters) {
+    const sx = m.x - cam.x, sy = m.y - cam.y;
+    ctx.fillStyle = `rgba(5,0,8,${0.75 + m.seen * .25})`; ctx.beginPath(); ctx.ellipse(sx, sy, 11, 18 + Math.sin(time * 4 + m.hx) * 3, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = m.seen > .3 ? "#fff" : "#f22"; ctx.fillRect(sx - 5, sy - 8, 3, 2); ctx.fillRect(sx + 2, sy - 8, 3, 2);
+  }
+  // player
+  ctx.fillStyle = P.hurt > 0 ? "#f66" : "#f0e6c8"; ctx.beginPath(); ctx.arc(W / 2, H / 2, P.r, 0, 7); ctx.fill();
+
+  // lighting: darkness layer with holes cut out
+  const amb = zone.ambient * (S.zone === 1 ? 1 + Math.sin(time * .3) * .3 : 1);
+  sctx.globalCompositeOperation = "source-over"; sctx.clearRect(0, 0, W, H);
+  sctx.fillStyle = `rgba(0,0,0,${1 - amb})`; sctx.fillRect(0, 0, W, H);
+  sctx.globalCompositeOperation = "destination-out";
+  const glow = (x, y, r, a) => { const g = sctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, `rgba(0,0,0,${a})`); g.addColorStop(1, "rgba(0,0,0,0)"); sctx.fillStyle = g; sctx.beginPath(); sctx.arc(x, y, r, 0, 7); sctx.fill(); };
+  glow(W / 2, H / 2, 70, 0.7);
+  const fl = flicker > 0 && Math.random() < 0.6;
+  if (S.lightOn && !fl) {
+    const len = 180 + S.bat * 1.4 + (Math.random() * 6), spread = 0.45;
+    const g = sctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, len); g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    sctx.fillStyle = g; sctx.beginPath(); sctx.moveTo(W / 2, H / 2); sctx.arc(W / 2, H / 2, len, P.ang - spread, P.ang + spread); sctx.closePath(); sctx.fill();
+  }
+  for (const it of items) if (it.type === "gate" || it.type === "exit") glow(it.x - cam.x, it.y - cam.y, 110, 0.8);
+  if (zone.glow) for (let k = 0; k < zone.deco.length; k += 6) { const d = zone.deco[k]; glow(d.x - cam.x, d.y - cam.y, 40, 0.35 + 0.2 * Math.sin(time * 2 + d.k * 9)); }
+  ctx.drawImage(shade, 0, 0);
+  if (zone.tint) { ctx.fillStyle = zone.tint; ctx.fillRect(0, 0, W, H); }
+  if (S.sanity < 40) { ctx.fillStyle = `rgba(80,0,0,${(40 - S.sanity) / 160 * (1 + Math.sin(time * 6) * .3)})`; ctx.fillRect(0, 0, W, H); }
+  if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, fade)})`; ctx.fillRect(0, 0, W, H); }
+
+  // interaction hint
+  for (const it of items) if ((it.type === "note" || it.type === "gate" || it.type === "exit") && Math.hypot(it.x - P.x, it.y - P.y) < 48) { ctx.fillStyle = "#fff"; ctx.font = "13px monospace"; ctx.fillText("[E]", it.x - cam.x - 10, it.y - cam.y - 26); }
+
+  const bar = (v, c) => `<span class="bar"><i style="width:${Math.max(0, v)}%;background:${c}"></i></span>`;
+  document.getElementById("hud").innerHTML = `Sağlık ${bar(S.hp, "#c44")}<br>Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/4</small>`;
+}
+
+function frame(t) {
+  const dt = Math.min(0.05, (t - last) / 1000); last = t;
+  if (running && !panelOpen) update(dt);
+  if (zone) draw();
+  requestAnimationFrame(frame);
+}
+
+function start(s) {
+  S = s; running = true; panelOpen = false;
+  document.getElementById("title").classList.remove("on");
+  buildZone(S.zone);
+  if (S.zone === 0 && !S.alone) setTimeout(() => say("Rehber Hồ: \"Birbirinizden ayrılmayın. Bu mağara insanları... sever.\"", 6), 5200);
+}
+const saved = load();
+if (saved && saved.zone !== undefined) document.getElementById("contBtn").style.display = "inline-block";
+document.getElementById("startBtn").onclick = () => start(freshState());
+document.getElementById("contBtn").onclick = () => start(Object.assign(freshState(), saved));
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
