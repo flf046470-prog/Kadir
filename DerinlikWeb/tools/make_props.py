@@ -203,5 +203,135 @@ for x in (0.07, 0.17):
     cyl(0.022, 0.03, (x, -0.12, 0.08), bake, 14, X90)
 export("radio", "Sakarya control room console, SIFIR-17 lab table")
 
+# --- ossuary: a human skull and a femur, instanced by the hundred in the Paris catacombs ------------------------------
+# Built from rough volumes fused by a voxel remesh, then carved (orbits, nasal aperture) and decimated. Most skulls in the
+# Paris ossuary have lost their mandible, so this one has none. Origin at the centre (they are set into bone walls,
+# not stood on the floor). Cavities are darkened in a vertex colour (COLOR_0) so eye sockets read under any light.
+import bmesh
+from mathutils import Vector
+
+
+def active(o):
+    bpy.ops.object.select_all(action="DESELECT")
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = o
+
+
+def apply_mod(o, kind, **kw):
+    active(o)
+    m = o.modifiers.new(kind.lower(), kind)
+    for k, v in kw.items():
+        setattr(m, k, v)
+    bpy.ops.object.modifier_apply(modifier=m.name)
+
+
+def ellipsoid(r, loc, seg=32, rings=16):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=seg, ring_count=rings, radius=1, location=loc)
+    o = bpy.context.active_object
+    o.scale = r
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
+
+
+def join(objs):
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    bpy.ops.object.join()
+    o = bpy.context.active_object
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    return o
+
+
+def carve(o, cutter):
+    apply_mod(o, "BOOLEAN", operation="DIFFERENCE", object=cutter, solver="EXACT")
+    bpy.data.objects.remove(cutter)
+
+
+def reduce(o, faces):
+    apply_mod(o, "DECIMATE", ratio=min(1.0, faces / max(1, len(o.data.polygons))))
+    active(o)
+    bpy.ops.object.shade_smooth()
+
+
+def cavity_colors(o, tint=lambda co: None, gain=9.0):
+    """Greyscale occlusion in COLOR_0: 1 on open surfaces, darker in hollows (neighbours above the tangent plane)."""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.verts.ensure_lookup_table()
+    cav = []
+    for v in bm.verts:
+        acc = Vector()
+        for e in v.link_edges:
+            acc += (e.other_vert(v).co - v.co).normalized()
+        cav.append(acc.dot(v.normal) / max(1, len(v.link_edges)))
+    for _ in range(3):  # soften
+        cav = [(cav[v.index] * 2 + sum(cav[e.other_vert(v).index] for e in v.link_edges)) / (2 + len(v.link_edges)) for v in bm.verts]
+    cos = [v.co.copy() for v in bm.verts]
+    bm.free()
+    attr = o.data.color_attributes.new("Col", "FLOAT_COLOR", "POINT")
+    for i, c in enumerate(cav):
+        k = 1.0 - min(0.85, max(0.0, c * gain))
+        t = tint(cos[i])
+        rgb = (k, k, k) if t is None else tuple(k * x for x in t)
+        attr.data[i].color = (*rgb, 1.0)
+
+
+reset()
+bone_mat = mat("bone", (0.66, 0.57, 0.42), 0.8)
+# measurements of an adult cranium: length ~19 cm, breadth ~14 cm, orbits ~4 x 3.4 cm, nasal aperture ~2.4 x 3.4 cm
+cr = ellipsoid((0.07, 0.093, 0.072), (0, 0.014, 0.014), 48, 24)
+for v in cr.data.vertices:  # egg-shaped from above (narrow brow, wide parietals), flat cranial base
+    x, y, z = v.co
+    t = max(0.0, min(1.0, -(y - 0.014) / 0.093))
+    x *= 1.0 - 0.16 * t
+    if z < -0.018:
+        z = -0.018 + (z + 0.018) * 0.4
+    v.co = Vector((x, y, z))
+parts = [cr,
+         ellipsoid((0.05, 0.034, 0.042), (0, -0.058, -0.022)),                                                 # face: orbits and maxilla sit in it
+         ellipsoid((0.02, 0.022, 0.017), (0.045, -0.062, -0.026)), ellipsoid((0.02, 0.022, 0.017), (-0.045, -0.062, -0.026)),  # cheekbones
+         ellipsoid((0.007, 0.03, 0.006), (0.06, -0.03, -0.026)), ellipsoid((0.007, 0.03, 0.006), (-0.06, -0.03, -0.026)),    # zygomatic arches
+         ellipsoid((0.029, 0.03, 0.014), (0, -0.066, -0.062)),                                                 # tooth-bearing ridge
+         ellipsoid((0.052, 0.066, 0.024), (0, 0.012, -0.024)),                                                 # cranial base under the vault
+         ellipsoid((0.01, 0.012, 0.013), (0.05, 0.03, -0.032)), ellipsoid((0.01, 0.012, 0.013), (-0.05, 0.03, -0.032))]       # mastoids
+skull = join(parts)
+apply_mod(skull, "REMESH", mode="VOXEL", voxel_size=0.0032)
+apply_mod(skull, "SMOOTH", factor=0.6, iterations=4)
+reduce(skull, 2600)
+for sx in (-1, 1):  # orbits: deep, slightly tilted down-and-out
+    carve(skull, ellipsoid((0.02, 0.05, 0.0175), (sx * 0.032, -0.104, -0.006)))
+carve(skull, ellipsoid((0.0115, 0.04, 0.018), (0, -0.11, -0.044)))  # nasal aperture
+carve(skull, ellipsoid((0.017, 0.045, 0.012), (0, 0.0, -0.07)))     # palate and foramen, seen from below
+apply_mod(skull, "TRIANGULATE")
+teeth = []
+for i in range(14):  # upper teeth on a U-shaped arch
+    a = -1.25 + i * 2.5 / 13
+    teeth.append(cube((0.0066, 0.0064, 0.011), (math.sin(a) * 0.025, -0.064 - math.cos(a) * 0.024, -0.077), bone_mat, 0.0, rot=(0, 0, -a)))
+skull = join([skull] + teeth)
+active(skull)
+bpy.ops.object.shade_smooth()
+skull.data.materials.clear()
+skull.data.materials.append(bone_mat)
+cavity_colors(skull, tint=lambda co: (0.86, 0.8, 0.66) if co.z < -0.07 and co.y < -0.035 else None)
+export("skull", "Paris ossuary: bone walls (instanced); origin at the skull's centre")
+
+reset()
+fem_mat = mat("bone", (0.66, 0.57, 0.42), 0.8)
+parts = [cyl(0.0125, 0.36, (0, 0, 0), fem_mat, 16, Y90),                          # shaft along X
+         cyl(0.009, 0.055, (0.19, 0, 0.021), fem_mat, 12, (0, math.radians(41), 0)),  # neck, ~125° to the shaft
+         ellipsoid((0.022, 0.022, 0.022), (0.207, 0, 0.04)),                       # head
+         ellipsoid((0.018, 0.016, 0.022), (0.178, 0, -0.008)),                     # greater trochanter
+         ellipsoid((0.022, 0.017, 0.024), (-0.19, 0.016, -0.002)), ellipsoid((0.022, 0.017, 0.024), (-0.19, -0.016, -0.002))]  # condyles
+femur = join(parts)
+apply_mod(femur, "REMESH", mode="VOXEL", voxel_size=0.002)
+apply_mod(femur, "SMOOTH", factor=0.5, iterations=3)
+reduce(femur, 500)
+femur.data.materials.clear()
+femur.data.materials.append(fem_mat)
+cavity_colors(femur)
+export("femur", "Paris ossuary: loose long bones on the bone walls (instanced); origin at the centre")
+
 (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 print("PROPS:", ", ".join(manifest))

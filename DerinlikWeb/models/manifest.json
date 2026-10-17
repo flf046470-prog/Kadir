@@ -25,5 +25,11 @@
   },
   "radio": {
     "place": "Sakarya control room console, SIFIR-17 lab table"
+  },
+  "skull": {
+    "place": "Paris ossuary: bone walls (instanced); origin at the skull's centre"
+  },
+  "femur": {
+    "place": "Paris ossuary: loose long bones on the bone walls (instanced); origin at the centre"
   }
 }

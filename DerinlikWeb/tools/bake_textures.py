@@ -555,7 +555,7 @@ if IN_BLENDER:
         paint = cmix(srgb("cfc8b6"), srgb("e0dbcc"), sat((mid - 0.5) * 1.4 + 0.5))
         paint = cmix(paint, paint * srgb("c8bca4"), blotch(uv, 3, sd + 6, 0.55, 0.12) * 0.6)  # yellowed, grubby
         pn = noise(warp(uv, 0.01, 8, sd + 7), 4.5, sd + 8, detail=8, rough=0.66)
-        lim = 0.66 - damp * 0.12
+        lim = 0.66 - damp * 0.04  # damp lifts a little more paint, not a rash of holes
         loss = smooth(lim - 0.004, lim + 0.004, pn)
         chips = smooth(0.35, 0.25, voronoi(uv, 70, sd + 9).d) * greater(split(voronoi(uv, 70, sd + 9).col)[0], 0.93)
         loss = fmax(loss, chips)
@@ -567,11 +567,11 @@ if IN_BLENDER:
         col = cmix(col, srgb("4a443b"), c1 * 0.85)
         # damp: darker, greyer-browner; mould colonies inside the damp patches
         col = cmix(col, wet_darken(col * srgb("d9cdb6"), 0.7), damp * 0.85)
-        colonies = blotch(uv, 9, sd + 12, 0.6, 0.06, detail=7, rough=0.7) * sat(damp * 1.3)
+        colonies = blotch(uv, 9, sd + 12, 0.6, 0.06, detail=7, rough=0.7) * sat((damp - 0.35) * 2.5)  # only the wettest patches
         dots = smooth(0.45, 0.2, gd) * greater(gr, 0.5)
         mould = sat(colonies * (0.35 + dots)) * smooth(0.45, 0.7, noise(uv, 40, sd + 13, detail=4))
-        col = cmix(col, cmix(srgb("20211b"), srgb("3c3f2d"), split(g)[1]), mould * 0.9)
-        crumble = damp * blotch(uv, 10, sd + 14, 0.7, 0.03, detail=7) * 0.5
+        col = cmix(col, cmix(srgb("2c2c24"), srgb("4a4c3a"), split(g)[1]), mould * 0.6)
+        crumble = sat((damp - 0.4) * 3.0) * blotch(uv, 10, sd + 14, 0.7, 0.05, detail=7) * 0.35  # crumbling only where wettest
         col = cmix(col, srgb("6f6658"), crumble * 0.7)
         h = (macro - 0.5) * 3.0 + (mid - 0.5) * 0.6 + (gr - 0.5) * 0.12
         h = h + (1.0 - loss) * 0.35 + edge * 0.45 - c1 * 0.8 - crumble * 2.5

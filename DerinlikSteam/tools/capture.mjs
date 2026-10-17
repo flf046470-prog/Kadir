@@ -13,7 +13,7 @@ const only = rest.includes('--only') ? new Set(rest[rest.indexOf('--only') + 1].
 // at: [chapter, x, z, lookX, lookZ, lookY]; torch / cam on or off; run: seconds of game time before the frame.
 // Viewpoints come from the gallery regression (every one of them is a place the player can stand).
 const SHOTS = [
-  { name: 's01_sakarya_basement', at: [0, .5, 3.0, -2.6, 3.2, 1.0], torch: true, run: .6 },
+  { name: 's01_sakarya_basement', at: [0, -.6, 1.4, .4, 8, 1.25], run: .6 },
   { name: 's02_sakarya_sigil_camcorder', at: [0, 0, 16.2, 0, 17.985, 1.25], cam: true, run: .6 },
   { name: 's03_sakarya_gate', at: [0, 0, 30.0, 0, 32.55, 1.2], open: [-1.0, 30.3, -2.0, 30.285, .79], run: .6 },
   { name: 's04_nevsehir_hall', at: [1, 0, 8.0, 0, 17, 1.6], run: .6 },
@@ -44,6 +44,8 @@ async function open(plate) {
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route('**/*', (r) => (r.request().url().startsWith(url) || /^(data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
   await page.addInitScript(() => { try { localStorage.setItem('derinlik.quality', 'high'); } catch (_) {} });
+  // pictures only: without a sound device the headless browser's Web Audio grows by gigabytes over a long capture
+  await page.addInitScript(() => { delete window.AudioContext; delete window.webkitAudioContext; });
   await page.goto(url);
   await page.waitForFunction(() => window.__derinlik, null, { timeout: 120000 });
   await page.evaluate(() => document.fonts.ready);
@@ -57,21 +59,20 @@ for (const s of SHOTS) {
   const kind = s.plate ? 'plate' : 'shot';
   if (!pages[kind]) pages[kind] = await open(s.plate);
   const page = pages[kind];
-  await page.evaluate((s) => {
+  // time advances in separate calls: dialogue lines chain through promises, which only settle between calls
+  const step = async (sec) => { for (let t = 0; t < sec - 1e-6; t += .5) await page.evaluate((dt) => window.__derinlik.advance(dt), Math.min(.5, sec - t)); };
+  const place = (at, rebuild) => page.evaluate(([[ch, x, z, lx, lz, ly], rebuild]) => {
     const d = window.__derinlik;
-    const place = ([ch, x, z, lx, lz, ly], rebuild) => {
-      if (rebuild) d.buildChapter(ch);
-      d.player.enabled = true; d.player.crouched = false; d.player.x = x; d.player.z = z; d.player.eye = 1.64; d.face(lx, lz, ly); d.advance(1 / 30);
-    };
-    if (d.state.camRaised) d.toggleCam();
-    d.DEBUG.enemyOff = !s.enemy;
-    place(s.at, true);
-    // the Sakarya gate only glows after the control room's breaker is thrown
-    if (s.open) { place([s.at[0], ...s.open], false); d.doInteract(); for (let t = 0; t < 17.5; t += .5) d.advance(.5); place(s.at, false); }
-    if (s.warm) { place([s.at[0], ...s.warm], false); d.advance(3); place(s.at, false); }
-    if (d.torch.visible !== !!s.torch) { d.torch.visible = !!s.torch; d.FX.emit('torch', d.torch.visible); }
-  }, s);
-  for (let t = 0; t < s.run - 1e-6; t += .5) await page.evaluate((dt) => window.__derinlik.advance(dt), Math.min(.5, s.run - t));
+    if (rebuild) d.buildChapter(ch);
+    d.player.enabled = true; d.player.crouched = false; d.player.x = x; d.player.z = z; d.player.eye = 1.64; d.face(lx, lz, ly); d.advance(1 / 30);
+  }, [at, rebuild]);
+  await page.evaluate((s) => { const d = window.__derinlik; if (d.state.camRaised) d.toggleCam(); d.DEBUG.enemyOff = !s.enemy; }, s);
+  await place(s.at, true);
+  // the Sakarya gate only glows after the control room's breaker is thrown and the tape has played
+  if (s.open) { await place([s.at[0], ...s.open], false); await page.evaluate(() => window.__derinlik.doInteract()); await step(17.5); await place(s.at, false); }
+  if (s.warm) { await place([s.at[0], ...s.warm], false); await step(3); await place(s.at, false); }
+  await page.evaluate((s) => { const d = window.__derinlik; if (d.torch.visible !== !!s.torch) { d.torch.visible = !!s.torch; d.FX.emit('torch', d.torch.visible); } }, s);
+  await step(s.run);
   await page.evaluate((s) => {
     const d = window.__derinlik;
     if (s.cam && !d.state.camRaised) { d.toggleCam(); d.advance(.4); }
