@@ -161,7 +161,7 @@ function sfx(k) {
 // ---------- state ----------
 let S, map, zone, items, monsters, tourists, particles = [];
 const keys = {}; let mouse = { x: 0, y: 0 };
-let running = false, last = 0, flicker = 0;
+let running = false, last = 0, flicker = 0, ghost = null, scare = 0, eventT = 25;
 
 function freshState() { return { zone: 0, hp: 100, bat: 100, sanity: 100, notes: [], solved: [], lightOn: true, alone: false }; }
 function save() { try { localStorage.setItem("sondoong", JSON.stringify(S)); } catch (e) {} }
@@ -363,6 +363,21 @@ function update(dt) {
   // heartbeat speeds up as the nearest shadow closes in
   const near = monsters.reduce((a, m) => Math.min(a, Math.hypot(m.x - P.x, m.y - P.y)), 1e9);
   if (near < 360 && (heartT -= dt) <= 0) { sfx("heart"); heartT = 0.35 + near / 360 * 1.2; }
+  // horror events: ghosts of the vanished, sudden faces in the dark
+  if (S.alone || S.zone > 0) {
+    if ((eventT -= dt) <= 0) {
+      eventT = 20 + Math.random() * 30;
+      const names = ["Rehber Hồ", "Elif", "Marco", "Aiko", "Daniel", "Sena"], cols = ["#e8c070", "#e07a7a", "#7ab0e0", "#e0a0d0", "#90d090", "#d0d070"], k = (Math.random() * 6) | 0;
+      if (Math.random() < 0.7) {
+        const a = P.ang + (Math.random() - .5) * .6, dd = 170 + Math.random() * 60;
+        ghost = { x: P.x + Math.cos(a) * dd, y: P.y + Math.sin(a) * dd, c: cols[k], l: 3 };
+        say(`${names[k]}: "${["Neden beni bıraktın?", "Burası çok soğuk...", "Arkana bakma.", "Kapıyı aç. Lütfen.", "Hâlâ buradayız. Duvarların içinde.", "Sen de geleceksin."][(Math.random() * 6) | 0]}"`, 4);
+        sfx("vanish");
+      } else if (S.lightOn) { scare = 0.35; flicker = 0.5; S.sanity -= 6; sfx("hurt"); tone(60, 1, "sawtooth", 0.15, 30); }
+    }
+  }
+  if (ghost) { const gd = Math.hypot(ghost.x - P.x, ghost.y - P.y); ghost.l -= dt * (gd < 90 ? 4 : 1); if (ghost.l <= 0) ghost = null; }
+  if (scare > 0) scare -= dt;
   if (P.hurt > 0) P.hurt -= dt;
   if (S.hp <= 0) return death(["Soğuk eller seni duvarın içine çekti.", "Karanlıkta bir şey adını bildi."][(Math.random() * 2) | 0]);
 
@@ -429,9 +444,15 @@ function draw() {
   for (const it of items) if (it.type === "gate" || it.type === "exit") glow(it.x - cam.x, it.y - cam.y, 110, 0.8);
   if (zone.glow) for (let k = 0; k < zone.deco.length; k += 6) { const d = zone.deco[k]; glow(d.x - cam.x, d.y - cam.y, 40, 0.35 + 0.2 * Math.sin(time * 2 + d.k * 9)); }
   ctx.drawImage(shade, 0, 0);
+  if (ghost) { ctx.globalAlpha = Math.min(1, ghost.l) * (0.4 + Math.random() * .25); ctx.fillStyle = ghost.c; ctx.beginPath(); ctx.ellipse(ghost.x - cam.x, ghost.y - cam.y, 8, 16, 0, 0, 7); ctx.shadowColor = ghost.c; ctx.shadowBlur = 25; ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = "#000"; ctx.fillRect(ghost.x - cam.x - 4, ghost.y - cam.y - 8, 3, 4); ctx.fillRect(ghost.x - cam.x + 1, ghost.y - cam.y - 8, 3, 4); ctx.globalAlpha = 1; }
   if (zone.tint) { ctx.fillStyle = zone.tint; ctx.fillRect(0, 0, W, H); }
   if (zone.dust) { ctx.fillStyle = "rgba(230,140,90,0.35)"; for (let k = 0; k < 160; k++) { const x = ((k * 97.3 + time * (60 + k % 7 * 20) - cam.x * .3) % W + W) % W, y = ((k * 53.1 + Math.sin(time + k) * 20 - cam.y * .3) % H + H) % H; ctx.fillRect(x, y, 2, 1); } }
   if (S.sanity < 40) { ctx.fillStyle = `rgba(80,0,0,${(40 - S.sanity) / 160 * (1 + Math.sin(time * 6) * .3)})`; ctx.fillRect(0, 0, W, H); }
+  if (scare > 0) { // a pale face fills the beam for a split second
+    const cx = W / 2 + Math.cos(P.ang) * 150, cy = H / 2 + Math.sin(P.ang) * 150, R = 90;
+    ctx.fillStyle = "rgba(220,215,200,0.92)"; ctx.beginPath(); ctx.ellipse(cx, cy, R * .75, R, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "#000"; for (const [ex, ey, rx, ry] of [[-25, -18, 14, 20], [25, -18, 14, 20], [0, 40, 18, 30]]) { ctx.beginPath(); ctx.ellipse(cx + ex, cy + ey, rx, ry, 0, 0, 7); ctx.fill(); }
+  }
   if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, fade)})`; ctx.fillRect(0, 0, W, H); }
 
   // interaction hint
