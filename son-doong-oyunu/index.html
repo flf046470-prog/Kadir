@@ -43,7 +43,7 @@ Kimse geri dönmeyecek. Biri hariç... belki.
 <small>WASD / Ok tuşları: yürü   •   Fare: fener yönü   •   F: feneri aç/kapat
 E: incele / etkileşim   •   J: günlük (bulunan notlar)   •   Esc: kapat
 
-Fenerin ışığı gölgeleri durdurur, ama pil sonsuz değildir.
+Burada seni yaralayan hiçbir şey yok. Sadece aklın. Işık gerçeği gösterir; karanlık ise sana ne görmek istediğini.
 Şifrelerin cevapları oyunun içinde saklı. Hiçbir ipucu boşuna değildir.</small></p>
   <button id="startBtn">Mağaraya gir</button> <button id="contBtn" style="display:none">Kaldığın yerden devam</button>
 </div></div>
@@ -135,7 +135,7 @@ const PUZZLES = {
 const MORSE = { P: ".--.", H: "....", O: "---", B: "-...", S: "..." };
 
 // ---------- audio (generated, no files) ----------
-let AC = null, droneGain = null, heartT = 0;
+let AC = null, droneGain = null, heartT = 0, heartT2 = 0;
 function audioInit() {
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
@@ -161,7 +161,17 @@ function sfx(k) {
 // ---------- state ----------
 let S, map, zone, items, monsters, tourists, particles = [];
 const keys = {}; let mouse = { x: 0, y: 0 };
-let running = false, last = 0, flicker = 0, ghost = null, scare = 0, eventT = 25;
+let running = false, last = 0, flicker = 0, ghost = null, scare = 0, eventT = 25, blackout = 0, steps = 0, hudLie = 0, wobble = 0;
+// the mind lies: footsteps that stop when you stop, a HUD that changes, a voice that knows you
+function psychEvent() {
+  const e = (Math.random() * 5) | 0;
+  if (e === 0) { steps = 8; say("Arkanda ayak sesleri. Sen durduğunda onlar da duruyor.", 5); }
+  else if (e === 1) { hudLie = 4; say("Bir an... notlarının sayısı değişti mi?", 3); }
+  else if (e === 2) { const t = tourists.length ? null : 1; ghost = { x: P.x + Math.cos(P.ang) * 320, y: P.y + Math.sin(P.ang) * 320, c: "#f0e6c8", l: 4, self: t }; say("İleride biri duruyor. Senin kıyafetlerini giyiyor.", 5); }
+  else if (e === 3) { wobble = 6; say("Mağara nefes alıyor. Duvarlar seninle birlikte genişleyip daralıyor.", 5); }
+  else { S.lightOn && (flicker = 1.5); say(["Telsizden kendi sesin geliyor: \"Geri dönme. Ben denedim.\"", "Taşa kazınmış yeni bir isim fark ettin. Seninki. Tarih: yarın.", "Saatine baktın. 03:12. Elif'in son kaydının saati. Saat ilerlemiyor."][(Math.random() * 3) | 0], 6); }
+  S.sanity -= 5;
+}
 
 function freshState() { return { zone: 0, hp: 100, bat: 100, sanity: 100, notes: [], solved: [], lightOn: true, alone: false }; }
 function save() { try { localStorage.setItem("sondoong", JSON.stringify(S)); } catch (e) {} }
@@ -223,7 +233,8 @@ window.closePanels = closePanels;
 function showNote(id) {
   const n = NOTES[id];
   if (!S.notes.includes(id)) { S.notes.push(id); save(); }
-  document.getElementById("noteT").textContent = n[1]; document.getElementById("noteB").textContent = n[2];
+  document.getElementById("noteT").textContent = n[1];
+  document.getElementById("noteB").textContent = n[2] + (S.sanity < 50 ? "\n\n" + ["(Kenarda, senin el yazınla: 'bunu daha önce okudun.')", "(Satırların arasında biri adını yazmış. Tekrar tekrar.)", "(Bu notu sen mi yazdın? Mürekkep hâlâ ıslak.)"][id % 3] : "");
   openPanel("note");
 }
 function showJournal() {
@@ -274,7 +285,7 @@ function ending() {
 }
 function death(why) {
   running = false;
-  document.getElementById("endT").textContent = "KARANLIK SENİ ALDI";
+  document.getElementById("endT").textContent = "AKLINI KAYBETTİN";
   document.getElementById("endB").textContent = why + "\n\nGrubun yedinci üyesi olarak listeye eklendin.\nKayıt noktası: bu bölgenin başı.";
   S.hp = 100; S.sanity = 70; S.bat = Math.max(S.bat, 50); save();
   openPanel("end");
@@ -317,13 +328,13 @@ function update(dt) {
   if (S.lightOn) { S.bat -= dt * 1.1; if (S.bat <= 0) { S.bat = 0; S.lightOn = false; say("Fenerin pili bitti.", 3); } }
   const dark = !S.lightOn;
   S.sanity = Math.max(0, Math.min(100, S.sanity + (dark ? -2.2 : 0.4) * dt * (zone.monsters ? 1 : 0.3)));
-  if (S.sanity <= 0) { S.hp -= 6 * dt; if (Math.random() < dt) say("Duvarlar adını söylüyor.", 2); }
+  if (S.sanity <= 0) return death("Kendi adını hatırlamaya çalıştın. Gelmedi. Duvarlar onu senin yerine söyledi.");
 
   // pickups
   for (let k = items.length - 1; k >= 0; k--) {
     const it = items[k]; if (Math.hypot(it.x - P.x, it.y - P.y) > 18) continue;
     if (it.type === "battery") { S.bat = Math.min(100, S.bat + 35); items.splice(k, 1); say("Pil buldun. (+35)", 2); sfx("pick"); }
-    else if (it.type === "med") { S.hp = Math.min(100, S.hp + 30); S.sanity = Math.min(100, S.sanity + 15); items.splice(k, 1); say("İlk yardım çantası. (+30)", 2); sfx("pick"); }
+    else if (it.type === "med") { S.sanity = Math.min(100, S.sanity + 30); items.splice(k, 1); say(["Cebinde bir fotoğraf buldun: evdekiler. Nefesin düzeldi.", "Bir müzik kutusu. Tanıdık bir melodi.", "Kendi yazınla bir not: 'Gerçek olan sensin.'"][(Math.random() * 3) | 0], 3); sfx("pick"); }
   }
 
   // tourists follow and vanish one by one
@@ -358,7 +369,15 @@ function update(dt) {
     if (lit) { m.seen = Math.min(1, m.seen + dt * 2); m.x -= dxp / d * 40 * dt; m.y -= dyp / d * 40 * dt; }
     else if (d < 420) { const s = (dark ? 105 : 72) * dt; moveCircle(m, dxp / d * s, dyp / d * s, 10); m.seen = Math.max(0, m.seen - dt); }
     else { moveCircle(m, Math.sin(time * .7 + m.hx) * 30 * dt, Math.cos(time * .5 + m.hy) * 30 * dt, 10); }
-    if (d < 20) { S.hp -= 28 * dt; if (P.hurt <= 0) sfx("hurt"); S.sanity -= 10 * dt; P.hurt = 0.3; }
+    if (lit && m.seen > 0.5) { // looked at directly, it was never there
+      const a = Math.random() * 7; m.x = P.x + Math.cos(a) * 500; m.y = P.y + Math.sin(a) * 500; if (solid(m.x, m.y)) { m.x = m.hx; m.y = m.hy; } m.seen = 0;
+    }
+    if (d < 200) S.sanity -= (200 - d) / 200 * 3 * dt;
+    if (d < 22) { // it reaches you: no wound, only the certainty that someone was there
+      S.sanity -= 14; flicker = 0.8; blackout = 0.6; sfx("heart");
+      say(["Kulağının dibinde biri nefes aldı. Döndüğünde kimse yoktu.", "Biri omzuna dokundu. Elini tanıyorsun. Sena'nın eli.", "Bir an kendi sırtını gördün. Sonra yine yalnızdın.", "\"Sen de buradaydın,\" dedi bir ses. \"Hep buradaydın.\""][(Math.random() * 4) | 0], 5);
+      const a = Math.random() * 7; m.x = P.x + Math.cos(a) * 520; m.y = P.y + Math.sin(a) * 520; if (solid(m.x, m.y)) { m.x = m.hx; m.y = m.hy; }
+    }
   }
   // heartbeat speeds up as the nearest shadow closes in
   const near = monsters.reduce((a, m) => Math.min(a, Math.hypot(m.x - P.x, m.y - P.y)), 1e9);
@@ -373,13 +392,14 @@ function update(dt) {
         ghost = { x: P.x + Math.cos(a) * dd, y: P.y + Math.sin(a) * dd, c: cols[k], l: 3 };
         say(`${names[k]}: "${["Neden beni bıraktın?", "Burası çok soğuk...", "Arkana bakma.", "Kapıyı aç. Lütfen.", "Hâlâ buradayız. Duvarların içinde.", "Sen de geleceksin."][(Math.random() * 6) | 0]}"`, 4);
         sfx("vanish");
-      } else if (S.lightOn) { scare = 0.35; flicker = 0.5; S.sanity -= 6; sfx("hurt"); tone(60, 1, "sawtooth", 0.15, 30); }
+      } else psychEvent();
     }
   }
   if (ghost) { const gd = Math.hypot(ghost.x - P.x, ghost.y - P.y); ghost.l -= dt * (gd < 90 ? 4 : 1); if (ghost.l <= 0) ghost = null; }
-  if (scare > 0) scare -= dt;
+  if (blackout > 0) blackout -= dt; if (hudLie > 0) hudLie -= dt; if (wobble > 0) wobble -= dt;
+  if (steps > 0) { steps -= dt; const moving = keys.w || keys.a || keys.s || keys.d || keys.arrowup || keys.arrowdown || keys.arrowleft || keys.arrowright; if (moving && (heartT2 -= dt) <= 0) { tone(90, 0.08, "triangle", 0.12); heartT2 = 0.42; } }
   if (P.hurt > 0) P.hurt -= dt;
-  if (S.hp <= 0) return death(["Soğuk eller seni duvarın içine çekti.", "Karanlıkta bir şey adını bildi."][(Math.random() * 2) | 0]);
+
 
   particles.forEach(p => { p.x += p.vx * dt; p.y += p.vy * dt; p.l -= dt; }); particles = particles.filter(p => p.l > 0);
   if (flicker > 0) flicker -= dt;
@@ -390,6 +410,8 @@ function update(dt) {
 
 function draw() {
   cam.x = P.x - W / 2; cam.y = P.y - H / 2;
+  const breathe = (wobble > 0 ? 0.03 : 0) + (S.sanity < 35 ? (35 - S.sanity) / 900 : 0);
+  ctx.setTransform(1 + Math.sin(time * 1.3) * breathe, 0, Math.sin(time * .7) * breathe * .5, 1 + Math.cos(time * 1.1) * breathe, -Math.sin(time * 1.3) * breathe * W / 2, -Math.cos(time * 1.1) * breathe * H / 2);
   ctx.fillStyle = zone.wall; ctx.fillRect(0, 0, W, H);
   const x0 = Math.max(0, Math.floor(cam.x / T)), y0 = Math.max(0, Math.floor(cam.y / T)), x1 = Math.min(zone.w, x0 + W / T + 2), y1 = Math.min(zone.h, y0 + H / T + 2);
   for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
@@ -410,7 +432,7 @@ function draw() {
     const sx = it.x - cam.x, sy = it.y - cam.y;
     if (it.type === "note") { ctx.fillStyle = "#e8dcb0"; ctx.fillRect(sx - 6, sy - 8, 12, 16); }
     if (it.type === "battery") { ctx.fillStyle = "#e0d040"; ctx.fillRect(sx - 4, sy - 7, 8, 14); }
-    if (it.type === "med") { ctx.fillStyle = "#eee"; ctx.fillRect(sx - 7, sy - 7, 14, 14); ctx.fillStyle = "#c22"; ctx.fillRect(sx - 2, sy - 5, 4, 10); ctx.fillRect(sx - 5, sy - 2, 10, 4); }
+    if (it.type === "med") { ctx.fillStyle = "#eee"; ctx.fillRect(sx - 8, sy - 6, 16, 12); ctx.fillStyle = "#6a8fb0"; ctx.fillRect(sx - 6, sy - 4, 12, 8); ctx.fillStyle = "#f0e6c8"; ctx.beginPath(); ctx.arc(sx - 2, sy, 2, 0, 7); ctx.arc(sx + 3, sy, 2, 0, 7); ctx.fill(); }
     if (it.type === "gate" || it.type === "exit") {
       const c = ["#ccc", "#5f5", "#59f", "#c6f", "#f53", "#9ef"][it.type === "exit" ? 0 : it.id];
       ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.shadowColor = c; ctx.shadowBlur = 20 + Math.sin(time * 3) * 8;
@@ -445,10 +467,12 @@ function draw() {
   if (zone.glow) for (let k = 0; k < zone.deco.length; k += 6) { const d = zone.deco[k]; glow(d.x - cam.x, d.y - cam.y, 40, 0.35 + 0.2 * Math.sin(time * 2 + d.k * 9)); }
   ctx.drawImage(shade, 0, 0);
   if (ghost) { ctx.globalAlpha = Math.min(1, ghost.l) * (0.4 + Math.random() * .25); ctx.fillStyle = ghost.c; ctx.beginPath(); ctx.ellipse(ghost.x - cam.x, ghost.y - cam.y, 8, 16, 0, 0, 7); ctx.shadowColor = ghost.c; ctx.shadowBlur = 25; ctx.fill(); ctx.shadowBlur = 0; ctx.fillStyle = "#000"; ctx.fillRect(ghost.x - cam.x - 4, ghost.y - cam.y - 8, 3, 4); ctx.fillRect(ghost.x - cam.x + 1, ghost.y - cam.y - 8, 3, 4); ctx.globalAlpha = 1; }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (zone.tint) { ctx.fillStyle = zone.tint; ctx.fillRect(0, 0, W, H); }
   if (zone.dust) { ctx.fillStyle = "rgba(230,140,90,0.35)"; for (let k = 0; k < 160; k++) { const x = ((k * 97.3 + time * (60 + k % 7 * 20) - cam.x * .3) % W + W) % W, y = ((k * 53.1 + Math.sin(time + k) * 20 - cam.y * .3) % H + H) % H; ctx.fillRect(x, y, 2, 1); } }
   if (S.sanity < 40) { ctx.fillStyle = `rgba(80,0,0,${(40 - S.sanity) / 160 * (1 + Math.sin(time * 6) * .3)})`; ctx.fillRect(0, 0, W, H); }
-  if (scare > 0) { // a pale face fills the beam for a split second
+  if (blackout > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, blackout * 2)})`; ctx.fillRect(0, 0, W, H); }
+  if (false) {
     const cx = W / 2 + Math.cos(P.ang) * 150, cy = H / 2 + Math.sin(P.ang) * 150, R = 90;
     ctx.fillStyle = "rgba(220,215,200,0.92)"; ctx.beginPath(); ctx.ellipse(cx, cy, R * .75, R, 0, 0, 7); ctx.fill();
     ctx.fillStyle = "#000"; for (const [ex, ey, rx, ry] of [[-25, -18, 14, 20], [25, -18, 14, 20], [0, 40, 18, 30]]) { ctx.beginPath(); ctx.ellipse(cx + ex, cy + ey, rx, ry, 0, 0, 7); ctx.fill(); }
@@ -459,7 +483,7 @@ function draw() {
   for (const it of items) if ((it.type === "note" || it.type === "gate" || it.type === "exit") && Math.hypot(it.x - P.x, it.y - P.y) < 48) { ctx.fillStyle = "#fff"; ctx.font = "13px monospace"; ctx.fillText("[E]", it.x - cam.x - 10, it.y - cam.y - 26); }
 
   const bar = (v, c) => `<span class="bar"><i style="width:${Math.max(0, v)}%;background:${c}"></i></span>`;
-  document.getElementById("hud").innerHTML = `Sağlık ${bar(S.hp, "#c44")}<br>Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/5</small>`;
+  document.getElementById("hud").innerHTML = `Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${hudLie > 0 ? NOTES.length + 1 : S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/5</small>`;
 }
 
 function frame(t) {
