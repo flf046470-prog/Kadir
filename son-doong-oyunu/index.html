@@ -41,9 +41,9 @@ Altı kişilik turist grubu rehberle birlikte içeri giriyor.
 Kimse geri dönmeyecek. Biri hariç... belki.
 
 <small>WASD / Ok tuşları: yürü   •   Fare: fener yönü   •   F: feneri aç/kapat
-E: incele / etkileşim   •   J: günlük (bulunan notlar)   •   Esc: kapat
+E: incele / etkileşim   •   Boşluk (dururken, ışık açıkken): derin nefes al   •   J: günlük (bulunan notlar)   •   Esc: kapat
 
-Burada seni yaralayan hiçbir şey yok. Sadece aklın. Işık gerçeği gösterir; karanlık ise sana ne görmek istediğini.
+Kulaklıkla oyna. Burada seni yaralayan hiçbir şey yok. Sadece aklın. Işık gerçeği gösterir; karanlık ise sana ne görmek istediğini.
 Şifrelerin cevapları oyunun içinde saklı. Hiçbir ipucu boşuna değildir.</small></p>
   <button id="startBtn">Mağaraya gir</button> <button id="contBtn" style="display:none">Kaldığın yerden devam</button>
 </div></div>
@@ -89,9 +89,9 @@ const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
 // ---------- zones ----------
 const ZONES = [
-  { name: "Giriş Galerisi", sub: "Hang Sơn Đoòng — 0 m", seed: 11, w: 90, h: 40, fill: 0.40,
+  { name: "Giriş Galerisi", sub: "Phong Nha-Kẻ Bàng, Quảng Bình • nem %98, 23 °C", seed: 11, w: 90, h: 40, fill: 0.40,
     floor: "#3a342b", wall: "#0f0d0b", ambient: 0.17, monsters: 0, tint: null },
-  { name: "Dolin Ormanı", sub: "−420 m • tavandan sızan ışık, dev eğrelti otları", seed: 23, w: 110, h: 50, fill: 0.43,
+  { name: "Dolin Ormanı", sub: "Dolin 2 • çökmüş tavandan sızan ışık, 30 m'lik ağaçlar", seed: 23, w: 110, h: 50, fill: 0.43,
     floor: "#17301c", wall: "#081208", ambient: 0.16, monsters: 4, tint: "rgba(40,120,50,0.10)" },
   { name: "Yeraltı Okyanusu", sub: "−1100 m • sonu görünmeyen siyah su", seed: 37, w: 110, h: 56, fill: 0.47,
     floor: "#122030", wall: "#03070d", ambient: 0.08, monsters: 6, tint: "rgba(20,60,140,0.12)", water: true },
@@ -105,7 +105,7 @@ const ZONES = [
 
 // notes: [zoneIndex, title, body]
 const NOTES = [
-  [0, "Tur broşürü", "SON DOONG KEŞİF TURU\nRehber: Bay Hồ.  Grup: Elif, Marco, Aiko, Daniel, Sena ve sen.\n\n\"Mağaranın adı 'Dağ Nehri Mağarası' demektir. Kelimenin tam anlamıyla: HANG = mağara, SƠN = dağ, ĐOÒNG = nehir.\nVietnamcadaki işaretleri unutun; taşa yazılan her şey yalın harflerle yazılır.\""],
+  [0, "Tur broşürü", "SON DOONG KEŞİF TURU — 4 gün / 3 gece\nGiriş, 1990'ların başında yağmurdan korunmak için kayalara sığınan yerel bir adam, Hồ Khanh tarafından bulundu; 2009'da Howard Limbert önderliğindeki İngiliz Mağara Araştırma Derneği (BCRA) ekibi mağarayı haritaladı. En az 5 km uzunluk, yer yer 200 m'yi aşan tavan. İki dolinde tavan çökmüş; içeride kendi ormanı ve bulutları var.\n\nKurallar: Gruptan ayrılmayın. Telsiz kanalı 3. Kaybolursanız olduğunuz yerde durun ve ışığınızı kapatmayın.\n\nRehber: Bay Hồ.  Grup: Elif, Marco, Aiko, Daniel, Sena ve sen.\n\n\"Mağaranın adı 'Dağ Nehri Mağarası' demektir. Kelimenin tam anlamıyla: HANG = mağara, SƠN = dağ, ĐOÒNG = nehir.\nVietnamcadaki işaretleri unutun; taşa yazılan her şey yalın harflerle yazılır.\""],
   [0, "Rehberin defteri (yırtık)", "...2009'da haritalandı diyorlar. Yalan. Biz daha eskiyiz.\nKapılar beş. Her kapı bir öncekinin cevabını bilmeyene kapalıdır.\nYeşil kapının anahtarı mağaranın kendi adıdır — ama yalnızca SON kelimesi."],
   [1, "Elif'in telefonu", "Son kayıt, 03:12\n\"Ağaçların arasında birileri var... bizim gibi yürümüyorlar.\nKapının üstünde harfler var, her harf başka bir harfe kaymış. Anahtar kelimeyi tekrar tekrar altına yaz, her harfi anahtarın harfi kadar GERİ say. A=0 diye düşün...\""],
   [1, "Kazınmış taş", "VIGENÈRE BİLİYORDU.\nSarkıtlar sayılmaz, harfler sayılır. Z'den sonra yine A gelir."],
@@ -141,8 +141,34 @@ function audioInit() {
     AC = new (window.AudioContext || window.webkitAudioContext)();
     droneGain = AC.createGain(); droneGain.gain.value = 0.05; droneGain.connect(AC.destination);
     [43.65, 46.25, 65.4].forEach(f => { const o = AC.createOscillator(), lf = AC.createOscillator(), lg = AC.createGain(); o.type = "sawtooth"; o.frequency.value = f; lf.frequency.value = 0.07 + Math.random() * 0.1; lg.gain.value = 1.5; lf.connect(lg).connect(o.frequency); const flt = AC.createBiquadFilter(); flt.type = "lowpass"; flt.frequency.value = 220; o.connect(flt).connect(droneGain); o.start(); lf.start(); });
+    audioExtras();
   } catch (e) { AC = null; }
 }
+let noiseBuf = null, verb = null;
+function audioExtras() {
+  const n = AC.sampleRate * 2; noiseBuf = AC.createBuffer(1, n, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  // generated cave impulse response: long, dark echo
+  const L = AC.sampleRate * 3.5, ir = AC.createBuffer(2, L, AC.sampleRate);
+  for (let c = 0; c < 2; c++) { const ch = ir.getChannelData(c); for (let i = 0; i < L; i++) ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / L, 3.2); }
+  verb = AC.createConvolver(); verb.buffer = ir; const vg = AC.createGain(); vg.gain.value = 0.55; verb.connect(vg).connect(AC.destination);
+}
+// one sound in space: pan -1..1, optional echo, filtered noise or tone
+function noise(dur, freq, q, vol, pan = 0, wet = true, attack = 0.01) {
+  if (!AC || !noiseBuf) return; const src = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(), p = AC.createStereoPanner(), t = AC.currentTime;
+  src.buffer = noiseBuf; src.loop = true; f.type = "bandpass"; f.frequency.value = freq; f.Q.value = q; p.pan.value = pan;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + attack); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f).connect(g).connect(p); p.connect(AC.destination); if (wet) p.connect(verb); src.start(t, Math.random()); src.stop(t + dur + 0.05);
+}
+function ping(freq, dur, vol, pan = 0) {
+  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), p = AC.createStereoPanner(), t = AC.currentTime;
+  o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * 0.6, t + dur); p.pan.value = pan;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(p); p.connect(AC.destination); verb && p.connect(verb); o.start(t); o.stop(t + dur);
+}
+const drip = () => ping(1400 + Math.random() * 1600, 0.12, 0.05, Math.random() * 2 - 1);
+const footstep = (pan = 0, vol = 0.05) => noise(0.09, 300 + Math.random() * 200, 1.2, vol, pan, true, 0.005);
+function breath(fast) { noise(fast ? 0.45 : 0.9, 900, 0.6, fast ? 0.05 : 0.025, 0, false, fast ? 0.15 : 0.4); setTimeout(() => noise(fast ? 0.5 : 1.1, 600, 0.6, fast ? 0.04 : 0.02, 0, false, 0.2), (fast ? 550 : 1300)); }
+// a whisper: shaped noise in the speech band, from a direction
+function whisper(pan) { for (let k = 0; k < 6; k++) setTimeout(() => noise(0.12 + Math.random() * 0.15, 2200 + Math.random() * 1800, 3, 0.03, pan), k * 140 + Math.random() * 60); }
 function tone(freq, dur, type = "sine", vol = 0.2, slide = 0) {
   if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
   o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
@@ -161,6 +187,7 @@ function sfx(k) {
 // ---------- state ----------
 let S, map, zone, items, monsters, tourists, particles = [];
 const keys = {}; let mouse = { x: 0, y: 0 };
+let stepT = 0, dripT = 1, breathT = 2, whisperT = 15, voiceT = 40, fakeT = 30, aloneT = 0, calm = 0, phantom = [];
 let running = false, last = 0, flicker = 0, ghost = null, scare = 0, eventT = 25, blackout = 0, steps = 0, hudLie = 0, wobble = 0;
 // the mind lies: footsteps that stop when you stop, a HUD that changes, a voice that knows you
 function psychEvent() {
@@ -205,7 +232,7 @@ function buildZone(i) {
   zone.deco = []; for (let k = 0; k < 220; k++) { const f = floors[(r() * floors.length) | 0]; if (f) zone.deco.push({ x: f[0] * T + r() * T, y: f[1] * T + r() * T, s: r(), k: r() }); }
 
   monsters = []; for (let k = 0; k < zone.monsters; k++) { const p = pick(); monsters.push({ ...p, hx: p.x, hy: p.y, vx: 0, vy: 0, seen: 0 }); }
-  P.x = zone.start.x; P.y = zone.start.y;
+  P.x = zone.start.x; P.y = zone.start.y; phantom = [];
   tourists = [];
   if (i === 0 && !S.alone) {
     ["Rehber Hồ", "Elif", "Marco", "Aiko", "Daniel", "Sena"].forEach((n, k) => tourists.push({ name: n, x: P.x + 40 + k * 22, y: P.y + (k % 2 ? 18 : -18), gone: false, col: ["#e8c070", "#e07a7a", "#7ab0e0", "#e0a0d0", "#90d090", "#d0d070"][k] }));
@@ -295,6 +322,7 @@ function death(why) {
 addEventListener("keydown", e => {
   if (e.key === "Escape") { closePanels(); return; }
   if (!running || panelOpen) return;
+  if (e.key === " ") e.preventDefault();
   keys[e.key.toLowerCase()] = true;
   if (e.key === "f" || e.key === "F") { S.lightOn = !S.lightOn; }
   if (e.key === "j" || e.key === "J") showJournal();
@@ -333,6 +361,7 @@ function update(dt) {
   // pickups
   for (let k = items.length - 1; k >= 0; k--) {
     const it = items[k]; if (Math.hypot(it.x - P.x, it.y - P.y) > 18) continue;
+    if (it.fake) { items.splice(k, 1); S.sanity -= 6; say("Avucunu açtın. Hiçbir şey yok. Hiç olmamıştı.", 3); continue; }
     if (it.type === "battery") { S.bat = Math.min(100, S.bat + 35); items.splice(k, 1); say("Pil buldun. (+35)", 2); sfx("pick"); }
     else if (it.type === "med") { S.sanity = Math.min(100, S.sanity + 30); items.splice(k, 1); say(["Cebinde bir fotoğraf buldun: evdekiler. Nefesin düzeldi.", "Bir müzik kutusu. Tanıdık bir melodi.", "Kendi yazınla bir not: 'Gerçek olan sensin.'"][(Math.random() * 3) | 0], 3); sfx("pick"); }
   }
@@ -382,6 +411,35 @@ function update(dt) {
   // heartbeat speeds up as the nearest shadow closes in
   const near = monsters.reduce((a, m) => Math.min(a, Math.hypot(m.x - P.x, m.y - P.y)), 1e9);
   if (near < 360 && (heartT -= dt) <= 0) { sfx("heart"); heartT = 0.35 + near / 360 * 1.2; }
+  // --- sound of the place ---
+  const moving = dx || dy;
+  if (moving && (stepT -= dt) <= 0) { footstep(0, 0.04); stepT = zone.waterMap[Math.floor(P.y / T)]?.[Math.floor(P.x / T)] ? 0.62 : 0.45; }
+  if ((dripT -= dt) <= 0) { drip(); dripT = 0.4 + Math.random() * 2.5; }
+  const fear = 1 - S.sanity / 100;
+  if ((breathT -= dt) <= 0) { breath(fear > 0.5); breathT = fear > 0.5 ? 1.3 : 3.2; }
+  // --- isolation itself wears you down; breathing deliberately brings you back ---
+  if (S.alone || S.zone > 0) { aloneT += dt; S.sanity -= 0.12 * dt; }
+  const near0 = monsters.reduce((a, m) => Math.min(a, Math.hypot(m.x - P.x, m.y - P.y)), 1e9);
+  if (keys[" "] && !moving && S.lightOn && near0 > 220) {
+    S.sanity = Math.min(100, S.sanity + 4 * dt); calm += dt;
+    if (calm > 0.05 && calm < 0.1) say("Dört say, nefes al... dört say, tut... dört say, ver. Burası gerçek. Sen gerçeksin.", 4);
+  } else calm = 0;
+  // --- tier 1 (<75): whispers from a direction you can turn toward ---
+  if (S.sanity < 75 && (whisperT -= dt) <= 0) { whisper(Math.random() * 2 - 1); whisperT = 8 + S.sanity / 6 + Math.random() * 8; }
+  // --- tier 2 (<60): things that are not there — a battery that dissolves in your hand ---
+  if (S.sanity < 60 && (fakeT -= dt) <= 0) {
+    fakeT = 25 + Math.random() * 20; const a = Math.random() * 7;
+    const fx = P.x + Math.cos(a) * 110, fy = P.y + Math.sin(a) * 110; if (!solid(fx, fy)) items.push({ x: fx, y: fy, type: "battery", fake: true });
+  }
+  // --- tier 3 (<50): familiar voices that point the wrong way ---
+  if (S.sanity < 50 && (voiceT -= dt) <= 0) {
+    voiceT = 30 + Math.random() * 25;
+    const wrong = zone.exit.x > P.x ? "sola" : "sağa", who = ["Sena", "Marco", "Elif", "Rehber Hồ"][(Math.random() * 4) | 0];
+    say(`${who} (uzaktan, yankılanarak): "Buradayım! ${wrong[0].toUpperCase() + wrong.slice(1)} gel, çıkış bu tarafta!"`, 5); whisper(wrong === "sola" ? -0.9 : 0.9);
+  }
+  // --- tier 4 (<40): the cave rearranges itself — walls that are only in your eyes ---
+  if (S.sanity < 40 && Math.random() < dt * 0.5) { const a = Math.random() * 7, d0 = 80 + Math.random() * 120; phantom.push({ x: Math.floor((P.x + Math.cos(a) * d0) / T), y: Math.floor((P.y + Math.sin(a) * d0) / T), l: 4 + Math.random() * 4 }); }
+  phantom.forEach(p => p.l -= dt); phantom = phantom.filter(p => p.l > 0);
   // horror events: ghosts of the vanished, sudden faces in the dark
   if (S.alone || S.zone > 0) {
     if ((eventT -= dt) <= 0) {
@@ -439,6 +497,7 @@ function draw() {
       ctx.beginPath(); ctx.arc(sx, sy, it.id >= 4 ? 34 : 22, 0, 7); ctx.stroke(); ctx.shadowBlur = 0;
     }
   }
+  for (const p of phantom) { ctx.fillStyle = zone.wall; ctx.globalAlpha = Math.min(1, p.l) * (0.75 + Math.random() * 0.25); ctx.fillRect(p.x * T - cam.x, p.y * T - cam.y, T + 1, T + 1); ctx.globalAlpha = 1; }
   tourists.forEach(t => { if (!t.gone) { ctx.fillStyle = t.col; ctx.beginPath(); ctx.arc(t.x - cam.x, t.y - cam.y, 7, 0, 7); ctx.fill(); } });
   particles.forEach(p => { ctx.fillStyle = p.c; ctx.globalAlpha = Math.max(0, p.l); ctx.fillRect(p.x - cam.x, p.y - cam.y, 2, 2); }); ctx.globalAlpha = 1;
   // monsters: tall shadows with eyes
@@ -459,7 +518,8 @@ function draw() {
   glow(W / 2, H / 2, 70, 0.7);
   const fl = flicker > 0 && Math.random() < 0.6;
   if (S.lightOn && !fl) {
-    const len = 180 + S.bat * 1.4 + (Math.random() * 6), spread = 0.45;
+    const weak = S.bat < 25 && Math.random() < (25 - S.bat) / 60;
+    const len = (weak ? 90 : 180 + S.bat * 1.4) + (Math.random() * 6), spread = 0.45;
     const g = sctx.createRadialGradient(W / 2, H / 2, 10, W / 2, H / 2, len); g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
     sctx.fillStyle = g; sctx.beginPath(); sctx.moveTo(W / 2, H / 2); sctx.arc(W / 2, H / 2, len, P.ang - spread, P.ang + spread); sctx.closePath(); sctx.fill();
   }
@@ -470,6 +530,7 @@ function draw() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   if (zone.tint) { ctx.fillStyle = zone.tint; ctx.fillRect(0, 0, W, H); }
   if (zone.dust) { ctx.fillStyle = "rgba(230,140,90,0.35)"; for (let k = 0; k < 160; k++) { const x = ((k * 97.3 + time * (60 + k % 7 * 20) - cam.x * .3) % W + W) % W, y = ((k * 53.1 + Math.sin(time + k) * 20 - cam.y * .3) % H + H) % H; ctx.fillRect(x, y, 2, 1); } }
+  { const v = ctx.createRadialGradient(W / 2, H / 2, Math.max(60, H * (0.55 - (1 - S.sanity / 100) * 0.4)), W / 2, H / 2, Math.max(W, H) * 0.75); v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, `rgba(0,0,0,${0.35 + (1 - S.sanity / 100) * 0.6})`); ctx.fillStyle = v; ctx.fillRect(0, 0, W, H); }
   if (S.sanity < 40) { ctx.fillStyle = `rgba(80,0,0,${(40 - S.sanity) / 160 * (1 + Math.sin(time * 6) * .3)})`; ctx.fillRect(0, 0, W, H); }
   if (blackout > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, blackout * 2)})`; ctx.fillRect(0, 0, W, H); }
   if (false) {
@@ -483,7 +544,7 @@ function draw() {
   for (const it of items) if ((it.type === "note" || it.type === "gate" || it.type === "exit") && Math.hypot(it.x - P.x, it.y - P.y) < 48) { ctx.fillStyle = "#fff"; ctx.font = "13px monospace"; ctx.fillText("[E]", it.x - cam.x - 10, it.y - cam.y - 26); }
 
   const bar = (v, c) => `<span class="bar"><i style="width:${Math.max(0, v)}%;background:${c}"></i></span>`;
-  document.getElementById("hud").innerHTML = `Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${hudLie > 0 ? NOTES.length + 1 : S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/5</small>`;
+  document.getElementById("hud").innerHTML = `Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>${S.sanity < 25 && Math.random() < 0.3 ? "Sen?&nbsp;" : "Akıl&nbsp;&nbsp;"} ${bar(S.sanity < 25 ? S.sanity + Math.random() * 30 : S.sanity, "#8af")}<br><small>Notlar: ${hudLie > 0 ? NOTES.length + 1 : S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/5</small>`;
 }
 
 function frame(t) {
