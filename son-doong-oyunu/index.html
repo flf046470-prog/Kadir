@@ -90,7 +90,7 @@ const norm = s => s.toUpperCase().replace(/[^A-Z0-9]/g, "");
 // ---------- zones ----------
 const ZONES = [
   { name: "Giriş Galerisi", sub: "Hang Sơn Đoòng — 0 m", seed: 11, w: 90, h: 40, fill: 0.40,
-    floor: "#2a2620", wall: "#0f0d0b", ambient: 0.10, monsters: 0, tint: null },
+    floor: "#3a342b", wall: "#0f0d0b", ambient: 0.17, monsters: 0, tint: null },
   { name: "Dolin Ormanı", sub: "−420 m • tavandan sızan ışık, dev eğrelti otları", seed: 23, w: 110, h: 50, fill: 0.43,
     floor: "#17301c", wall: "#081208", ambient: 0.16, monsters: 4, tint: "rgba(40,120,50,0.10)" },
   { name: "Yeraltı Okyanusu", sub: "−1100 m • sonu görünmeyen siyah su", seed: 37, w: 110, h: 56, fill: 0.47,
@@ -99,6 +99,8 @@ const ZONES = [
     floor: "#251633", wall: "#0b0412", ambient: 0.12, monsters: 8, tint: "rgba(150,40,200,0.10)", glow: true },
   { name: "Kapı Odası", sub: "−∞ • taşlar nefes alıyor", seed: 71, w: 70, h: 40, fill: 0.36,
     floor: "#2b1410", wall: "#0d0303", ambient: 0.14, monsters: 5, tint: "rgba(200,60,20,0.10)" },
+  { name: "Mars — Tharsis", sub: "Olympus Mons eteği • ince hava, kızıl toz, iki küçük ay", seed: 97, w: 100, h: 50, fill: 0.38,
+    floor: "#6a2e1a", wall: "#1e0b05", ambient: 0.30, monsters: 7, tint: "rgba(220,90,30,0.14)", dust: true },
 ];
 
 // notes: [zoneIndex, title, body]
@@ -113,6 +115,8 @@ const NOTES = [
   [3, "Biyolüminesan duvar", "Burada nefes alan bir şey var. Duvarlar ılık. Aynı sembol tekrar ediyor: ◯ ve iki küçük nokta."],
   [4, "Sena'nın son satırları", "\"Kapı bir yer adı istiyor. Kızıl gezegenin en yüksek yeri.\nAma taştaki yazı bir AYNADAN okunuyor: alfabe ters dönmüş. A, Z olur. B, Y olur.\nAynanın önceki dört cevabı da bildiği söyleniyor... sadece bilenler geçer.\""],
   [4, "Rehber Hồ", "Seni bekledim. Diğerleri geçti. Onlar artık kapının öbür tarafında, kızıl tozun altında.\nSen de sorulara cevap verdin mi? Her biri sana bir şey öğretti: anahtarı, sırayı, sesi, aynayı."],
+  [5, "Tozun içindeki tablet", "Yerden yarısı çıkmış metal bir tablet. Üzerinde beşe beşlik bir ızgara çizilmiş, satırlar ve sütunlar 1'den 5'e numaralı.\nNot: 'Yirmi altı harf yirmi beş odaya sığmaz. I ve J aynı odada uyur. Önce satır, sonra sütun.'"],
+  [5, "Beş kayıp turistin işaretleri", "Kayaya oyulmuş beş isim: HỒ • ELİF • MARCO • AİKO • DANİEL. Sena'nınki yarım kalmış.\nAltında: \"Bir sonraki kapı Güneş'in beşinci çocuğunun buzlu kızına açılır. Buzun altında bir okyanus var — tıpkı mağaradaki gibi. Orada bizi bekliyorlar.\""],
 ];
 
 // puzzles: one per zone 1..4, gate at the right end
@@ -124,9 +128,35 @@ const PUZZLES = {
   3: { title: "Işıyan Göz", body: "Dev, yarı canlı bir mantar kümesi yanıp sönüyor. Desen tekrar ediyor. Ne söylüyor?", cipher: "", morse: "PHOBOS", ans: hash("PHOBOS"),
        ok: "Mantarlar aynı anda sönüyor. Karanlıkta bir yol açılıyor." },
   4: { title: "Portal", body: "Halka şeklinde dev bir yapı. Merkezde ayna gibi bir taş. Üzerindeki yazı:", cipher: "LOBNKFH", ans: hash("OLYMPUS"),
+       ok: "Ayna taş çözülüyor. Halkanın içinden kızıl bir ufuk ve iki küçük ay görünüyor. Adım atıyorsun... ve nefesin donuyor." },
+  5: { title: "İkinci Portal", body: "Olympus Mons'un eteğinde, mağaradakinin ikizi olan bir halka. Taşa sayı çiftleri kazınmış:", cipher: "15 45 42 34 35 11", ans: hash("EUROPA"),
        ok: "" },
 };
 const MORSE = { P: ".--.", H: "....", O: "---", B: "-...", S: "..." };
+
+// ---------- audio (generated, no files) ----------
+let AC = null, droneGain = null, heartT = 0;
+function audioInit() {
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    droneGain = AC.createGain(); droneGain.gain.value = 0.05; droneGain.connect(AC.destination);
+    [43.65, 46.25, 65.4].forEach(f => { const o = AC.createOscillator(), lf = AC.createOscillator(), lg = AC.createGain(); o.type = "sawtooth"; o.frequency.value = f; lf.frequency.value = 0.07 + Math.random() * 0.1; lg.gain.value = 1.5; lf.connect(lg).connect(o.frequency); const flt = AC.createBiquadFilter(); flt.type = "lowpass"; flt.frequency.value = 220; o.connect(flt).connect(droneGain); o.start(); lf.start(); });
+  } catch (e) { AC = null; }
+}
+function tone(freq, dur, type = "sine", vol = 0.2, slide = 0) {
+  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+  o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur);
+}
+function sfx(k) {
+  if (k === "vanish") { tone(880, 1.6, "sawtooth", 0.08, 60); tone(93, 2, "square", 0.08); }
+  if (k === "wrong") tone(120, 0.6, "square", 0.1, 50);
+  if (k === "ok") { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.7, "triangle", 0.12), i * 140)); }
+  if (k === "pick") tone(1200, 0.15, "triangle", 0.08);
+  if (k === "heart") { tone(55, 0.18, "sine", 0.4); setTimeout(() => tone(50, 0.2, "sine", 0.3), 180); }
+  if (k === "hurt") tone(200, 0.3, "sawtooth", 0.12, 80);
+  if (k === "end") { [392, 494, 587, 784, 988].forEach((f, i) => setTimeout(() => tone(f, 2.5, "sine", 0.1), i * 400)); }
+}
 
 // ---------- state ----------
 let S, map, zone, items, monsters, tourists, particles = [];
@@ -223,11 +253,11 @@ function openPuzzle(i) {
 function submitPuzzle() {
   const p = PUZZLES[currentPz], v = norm(document.getElementById("pzIn").value);
   if (hash(v) === p.ans) {
-    S.solved.push(currentPz); save(); closePanels();
-    if (currentPz === 4) return ending();
+    S.solved.push(currentPz); save(); closePanels(); sfx("ok");
+    if (currentPz === 5) return ending();
     say(p.ok, 6); advance();
   } else {
-    S.sanity = Math.max(0, S.sanity - 8); flicker = 0.6;
+    S.sanity = Math.max(0, S.sanity - 8); flicker = 0.6; sfx("wrong");
     document.getElementById("pzR").innerHTML = `<small style="color:#e07a7a">${["Taş soğuyor. Yanlış.", "Bir şey karanlıkta kıkırdıyor.", "Hayır. Bir daha düşün.", "Kulağının dibinde biri fısıldıyor: 'yaklaştın mı sanıyorsun?'"][(Math.random() * 4) | 0]}</small>`;
   }
 }
@@ -237,8 +267,9 @@ document.getElementById("pzIn").addEventListener("keydown", e => { if (e.key ===
 function advance() { S.zone++; S.bat = Math.min(100, S.bat + 25); save(); fade = 1; setTimeout(() => buildZone(S.zone), 500); }
 function ending() {
   running = false;
-  document.getElementById("endT").textContent = "OLYMPUS MONS";
-  document.getElementById("endB").textContent = "Ayna taş çözülüyor. Halkanın içinde kızıl bir ufuk, iki küçük ay ve sonsuz bir toz fırtınası.\n\nAyağının altında beş çift ayak izi var. Hepsi aynı yöne gidiyor.\n\nArkanda mağara kapanırken bir ses duyuyorsun: \"Hoş geldin. Mars sadece ilk kapıydı.\"\n\n— SON —\n\nTebrikler. Bu şifreleri çözebilen çok az kişi oldu.";
+  document.getElementById("endT").textContent = "EUROPA";
+  document.getElementById("endB").textContent = "Halka buz mavisine dönüyor. Kızıl toz ayaklarının altından çekiliyor; yerine kilometrelerce kalınlıkta buz, tepende dev, çizgili bir Jüpiter.\n\nBuzun altından ışıklar yükseliyor. Altı ışık. Biri Sena'nın el fenerinin rengi.\n\nBir ses: \"Son Doong bir mağara değildi. Bir istasyondu. Sen de artık yolcusun.\"\n\n— SON —\n\nTebrikler. Beş kapının hepsini çözebilen çok az kişi oldu.";
+  sfx("end");
   openPanel("end"); try { localStorage.removeItem("sondoong"); } catch (e) {}
 }
 function death(why) {
@@ -291,8 +322,8 @@ function update(dt) {
   // pickups
   for (let k = items.length - 1; k >= 0; k--) {
     const it = items[k]; if (Math.hypot(it.x - P.x, it.y - P.y) > 18) continue;
-    if (it.type === "battery") { S.bat = Math.min(100, S.bat + 35); items.splice(k, 1); say("Pil buldun. (+35)", 2); }
-    else if (it.type === "med") { S.hp = Math.min(100, S.hp + 30); S.sanity = Math.min(100, S.sanity + 15); items.splice(k, 1); say("İlk yardım çantası. (+30)", 2); }
+    if (it.type === "battery") { S.bat = Math.min(100, S.bat + 35); items.splice(k, 1); say("Pil buldun. (+35)", 2); sfx("pick"); }
+    else if (it.type === "med") { S.hp = Math.min(100, S.hp + 30); S.sanity = Math.min(100, S.sanity + 15); items.splice(k, 1); say("İlk yardım çantası. (+30)", 2); sfx("pick"); }
   }
 
   // tourists follow and vanish one by one
@@ -304,7 +335,7 @@ function update(dt) {
     });
     const next = tourists.findIndex(t => !t.gone);
     if (next >= 0 && P.x > zone.vanishAt[next]) {
-      const t = tourists[next]; t.gone = true; flicker = 1.2;
+      const t = tourists[next]; t.gone = true; flicker = 1.2; sfx("vanish");
       for (let q = 0; q < 30; q++) particles.push({ x: t.x, y: t.y, vx: (Math.random() - .5) * 90, vy: (Math.random() - .5) * 90, l: 1.2, c: t.col });
       const lines = [
         "Fener bir an söndü. Yandığında Rehber Hồ yoktu. Sadece ipi yerde kıvrılıyordu.",
@@ -327,8 +358,11 @@ function update(dt) {
     if (lit) { m.seen = Math.min(1, m.seen + dt * 2); m.x -= dxp / d * 40 * dt; m.y -= dyp / d * 40 * dt; }
     else if (d < 420) { const s = (dark ? 105 : 72) * dt; moveCircle(m, dxp / d * s, dyp / d * s, 10); m.seen = Math.max(0, m.seen - dt); }
     else { moveCircle(m, Math.sin(time * .7 + m.hx) * 30 * dt, Math.cos(time * .5 + m.hy) * 30 * dt, 10); }
-    if (d < 20) { S.hp -= 28 * dt; S.sanity -= 10 * dt; P.hurt = 0.3; }
+    if (d < 20) { S.hp -= 28 * dt; if (P.hurt <= 0) sfx("hurt"); S.sanity -= 10 * dt; P.hurt = 0.3; }
   }
+  // heartbeat speeds up as the nearest shadow closes in
+  const near = monsters.reduce((a, m) => Math.min(a, Math.hypot(m.x - P.x, m.y - P.y)), 1e9);
+  if (near < 360 && (heartT -= dt) <= 0) { sfx("heart"); heartT = 0.35 + near / 360 * 1.2; }
   if (P.hurt > 0) P.hurt -= dt;
   if (S.hp <= 0) return death(["Soğuk eller seni duvarın içine çekti.", "Karanlıkta bir şey adını bildi."][(Math.random() * 2) | 0]);
 
@@ -353,6 +387,7 @@ function draw() {
     const sx = d.x - cam.x, sy = d.y - cam.y; if (sx < -20 || sy < -20 || sx > W + 20 || sy > H + 20) continue;
     if (S.zone === 1) { ctx.strokeStyle = `hsl(${110 + d.k * 30},45%,${18 + d.s * 14}%)`; ctx.lineWidth = 2; ctx.beginPath(); for (let b = 0; b < 5; b++) { const a = b * 1.25 + d.k * 6; ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a) * (8 + d.s * 10), sy + Math.sin(a) * (8 + d.s * 10)); } ctx.stroke(); }
     else if (S.zone === 3) { ctx.fillStyle = `hsla(${170 + d.k * 120},90%,60%,${0.3 + 0.3 * Math.sin(time * 2 + d.k * 9)})`; ctx.beginPath(); ctx.arc(sx, sy, 2 + d.s * 4, 0, 7); ctx.fill(); }
+    else if (S.zone === 5) { ctx.fillStyle = `hsl(14,45%,${12 + d.s * 10}%)`; ctx.beginPath(); ctx.arc(sx, sy, 2 + d.s * 6, 0, 7); ctx.fill(); }
     else { ctx.fillStyle = `rgba(0,0,0,${0.2 + d.s * .2})`; ctx.beginPath(); ctx.arc(sx, sy, 1 + d.s * 3, 0, 7); ctx.fill(); }
   }
   // items
@@ -362,9 +397,9 @@ function draw() {
     if (it.type === "battery") { ctx.fillStyle = "#e0d040"; ctx.fillRect(sx - 4, sy - 7, 8, 14); }
     if (it.type === "med") { ctx.fillStyle = "#eee"; ctx.fillRect(sx - 7, sy - 7, 14, 14); ctx.fillStyle = "#c22"; ctx.fillRect(sx - 2, sy - 5, 4, 10); ctx.fillRect(sx - 5, sy - 2, 10, 4); }
     if (it.type === "gate" || it.type === "exit") {
-      const c = ["#ccc", "#5f5", "#59f", "#c6f", "#f53"][it.type === "exit" ? 0 : it.id];
+      const c = ["#ccc", "#5f5", "#59f", "#c6f", "#f53", "#9ef"][it.type === "exit" ? 0 : it.id];
       ctx.strokeStyle = c; ctx.lineWidth = 3; ctx.shadowColor = c; ctx.shadowBlur = 20 + Math.sin(time * 3) * 8;
-      ctx.beginPath(); ctx.arc(sx, sy, it.id === 4 ? 34 : 22, 0, 7); ctx.stroke(); ctx.shadowBlur = 0;
+      ctx.beginPath(); ctx.arc(sx, sy, it.id >= 4 ? 34 : 22, 0, 7); ctx.stroke(); ctx.shadowBlur = 0;
     }
   }
   tourists.forEach(t => { if (!t.gone) { ctx.fillStyle = t.col; ctx.beginPath(); ctx.arc(t.x - cam.x, t.y - cam.y, 7, 0, 7); ctx.fill(); } });
@@ -395,6 +430,7 @@ function draw() {
   if (zone.glow) for (let k = 0; k < zone.deco.length; k += 6) { const d = zone.deco[k]; glow(d.x - cam.x, d.y - cam.y, 40, 0.35 + 0.2 * Math.sin(time * 2 + d.k * 9)); }
   ctx.drawImage(shade, 0, 0);
   if (zone.tint) { ctx.fillStyle = zone.tint; ctx.fillRect(0, 0, W, H); }
+  if (zone.dust) { ctx.fillStyle = "rgba(230,140,90,0.35)"; for (let k = 0; k < 160; k++) { const x = ((k * 97.3 + time * (60 + k % 7 * 20) - cam.x * .3) % W + W) % W, y = ((k * 53.1 + Math.sin(time + k) * 20 - cam.y * .3) % H + H) % H; ctx.fillRect(x, y, 2, 1); } }
   if (S.sanity < 40) { ctx.fillStyle = `rgba(80,0,0,${(40 - S.sanity) / 160 * (1 + Math.sin(time * 6) * .3)})`; ctx.fillRect(0, 0, W, H); }
   if (fade > 0) { ctx.fillStyle = `rgba(0,0,0,${Math.min(1, fade)})`; ctx.fillRect(0, 0, W, H); }
 
@@ -402,7 +438,7 @@ function draw() {
   for (const it of items) if ((it.type === "note" || it.type === "gate" || it.type === "exit") && Math.hypot(it.x - P.x, it.y - P.y) < 48) { ctx.fillStyle = "#fff"; ctx.font = "13px monospace"; ctx.fillText("[E]", it.x - cam.x - 10, it.y - cam.y - 26); }
 
   const bar = (v, c) => `<span class="bar"><i style="width:${Math.max(0, v)}%;background:${c}"></i></span>`;
-  document.getElementById("hud").innerHTML = `Sağlık ${bar(S.hp, "#c44")}<br>Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/4</small>`;
+  document.getElementById("hud").innerHTML = `Sağlık ${bar(S.hp, "#c44")}<br>Fener&nbsp; ${bar(S.bat, "#dd4")}${S.lightOn ? "" : " (kapalı)"}<br>Akıl&nbsp;&nbsp; ${bar(S.sanity, "#8af")}<br><small>Notlar: ${S.notes.length}/${NOTES.length} • Kapılar: ${S.solved.length}/5</small>`;
 }
 
 function frame(t) {
@@ -413,6 +449,7 @@ function frame(t) {
 }
 
 function start(s) {
+  if (!AC) audioInit();
   S = s; running = true; panelOpen = false;
   document.getElementById("title").classList.remove("on");
   buildZone(S.zone);
