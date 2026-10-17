@@ -541,18 +541,15 @@ if IN_BLENDER:
 
     @material
     def plaster_damp(uv, S, sd):
-        """Old lime plaster with lime-wash paint. Rising damp occupies v 0..0.4 (map v=0 to the floor); the last
-        6% of the tile ramps back into it so the tile still wraps."""
-        u, v = uv
+        """Old lime plaster with lime-wash paint, patchy damp and mould. No rising-damp band: a band baked into a
+        1.6 m tile repeats every 1.6 m up a taller wall, so the tide line and salt are a world-space shader layer in
+        src/fx-materials.js instead."""
         macro = noise(uv, 2.5, sd + 1, detail=5, rough=0.55)
         mid = noise(uv, 14, sd + 2, detail=6, rough=0.6)
         g, gd = grains(uv, 520, sd + 3)
         gr = split(g)[0]
-        # rising damp profile with an irregular tide line
-        vt = v + snoise(uv, 5, sd + 4, detail=5) * 0.045 + snoise(uv, 26, sd + 5, detail=3) * 0.008
-        damp = fmax(smooth(0.37, 0.24, vt), smooth(0.94, 1.0, v))
-        tide = band(vt, 0.37, 0.006, 0.018) * smooth(0.8, 0.5, v)
-        salt_band = band(vt, 0.33, 0.025, 0.02) * smooth(0.8, 0.5, v)
+        # patchy damp (condensation, leaks), not tied to height
+        damp = blotch(uv, 2.2, sd + 4, 0.5, 0.1, detail=6) * 0.75
         # substrate plaster and lime-wash paint
         plaster = cmix(srgb("9a917f"), srgb("b3aa97"), sat((macro - 0.5) + (mid - 0.5) * 0.8 + 0.5)) * (0.88 + gr * 0.24)
         paint = cmix(srgb("cfc8b6"), srgb("e0dbcc"), sat((mid - 0.5) * 1.4 + 0.5))
@@ -568,21 +565,18 @@ if IN_BLENDER:
         # cracks
         c1, d1 = crack(uv, 1.3, sd + 10, 0.0014, mask_t=0.45)
         col = cmix(col, srgb("4a443b"), c1 * 0.85)
-        # damp: darker, greyer-browner; salts at the tide line; mould colonies inside
+        # damp: darker, greyer-browner; mould colonies inside the damp patches
         col = cmix(col, wet_darken(col * srgb("d9cdb6"), 0.7), damp * 0.85)
-        col = cmix(col, col * srgb("a68a5c"), tide * 0.8)
-        salt = salt_band * blotch(uv, 18, sd + 11, 0.5, 0.08, detail=7) * (0.5 + gr * 0.5)
-        col = cmix(col, srgb("e8e4da"), salt * 0.85)
         colonies = blotch(uv, 9, sd + 12, 0.6, 0.06, detail=7, rough=0.7) * sat(damp * 1.3)
         dots = smooth(0.45, 0.2, gd) * greater(gr, 0.5)
         mould = sat(colonies * (0.35 + dots)) * smooth(0.45, 0.7, noise(uv, 40, sd + 13, detail=4))
         col = cmix(col, cmix(srgb("20211b"), srgb("3c3f2d"), split(g)[1]), mould * 0.9)
-        crumble = damp * blotch(uv, 10, sd + 14, 0.7, 0.03, detail=7) * smooth(0.2, 0.05, vt)
+        crumble = damp * blotch(uv, 10, sd + 14, 0.7, 0.03, detail=7) * 0.5
         col = cmix(col, srgb("6f6658"), crumble * 0.7)
         h = (macro - 0.5) * 3.0 + (mid - 0.5) * 0.6 + (gr - 0.5) * 0.12
-        h = h + (1.0 - loss) * 0.35 + edge * 0.45 - c1 * 0.8 + salt * 0.3 - crumble * 2.5
+        h = h + (1.0 - loss) * 0.35 + edge * 0.45 - c1 * 0.8 - crumble * 2.5
         rough = mix(0.8, 0.93, loss) + (gr - 0.5) * 0.06
-        rough = mix(rough, 0.68, damp * 0.7) + salt * 0.2 + mould * 0.05
+        rough = mix(rough, 0.68, damp * 0.7) + mould * 0.05
         return dict(albedo=col, height=h, rough=rough, metal=0.0)
 
     @material

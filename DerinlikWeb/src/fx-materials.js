@@ -118,7 +118,8 @@ function addLayers(mat, cfg) {
           float fxMask = clamp(fxBand * (.65 + .35 * fxPatch) + fxPatch * (fxFlat ? .55 : .35), 0.0, 1.0);
           float fxL = dot(fxFA.rgb, vec3(.2126, .7152, .0722));
           // frost_albedo is crystals on black: the mask decides where rime lies, the crystals add sparkle and break its edge
-          fxFrostK = fxFrost * smoothstep(.25, .65, fxMask + fxL * .8 - .1);
+          // (only near a patch: crystals scattered over bare dark metal read as speckled granite, not frost)
+          fxFrostK = fxFrost * smoothstep(.25, .65, fxMask + fxL * .8 * smoothstep(0.0, .35, fxMask) - .1);
           diffuseColor.rgb = mix(diffuseColor.rgb, mix(vec3(.62, .66, .69), vec3(.93, .96, .98), smoothstep(0.0, .45, fxL)), fxFrostK);  // rime: white crystals, never darker than grey
         }`;
       rough += 'roughnessFactor = mix(roughnessFactor, fxFO.g, fxFrostK);';
@@ -239,9 +240,11 @@ function getAssets() {
   const cone = new THREE.ConeGeometry(1, 1, 7, 1); cone.rotateX(Math.PI); cone.translate(0, -.5, 0);  // base at y 0, tip at y -1
   const mound = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);                   // snow drift (scaled flat)
   const blobs = [blobTexture(11, .35), blobTexture(97, .22), blobTexture(433, .3)];
-  const water = (alphaMap) => new THREE.MeshStandardMaterial({ color: 0x050504, roughness: .03, metalness: 0, transparent: true, alphaMap, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  // fxReflective: fx-lighting gives these an environment probe so the water mirrors the room's lamps
+  const water = (alphaMap) => { const m = new THREE.MeshStandardMaterial({ color: 0x050504, roughness: .03, metalness: 0, transparent: true, alphaMap, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }); m.userData.fxReflective = true; return m; };
   const iceMat = (alphaMap) => {
     const m = new THREE.MeshStandardMaterial({ color: 0xc6dbe6, roughness: .2, metalness: 0, transparent: true, opacity: .85, alphaMap, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    m.userData.fxReflective = true;
     if (available('ice')) loadSet('ice').then((imgs) => { const t = texturesFor('ice', imgs); m.map = t.albedo; m.normalMap = t.normal; m.normalScale.set(.6, .6); m.roughnessMap = t.orm; m.roughness = 1; m.needsUpdate = true; });
     return m;
   };

@@ -169,6 +169,7 @@ body.cam-on #objective { opacity: 0; }
     <div class="row">
       <button class="go" id="startBtn" type="button"><span class="dot"></span>Kayda başla</button>
       <button class="go ghost" id="continueBtn" type="button" hidden>Devam et</button>
+      <button class="go ghost quit" type="button" hidden>Masaüstüne çık</button>
     </div>
   </div>
 </section>
@@ -184,6 +185,7 @@ body.cam-on #objective { opacity: 0; }
     <div class="row">
       <button class="go" id="resumeBtn" type="button"><span class="dot"></span>Devam et</button>
       <button class="go ghost" id="archiveBtn" type="button">Kanıt arşivi</button>
+      <button class="go ghost quit" type="button" hidden>Masaüstüne çık</button>
     </div>
   </div>
 </section>
@@ -194,7 +196,7 @@ body.cam-on #objective { opacity: 0; }
     <h2 id="endTitle"></h2>
     <p class="lede" id="endText"></p>
     <p class="note" id="endStats"></p>
-    <div class="row"><button class="go" id="againBtn" type="button"><span class="dot"></span>Baştan oyna</button><button class="go ghost" id="finalBtn" type="button">Son kararı yeniden ver</button></div>
+    <div class="row"><button class="go" id="againBtn" type="button"><span class="dot"></span>Baştan oyna</button><button class="go ghost" id="finalBtn" type="button">Son kararı yeniden ver</button><button class="go ghost quit" type="button" hidden>Masaüstüne çık</button></div>
   </div>
 </section>
 
@@ -1306,6 +1308,8 @@ const saved = loadSave();
 if (saved) { $('continueBtn').hidden = false; $('continueBtn').textContent = `Devam et · Bölüm ${saved.chapter + 1}`; }
 $('startBtn').addEventListener('click', () => ready.then(() => begin(null)));
 $('continueBtn').addEventListener('click', () => ready.then(() => begin(loadSave())));
+// desktop build (DerinlikDesktop): the shell's preload exposes derinlikDesktop; a browser tab has no window to close
+if (window.derinlikDesktop) for (const b of document.querySelectorAll('button.quit')) { b.hidden = false; b.addEventListener('click', () => window.derinlikDesktop.quit()); }
 
 if (isTouch) {
   const stick = $('stick'), knob = stick.querySelector('b'); let sid = null, lid = null, lx = 0, ly = 0;

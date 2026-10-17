@@ -73,8 +73,8 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
 ## Ownership (one module per concern)
 | Module | Owns |
 |---|---|
-| `fx-post` | `FX.render` (EffectComposer: AO, bloom, grade, vignette, grain, chromatic aberration), the camcorder image look (replaces the CSS filter on `#view.cam`), Echo/Second-Voice distortion |
-| `fx-lighting` | Environment map, flashlight beam/cookie/flicker, lamp halos and visible light volumes, which lights cast shadows, lamp sway |
+| `fx-post` | `FX.render` (EffectComposer: bloom, per-chapter grade, vignette, grain, chromatic aberration), the camcorder image look (replaces the CSS filter on `#view.cam`), Echo/Second-Voice distortion. Screen-space AO (GTAOPass) was tried and left out: it crashed the software GPU used for testing, so it could not be verified. |
+| `fx-lighting` | Flashlight LED cookie, bounce light and flicker; lamp halos; hanging-bulb sway; one shadowed lamp on *high*; a per-chapter environment probe for materials marked `userData.fxReflective`. A visible beam mesh was tried and removed (it showed a ring artifact). |
 | `fx-particles` | Dust motes, drips/splashes, debris and dust bursts on `mover`/`slam`, steam, flame billboards on every `kind: 'flame'` light, gate particles |
 | `fx-materials` | Real-world surfaces: Blender-baked PBR sets in `textures/` (made by `tools/bake_textures.py`) applied on `material`/`build`. Covers soil, mud, rock and tuff, limestone, concrete, plaster, brick, wood, tile, painted and rusted metal, ice, frost and snow. Also world-space grime and wetness, decals, puddles, and environment dressing such as icicles, frozen puddles, snow drifts and mud. |
 | `fx-characters` | Replaces `W.figures` visuals with the rigged Blender humanoid (`MODELS.humanoid`) and animates it |
@@ -82,7 +82,7 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
 
 Shared contracts:
 - **Flashlight.** `fx-camera` may move `torch` and `torch.target` into a swaying rig under the camera. `fx-lighting` attaches anything that must follow the beam as children of `torch`. Never assume `torch.parent === camera`.
-- **Glow.** Things meant to glow use HDR colours: emissive or basic colours with intensity above 1. `fx-post`'s bloom keys on linear values above ~1.
+- **Glow.** Things meant to glow use HDR colours: emissive or basic colours with intensity above 1. `fx-post`'s bloom threshold is 2.2 (linear), so only light sources bloom, never lit walls.
 - **Shaking.** Modules other than `fx-camera` request a shake with `FX.emit('shake', {amp, dur})`, amp in metres. `fx-camera` performs it.
 
 ## Target
