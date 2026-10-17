@@ -139,7 +139,7 @@ let AC = null, droneGain = null, heartT = 0, heartT2 = 0;
 function audioInit() {
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    droneGain = AC.createGain(); droneGain.gain.value = 0.05; droneGain.connect(AC.destination);
+    droneGain = AC.createGain(); droneGain.gain.value = 0.035; droneGain.connect(AC.destination);
     [43.65, 46.25, 65.4].forEach(f => { const o = AC.createOscillator(), lf = AC.createOscillator(), lg = AC.createGain(); o.type = "sawtooth"; o.frequency.value = f; lf.frequency.value = 0.07 + Math.random() * 0.1; lg.gain.value = 1.5; lf.connect(lg).connect(o.frequency); const flt = AC.createBiquadFilter(); flt.type = "lowpass"; flt.frequency.value = 220; o.connect(flt).connect(droneGain); o.start(); lf.start(); });
     audioExtras();
   } catch (e) { AC = null; }
@@ -164,11 +164,11 @@ function ping(freq, dur, vol, pan = 0) {
   o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * 0.6, t + dur); p.pan.value = pan;
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur); o.connect(g).connect(p); p.connect(AC.destination); verb && p.connect(verb); o.start(t); o.stop(t + dur);
 }
-const drip = () => ping(1400 + Math.random() * 1600, 0.12, 0.05, Math.random() * 2 - 1);
-const footstep = (pan = 0, vol = 0.05) => noise(0.09, 300 + Math.random() * 200, 1.2, vol, pan, true, 0.005);
-function breath(fast) { noise(fast ? 0.45 : 0.9, 900, 0.6, fast ? 0.05 : 0.025, 0, false, fast ? 0.15 : 0.4); setTimeout(() => noise(fast ? 0.5 : 1.1, 600, 0.6, fast ? 0.04 : 0.02, 0, false, 0.2), (fast ? 550 : 1300)); }
+const drip = () => ping(1400 + Math.random() * 1600, 0.12, 0.1, Math.random() * 2 - 1);
+const footstep = (pan = 0, vol = 0.05) => noise(0.09, 300 + Math.random() * 200, 1.2, vol * 12, pan, true, 0.005);
+function breath(fast) { noise(fast ? 0.45 : 0.9, 900, 0.6, fast ? 0.22 : 0.12, 0, false, fast ? 0.15 : 0.4); setTimeout(() => noise(fast ? 0.5 : 1.1, 600, 0.6, fast ? 0.18 : 0.1, 0, false, 0.2), (fast ? 550 : 1300)); }
 // a whisper: shaped noise in the speech band, from a direction
-function whisper(pan) { for (let k = 0; k < 6; k++) setTimeout(() => noise(0.12 + Math.random() * 0.15, 2200 + Math.random() * 1800, 3, 0.03, pan), k * 140 + Math.random() * 60); }
+function whisper(pan) { for (let k = 0; k < 6; k++) setTimeout(() => noise(0.12 + Math.random() * 0.15, 2200 + Math.random() * 1800, 3, 0.3, pan), k * 140 + Math.random() * 60); }
 function tone(freq, dur, type = "sine", vol = 0.2, slide = 0) {
   if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
   o.type = type; o.frequency.setValueAtTime(freq, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
@@ -179,7 +179,7 @@ function sfx(k) {
   if (k === "wrong") tone(120, 0.6, "square", 0.1, 50);
   if (k === "ok") { [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => tone(f, 0.7, "triangle", 0.12), i * 140)); }
   if (k === "pick") tone(1200, 0.15, "triangle", 0.08);
-  if (k === "heart") { tone(55, 0.18, "sine", 0.4); setTimeout(() => tone(50, 0.2, "sine", 0.3), 180); }
+  if (k === "heart") { tone(55, 0.18, "sine", 0.2); setTimeout(() => tone(50, 0.2, "sine", 0.15), 180); }
   if (k === "hurt") tone(200, 0.3, "sawtooth", 0.12, 80);
   if (k === "end") { [392, 494, 587, 784, 988].forEach((f, i) => setTimeout(() => tone(f, 2.5, "sine", 0.1), i * 400)); }
 }
