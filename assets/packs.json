@@ -1,0 +1,132 @@
+{
+  "$comment": [
+    "Art and audio packs installed by `npm run assets:fetch`. The game is fully playable with",
+    "none of them: every animal, prop and level surface has procedural geometry, and every",
+    "sound is synthesised at runtime. Installing a pack is a visual/audio upgrade, never a",
+    "gameplay change — colliders, grips, hitboxes and every movement constant come from level",
+    "and player data, so a mesh swap cannot alter balance.",
+    "",
+    "LICENCE RULE FOR THIS PROJECT: the game is web-delivered, so every file the server sends",
+    "is downloadable by any player with devtools open. That makes 'can end users extract the",
+    "raw assets?' a licence question we cannot answer with 'no'. Unity Asset Store, Synty and",
+    "Fab-Standard EULAs all restrict exactly that, so those sources are refused by the fetch",
+    "script rather than left to a reviewer to catch. Only CC0, CC-BY and permissive software",
+    "licences are cleared. See docs/ASSETS.md.",
+    "",
+    "Packs behind a click-through cannot be fetched by URL. Declare them with \"source\":",
+    "\"manual\", download the archive by hand, and run:",
+    "  npm run assets:fetch -- --from ~/Downloads"
+  ],
+  "installDir": "packages/client/public/models",
+  "packs": [
+    {
+      "id": "gltf-sample-fox",
+      "title": "Fox (glTF sample asset)",
+      "category": "character",
+      "author": "PixelMannen; rigging & animation by tomkranis; glTF conversion by @AsoboStudio and @scurest",
+      "licence": "CC-BY-4.0",
+      "licenceUrl": "https://creativecommons.org/licenses/by/4.0/legalcode",
+      "sourceUrl": "https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox",
+      "note": "Model is CC0-1.0; the rigging, animation and glTF conversion are CC-BY-4.0, so the pack as shipped requires attribution. Ships with Survey/Walk/Run cycles.",
+      "source": "url",
+      "files": [
+        {
+          "url": "https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Fox/glTF-Binary/Fox.glb",
+          "install": "fox.glb",
+          "sha256": "d97044e701822bac5a62696459b27d7b375aada5de8574ed4362edbba94771f7",
+          "bytes": 162852
+        }
+      ]
+    },
+    {
+      "id": "quaternius-ultimate-animated-animals",
+      "title": "Ultimate Animated Animals",
+      "category": "character",
+      "author": "Quaternius",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://quaternius.com/packs/ultimateanimatedanimals.html",
+      "note": "12+ rigged animals with 12+ animations each (walk, run, jump, idle, attack), in glTF. The single best fit for the launch roster: CC0, so it can ship in a web build with no attribution obligation, and already animated.",
+      "source": "manual",
+      "archiveHints": ["ultimateanimatedanimals", "ultimate animated animals", "quaternius"],
+      "files": [
+        { "from": "**/Kangaroo.gltf", "install": "kangaroo.glb", "optional": true },
+        { "from": "**/Wolf.gltf", "install": "wolf.glb", "optional": true },
+        { "from": "**/Fox.gltf", "install": "fox-quaternius.glb", "optional": true },
+        { "from": "**/Tiger.gltf", "install": "tiger.glb", "optional": true },
+        { "from": "**/Frog.gltf", "install": "frog.glb", "optional": true },
+        { "from": "**/Penguin.gltf", "install": "penguin.glb", "optional": true },
+        { "from": "**/Bear.gltf", "install": "bear.glb", "optional": true },
+        { "from": "**/Deer.gltf", "install": "deer.glb", "optional": true }
+      ]
+    },
+    {
+      "id": "quaternius-universal-animation-library",
+      "title": "Universal Animation Library",
+      "category": "animation",
+      "author": "Quaternius",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://quaternius.com/packs/universalanimationlibrary.html",
+      "note": "Retargetable humanoid animation set. Useful for the emote system and for VR avatar upper-body poses; the locomotion itself is driven by the simulation, not by animation clips.",
+      "source": "manual",
+      "archiveHints": ["universalanimation", "universal animation", "quaternius"],
+      "files": [
+        { "from": "**/Idle*.gltf", "install": "anim/idle.glb", "optional": true },
+        { "from": "**/Wave*.gltf", "install": "anim/wave.glb", "optional": true },
+        { "from": "**/Dance*.gltf", "install": "anim/dance.glb", "optional": true },
+        { "from": "**/Jump*.gltf", "install": "anim/jump.glb", "optional": true }
+      ]
+    },
+    {
+      "id": "quaternius-nature-kit",
+      "title": "Stylised Nature / Jungle kit",
+      "category": "environment",
+      "author": "Quaternius",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://quaternius.com/",
+      "note": "Trees, rocks and foliage for the decorative props layer only. LevelDef.props is a separate list from LevelDef.colliders precisely so decoration can never change where a surface can be climbed.",
+      "source": "manual",
+      "archiveHints": ["nature", "jungle", "foliage", "quaternius"],
+      "files": [
+        { "from": "**/Tree*.gltf", "install": "props/tree.glb", "optional": true },
+        { "from": "**/Rock*.gltf", "install": "props/rock.glb", "optional": true },
+        { "from": "**/Bush*.gltf", "install": "props/bush.glb", "optional": true },
+        { "from": "**/Grass*.gltf", "install": "props/grass.glb", "optional": true }
+      ]
+    },
+    {
+      "id": "kenney-nature-kit",
+      "title": "Nature Kit",
+      "category": "environment",
+      "author": "Kenney",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://kenney.nl/assets/nature-kit",
+      "note": "Alternative environment kit in a cleaner, flatter style. Pick this OR the Quaternius nature kit — mixing two art directions in one level looks worse than either alone.",
+      "source": "manual",
+      "archiveHints": ["nature-kit", "naturekit", "kenney"],
+      "files": [
+        { "from": "**/tree_default.gltf", "install": "props/tree-kenney.glb", "optional": true },
+        { "from": "**/rock_largeA.gltf", "install": "props/rock-kenney.glb", "optional": true }
+      ]
+    },
+    {
+      "id": "kenney-impact-sounds",
+      "title": "Impact Sounds",
+      "category": "audio",
+      "author": "Kenney",
+      "licence": "CC0-1.0",
+      "licenceUrl": "https://creativecommons.org/publicdomain/zero/1.0/legalcode",
+      "sourceUrl": "https://kenney.nl/assets/impact-sounds",
+      "note": "Optional replacement for the procedural landing/punch/tag sounds. The synthesised audio is deliberate — it keeps the first load small, which matters on mobile data and on a Quest launching straight into WebXR — so treat sample audio as an upgrade to evaluate against that cost, not a default.",
+      "source": "manual",
+      "archiveHints": ["impact", "kenney"],
+      "files": [
+        { "from": "**/impactSoft_medium_000.ogg", "install": "audio/land-soft.ogg", "optional": true },
+        { "from": "**/impactPunch_medium_000.ogg", "install": "audio/punch.ogg", "optional": true }
+      ]
+    }
+  ]
+}
