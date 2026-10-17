@@ -10,7 +10,7 @@
 // Metres one texture tile covers; must match SETS[...]['size_m'] in tools/bake_textures.py. Box UVs are 1.6 m per unit.
 const SIZE = {
   concrete_wet: 1.6, plaster_damp: 1.6, brick_old: 1.6, rock_rough: 1.6, tuff: 1.6, soil: 1.6, mud: 1.6, limestone: 1.6,
-  paint_peeling: 1.6, tile_ceramic: 1.6, metal_rust: 1.0, wood_old: 1.0, ice: 1.0, frost: 0.5, snow: 1.0, bone: 0.3,
+  paint_peeling: 1.6, tile_ceramic: 1.6, metal_rust: 1.0, wood_old: 1.0, ice: 1.0, frost: 0.5, snow: 1.0, bone: 0.3, ossuary_wall: 0.8,
 };
 // Core material kind -> how it is dressed. tint multiplies the albedo; damp = height of the rising-damp tide line (m);
 // frost = takes the SIFIR-17 rime layer; keepColor = only relief and roughness come from the set (painted metal).
@@ -26,6 +26,7 @@ const KIND = {
   tile: { set: 'tile_ceramic', frost: true },
   lime: { set: 'limestone', damp: .5 },
   bone: { set: 'bone' },
+  ossuary: { set: 'ossuary_wall' },
   rust: { set: 'metal_rust', frost: true },
   metal: { set: 'metal_rust', keepColor: true, frost: true, normalScale: .6 },
 };

@@ -64,6 +64,7 @@ SETS = {
     "frost":         dict(px=512, size_m=0.5, ao=(3, 0.8), nrm=1.0),
     "snow":          dict(px=512, size_m=1.0, ao=(20, 0.7), nrm=1.0),
     "bone":          dict(px=512, size_m=0.3, ao=(4, 1.0), nrm=1.0),
+    "ossuary_wall":  dict(px=1024, size_m=0.8, ao=(30, 1.0), nrm=1.0),
 }
 JPEG_Q = dict(albedo=84, normal=80, orm=78)
 
@@ -1074,6 +1075,26 @@ if IN_BLENDER:
         col = cmix(col, cmix(srgb("d1bf98"), srgb("5a4630"), walls), spongy)
         h = (macro - 0.5) * 1.0 + (fib - 0.5) * 0.3 - pore * 0.4 - crk * 0.5 - spongy * (0.5 + walls * 0.8)
         rough = mix(0.6 + stain * 0.15, 0.9, spongy) + pore * 0.1
+        return dict(albedo=col, height=h, rough=rough, metal=0.0)
+
+    @material
+    def ossuary_wall(uv, S, sd):
+        """Face of an ossuary bone wall ('hague'), as in photographs of the Paris catacombs: the ends of femurs and
+        tibias stacked like firewood (heads 3-7 cm), dark voids between them, yellowed and soil-stained."""
+        v = voronoi(warp(uv, 0.004, 9, sd + 1), 16, sd + 2, rand=0.55, fv=18)
+        r, g, b = split(v.col)
+        size = 0.5 + r * 0.16                               # cell-radius of each bone end: heads and shafts
+        dome = smooth(size, size - 0.22, v.d)                # rounded knob falling into the gap at its rim
+        void = smooth(size - 0.02, size + 0.1, v.d)         # the dark space behind
+        broken = greater(g, 0.8)                             # a few broken ends show spongy bone
+        spong = smooth(0.0, 0.18, voronoi(uv, 260, sd + 3, feature="DISTANCE_TO_EDGE").d)
+        col = cmix(srgb("d2bf95"), srgb("9a7a4e"), b)        # ivory to ochre, bone by bone
+        col = cmix(col, srgb("6b5236"), greater(b, 0.86) * 0.7)
+        col = cmix(col, cmix(srgb("d6c39a"), srgb("5c4630"), spong), broken * dome * 0.8)
+        col = cmix(col, col * srgb("8a7356"), blotch(uv, 3, sd + 4, 0.55, 0.15, detail=6) * 0.5)
+        col = cmix(col, srgb("3a2a1c"), void)
+        h = dome * 28.0 - void * 20.0 + broken * dome * (spong - 1.0) * 4.0 + (noise(uv, 30, sd + 5, detail=4) - 0.5) * 2.0
+        rough = 0.82 - dome * 0.12 + void * 0.15
         return dict(albedo=col, height=h, rough=rough, metal=0.0)
 
 

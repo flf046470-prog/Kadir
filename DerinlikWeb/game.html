@@ -287,6 +287,7 @@ const SURF = {
   concrete: [[.42, .41, .39], 4, .38, 11], plaster: [[.47, .45, .4], 3, .32, 79], stone: [[.36, .32, .27], 6, .6, 23], old: [[.31, .29, .26], 8, .66, 37],
   wood: [[.29, .19, .11], 3, .5, 51], slab: [[.34, .32, .29], 5, .55, 67], tuff: [[.7, .6, .5], 4, .32, 91], soviet: [[.38, .42, .38], 5, .35, 103],
   tile: [[.55, .56, .52], 2, .2, 117], lime: [[.66, .63, .55], 5, .45, 131], bone: [[.78, .74, .64], 6, .35, 149],
+  ossuary: [[.5, .42, .3], 18, .6, 163],
 };
 function surfaceTexture(kind, size = 256) {
   const cv = document.createElement('canvas'); cv.width = cv.height = size;
@@ -1113,19 +1114,40 @@ function buildKola() {
 
 /* ================================================================ CHAPTER 4 — FRANSA: SON TANIK */
 function buildParis() {
-  const lime = M.lime, bone = M.bone;
+  const lime = M.lime;
+  // The ossuary, after photographs of the Paris catacombs: walls ('hagues') of femur and tibia ends stacked like firewood,
+  // skulls set into them as bands and columns, cut-limestone consolidation arches, Delille's line over the entrance,
+  // an origin tablet, and a street name engraved where the quarry inspectors consolidated the gallery under it.
   room(-.9, .9, 0, 14, 2.3, lime, { n: false });
-  const bonePos = [];
-  for (const side of [-1, 1]) for (let z = 1.5; z < 13; z += 2.2) {          // stacked ossuary niches: deliberately abstract
-    const x0 = side < 0 ? -.9 : .72, x1 = side < 0 ? -.72 : .9;
-    box([x0, .15, z], [x1, 1.35, z + 1.6], lime, { tile: .8 });
-    for (let y = .3; y < 1.3; y += .22) for (let k = 0; k < 6; k++) bonePos.push([side < 0 ? -.7 : .7, y, z + .14 + k * .26]);
+  const engrave = (text, w, h, pos, rotY, px = 52) => decal(textTexture(text, { w: 1024, h: Math.round(1024 * h / w), fg: '#cbbd9c', font: `${px}px Georgia, "Times New Roman", serif` }), w, h, pos, rotY, { opacity: .85 });
+  box([-.9, 0, 2.45], [-.66, 2.3, 2.8], M.slab); box([.66, 0, 2.45], [.9, 2.3, 2.8], M.slab); box([-.66, 1.92, 2.45], [.66, 2.3, 2.8], M.slab);
+  engrave(['ARRÊTE ! C\'EST ICI', 'L\'EMPIRE DE LA MORT'], 1.26, .34, [0, 2.11, 2.44], Math.PI, 64);
+  box([-.9, 0, 2.8], [-.68, 1.35, 13.7], M.ossuary, { tile: 1 }); box([.68, 0, 2.8], [.9, 1.35, 13.7], M.ossuary, { tile: 1 });
+  const ARCHES = [5.4, 8.6, 11.8], arched = (z) => ARCHES.some((a) => z > a - .1 && z < a + .44);
+  for (const z of ARCHES) { box([-.9, 0, z], [-.6, 2.3, z + .34], M.slab); box([.6, 0, z], [.9, 2.3, z + .34], M.slab); box([-.6, 2.0, z], [.6, 2.3, z + .34], M.slab); }
+  const meshOf = (name) => MODELS[name] && MODELS[name].getObjectByProperty('isMesh', true);
+  const rnd = (a) => { const v = Math.sin(a * 12.9898) * 43758.5453; return v - Math.floor(v); };
+  const spots = [], femurs = [];
+  for (const side of [-1, 1]) {
+    const x = side * .705;   // set into the bone wall: only the face shows, as in the photographs
+    for (let z = 2.95; z < 13.6; z += .155) if (!arched(z)) { spots.push([x, .52, z, side]); spots.push([x, 1.09, z, side]); }
+    for (const zc of [4.2, 7.0, 10.2, 13.0]) for (let y = .2; y < 1.25; y += .155) if (Math.abs(y - .52) > .08 && Math.abs(y - 1.09) > .08) spots.push([x, y, zc, side]);
+    for (let z = 2.95; z < 13.5; z += .09) if (!arched(z)) femurs.push([side * .79, 1.38, z]);
   }
-  const bones = new THREE.InstancedMesh(new THREE.SphereGeometry(.07, 8, 6), bone, bonePos.length), bm = new THREE.Matrix4(), bq = new THREE.Quaternion(), bs = new THREE.Vector3(.8, .85, .9); // one draw call for every bone
-  bonePos.forEach((p, i) => bones.setMatrixAt(i, bm.compose(new THREE.Vector3(...p), bq, bs)));
-  bones.receiveShadow = true; W.group.add(bones);
+  const instanced = (src, color, list, place) => {
+    if (!src) return;
+    const im = new THREE.InstancedMesh(src.geometry, new THREE.MeshStandardMaterial({ vertexColors: true, color, roughness: .86 }), list.length), m4 = new THREE.Matrix4(), c = new THREE.Color();
+    list.forEach((it, i) => { im.setMatrixAt(i, m4.compose(...place(it, i))); im.setColorAt(i, c.setHSL(.1, .3 + rnd(i + 5) * .2, .55 + rnd(i + 9) * .25)); });
+    im.receiveShadow = true; W.group.add(im);
+  };
+  instanced(meshOf('skull'), 0xc4ad84, spots, ([x, y, z, side], i) => [new THREE.Vector3(x, y, z),   // face out of the wall, a little askew
+    new THREE.Quaternion().setFromEuler(new THREE.Euler((rnd(i + 1) - .5) * .25, -side * Math.PI / 2 + (rnd(i + 7) - .5) * .35, (rnd(i + 3) - .5) * .2)), new THREE.Vector3().setScalar(.92 + rnd(i + 1) * .14)]);
+  instanced(meshOf('femur'), 0xbba57c, femurs, ([x, y, z], i) => [new THREE.Vector3(x + (rnd(i) - .5) * .06, y + rnd(i + 2) * .03, z),  // loose long bones on the wall tops
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(rnd(i + 4) * 6.28, (rnd(i + 6) - .5) * .5, 0)), new THREE.Vector3(1, 1, 1)]);
+  decal(textTexture(['OSSEMENTS', 'DU CIMETIÈRE', 'DES INNOCENTS'], { w: 512, h: 384, fg: '#2a2219', bg: '#d9d2c3', font: '50px Georgia, "Times New Roman", serif' }), .5, .38, [-.677, .8, 7.0], Math.PI / 2);
+  engrave(['RUE DAREAU', '1781'], .6, .24, [.899, 1.75, 4.6], -Math.PI / 2, 80);
   decal(textTexture('PROJET PALIMPSESTE — ACCÈS RESTREINT', { w: 1024, h: 96, fg: '#3a3428', font: '44px "IBM Plex Sans Condensed", sans-serif' }), 1.7, .16, [0, 2.0, 13.95], Math.PI);
-  for (const [x, z] of [[.81, 2.6], [-.81, 6.9], [.81, 11.4]]) { torchLight([x, 1.5, z], 0xffb46a, 1.4, 5); prop('candles', [x, 1.35, z], z); } // on the niche tops
+  for (const [x, z] of [[.81, 3.6], [-.81, 7.6], [.81, 11.2]]) { torchLight([x, 1.55, z], 0xffb46a, 1.4, 5); prop('candles', [x, 1.35, z], z); } // on the wall tops
   // PALIMPSEST archive: tapes, Camille, and a drawing only the camcorder sees
   room(-4, 4, 14.2, 22, 3.2, lime, { s: [{ c: 0, w: 1.4, h: 2.2 }], n: [{ c: 0, w: 1.6, h: 2.4 }] });
   for (const x of [-3.9, 3.3]) for (const y of [.4, 1.1, 1.8, 2.5]) { box([x, y, 15], [x + .6, y + .05, 21.2], M.metal, { tile: .5 }); for (let z = 15.1; z < 21.1; z += .16) box([x + .1, y + .05, z], [x + .5, y + .3, z + .12], M.dark, { collide: false, tile: .3 }); }
