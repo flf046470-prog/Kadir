@@ -51,6 +51,7 @@
     "pack:meta:listing:check": "node scripts/pack-meta-listing.mjs --check",
     "pack:pc:listing": "node scripts/pack-pc-listing.mjs",
     "pack:pc:listing:check": "node scripts/pack-pc-listing.mjs --check",
+    "pack:pc:kit": "node scripts/pack-pc-kit.mjs",
     "pack:trailer": "node scripts/pack-trailer.mjs",
     "icons": "node scripts/make-icons.mjs",
     "pack:msstore:check": "node scripts/pack-msstore.mjs --check",

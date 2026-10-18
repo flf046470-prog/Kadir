@@ -117,3 +117,11 @@ export function claimsIn(text) {
   }
   return found;
 }
+
+/** A `## heading` section of the doc, heading included, up to the next one. */
+export function section(markdown, heading) {
+  const start = markdown.indexOf(`\n## ${heading}\n`);
+  if (start < 0) return null;
+  const next = markdown.indexOf('\n## ', start + 1);
+  return markdown.slice(start + 1, next < 0 ? undefined : next).trimEnd();
+}

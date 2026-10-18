@@ -2735,6 +2735,24 @@ first frames — which the title and end cards are drawn over — were only ever
 finished shot now writes `shot-N.jpg` and, last, a `shot-N.json` marker; `pack:trailer -- --resume`
 keeps every shot whose marker names the same mode and map, and films the rest.
 
+## The store kit: art goes stale silently, and lives only in the container
+
+Asked to prepare the Steam and Epic Coming Soon files (`Steam ve epic games coming soon dosyalarını
+hazırla`). The art already existed — and was two weeks behind the game: shot on 2026-10-04, before
+tree boughs, the ground and ice rework, the water fix and planted feet. Nothing said so. And it is
+gitignored (`packaging/*/listing/`) in a container that is thrown away, so the owner had no copy.
+
+`npm run pack:pc:kit` (`scripts/pack-pc-kit.mjs`, maps in `scripts/lib/kit.mjs`) copies the art into
+`dist/store-kit/{steam,epic}/` in folders numbered in portal order, cuts the paste-ready `.txt`
+files from `docs/PC_LISTINGS.md`'s blocks with the same parser `copy.test.ts` uses, writes a
+`CHECKLIST.md` from that doc's own sections, and zips each. It **refuses** a missing file and
+**warns** for every file older than the last commit touching `packages/client`, `packages/core` or
+`assets` — measured, it named exactly the two trailer files while the trailer was being re-filmed.
+`copy.test.ts` holds every heading the kit names against the doc (mutation: renaming one fails both
+stores). `PC_LISTINGS.md` now has the Steamworks steps too, read from Valve's docs on 2026-10-18:
+review 3–5 business days, submit 7 ahead, page public ≥ 2 weeks before release, **21 days** from
+paying the app fee to release, tax verification up to 30 days.
+
 ## The PC build played alone, and forgot its player every launch
 
 Steam and Epic installs serve the game from a server bundled into the app (`main.cjs`), and the

@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { FEEL_BAND, listAnimals, listGadgets, listLevels, listModes } from '@kc/core';
 // @ts-expect-error — a plain .mjs module with no type declarations, like png.mjs.
-import { claimsIn, copyLength, parseListing, pastedText, readNumber } from './copy.mjs';
+import { claimsIn, copyLength, parseListing, pastedText, readNumber, section } from './copy.mjs';
+// @ts-expect-error — a plain .mjs module with no type declarations, like png.mjs.
+import { CHECKLIST, TEXT } from './kit.mjs';
 
 /**
  * Store copy against the game it describes. See `copy.mjs` for why: Meta's long description had
@@ -104,6 +106,29 @@ describe('every store listing', () => {
         for (const claim of claimsIn(section.text) as { claim: string; value: number; phrase: string }[]) {
           expect(claim.value, `"${claim.phrase}" in ${section.heading}`).toBe(truth[claim.claim]);
         }
+      }
+    });
+  }
+});
+
+describe('the Steam and Epic Coming Soon kit', () => {
+  it('cuts a section from its heading to the next one, and nothing for a heading that is absent', () => {
+    const doc = '# T\n\n## One\n\nfirst\n\n## Two\n\nsecond\n';
+    expect(section(doc, 'One')).toBe('## One\n\nfirst');
+    expect(section(doc, 'Two')).toBe('## Two\n\nsecond');
+    expect(section(doc, 'Thre')).toBeNull();
+  });
+
+  // The kit is built from the doc, so a renamed heading would ship a kit with a hole in it.
+  const doc = read('docs/PC_LISTINGS.md');
+  const blocks = new Set((parseListing(doc) as Section[]).map((s) => s.heading));
+  for (const store of ['steam', 'epic'] as const) {
+    it(`finds every block and section the ${store} kit names`, () => {
+      for (const heading of Object.values(TEXT[store] as Record<string, string>)) {
+        expect(blocks.has(heading), heading).toBe(true);
+      }
+      for (const heading of CHECKLIST[store] as string[]) {
+        expect(section(doc, heading), heading).not.toBeNull();
       }
     });
   }
