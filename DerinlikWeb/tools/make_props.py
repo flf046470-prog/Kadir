@@ -333,5 +333,181 @@ femur.data.materials.append(fem_mat)
 cavity_colors(femur)
 export("femur", "Paris ossuary: loose long bones on the bone walls (instanced); origin at the centre")
 
+# --- person (the Copy, the other Ekin, Camille) --------------------------------------------------------------
+# One figure, 1.70 m, posed standing with the arms down; the game scales it to each character's height and puts its
+# own materials on the parts by name: coat (with the sleeves), skin (head, neck, hands), hair, hairLong (Camille),
+# legs (trousers and shoes), eyes. Front faces Blender +Y (three.js -Z, like the figure it replaces).
+# Joint heights are the segment proportions of Drillis & Contini as tabulated in D. A. Winter, Biomechanics and Motor
+# Control of Human Movement (fig. "body segment lengths expressed as a fraction of body height H"): eyes 0.936H,
+# chin 0.870H, shoulder 0.818H, elbow 0.630H, hip 0.530H, wrist 0.485H, fingertip 0.377H, knee 0.285H, ankle 0.039H;
+# shoulder breadth 0.259H, hip breadth 0.191H, foot length 0.152H.
+FIG_H = 1.70
+
+
+def skin_chain(name, joints, edges, roots=(0,)):
+    """Tubes through `joints` [(x, y, z, rx, ry)] with the Skin modifier, then subdivided and applied."""
+    me = bpy.data.meshes.new(name)
+    me.from_pydata([j[:3] for j in joints], edges, [])
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    sk = o.modifiers.new("skin", "SKIN")
+    for i, j in enumerate(joints):
+        o.data.skin_vertices[0].data[i].radius = (j[3], j[4])
+        o.data.skin_vertices[0].data[i].use_root = i in roots
+    active(o)
+    bpy.ops.object.modifier_apply(modifier=sk.name)
+    apply_mod(o, "SUBSURF", levels=2)
+    return o
+
+
+def loft(name, rings, n=40, shape=lambda z, a, r: r):
+    """Closed-around, open-ended surface through horizontal superellipse rings (z, half width, half depth, y, exponent)."""
+    bm = bmesh.new()
+    rows = []
+    for z, hw, hd, yo, ex in rings:
+        row = []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            c, s = math.cos(a), math.sin(a)
+            k = (abs(c) ** ex + abs(s) ** ex) ** (-1 / ex)    # superellipse: squarer shoulders, rounder hem
+            r = shape(z, a, 1.0)
+            row.append(bm.verts.new((c * k * hw * r, yo + s * k * hd * r, z)))
+        rows.append(row)
+    for lo, hi in zip(rows, rows[1:]):
+        for i in range(n):
+            bm.faces.new((lo[i], lo[(i + 1) % n], hi[(i + 1) % n], hi[i]))
+    me = bpy.data.meshes.new(name)
+    bm.to_mesh(me)
+    bm.free()
+    o = bpy.data.objects.new(name, me)
+    bpy.context.collection.objects.link(o)
+    return o
+
+
+def part(objs, name, material, faces, voxel=0.006):
+    o = join(objs) if len(objs) > 1 else objs[0]
+    o.name = o.data.name = name
+    apply_mod(o, "REMESH", mode="VOXEL", voxel_size=voxel)
+    apply_mod(o, "SMOOTH", factor=0.5, iterations=3)
+    reduce(o, faces)
+    o.data.materials.clear()
+    o.data.materials.append(material)
+    return o
+
+
+reset()
+H = FIG_H
+fm = {k: mat(k, rgb, rough) for k, rgb, rough in (("coat", (0.75, 0.74, 0.7), 0.85), ("skin", (0.62, 0.47, 0.4), 0.6),
+                                                  ("hair", (0.05, 0.04, 0.035), 0.7), ("hairLong", (0.05, 0.04, 0.035), 0.7),
+                                                  ("legs", (0.06, 0.06, 0.07), 0.8), ("eyes", (0.02, 0.02, 0.02), 0.3))}
+SH, EL, HIP, WR, KN, AN = 0.818 * H, 0.630 * H, 0.530 * H, 0.485 * H, 0.285 * H, 0.039 * H
+
+
+def coat_shape(z, a, r):
+    # fabric: soft vertical folds that open out towards the hem; the front edge where the coat closes; above the
+    # buttoning point the fronts fold back into lapels, leaving a V over the shirt
+    da = (a - math.pi / 2 + math.pi) % (2 * math.pi) - math.pi
+    k = min(1.0, max(0.0, (1.0 - z) / 0.55))
+    fold = (0.05 * math.sin(7 * a + 0.9) + 0.02 * math.sin(13 * a + 2.0)) * k
+    edge = -0.035 * math.exp(-(da / 0.07) ** 2) if z < 1.12 else 0.0
+    v = 0.0
+    if z > 1.12:
+        w = 0.05 + (z - 1.12) * 1.25                       # the V widens towards the collar
+        v = -0.42 * math.exp(-(da / w) ** 4) * min(1.0, (z - 1.12) / 0.06)
+        v += 0.05 * math.exp(-((abs(da) - w * 1.05) / 0.06) ** 2)   # the rolled edge of the lapel
+    return r * (1 + fold + edge + v)
+
+
+# coat body from hem (just below the knee) to a low stand collar; breadth from the hip and shoulder proportions
+coat = loft("coat_body", [
+    (0.40, 0.2, 0.158, 0.0, 2.0), (0.55, 0.19, 0.148, 0.0, 2.0), (0.72, 0.178, 0.138, 0.0, 2.1),
+    (HIP, 0.168, 0.128, 0.0, 2.2), (1.04, 0.158, 0.113, 0.005, 2.4), (1.18, 0.16, 0.118, 0.01, 2.6),
+    (1.29, 0.163, 0.118, 0.006, 2.7), (1.36, 0.17, 0.106, -0.004, 2.9), (SH, 0.16, 0.092, -0.01, 3.0),
+    (1.425, 0.12, 0.076, -0.012, 2.6), (1.445, 0.08, 0.068, -0.01, 2.2), (1.475, 0.066, 0.06, -0.012, 2.0)],
+    n=64, shape=coat_shape)
+apply_mod(coat, "SOLIDIFY", thickness=0.012, offset=-1)
+sleeves = []
+for s in (-1, 1):  # shoulder joint just inside the coat's shoulder line, elbow at 0.630H, cuff at the wrist (0.485H)
+    sleeves.append(skin_chain(f"sleeve{s}", [(s * 0.163, -0.008, SH - 0.045, 0.054, 0.056), (s * 0.196, 0.006, EL, 0.046, 0.047),
+                                             (s * 0.21, 0.04, WR + 0.012, 0.041, 0.043), (s * 0.212, 0.045, WR - 0.006, 0.043, 0.045)],
+                              [(0, 1), (1, 2), (2, 3)]))
+pockets = [cube((0.115, 0.008, 0.125), (s * 0.094, 0.136, 0.79), fm["coat"], 0.003, rot=(math.radians(-5), 0, 0)) for s in (-1, 1)]
+pockets.append(cube((0.08, 0.007, 0.09), (0.088, 0.119, 1.235), fm["coat"], 0.002))   # breast pocket
+coat = part([coat] + sleeves + pockets, "coat", fm["coat"], 2200)
+
+legs = []
+for s in (-1, 1):  # trousers from the hip joint to a hem over the shoe; shoes 0.152H long
+    legs.append(skin_chain(f"leg{s}", [(s * 0.088, 0.0, HIP + 0.02, 0.086, 0.086), (s * 0.092, 0.006, KN, 0.061, 0.063),
+                                       (s * 0.094, -0.006, 0.1, 0.055, 0.057), (s * 0.094, 0.0, 0.045, 0.052, 0.056)], [(0, 1), (1, 2), (2, 3)]))
+    shoe = ellipsoid((0.047, 0.13, 0.095), (s * 0.095, 0.042, 0.0), 24, 12)
+    for v in shoe.data.vertices:   # sole flat on the floor; the upper low at the toe and rising to the instep
+        x, y, z = v.co
+        z = max(0.0, z)
+        z *= 0.55 + 0.45 * min(1.0, max(0.0, (0.12 - y) / 0.17))
+        v.co = Vector((x, y, z + 0.006))
+    legs.append(shoe)
+legs.append(ellipsoid((0.12, 0.085, 0.16), (0, 0.022, 1.26)))   # dark shirt filling the coat's V
+legs = part(legs, "legs", fm["legs"], 700)
+
+# head: crown to chin 0.130H, eyes at 0.936H; a skull-shaped ellipsoid with jaw, brow, nose, cheekbones, chin and ears
+head = ellipsoid((0.074, 0.094, 0.112), (0, 0.004, 1.592), 48, 24)
+for v in head.data.vertices:
+    x, y, z = v.co
+    if z < 1.575:  # the jaw narrows towards the chin
+        t = min(1.0, (1.575 - z) / 0.09)
+        x *= 1.0 - 0.32 * t
+        y = y + 0.012 * t if y > 0 else y * (1.0 - 0.3 * t)
+    v.co = Vector((x, y, z))
+feats = [ellipsoid((0.0095, 0.018, 0.027), (0, 0.093, 1.566)),          # nose
+         ellipsoid((0.055, 0.02, 0.012), (0, 0.08, 1.616)),            # brow ridge
+         ellipsoid((0.03, 0.011, 0.016), (0.037, 0.064, 1.575)), ellipsoid((0.03, 0.011, 0.016), (-0.037, 0.064, 1.575)),  # cheekbones
+         ellipsoid((0.028, 0.022, 0.02), (0, 0.076, 1.503)),           # chin
+         ellipsoid((0.022, 0.009, 0.006), (0, 0.092, 1.531)),          # lips
+         ellipsoid((0.006, 0.018, 0.027), (0.071, -0.008, 1.586)), ellipsoid((0.006, 0.018, 0.027), (-0.071, -0.008, 1.586)),   # ears
+         ]
+neck = skin_chain("neck", [(0, -0.012, SH + 0.01, 0.05, 0.048), (0, 0.0, 1.52, 0.047, 0.047)], [(0, 1)])
+hands = []
+for s in (-1, 1):  # a hand 0.108H long, palm towards the thigh, fingers together, the thumb forward
+    hands.append(skin_chain(f"hand{s}", [(s * 0.212, 0.046, WR - 0.002, 0.017, 0.028), (s * 0.215, 0.052, WR - 0.07, 0.016, 0.04),
+                                         (s * 0.214, 0.056, WR - 0.165, 0.01, 0.028), (s * 0.207, 0.076, WR - 0.06, 0.01, 0.011)],
+                            [(0, 1), (1, 2), (0, 3)]))
+skin = join([head] + feats + [neck] + hands)
+skin.name = skin.data.name = "skin"
+apply_mod(skin, "REMESH", mode="VOXEL", voxel_size=0.0035)
+apply_mod(skin, "SMOOTH", factor=0.5, iterations=4)
+reduce(skin, 1700)
+for s in (-1, 1):  # eye sockets
+    carve(skin, ellipsoid((0.017, 0.02, 0.013), (s * 0.031, 0.1, 1.593)))
+skin.data.materials.clear()
+skin.data.materials.append(fm["skin"])
+eyes = join([ellipsoid((0.0105, 0.0105, 0.0105), (s * 0.031, 0.083, 1.593), 12, 8) for s in (-1, 1)])
+eyes.name = eyes.data.name = "eyes"
+eyes.data.materials.append(fm["eyes"])
+
+
+def scalp(name, keep, r=(0.079, 0.099, 0.118), c=(0, -0.003, 1.598)):
+    o = ellipsoid(r, c, 48, 24)
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not keep(v.co)], context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    apply_mod(o, "SOLIDIFY", thickness=0.008, offset=-1)
+    o.name = o.data.name = name
+    return o
+
+
+# short hair: the hairline runs from the forehead down behind the ears to the nape
+hair = scalp("hair", lambda co: co.z > 1.598 + 0.36 * (co.y - 0.0) and not (abs(co.x) > 0.06 and co.z < 1.6 and co.y > -0.02))
+hair = part([hair], "hair", fm["hair"], 450, voxel=0.0035)
+# long hair (Camille): falls behind the shoulders to the shoulder blades
+hl = [scalp("hl_cap", lambda co: co.z > 1.59 + 0.36 * co.y), ellipsoid((0.088, 0.05, 0.13), (0, -0.058, 1.47))]
+hairLong = part(hl, "hairLong", fm["hairLong"], 500, voxel=0.004)
+for o in (coat, legs, skin, eyes, hair, hairLong):
+    active(o)
+    bpy.ops.object.shade_smooth()
+    cavity_colors(o)
+export("figure", "the Copy, the other Ekin, Camille: one 1.70 m figure, scaled per character; parts named for their materials")
+
 (OUT / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 print("PROPS:", ", ".join(manifest))

@@ -37,7 +37,7 @@ Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install
 | Dosya | İçerik |
 |---|---|
 | `game.html` | Oyunun tamamı: sahneler, ışık, ses sentezi, oyuncu, kapılar, kamera, kanıt/Yankı/mühür, düşman, kayıt, menüler, dokunmatik kontroller |
-| `tools/make_props.py` | Blender betiği: sandalye, sandık, duvar apliği, mum kümesi, şamdan, vana çarkı, makaralı kayıt cihazı, dosya dolabı, Sovyet radyosu |
+| `tools/make_props.py` | Blender betiği: sandalye, sandık, duvar apliği, mum kümesi, şamdan, vana çarkı, makaralı kayıt cihazı, dosya dolabı, Sovyet radyosu, kafatası, uyluk kemiği ve karakter figürü (laboratuvar önlüklü, 1,70 m; oranlar Winter/Drillis-Contini vücut segment tablosundan) |
 | `models/` | Betiğin ürettiği GLB dosyaları ve `manifest.json` |
 | `tools/bake_textures.py` | Blender betiği: 16 gerçek-dünya yüzeyinin dikişsiz PBR dokuları (renk, normal, AO/pürüzlülük/metal) |
 | `textures/` | Pişirilmiş dokular (~5 MB JPEG) |

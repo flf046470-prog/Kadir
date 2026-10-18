@@ -67,6 +67,9 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
   - `'camille'`.
   - `'other'` — the other Ekin, camcorder-only.
   - The figure group's local −Z is its front. The core only moves and rotates the group, so a module may replace the group's children.
+  - The core builds every figure from `MODELS.figure` when it is present (`tools/make_props.py`: a static 1.70 m person in
+    a lab coat, scaled per character as a whole; meshes named `coat`, `skin`, `hair`, `hairLong`, `legs`, `eyes`), and
+    from primitives otherwise.
 - **`W.updaters`** — functions called with `dt` every step.
 - **`W.colliders`**, **`W.occluders`** — collision AABBs and segments, and raycast blockers (enemy sight, interaction).
 
@@ -77,7 +80,7 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
 | `fx-lighting` | Flashlight LED cookie, bounce light and flicker; lamp halos; hanging-bulb sway; one shadowed lamp on *high*; a per-chapter environment probe for materials marked `userData.fxReflective`. A visible beam mesh was tried and removed (it showed a ring artifact). |
 | `fx-particles` | Dust motes, drips/splashes, debris and dust bursts on `mover`/`slam`, steam, flame billboards on every `kind: 'flame'` light, gate particles |
 | `fx-materials` | Real-world surfaces: Blender-baked PBR sets in `textures/` (made by `tools/bake_textures.py`) applied on `material`/`build`. Covers soil, mud, rock and tuff, limestone, concrete, plaster, brick, wood, tile, painted and rusted metal, ice, frost and snow. Also world-space grime and wetness, decals, puddles, and environment dressing such as icicles, frozen puddles, snow drifts and mud. |
-| `fx-characters` | Replaces `W.figures` visuals with the rigged Blender humanoid (`MODELS.humanoid`) and animates it |
+| `fx-characters` | (not written yet) Would replace the static `MODELS.figure` people in `W.figures` with a rigged, animated humanoid |
 | `fx-camera` | Camera feel (head bob, breathing, shake on `slam`/`mover`/`catch`/`chase`), the first-person hands/flashlight viewmodel |
 
 Shared contracts:

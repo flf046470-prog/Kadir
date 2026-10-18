@@ -36,9 +36,10 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
 - [x] Mağaza metinleri (EN + TR), etiketler, tür, sistem gereksinimleri taslağı → `store-text.md`
 - [x] Oyunun çevrimdışı tek dosya sürümü (CDN yok, fontlar gömülü) → `DerinlikWeb/build.py --offline`
 - [x] Masaüstü kabuğu (Electron) ve Windows paketi (`release/win-unpacked/Derinlik.exe`) → `DerinlikDesktop/`
-- [ ] Mağaza ve kütüphane görselleri → `art/` (hazırlanıyor)
-- [ ] En az 5 ekran görüntüsü, 1920×1080 → `screenshots/` (hazırlanıyor)
-- [ ] Fragman (zorunlu değil, Steam "ideal olarak" istiyor)
+- [x] Mağaza ve kütüphane görselleri, Steam'in istediği ölçülerde → `art/` (başlık, küçük, ana, dikey kapsül, sayfa
+      arka planı, kütüphane kapsülü/başlığı/hero, saydam logo, topluluk simgesi)
+- [x] 9 ekran görüntüsü, 1920×1080 → `screenshots/` (Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek)
+- [ ] Fragman (zorunlu değil, Steam "ideal olarak" istiyor) → `tools/trailer.mjs` + `tools/soundtrack.py` (hazırlanıyor)
 
 ## Karar vermen gerekenler
 
@@ -54,3 +55,29 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
   gerçek kare hızını ölçemiyorum.
 - **Steam Deck / Linux:** Linux paketi üretilebiliyor ama gerçek bir Linux ya da Deck'te denenmedi; denenene kadar
   yalnızca Windows'u işaretle.
+
+## Görselleri ve fragmanı yeniden üretmek
+
+Hepsi oyunun kendisinden üretilir; elle boyanmış ya da dışarıdan alınmış görsel/ses yoktur. Depo kökünden:
+
+```sh
+python3 DerinlikWeb/build.py --offline --out dist/offline/index.html     # DerinlikWeb/dist/offline/index.html
+cd DerinlikSteam/tools && npm install && cd ../..
+node DerinlikSteam/tools/capture.mjs DerinlikWeb/dist/offline/index.html DerinlikSteam   # ekran görüntüleri + 4K plakalar
+node DerinlikSteam/tools/compose.mjs                                                       # kapsüller, logo, simgeler
+```
+
+Fragman (1920×1080, 30 fps; her kare oyun zamanını tam 1/30 s ilerletir, bu yüzden makineden bağımsız aynı çıkar):
+
+```sh
+node DerinlikSteam/tools/trailer.mjs DerinlikWeb/dist/offline/index.html frames      # frames/00001.jpg… + timeline.json
+python3 DerinlikSteam/tools/soundtrack.py frames/timeline.json frames/soundtrack.wav  # özgün müzik, 48 kHz stereo
+ffmpeg -framerate 30 -i frames/%05d.jpg -i frames/soundtrack.wav -c:v libx264 -preset slow -profile:v high \
+  -pix_fmt yuv420p -b:v 20M -maxrate 24M -bufsize 40M -c:a aac -b:a 192k -ar 48000 -ac 2 -shortest \
+  -movflags +faststart DerinlikSteam/trailer/derinlik_teaser_1080p.mp4
+```
+
+Bu ayarlar Steam'in fragman önerileriyle aynı: 1920×1080, 30 fps, H.264 yaklaşık 20 Mbps, AAC stereo 192 kbps, 48 kHz.
+Müzik `soundtrack.py` içinde osilatör ve gürültüden sentezlenir (oyunun kendi ses motifleri: kapı uğultusu, İkinci Ses
+fısıltısı, kamera bip'i); örnek (sample) kullanılmadığı için lisans sorunu yoktur. `--stride 15` ile her 15 karede bir
+kare alınarak kurgu hızlıca önizlenebilir. Yazılım GPU'sunda tam fragman yaklaşık bir saat sürer.
