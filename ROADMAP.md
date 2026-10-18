@@ -74,11 +74,11 @@ passes. Writing the code does not tick it.
   stood on the floor under it). `levels.test.ts` refuses an authored solid in a pool's plane.
   Measured: 0 coplanar samples; bots byte-identical on all three maps, because friction acts only
   on a released stick.
-- [ ] **A2. Planted strides for every walking animal.** The work is `docs/wip/planted-gaits.patch`;
-  its state and its measurements are in `CLAUDE.md` ("Parked"). Exit: median planted-foot slip
-  ≤ 0.1 m/s in the walk and the run for every animal whose legs can plant at that speed. Animals
-  whose legs cannot (the short-legged ones at 7 m/s) get a cadence cap with the residual slip
-  measured and written down.
+- [x] **A2. Planted strides for every walking animal.** Done: median planted-foot slip 0.01–0.09 m/s
+  from 1.5 to 7.2 m/s on every walking animal, 0–7 mm a stance up to the 9.7 m/s sprint, cadence at
+  most 3.7 strides/s, and the runs have footfalls (`Avatar.gait.test.ts`; `CLAUDE.md`, "Planted
+  strides"). Left over: short-legged animals land at about body speed at a sprint, which needs a
+  draw-back like the bound's.
 - [ ] **A3. PC against VR movement, measured** (Phase 2). Sustained ground speed, turn rate under
   pursuit, climb rate and chase outcome, with bots and synthetic VR intents. Gamepad dead zones and
   curves. Exit: a table in `docs/PERFORMANCE_BUDGETS.md`, every gap with its number.

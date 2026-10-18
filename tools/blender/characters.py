@@ -1488,7 +1488,7 @@ def _wrap(a):
     return (a + math.pi) % math.tau - math.pi
 
 
-def _pitch_sign(arm, bone):
+def _pitch_sign(arm, bone, least=8):
     """
     Which way a positive local-X rotation turns `bone` in the side view: +1 or -1.
 
@@ -1505,7 +1505,7 @@ def _pitch_sign(arm, bone):
     pb.rotation_quaternion = Quaternion()
     bpy.context.view_layer.update()
     turned = math.degrees(_wrap(after - before))
-    if abs(turned) < 8:
+    if abs(turned) < least:
         raise ValueError(f"{bone} does not swing in the side view (turned {turned:.1f} degrees for 10)")
     return 1 if turned > 0 else -1
 
@@ -1563,15 +1563,27 @@ def _ik(hip, ankle, l1, l2, rest_bend):
     return base, base
 
 
-def _set_leg(arm, r, d):
+def _set_leg(arm, r, d, splay=0.0, turn=0.0):
+    """Pose a leg: local-X pitches `d` (degrees) for thigh, shin and foot, `splay` (degrees, about
+    the thigh's local Z) to swing it out from the body or in under it, and `turn` (about the foot's
+    local Z) to turn the toes in or out."""
     pose = arm.pose.bones
     for name, a in zip((r["upper"], r["lower"], r["foot"]), d):
         pose[name].rotation_quaternion = Euler((math.radians(a), 0, 0), "XYZ").to_quaternion()
+    if splay:
+        pose[r["upper"]].rotation_quaternion = Euler((math.radians(d[0]), 0, math.radians(splay)), "XYZ").to_quaternion()
+    if turn:
+        pose[r["foot"]].rotation_quaternion = Euler((math.radians(d[2]), 0, math.radians(turn)), "XYZ").to_quaternion()
     bpy.context.view_layer.update()
     return _plane(pose[r["lower"]].tail), _plane(pose[r["foot"]].tail)
 
 
-def _solve_leg(arm, r, hip, ankle, a3):
+def _ankle_x(arm, r):
+    """How far out from the midline the posed ankle is: the one coordinate the side view drops."""
+    return arm.pose.bones[r["lower"]].tail.x
+
+
+def _solve_leg(arm, r, hip, ankle, a3, lateral=None, tolerance=0.002, hold=1.0):
     """
     Local-X rotations (degrees) for thigh, shin and foot that put the ankle at `ankle` and point the
     foot along `a3`, refined against the rig's own forward kinematics.
@@ -1579,7 +1591,15 @@ def _solve_leg(arm, r, hip, ankle, a3):
     The planar solution is exact only for a leg whose bones turn about an axis straight across the
     body. A frog's legs splay, so their local X is not quite across it and the first answer misses
     by centimetres; a few Newton steps on the posed rig close that, whatever the bones' frames are.
+
+    With `lateral`, the ankle is also held that far out from the midline, by swinging the thigh
+    about its own Z, and a fourth number (that splay) is returned. A leg whose pitch axis is not
+    straight across the body carries the foot sideways as it swings, and in a stance that is a
+    planted foot sliding: measured on a running human, 0.5 m/s across while it was still to 0.05
+    m/s along. The side view alone cannot see it.
     """
+    if lateral is not None:
+        return _solve_leg_3d(arm, r, hip, ankle, a3, lateral, tolerance, hold)
     a1, a2 = _ik(hip, ankle, r["l1"], r["l2"], r["bend"])
     s1, s2, s3 = r["signs"]
     d1 = _wrap(a1 - r["a1"])
@@ -1620,6 +1640,94 @@ def _solve_leg(arm, r, hip, ankle, a3):
     return d
 
 
+def _solve_leg_3d(arm, r, hip, ankle, a3, lateral, tolerance, hold):
+    """
+    `_solve_leg` with the ankle held across the body too: thigh pitch, shin pitch and thigh splay
+    against the ankle's (forward, up, across), then the foot's pitch and turn.
+
+    `hold` is how much of the way from where the leg puts the ankle by itself (the planar answer)
+    to `lateral` it is held, and the toes likewise to their own line. 1 in a stance, where a foot
+    off its line is a foot sliding across the ground; less in the air, where nothing touches and a
+    leg folded tight may not reach the line at all (the dragon's run, at the top of its swing, asked
+    for 60 degrees of splay and still missed by 2 cm).
+    """
+    d = list(_solve_leg(arm, r, hip, ankle, a3))
+    splay = 0.0
+    step = 0.25
+    if hold < 1:
+        _set_leg(arm, r, d)
+        lateral = _ankle_x(arm, r) + hold * (lateral - _ankle_x(arm, r))
+        toe_line = arm.pose.bones[r["foot"]].tail.x + hold * (r["toe_x"] - arm.pose.bones[r["foot"]].tail.x)
+    else:
+        toe_line = r["toe_x"]
+
+    def where(dd, sp):
+        got, _ = _set_leg(arm, r, dd, sp)
+        return (got[0], got[1], _ankle_x(arm, r))
+
+    want = (ankle[0], ankle[1], lateral)
+
+    def miss(dd, sp):
+        return [g - w for g, w in zip(where(dd, sp), want)]
+
+    # Damped least squares (Levenberg–Marquardt), taking a step only when it lowers the error. Plain
+    # Newton oscillated on the dragon's run: near full reach a straight leg's splay barely moves the
+    # ankle sideways, the Jacobian is nearly singular, and each step overshot by its whole length.
+    err = miss(d, splay)
+    damping = 1e-3
+    for _ in range(60):
+        if math.hypot(*err) < tolerance:
+            break
+        cols = []
+        for k in range(3):
+            trial, sp = list(d), splay
+            if k < 2:
+                trial[k] += step
+            else:
+                sp += step
+            moved = where(trial, sp)
+            cols.append([(m - g - w) / step for m, g, w in zip(moved, err, want)])
+        jac = Matrix([[cols[c][row] for c in range(3)] for row in range(3)])
+        jt = jac.transposed()
+        improved = False
+        while damping < 1e6:
+            delta = (jt @ jac + Matrix.Identity(3) * damping).inverted() @ (jt @ Vector(err))
+            trial = [d[0] - delta[0], d[1] - delta[1], d[2]]
+            sp = splay - delta[2]
+            after = miss(trial, sp)
+            if math.hypot(*after) < math.hypot(*err):
+                d, splay, err = trial, sp, after
+                damping = max(1e-6, damping / 4)
+                improved = True
+                break
+            damping *= 4
+        if not improved:
+            break
+    # Then the foot: its pitch to point along `a3`, and its turn to keep the toes on their own line
+    # across the body too. The toes swing about the ankle as the leg does, and with the ankle held
+    # but the foot free they crept 13–23 mm sideways through a stance.
+    turn = 0.0
+    for _ in range(16):
+        got, toe = _set_leg(arm, r, d, splay, turn)
+        miss = _wrap(_angle(got, toe) - a3)
+        across = arm.pose.bones[r["foot"]].tail.x - toe_line
+        if abs(miss) < math.radians(0.2) and abs(across) < tolerance:
+            break
+        trial = list(d)
+        trial[2] += step
+        moved_ankle, moved_toe = _set_leg(arm, r, trial, splay, turn)
+        rate = _wrap(_angle(moved_ankle, moved_toe) - _angle(got, toe)) / step
+        if abs(rate) > 1e-6:
+            d[2] -= miss / rate
+        _set_leg(arm, r, d, splay, turn + step)
+        moved_x = arm.pose.bones[r["foot"]].tail.x
+        _set_leg(arm, r, d, splay, turn)
+        sideways = (moved_x - arm.pose.bones[r["foot"]].tail.x) / step
+        if abs(sideways) > 1e-7:
+            turn -= max(-8.0, min(8.0, (arm.pose.bones[r["foot"]].tail.x - toe_line) / sideways))
+    return d[0], d[1], d[2], splay, turn
+
+
 def bound(arm, legs, arms, tail_bones):
     """
     The hopper's run, as the bound a kangaroo actually makes: both feet planted while the body
@@ -1637,14 +1745,9 @@ def bound(arm, legs, arms, tail_bones):
     stands mid-stride with one foot 8 cm off the ground, and its two legs measure 0.72 m and 0.67 m.
     """
     # Measure the rig with no clip driving it: an assigned action would overwrite a test pose.
-    arm.animation_data.action = None
-    pose = arm.pose.bones
     # Unassigning the action leaves the last keyed values on the bones; the rest pose is identity.
-    for pb in pose:
-        pb.rotation_mode = "QUATERNION"
-        pb.rotation_quaternion = Quaternion()
-        pb.location = (0, 0, 0)
-    bpy.context.view_layer.update()
+    _rest_pose(arm)
+    pose = arm.pose.bones
     rest = {}
     for upper, lower in legs:
         foot = lower.replace("shin", "foot")
@@ -1745,6 +1848,252 @@ def bound(arm, legs, arms, tail_bones):
                 # 1.5 cm across a stance is a few centimetres a second; the gait this replaced skated at 13.8 m/s.
                 if math.hypot(*moved) > 0.015:
                     raise ValueError(f"bound frame {f}: {r['foot']} toes slide {math.hypot(*moved):.3f} m in the stance")
+    bpy.context.scene.frame_set(1)
+    return clip
+
+
+# --------------------------------------------------------------------------------------------
+# Walking and running: planted strides
+# --------------------------------------------------------------------------------------------
+
+# Frames in a stride cycle: 24 intervals, so a stance lands on whole frames for either duty.
+GAIT_FRAMES = 25
+# Per gait, every length a share of the rig's leg length (thigh + shin):
+#   duty   share of the cycle each foot is on the ground — over a half is a walk, under it a run
+#   stride how far the planted toes travel back under the body, before it is cut to what the rig
+#          reaches; the client reads the result back out of the clip, never this number
+#   lift   how high a swinging foot clears the ground
+#   bob    how far the body rises and falls twice a cycle, and `sink` how far it crouches
+#   lean   spine pitch into the motion, degrees; `arm` the arms' counter-swing, degrees
+#   match  how much of the ground's speed a swinging foot carries into touchdown and out of
+#          lift-off, so it meets the ground travelling with it rather than slapped onto it
+GAITS = {
+    "walk": {"duty": 0.6, "stride": 0.7, "lift": 0.12, "bob": 0.025, "sink": 0.02, "lean": 2.0, "arm": 18.0, "match": 1.0},
+    "run": {"duty": 0.32, "stride": 0.85, "lift": 0.3, "bob": 0.05, "sink": 0.07, "lean": 8.0, "arm": 34.0, "match": 0.8},
+}
+# Where in its stance a planted foot starts to lift its heel, pivoting about the toes.
+GAIT_HEEL_LIFT = 0.7
+GAIT_TOE_OFF = math.radians(28)
+
+
+def _foot_of(lower):
+    """The foot bone below a leg's lower bone: shin → foot, a quadruped's lower leg → its paw."""
+    if "shin" in lower:
+        return lower.replace("shin", "foot")
+    return lower.replace("lower", "paw")
+
+
+def _rest_pose(arm):
+    """Unassign the clip and return every bone to rest, so the rig can be measured."""
+    if arm.animation_data is None:
+        arm.animation_data_create()
+    arm.animation_data.action = None
+    for pb in arm.pose.bones:
+        pb.rotation_mode = "QUATERNION"
+        pb.rotation_quaternion = Quaternion()
+        pb.location = (0, 0, 0)
+    bpy.context.view_layer.update()
+
+
+def _hermite(p0, p1, m0, m1, u):
+    return (
+        (2 * u**3 - 3 * u**2 + 1) * p0
+        + (u**3 - 2 * u**2 + u) * m0
+        + (-2 * u**3 + 3 * u**2) * p1
+        + (u**3 - u**2) * m1
+    )
+
+
+def _stride_foot(p, gait, stride):
+    """
+    One foot through its own cycle (`p`, 0..1 from touchdown): how far its toes are ahead of where
+    they stand at rest, how high they are off the ground, and how far the heel is lifted (radians).
+
+    In the stance the toes travel back at a constant rate, which is what lets the client play the
+    clip by distance and have them stay where they landed at any speed. The heel rises over the
+    end of the stance with the toes held, so the foot rolls off the ground rather than snapping.
+    """
+    duty = gait["duty"]
+    if p < duty:
+        u = p / duty
+        return stride * (0.5 - u), 0.0, GAIT_TOE_OFF * _smooth((u - GAIT_HEEL_LIFT) / (1 - GAIT_HEEL_LIFT))
+    u = (p - duty) / (1 - duty)
+    # The ground moves back under the body by stride/duty a cycle; a foot leaving or meeting it is
+    # given that speed (in this swing's own units), times `match`.
+    m = -gait["match"] * (stride / duty) * (1 - duty)
+    travel = _hermite(-stride / 2, stride / 2, m, m, u)
+    heel = GAIT_TOE_OFF * (1 - u) ** 2 - math.radians(6) * math.sin(math.pi * u)
+    return travel, math.sin(math.pi * u), heel
+
+
+def stride_gait(arm, plan, legs, arms, tail_bones, name):
+    """
+    A walk or a run with its feet planted: each foot is held where it landed by IK while the body
+    passes over it, then lifted and swung forward to land again ahead.
+
+    It replaces sine cycles that swung each joint back and forth with no notion of the ground.
+    Measured through three.js, played the way the renderer played them, the lowest foot of every
+    one of them moved over the ground at about the body's own speed: a walk at 2.4 m/s slid its
+    "planted" foot at 1.9–2.4 m/s and a run at 7 m/s at up to 7.7 m/s. Nothing was ever planted.
+
+    Two legs alternate; four go in diagonal pairs (front-left with back-right), the same pattern
+    for the walk and the run so that the renderer's blend between the two never mixes a foot that
+    is down with one that is up for long. The stride is the longest the rig reaches on every frame,
+    and every frame is played back and measured before the clip is accepted.
+    """
+    gait = GAITS[name]
+    _rest_pose(arm)
+    pose = arm.pose.bones
+    rest = []
+    for (upper, lower), offset in zip(legs, [0.0, 0.5, 0.5, 0.0] if plan == "quadruped" else [0.0, 0.5]):
+        foot = _foot_of(lower)
+        hip, knee, ankle, toe = (
+            _plane(pose[upper].head), _plane(pose[upper].tail), _plane(pose[lower].tail), _plane(pose[foot].tail)
+        )
+        rest.append({
+            "upper": upper, "lower": lower, "foot": foot, "offset": offset, "toe": toe,
+            "x": pose[lower].tail.x, "toe_x": pose[foot].tail.x,
+            "l1": math.dist(hip, knee), "l2": math.dist(ankle, knee), "l3": math.dist(ankle, toe),
+            "bend": (knee[0] - hip[0]) * (ankle[1] - knee[1]) - (knee[1] - hip[1]) * (ankle[0] - knee[0]),
+            "a1": _angle(hip, knee), "a2": _angle(knee, ankle), "a3": _angle(ankle, toe),
+            "signs": (_pitch_sign(arm, upper), _pitch_sign(arm, lower), _pitch_sign(arm, foot)),
+        })
+    # Arms hang a little out from the body, so a swing about their own X shows less in the side
+    # view than a leg's does; all that is wanted from them is which way is forward.
+    arm_signs = {b: _pitch_sign(arm, b, least=3) for b in arms}
+    # One ground for every foot. A sculpt can stand with a foot raised (the raptor's is 8 cm up),
+    # and a foot planted at its own rest height would walk on air.
+    ground = min(r["toe"][1] for r in rest)
+    leg = sum(r["l1"] + r["l2"] for r in rest) / len(rest)
+    n = GAIT_FRAMES
+    phases = [(f - 1) / (n - 1) for f in range(1, n + 1)]
+    root_rest = arm.data.bones["root"].matrix_local.to_3x3().inverted()
+    waddling = plan == "waddler"
+
+    # How far the body is carried below its rest height. The sculpts stand with their legs locked
+    # straight (a human's and a wolf's forelegs measure fully extended at rest), and a straight leg
+    # cannot reach ahead or behind, so the body is lowered as far as the stride needs — up to a
+    # bent-knee limit, past which the stride is shortened instead.
+    drop = {"m": gait["sink"] * leg}
+    deepest = (0.18 if gait["duty"] >= 0.5 else 0.25) * leg
+
+    def body(phase):
+        """Root rise and spine pitch at `phase`: two beats a cycle, one per footfall."""
+        beat = math.cos(4 * math.pi * (phase - gait["duty"] / 2))
+        # A walk vaults over the planted leg, highest in the middle of the stance; a run is a
+        # spring, lowest there.
+        rise = -drop["m"] + gait["bob"] * leg * (beat if gait["duty"] >= 0.5 else -beat)
+        return rise, -gait["lean"] - 1.5 * beat
+
+    def pose_body(phase):
+        rise, lean = body(phase)
+        pose["root"].location = root_rest @ Vector((0, 0, rise))
+        pose["spine"].rotation_quaternion = Euler((math.radians(lean), 0, 0), "XYZ").to_quaternion()
+        if waddling:
+            roll = 14.0 * math.sin((phase - 0.25) * math.tau)
+            pose["hips"].rotation_quaternion = Euler((0, math.radians(roll), 0), "XYZ").to_quaternion()
+        bpy.context.view_layer.update()
+
+    def targets(stride):
+        """Per frame and leg: the hip as the body is posed, and where the ankle and toes go."""
+        out = {}
+        for f, phase in zip(range(1, n + 1), phases):
+            pose_body(phase)
+            for r in rest:
+                travel, up, heel = _stride_foot((phase - r["offset"]) % 1.0, gait, stride)
+                toe = (r["toe"][0] + travel, ground + up * gait["lift"] * leg)
+                a3 = r["a3"] - heel
+                ankle = (toe[0] - r["l3"] * math.cos(a3), toe[1] - r["l3"] * math.sin(a3))
+                out[(f, r["upper"])] = (_plane(pose[r["upper"]].head), ankle, toe, a3)
+                across[(f, r["upper"])] = r["x"] - pose[r["upper"]].head.x
+        return out
+
+    # How far out from the hip each ankle is held. The leg has to reach that too: measured in the
+    # side view alone, a splayed leg (the dragon's) was planned a stride its leg could not span.
+    across = {}
+
+    reach = {r["upper"]: 0.97 * (r["l1"] + r["l2"]) for r in rest}
+    stride = round(gait["stride"] * leg, 2)
+
+    def hold(r, phase):
+        """How firmly a foot is held to its line across the body: wholly while it is down, easing
+        off through the swing and back on before it lands."""
+        p = (phase - r["offset"]) % 1.0
+        if p < gait["duty"]:
+            return 1.0
+        return (1 - math.sin(math.pi * (p - gait["duty"]) / (1 - gait["duty"]))) ** 2
+
+    while True:
+        plan_ = targets(stride)
+        # The ankle is held across the body too (`_solve_leg`), so the leg has to span that offset
+        # as well as the side view's distance; measured on the side view alone, a splayed leg was
+        # planned a stride it could not reach. This changes the answer 28 times across the roster.
+        over = max(math.hypot(math.dist(hip, ankle), across[k]) - reach[k[1]] for k, (hip, ankle, _, _) in plan_.items())
+        if over <= 0:
+            break
+        if drop["m"] + over <= deepest:
+            # Lowering by the overshoot shortens a slanted leg by less than that, so this converges
+            # from above over a few rounds rather than in one.
+            drop["m"] += over + 0.002
+            continue
+        drop["m"] = gait["sink"] * leg
+        stride = round(stride - 0.01, 2)
+        if stride < 0.25 * leg:
+            raise ValueError(f"{name}: no stride of a quarter of a leg is in reach of this rig's legs")
+
+    solved = {}
+    for f, phase in zip(range(1, n + 1), phases):
+        pose_body(phase)
+        for r in rest:
+            hip, ankle, _, a3 = plan_[(f, r["upper"])]
+            # Held at its own rest distance from the midline while it is down, so a planted foot
+            # cannot drift across the ground, and to half a millimetre, so it cannot creep along it.
+            # In the air the hold eases off: a leg folded tight at the top of a swing may not reach
+            # the line at all (the dragon's run asked for 60 degrees of splay and still missed by 2 cm).
+            solved[(f, r["upper"])] = _solve_leg(arm, r, hip, ankle, a3, lateral=r["x"], tolerance=0.0005, hold=hold(r, phase))
+
+    clip = Clip(arm, name, n)
+    for f, phase in zip(range(1, n + 1), phases):
+        rise, lean = body(phase)
+        clip.key("root", f, (0, 0, 0), loc=(0, 0, rise))
+        clip.key("spine", f, (lean, 0, 0))
+        if waddling:
+            clip.key("hips", f, (0, 14.0 * math.sin((phase - 0.25) * math.tau), 0))
+        for r in rest:
+            thigh, shin, foot_pitch, splay, turn = solved[(f, r["upper"])]
+            clip.key(r["upper"], f, (thigh, 0, splay))
+            clip.key(r["lower"], f, (shin, 0, 0))
+            clip.key(r["foot"], f, (foot_pitch, 0, turn))
+        # Each arm swings against the leg on its own side: forward as that foot is pushed back.
+        for bone in arms:
+            side = next(r for r in rest if r["upper"].endswith(bone[-2:]))
+            travel, _, _ = _stride_foot((phase - side["offset"]) % 1.0, gait, stride)
+            clip.key(bone, f, (arm_signs[bone] * -gait["arm"] * travel / (stride / 2), 0, 0))
+        for i, tb in enumerate(tail_bones):
+            sway = gait["arm"] * 0.3 * math.sin(math.tau * phase - i * 0.5)
+            clip.key(tb, f, (0, 0, sway))
+
+    # Play it back. The ankle is where it was placed, and through the stance (before the heel
+    # lifts, after which the foot pivots about its toes) the toes move exactly as planned.
+    first = {}
+    for f, phase in zip(range(1, n + 1), phases):
+        bpy.context.scene.frame_set(f)
+        for r in rest:
+            _, ankle, toe, _ = plan_[(f, r["upper"])]
+            got = _plane(pose[r["lower"]].tail)
+            if math.dist(ankle, got) > 0.002:
+                raise ValueError(f"{name} frame {f}: {r['foot']} ankle at {got}, wanted {ankle}")
+            if (phase - r["offset"]) % 1.0 < gait["duty"] and abs(pose[r["lower"]].tail.x - r["x"]) > 0.002:
+                raise ValueError(f"{name} frame {f}: {r['foot']} ankle {pose[r['lower']].tail.x - r['x']:+.3f} m across from its line")
+            p = (phase - r["offset"]) % 1.0
+            if p < gait["duty"] * GAIT_HEEL_LIFT:
+                key = (r["upper"], round(phase - p, 6))
+                tail = pose[r["foot"]].tail
+                toes = (tail.y, tail.z, tail.x)
+                start, planned = first.setdefault(key, (toes, toe))
+                moved = (toes[0] - start[0] - (toe[0] - planned[0]), toes[1] - start[1], toes[2] - start[2])
+                if math.hypot(*moved) > 0.006:
+                    raise ValueError(f"{name} frame {f}: {r['foot']} toes slide {math.hypot(*moved):.3f} m in the stance")
     bpy.context.scene.frame_set(1)
     return clip
 
@@ -1861,9 +2210,13 @@ def animate(arm, plan, tail_bones):
                 clip.cycle(tb, [(f, (0, 0, swing * 0.35 * math.sin(((f - 1) / n) * math.tau + i * 0.4))) for f in steps])
         return clip
 
-    gait("walk", swing=22.0, lift=26.0, bob=0.035, lean=2.0)
-    if not (hopping and bound(arm, legs, arms, tail_bones)):
-        gait("run", swing=38.0, lift=44.0, bob=0.075, lean=8.0)
+    if hopping and bound(arm, legs, arms, tail_bones):
+        # A bounding animal's walk is the slow end of its hop, both feet together, and is still the
+        # old sine cycle: it is on screen only between 0.5 and 1.8 m/s, on the way up to a bound.
+        gait("walk", swing=22.0, lift=26.0, bob=0.035, lean=2.0)
+    else:
+        stride_gait(arm, plan, legs, arms, tail_bones, "walk")
+        stride_gait(arm, plan, legs, arms, tail_bones, "run")
 
     # Idle: breathing, not stillness. A model that holds one pose exactly reads as frozen, which
     # is a state this game actually has, so idle must not look like it.

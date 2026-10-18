@@ -1403,7 +1403,10 @@ Measured over eight seeds right after the geometry change: 77 gave **0** and the
 seeds now, which is a stronger claim than the original made — a change that broke tagging in
 general fails it, where before it could pass on whichever single seed still happened to work.
 
-## Gait clips are sine-driven, so "the speed a clip was authored for" is not a real number
+## Gait clips were sine-driven, so "the speed a clip was authored for" was not a real number
+
+**Superseded: every walk and run is a planted stride now.** See "Planted strides" below. This section
+is kept for the reasoning, which is why the fix had to be in the generator.
 
 `Avatar.strideRate(speed)` is `clamp(speed / 4.6, 0.55, 1.8)` — **one constant for every animal and
 both gaits**, while `tools/blender/characters.py` generates each clip from that animal's own body
@@ -2111,19 +2114,70 @@ Collision is untouched, so no map `version` moves. Trunks (every collider cylind
 `LevelRenderer.branches.test.ts` puts every vertex of every drawn branch into its box's frame; four
 mutations (no root, round instead of oval, not marked, root extended outwards) each fail it.
 
-## Parked: planted strides for every walking animal
+## Planted strides: every walking animal's feet stay where they land
 
-Started and parked when the request above came in; **the work is in `docs/wip/planted-gaits.patch`**
-(`git apply` it). Measured first: every non-bounding walk and run slid its lowest foot at roughly the
-body's speed — 1.9–2.4 m/s in a 2.4 m/s walk, up to 7.7 m/s in a 7 m/s run (`.probe/slip.ts`).
-The patch has `characters.stride_gait` (IK-planted stance, Hermite swing, body lowered as far as
-the stride needs because the sculpts stand with straight legs) building on all sixteen, and on the
-client `measureGait`/`gaitRate` (stance by distance, flights by time) plus a fix to
-`measureBound`, which took an alternating run's left foot for a bound unless the right foot is
-also down. Measured with it (`.probe/gaitslip.ts`): human/wolf/deer/koala walks plant at
-0.03–0.14 m/s. Not finished: `measureGait` returns null for the fox's walk and the tiger's, lion's
-and raptor's runs; a walk blended with idle at 1.5 m/s still slides; and short-legged animals
-(penguin, bear, panda, raccoon) cannot plant at 7 m/s at any cadence a viewer could read.
+Roadmap item A2. Measured first: every non-bounding walk and run slid its lowest foot at about the
+body's speed, 1.9–2.4 m/s in a 2.4 m/s walk and up to 7.7 m/s in a 7 m/s run. Now, driven through
+three.js the way the game drives it, every walking animal's down foot moves **0.01–0.09 m/s**
+(median) from 1.5 m/s to the 7.2 m/s run, and a stance slides **0–7 mm** in all, mostly under 2.
+`Avatar.gait.test.ts` holds both, plus cadence, landing speed and footfalls, for every shipped
+animal at 1.5 / 2.4 / 4 / 7.2 / 9.7 m/s (9.7 is the sprint: `maxSpeed` × `sprintMultiplier`).
+
+**The generator** (`characters.stride_gait`) keys the stance by IK: toes held while the body
+passes over them, a Hermite swing, the body lowered as far as the stride needs (the sculpts stand
+with straight legs). Three things it needed beyond the parked patch:
+
+- **The foot is held across the body, not only in the side view.** The planar IK left the third
+  axis free, and a leg whose pitch axis is not straight across carries the foot sideways as it
+  swings: a running human's planted foot was still to 0.05 m/s along and moving **0.5 m/s across**.
+  `_solve_leg_3d` adds the thigh's splay (local Z) and the foot's turn, solved by damped least
+  squares. Plain Newton oscillated near full reach (the dragon's run, splay jumping 0 ↔ −8°).
+- **Only while the foot is down.** Holding the line through the swing asked the dragon for 60° of
+  splay at the top of its stride and still missed by 2 cm. `hold` is 1 in the stance and eases to 0
+  mid-swing and back.
+- **Reach counts the sideways offset** (`across`). It changes the planned stride 28 times across
+  the roster. The build refuses an ankle 2 mm off its plan or off its line in a stance, and toes
+  that slide 6 mm in one; without the foot's turn, wolf, fox and dragon fail at 7–9 mm.
+
+**The client** (`Avatar.ts`) places the stride rather than playing it:
+
+- `measureGait` reads each gait's stride and flights out of the clip. Its ground is the stance's
+  height (a quantile), not the lowest the foot goes: the fox's back paw dips 9 mm under the stance
+  just after lift-off, and measured from that dip the whole stance was "off the ground" and the
+  walk read as null. A foot within 12 mm of landing counts as down (`GAIT_NEAR`), so the landing is
+  played by distance like the stance it starts. Without it the median landing speed roughly doubles
+  (human at 9.7: 2.9 → 8.4 m/s).
+- `plantedBlend`: the idle is gone by 0.9 m/s and the walk turns to the run over 0.8 m/s from
+  `plantedRunStart`, the speed where the walk would pass `WALK_CADENCE_MAX` (2.2 strides/s). The
+  old long ramps slid a planted foot by the other clip's share: 0.65–0.87 m/s at 1.5, and a penguin
+  walking to 2.4 m/s took fourteen steps a second.
+- `plantedRate`: the stance is divided by the gaits' strides **weighted as drawn**. Averaging their
+  own rates moves the blended foot faster than the body by the gap between them.
+- `advancePlanted` integrates piece by piece across flight edges. Stepped whole, a sprinting
+  penguin moved a tenth of a cycle a frame, jumped most of each 0.12 s flight on entering it, and
+  its "planted" foot moved at 9.65 m/s.
+- The run's touchdowns are footfalls (`GaitCycle.touchdowns`): the walkers' runs had no thump and
+  no dust. Not the walk.
+
+Seven client mutations, each failing its own test: rates averaged, ground at the lowest, no landing
+rule, one step a frame, the old blend, walking to `WALK_FULL`, a silent run.
+
+`animal-motion.test.ts` asked the run to lift the hips 2 cm above standing; a planted run is
+crouched by design, so it now asks for the bounce within the run (2.0–6.9 cm measured, > 1.5 cm
+required). Restoring the old root-location bug no longer reaches that test: the generator refuses
+the model first, its ankle 5 cm off the plan.
+
+**Measuring a foot.** At a sprint a short-legged animal's stance is over in 8–16 ms (2–4 frames at
+240 Hz) and the flight lasts the full 0.12 s with the next foot descending through it. A
+quantile-based "ground" then lands on that descending foot and reports body speed as slip. Detect a
+down foot as the lowest it goes with near-zero vertical speed (as `Avatar.bound.test.ts` does), and
+judge sprints by how far a stance slides (0.1–0.3 mm), not by its rate (0.12–0.23 m/s).
+
+**Not done, and next:** short-legged animals (run stride under 0.5 m: penguin, panda) land at about
+the body's speed at a sprint, 11 m/s for the penguin whichever way the landing is played. The bound
+solved this with a swing drawn back to a fixed match speed (`BOUND_MATCH_SPEED`); the stride swing's
+`match` is a share of the ground speed in clip units, and the flight is played by time, so it does
+not carry over. The test asks landing speed only of long-legged runs, and says why.
 
 ## Loose balls you can kick, catch and throw (Escape Simulator 2's lesson)
 

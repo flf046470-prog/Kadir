@@ -3,6 +3,23 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-18 — GitHub access back; A2 planted strides done (interactive)
+
+**Pushed:** the five commits of 10-16 (surfaces, branches, the plan, A1), rebased over the 6th run's
+note. GitHub access works again.
+
+**A2 done:** every walking animal's planted foot moves 0.01–0.09 m/s (median) from 1.5 to 7.2 m/s,
+a stance slides 0–7 mm up to the 9.7 m/s sprint, and the runs make footfalls. Generator:
+three-axis leg solver (splay + foot turn), held only while a foot is down. Client:
+`plantedBlend`, `plantedRate`, `advancePlanted`, robust `measureGait`. All sixteen models rebuilt.
+`Avatar.gait.test.ts` (6 tests); 7 client and 2 generator mutations each caught. Details in
+`CLAUDE.md` ("Planted strides").
+
+**Left over:** short-legged animals land at about body speed at a sprint (needs a draw-back like
+the bound's). Recorded in `ROADMAP.md` A2.
+
+**Next session — first task:** Track A, item A3 (PC against VR movement, measured).
+
 ## 2026-10-17 (6th run) — still blocked on owner decisions (routine, docs-only)
 
 **Checked:** branch `claude/kangaroo-chase-game-w62laa` is current at 01119e6; no new commits and no owner answer on PR #4 (only Vercel bot notices).
@@ -19,13 +36,13 @@ status of record; this file is the hand-off between sessions.
   (A1–A26) that needs no account; Track B is the account holder's, by month.
 - `TODO.md` → "Next up" now points at Track A.
 
-**Parked:** planted gaits, in `docs/wip/planted-gaits.patch` (state in `CLAUDE.md`, "Parked").
+**Parked:** planted gaits (finished on 10-18, see above).
 
 - A1 done: the creek runs in a channel; the ground probe reports the higher of two equally flat
   surfaces, so players stand in the water in every pool; water wins depth ties in the renderer.
   Details and measurements in `CLAUDE.md` ("Water sat in the plane of its bed").
 
-**Next session — first task:** Track A, item A2 (planted strides, `docs/wip/planted-gaits.patch`).
+**Next session — first task:** Track A, item A2 (planted strides).
 "Blocked on the owner" applies to Track B only.
 
 ## 2026-10-11 (5th run) — still blocked on owner decisions (routine, docs-only)

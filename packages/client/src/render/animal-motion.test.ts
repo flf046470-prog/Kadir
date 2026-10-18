@@ -103,17 +103,21 @@ describe('every generated animal', () => {
     }
   });
 
-  it('bounces up through its run, not along the floor', () => {
+  it('bounces up and down through its run, not along the floor', () => {
     for (const model of models) {
       const rest = sample(model, 'idle', 0, 'hips');
-      let rise = 0;
+      const heights: number[] = [];
       let drift = 0;
       for (const t of CYCLE) {
         const at = sample(model, 'run', t, 'hips');
-        rise = Math.max(rise, at.y - rest.y);
+        heights.push(at.y);
         drift = Math.max(drift, Math.hypot(at.x - rest.x, at.z - rest.z));
       }
-      expect(rise, `${model.id} never leaves the ground in its run`).toBeGreaterThan(0.02);
+      // The bounce, not the height. A planted stride runs crouched — the sculpts stand with their
+      // legs locked straight, and a straight leg cannot reach ahead — so a walking animal's hips stay
+      // 1–17 cm below standing and bob 2–7 cm within the run. With `Clip.key`'s `loc` in the bone's
+      // own frame they rose 0.000 m and slid along the floor instead.
+      expect(Math.max(...heights) - Math.min(...heights), `${model.id} does not bounce in its run`).toBeGreaterThan(0.015);
       expect(drift, `${model.id} slides along the floor in its run`).toBeLessThan(0.02);
     }
   });

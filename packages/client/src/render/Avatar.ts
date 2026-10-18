@@ -222,6 +222,9 @@ export function boundBlend(speed: number): LocomotionBlend {
 export function measureBound(root: THREE.Object3D, clip: THREE.AnimationClip): number | null {
   const foot = root.getObjectByName('footL');
   if (!foot) return null;
+  // A bound lands on both feet together. An alternating run plants the left foot over the same
+  // stretch of its cycle, flat and travelling back, and without this it was played as a bound.
+  const other = root.getObjectByName('footR');
   const saved: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
   root.traverse((node) => saved.push([node, node.position.clone(), node.quaternion.clone(), node.scale.clone()]));
   const mixer = new THREE.AnimationMixer(root);
@@ -229,10 +232,12 @@ export function measureBound(root: THREE.Object3D, clip: THREE.AnimationClip): n
   // The heel starts to lift 65 % of the way through the stance; up to 60 % the foot is flat.
   const flat = 0.6;
   const samples: THREE.Vector3[] = [];
+  const partner: THREE.Vector3[] = [];
   for (let i = 0; i <= 6; i++) {
     mixer.setTime(((i / 6) * flat * BOUND_STANCE) * clip.duration);
     root.updateWorldMatrix(true, true);
     samples.push(root.worldToLocal(foot.getWorldPosition(new THREE.Vector3())));
+    if (other) partner.push(root.worldToLocal(other.getWorldPosition(new THREE.Vector3())));
   }
   mixer.stopAllAction();
   mixer.uncacheRoot(root);
@@ -244,9 +249,277 @@ export function measureBound(root: THREE.Object3D, clip: THREE.AnimationClip): n
   root.updateWorldMatrix(true, true);
   const heights = samples.map((p) => p.y);
   if (Math.max(...heights) - Math.min(...heights) > 0.01) return null;
+  if (partner.length) {
+    const together = partner.map((p) => p.y);
+    if (Math.max(...together) - Math.min(...heights) > 0.02) return null;
+  }
   for (let i = 1; i < samples.length; i++) if ((samples[i] as THREE.Vector3).z >= (samples[i - 1] as THREE.Vector3).z) return null;
   const travel = (samples[0] as THREE.Vector3).z - (samples[samples.length - 1] as THREE.Vector3).z;
   return travel > 0.05 ? travel / flat : null;
+}
+
+/**
+ * Every other animal walks and runs with its feet planted (`stride_gait` in
+ * `tools/blender/characters.py`): each foot is held where it landed while the body passes over it,
+ * then swung forward to land ahead. The generator keys it; this file plays it.
+ *
+ * They replaced sine cycles that swung the joints with no notion of the ground. Played the way
+ * `strideRate` played them, the lowest foot of every one moved over the ground at about the body's
+ * own speed — 1.9–2.4 m/s in a 2.4 m/s walk, up to 7.7 m/s in a 7 m/s run. Nothing was planted.
+ *
+ * Like the bound, a stride is placed rather than played. While any foot is down the clip moves on
+ * by how far the body moved, which is what keeps that foot still; while none is (a run's flights)
+ * it moves on by time, `GAIT_FLIGHT` a flight. Driving the flights by distance too made a running
+ * wolf take nine strides a second, because a short-legged animal at this game's 7.2 m/s has to
+ * cover most of each stride in the air.
+ */
+/** Share of a stance the foot is flat for, before its heel lifts. The generator's `GAIT_HEEL_LIFT`. */
+export const GAIT_HEEL_LIFT = 0.7;
+/** How long each of a run's flights lasts: a sprinter's, about. */
+export const GAIT_FLIGHT = 0.12;
+
+export interface GaitCycle {
+  /** How far the body travels in one cycle of the clip, in model metres. */
+  distance: number;
+  /** Stretches of the cycle, as [start, end) phases that may wrap past 1, with no foot down. */
+  airborne: [number, number][];
+  /**
+   * Phases at which a foot lands, one per footfall a listener would hear: a quadruped's diagonal
+   * pair lands together and is one. Optional so a hand-built cycle needs none.
+   */
+  touchdowns?: number[];
+}
+
+const GAIT_FEET = ['footL', 'footR', 'frontpawL', 'frontpawR', 'backpawL', 'backpawR'];
+const GAIT_SAMPLES = 120;
+
+/** How far off the ground a foot can be and still count as flat on it: the generator places it to a millimetre. */
+const GAIT_FLAT = 0.004;
+/** A foot this close to the ground is landing or lifting off, and is played by distance. */
+const GAIT_NEAR = 0.012;
+
+function quantile(values: number[], q: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))] as number;
+}
+
+function median(values: number[]): number {
+  return quantile(values, 0.5);
+}
+
+/**
+ * A planted gait read out of its clip: how far the body goes in a cycle (the rate the flat feet
+ * travel back under it) and where in the cycle no foot is down. Null for a clip whose feet are
+ * never flat on the ground for long, moving back at one steady rate — the sine cycles this
+ * replaced, and whatever an art pack ships — which then play the old way.
+ *
+ * Read from the clip because the generator decides the stride: it is the longest each rig's legs
+ * reach, so a constant here would be right for one animal.
+ */
+export function measureGait(root: THREE.Object3D, clip: THREE.AnimationClip): GaitCycle | null {
+  const feet = GAIT_FEET.map((name) => root.getObjectByName(name)).filter((f): f is THREE.Object3D => !!f);
+  if (feet.length === 0) return null;
+  const saved: [THREE.Object3D, THREE.Vector3, THREE.Quaternion, THREE.Vector3][] = [];
+  root.traverse((node) => saved.push([node, node.position.clone(), node.quaternion.clone(), node.scale.clone()]));
+  const mixer = new THREE.AnimationMixer(root);
+  mixer.clipAction(clip).play();
+  const tracks = feet.map(() => [] as THREE.Vector3[]);
+  for (let i = 0; i < GAIT_SAMPLES; i++) {
+    mixer.setTime((i / GAIT_SAMPLES) * clip.duration);
+    root.updateWorldMatrix(true, true);
+    feet.forEach((foot, k) => tracks[k]?.push(root.worldToLocal(foot.getWorldPosition(new THREE.Vector3()))));
+  }
+  mixer.stopAllAction();
+  mixer.uncacheRoot(root);
+  for (const [node, position, quaternion, scale] of saved) {
+    node.position.copy(position);
+    node.quaternion.copy(quaternion);
+    node.scale.copy(scale);
+  }
+  root.updateWorldMatrix(true, true);
+
+  const n = GAIT_SAMPLES;
+  const rates: number[] = [];
+  const stances: [number, number][] = [];
+  const grounds: number[] = [];
+  for (const track of tracks) {
+    // The ground is where the foot spends its stance, not the lowest it ever goes: a swing can dip
+    // a few millimetres under it just after lift-off (the fox's back right paw, 9 mm for one
+    // sample), and measured from that dip the whole stance read as off the ground.
+    const ground = quantile(track.map((p) => p.y), 0.1);
+    grounds.push(ground);
+    const flat = track.map((p) => Math.abs(p.y - ground) < GAIT_FLAT);
+    if (flat.every(Boolean)) return null;
+    // The longest run of flat samples, round the loop.
+    let best = 0;
+    let bestStart = 0;
+    for (let start = 0; start < n; start++) {
+      if (!flat[start] || flat[(start + n - 1) % n]) continue;
+      let length = 0;
+      while (length < n && flat[(start + length) % n]) length++;
+      if (length > best) {
+        best = length;
+        bestStart = start;
+      }
+    }
+    // A sixth of a cycle at the least: the flat part of a run's stance is a fifth of it.
+    if (best < n / 6) return null;
+    const steps: number[] = [];
+    for (let k = 0; k + 1 < best; k++) {
+      const a = track[(bestStart + k) % n] as THREE.Vector3;
+      const b = track[(bestStart + k + 1) % n] as THREE.Vector3;
+      steps.push(b.z - a.z);
+    }
+    const step = median(steps);
+    // Planted means moving back under the body at one rate: forward is +Z.
+    if (!(step < 0)) return null;
+    const steady = steps.filter((s) => Math.abs(s - step) <= Math.abs(step) * 0.25).length;
+    if (steady < steps.length * 0.8) return null;
+    rates.push(-step * n);
+    stances.push([bestStart / n, bestStart / n + best / n / GAIT_HEEL_LIFT]);
+  }
+  const distance = median(rates);
+  if (!(distance > 0.05) || rates.some((r) => Math.abs(r - distance) > distance * 0.1)) return null;
+
+  // Wherever no foot's stance covers the cycle, and no foot is within a centimetre of landing, the
+  // body is in the air. The landing has to count: the flat test finds a stance a sample or two
+  // after the foot arrives, and a touchdown played by time instead of distance slid a running
+  // human's foot at 4.5 m/s for the first hundredth of every stance.
+  const covered = Array.from({ length: n }, (_, i) =>
+    stances.some(([a, b]) => {
+      const p = i / n;
+      return (p >= a && p < b) || (p + 1 >= a && p + 1 < b);
+    }) || tracks.some((track, k) => (track[i] as THREE.Vector3).y - (grounds[k] as number) < GAIT_NEAR),
+  );
+  const airborne: [number, number][] = [];
+  for (let start = 0; start < n; start++) {
+    if (covered[start] || !covered[(start + n - 1) % n]) continue;
+    let length = 0;
+    while (length < n && !covered[(start + length) % n]) length++;
+    // A sample or two between stances is sampling, not a flight.
+    if (length > 2) airborne.push([start / n, (start + length) / n]);
+  }
+  const touchdowns: number[] = [];
+  for (const [a] of stances) {
+    const near = (t: number): boolean => Math.min(Math.abs(t - a), 1 - Math.abs(t - a)) < 0.05;
+    if (!touchdowns.some(near)) touchdowns.push(a % 1);
+  }
+  return { distance, airborne, touchdowns: touchdowns.sort((x, y) => x - y) };
+}
+
+/** How far ahead of `from` the phase `at` is, round the loop, in (0, 1]. */
+function ahead(from: number, at: number): number {
+  const gap = (((at - from) % 1) + 1) % 1;
+  return gap > 1e-9 ? gap : 1;
+}
+
+/**
+ * Move a planted stride's phase on by `dt` seconds, and count the footfalls passed.
+ *
+ * Integrated piece by piece, not as one step at the rate it starts at: the rate changes at every
+ * edge of a flight, and a short-legged animal's sprinting stance is over in a few hundredths of a
+ * second. Stepped whole at 240 frames a second, a penguin at 9.7 m/s moved a tenth of a cycle a
+ * frame, jumped most of the way across each 0.12 s flight on the frame it entered it, and its feet
+ * were never down long enough to be still: measured, the "planted" foot moved at 9.65 m/s.
+ */
+export function advancePlanted(
+  phase: number,
+  dt: number,
+  speed: number,
+  weights: LocomotionBlend,
+  walk: GaitCycle,
+  run: GaitCycle,
+  scale: number,
+): { phase: number; footfalls: number } {
+  let p = Number.isFinite(phase) ? ((phase % 1) + 1) % 1 : 0;
+  let left = Number.isFinite(dt) ? Math.max(0, dt) : 0;
+  let footfalls = 0;
+  const flights = weights.run > weights.walk ? run.airborne : [];
+  const landings = weights.run >= 0.5 ? (run.touchdowns ?? []) : [];
+  const edges = [...flights.flatMap(([a, b]) => [a % 1, b % 1]), ...landings];
+  // A cap on pieces, for a phase that cannot move: every edge is passed at most once a cycle.
+  for (let piece = 0; piece < 64 && left > 0; piece++) {
+    const rate = plantedRate(p, speed, weights, walk, run, scale);
+    if (!(rate > 0)) break;
+    const next = edges.length ? Math.min(...edges.map((e) => ahead(p, e))) : Infinity;
+    const travel = Math.min(rate * left, next, 0.5);
+    for (const at of landings) if (ahead(p, at) <= travel + 1e-9) footfalls++;
+    p = (p + travel) % 1;
+    left -= travel / rate;
+    // Land exactly on an edge, so the next piece runs at the rate on its far side.
+    if (travel === next) p = (p + 1e-7) % 1;
+  }
+  return { phase: p, footfalls };
+}
+
+/** A planted walk is at full weight by here: the idle is blended out almost as soon as the body moves. */
+export const PLANTED_WALK_FULL = 0.9;
+/** How fast a walk may step, in strides a second, before the animal breaks into its run. */
+export const WALK_CADENCE_MAX = 2.2;
+/** The walk-to-run blend takes this much speed. */
+export const PLANTED_RUN_RAMP = 0.8;
+
+/**
+ * Where an animal stops walking and starts to run, from its own walk's stride: the speed at which
+ * the walk reaches `WALK_CADENCE_MAX`, between `PLANTED_WALK_FULL` and `WALK_FULL`.
+ *
+ * Every animal moves at the same speeds (fairness), and their legs do not have the same reach. A
+ * penguin's planted walk covers 0.18 m a stride, so at the 2.4 m/s every walk used to be held to it
+ * took fourteen steps a second; its run covers most of the ground in short flights instead, at
+ * three. A long-legged animal walks almost to `WALK_FULL`, as before.
+ */
+export function plantedRunStart(walkDistance: number, scale: number): number {
+  const stride = walkDistance * scale;
+  if (!(stride > 0)) return WALK_FULL;
+  return Math.min(WALK_FULL, Math.max(PLANTED_WALK_FULL, WALK_CADENCE_MAX * stride));
+}
+
+/**
+ * How much idle, walk and run to draw for an animal whose walk and run are planted strides.
+ *
+ * `locomotionBlend`'s long ramps are right for cycles played by time, and wrong for these. Mixed
+ * with the idle, a planted foot moves back by only the walk's share of the body's speed, so it
+ * slid by the idle's share: 0.65–0.87 m/s at 1.5 m/s, where the idle still had half the weight.
+ * And a walk plants each foot for 60 % of its cycle and a run for 32 %, so between them one gait
+ * has a foot down while the other has it in the air, and the blend is neither: 0.6–0.8 m/s of
+ * slip at 4 m/s, half way through a ramp 4.6 m/s long. Both ramps are short here.
+ */
+export function plantedBlend(speed: number, runStart = WALK_FULL): LocomotionBlend {
+  const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  if (v <= WALK_START) return { idle: 1, walk: 0, run: 0 };
+  if (v < PLANTED_WALK_FULL) {
+    const t = (v - WALK_START) / (PLANTED_WALK_FULL - WALK_START);
+    return { idle: 1 - t, walk: t, run: 0 };
+  }
+  if (v <= runStart) return { idle: 0, walk: 1, run: 0 };
+  if (v < runStart + PLANTED_RUN_RAMP) {
+    const t = (v - runStart) / PLANTED_RUN_RAMP;
+    return { idle: 0, walk: 1 - t, run: t };
+  }
+  return { idle: 0, walk: 0, run: 1 };
+}
+
+/**
+ * How fast a planted stride's phase moves, in cycles a second. `scale` is the model's own scale,
+ * which the stride grows with.
+ *
+ * By distance while a foot is down: the walk and the run share one phase, and a planted foot
+ * drawn as their blend moves back by their strides weighted the same way, so that weighted stride
+ * is the one the body's speed is divided by. (Averaging the two gaits' own rates instead moves it
+ * faster than the body by the gap between them.) By time through the run's flights, once the run
+ * is most of what is drawn.
+ */
+export function plantedRate(phase: number, speed: number, weights: LocomotionBlend, walk: GaitCycle, run: GaitCycle, scale: number): number {
+  const v = Number.isFinite(speed) ? Math.max(0, speed) : 0;
+  const moving = weights.walk + weights.run;
+  if (v <= WALK_START || !(moving > 0) || !(scale > 0)) return 0;
+  if (weights.run > weights.walk) {
+    for (const [a, b] of run.airborne) {
+      if ((phase >= a && phase < b) || (phase + 1 >= a && phase + 1 < b)) return (b - a) / GAIT_FLIGHT;
+    }
+  }
+  const distance = (weights.walk * walk.distance + weights.run * run.distance) / moving;
+  return distance > 0 ? v / (distance * scale) : 0;
 }
 
 /**
@@ -524,6 +797,11 @@ export class Avatar {
   private boundStride: number | null = null;
   /** Where in the bound this avatar is, 0..1, the stance first. */
   private boundPhase = 0;
+  /** The walk's and the run's planted strides, read from their clips; null when they are not. */
+  private walkGait: GaitCycle | null = null;
+  private runGait: GaitCycle | null = null;
+  /** Where in the stride this avatar is, 0..1 from the first foot's touchdown, for both gaits. */
+  private gaitPhase = 0;
   /** Touchdowns since the last `takeFootfalls`. */
   private footfalls = 0;
   private wasTagged = false;
@@ -584,6 +862,11 @@ export class Avatar {
       }
       const run = AssetLibrary.findClip(loaded.clips, 'run');
       this.boundStride = run ? measureBound(loaded.scene, run) : null;
+      if (this.boundStride === null) {
+        const walk = AssetLibrary.findClip(loaded.clips, 'walk');
+        this.walkGait = walk ? measureGait(loaded.scene, walk) : null;
+        this.runGait = run ? measureGait(loaded.scene, run) : null;
+      }
       const idle = this.actions.get('idle');
       if (idle) {
         idle.play();
@@ -864,7 +1147,12 @@ export class Avatar {
   private blendLocomotion(speed: number, dt: number): void {
     if (!this.mixer) return;
     const bounding = this.boundStride !== null && this.actions.has('run');
-    const weights = bounding ? boundBlend(speed) : locomotionBlend(speed);
+    const planted = !bounding && this.walkGait !== null && this.runGait !== null;
+    const weights = bounding
+      ? boundBlend(speed)
+      : planted
+        ? plantedBlend(speed, plantedRunStart((this.walkGait as GaitCycle).distance, this.bodyScale.scale.z))
+        : locomotionBlend(speed);
     const rate = strideRate(speed);
 
     for (const [name, action] of this.actions) {
@@ -891,7 +1179,21 @@ export class Avatar {
       }
       action.enabled = true;
       action.setEffectiveWeight(weight);
-      action.timeScale = name === 'idle' ? 1 : name === 'run' && bounding ? 0 : rate;
+      action.timeScale = name === 'idle' ? 1 : (name === 'run' && bounding) || planted ? 0 : rate;
+    }
+
+    if (planted && walk && run) {
+      // Placed, like the bound: one phase for both gaits, so the blend never mixes a foot that is
+      // down in one with the same foot half a stride away in the other.
+      // A running foot landing is a footfall, as the bound's is: the walkers' runs were silent and
+      // kicked up nothing. Not the walk: a step at walking pace is not a thump.
+      const step = advancePlanted(this.gaitPhase, dt, speed, weights, this.walkGait as GaitCycle, this.runGait as GaitCycle, this.bodyScale.scale.z);
+      this.gaitPhase = step.phase;
+      this.footfalls += step.footfalls;
+      walk.time = this.gaitPhase * walk.getClip().duration;
+      run.time = this.gaitPhase * run.getClip().duration;
+      this.currentClip = weights.run >= weights.walk && weights.run >= weights.idle ? 'run' : weights.walk >= weights.idle ? 'walk' : 'idle';
+      return;
     }
 
     if (bounding && run) {
