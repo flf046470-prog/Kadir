@@ -196,7 +196,7 @@ body.cam-on #objective { opacity: 0; }
     <h2 id="endTitle"></h2>
     <p class="lede" id="endText"></p>
     <p class="note" id="endStats"></p>
-    <div class="row"><button class="go" id="againBtn" type="button"><span class="dot"></span>Baştan oyna</button><button class="go ghost" id="finalBtn" type="button">Son kararı yeniden ver</button><button class="go ghost quit" type="button" hidden>Masaüstüne çık</button></div>
+    <div class="row"><button class="go" id="againBtn" type="button"><span class="dot"></span>Baştan oyna</button><button class="go ghost quit" type="button" hidden>Masaüstüne çık</button></div>
   </div>
 </section>
 
@@ -1250,6 +1250,7 @@ const ENDINGS = {
 function ending(kind) {
   if (state.ended) return;
   state.ended = true; player.enabled = false; if (state.camRaised) toggleCam();
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) {} // the decision is final: another ending means a new playthrough
   FX.emit('ending', kind);
   if (kind === 'C') sfx.whisper({ x: 0, y: 2, z: 36 }, 3, .25); else sfx.rumble(null, 3);
   $('fade').style.opacity = '1'; $('hud').hidden = true; $('touch').hidden = true;
@@ -1327,10 +1328,6 @@ $('quality').addEventListener('change', (e) => { FX.quality = e.target.value; tr
 $('resumeBtn').addEventListener('click', () => { setPaused(false); lockPointer(); initAudio(); });
 $('archiveBtn').addEventListener('click', () => { $('paused').hidden = true; toggleArchive(true); });
 $('againBtn').addEventListener('click', () => { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} location.reload(); });
-$('finalBtn').addEventListener('click', () => {
-  $('end').hidden = true; state.ended = false; $('fade').style.opacity = '0'; $('hud').hidden = false; if (isTouch) $('touch').hidden = false;
-  if (ac) master.gain.value = .9; player.enabled = true; lockPointer();
-});
 canvas.addEventListener('click', () => { if (state.started && !state.ended && !paused && !isTouch && !locked()) lockPointer(); });
 
 function begin(fromSave) {
