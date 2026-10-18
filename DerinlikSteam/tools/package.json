@@ -1,0 +1,13 @@
+{
+  "name": "derinlik-steam-tools",
+  "private": true,
+  "description": "Renders the DERINLIK Steam screenshots and store/library art from the game itself.",
+  "type": "module",
+  "scripts": {
+    "capture": "node capture.mjs ../../DerinlikWeb/dist/offline/index.html ..",
+    "compose": "node compose.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}
