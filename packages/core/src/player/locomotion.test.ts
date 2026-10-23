@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { PhysicsWorld } from '../physics/world.js';
 import { SurfaceFlags, DEFAULT_SURFACE } from '../physics/types.js';
 import type { Collider } from '../physics/types.js';
-import { vec3 } from '../math/vec3.js';
+import { v3length, vec3 } from '../math/vec3.js';
 import { SimEventQueue } from '../sim/events.js';
 import type { SimEventType } from '../sim/events.js';
 import { createIntent, createHandIntent, Buttons } from '../input/intent.js';
-import type { InputIntent } from '../input/intent.js';
+import type { HandIntent, InputIntent } from '../input/intent.js';
 import { createPlayerState, respawnPlayer } from './state.js';
 import type { HandState, PlayerState } from './state.js';
 import { stepPlayer } from './locomotion.js';
@@ -295,6 +295,183 @@ describe('VR hand physics', () => {
     intent.lookYaw = Math.PI / 2;
     run(player, ctx2, intent, 30);
     expect(player.hands[1].anchored).toBe(false);
+  });
+});
+
+/**
+ * The Gorilla Tag lab's P0 gates for arm locomotion, measured on this game's own `stepPlayer`.
+ *
+ * A hand that moves faster than a hand can is not effort. Before this, every one of these moved
+ * the player: a controller coming back from lost tracking (VRInput reports the last pose until
+ * then) threw a player holding a wall 19 m up; a snap turn while holding on lurched the body at
+ * 21 m/s; closing a hand 0.2 m short of a wall yanked the body into it at 12 m/s; and a modified
+ * client yanking its hand 0.55 m a tick travelled along a wall at 17 m/s against a fast human's 5.
+ */
+describe('a hand that jumps is not a pull', () => {
+  let world: PhysicsWorld;
+  let ctx: LocomotionContext;
+
+  beforeEach(() => {
+    world = testWorld();
+    ctx = makeContext(world);
+  });
+
+  function handOf(intent: InputIntent): HandIntent {
+    const hand = intent.hands?.[1];
+    if (!hand) throw new Error('the right hand is missing');
+    return hand;
+  }
+
+  /** Holding the wall at x = 6 (face 5.4) with the given hands, settled. */
+  function holding(hands: (0 | 1)[] = [1]): { player: PlayerState; intent: InputIntent } {
+    const player = createPlayerState({ id: 'gt', position: vec3(4.8, 3, 0) });
+    const intent = createIntent();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.headHeight = 1.6;
+    intent.lookYaw = Math.PI / 2;
+    for (const i of hands) {
+      const hand = intent.hands[i];
+      hand.tracked = true;
+      hand.grip = 1;
+      hand.pos = { x: i === 0 ? -0.25 : 0.25, y: 1.4, z: 0.62 };
+    }
+    run(player, ctx, intent, 30);
+    for (const i of hands) expect(player.hands[i].anchored).toBe(true);
+    return { player, intent };
+  }
+
+  function apexAfter(player: PlayerState, intent: InputIntent): number {
+    const from = player.position.y;
+    let apex = from;
+    for (let i = 0; i < 120; i++) {
+      ctx.tick++;
+      stepPlayer(player, intent, ctx, DT);
+      apex = Math.max(apex, player.position.y);
+    }
+    return apex - from;
+  }
+
+  it('does not throw a player whose controller comes back from lost tracking', () => {
+    const { player, intent } = holding();
+    const hand = handOf(intent);
+    const y = player.position.y;
+    hand.pos.y -= 0.5; // the hand moved while its pose was frozen, and arrives all at once
+    run(player, ctx, intent, 1);
+    expect(player.hands[1].jumped).toBe(true);
+    expect(player.hands[1].anchored).toBe(true); // still on the wall, so still holding it
+    expect(Math.abs(player.position.y - y)).toBeLessThan(0.02);
+    hand.grip = 0;
+    run(player, ctx, intent, 1);
+    expect(apexAfter(player, intent)).toBeLessThan(0.1); // was 19 m
+  });
+
+  it('turns a player who snap turns while holding on, without moving them', () => {
+    // Every snap angle the settings allow down to the smallest: a 15° snap swings a held hand
+    // 0.17 m, under a pose jump, and only the turn rate gives it away (`HEAD_TURN_LIMIT`).
+    for (const degrees of [15, 30]) {
+      const { player, intent } = holding();
+      const at = { ...player.position };
+      intent.lookYaw += (degrees * Math.PI) / 180;
+      run(player, ctx, intent, 1);
+      expect(player.hands[1].anchored, `${degrees}°`).toBe(true);
+      expect(Math.hypot(player.position.x - at.x, player.position.z - at.z), `${degrees}°`).toBeLessThan(0.02);
+      handOf(intent).grip = 0;
+      run(player, ctx, intent, 1);
+      expect(Math.hypot(player.velocity.x, player.velocity.z), `${degrees}°`).toBeLessThan(1); // was 11.6 and 22.9 m/s
+    }
+  });
+
+  it('does not yank the body into a wall when the hand closes short of it', () => {
+    const player = createPlayerState({ id: 'gt', position: vec3(4.8, 0, 0) });
+    const intent = createIntent();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.headHeight = 1.6;
+    intent.lookYaw = Math.PI / 2;
+    const hand = intent.hands[1];
+    hand.tracked = true;
+    hand.pos = { x: 0, y: 1.4, z: 0.4 }; // 0.2 m short of the wall face
+    run(player, ctx, intent, 30);
+    const x = player.position.x;
+    hand.grip = 1;
+    run(player, ctx, intent, 1);
+    expect(player.hands[1].anchored).toBe(true);
+    expect(Math.abs(player.position.x - x)).toBeLessThan(0.01); // was 0.2 m in one tick
+  });
+
+  it('moves nobody for a hand that is teleported to pull', () => {
+    // A modified client climbing a wall sideways: reach ahead and grab, yank the hand 0.55 m back
+    // in one tick, let go, repeat. It travelled at 17 m/s; every yank is now a pose jump.
+    const player = createPlayerState({ id: 'gt', position: vec3(4.9, 0.5, 0) });
+    const intent = createIntent();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.headHeight = 1.6;
+    intent.lookYaw = 0; // facing along the wall, which is on the right
+    const hand = intent.hands[1];
+    hand.tracked = true;
+    hand.pos = { x: 0.45, y: 1.2, z: 0 };
+    run(player, ctx, intent, 20);
+    const z = player.position.z;
+    for (let i = 0; i < 180; i++) {
+      const phase = i % 3;
+      hand.grip = phase === 2 ? 0 : 1;
+      hand.pos.z = phase === 0 ? 0.45 : -0.1;
+      run(player, ctx, intent, 1);
+    }
+    expect(Math.abs(player.position.z - z)).toBeLessThan(0.3);
+  });
+
+  it('moves the body no faster than a human hand, however a client moves two of them', () => {
+    const { player, intent } = holding([0, 1]);
+    let fastest = 0;
+    for (let i = 0; i < 12; i++) {
+      for (const hand of intent.hands ?? []) hand.pos.y -= 0.19; // just under a pose jump
+      run(player, ctx, intent, 1);
+      fastest = Math.max(fastest, v3length(player.velocity));
+    }
+    // Two hands are stronger (`handTwoHandMultiplier`), but never faster than one hand can move.
+    expect(fastest).toBeLessThanOrEqual(DEFAULT_MOVEMENT.maxHandSpeed + 0.5);
+  });
+
+  /** A 2 m/s pull sampled once per display frame into 60 Hz ticks, as GameClient does it. */
+  function releaseSpeed(displayHz: number, stroke: (u: number) => number, seconds: number, letGoAt: number): number {
+    const { player, intent } = holding();
+    const hand = handOf(intent);
+    const from = hand.pos.y;
+    let t = 0;
+    let owed = 0;
+    for (;;) {
+      t += 1 / displayHz;
+      owed += 1 / displayHz;
+      hand.pos.y = from - stroke(Math.min(t, letGoAt * seconds) / seconds);
+      hand.grip = t < letGoAt * seconds ? 1 : 0;
+      while (owed >= DT) {
+        owed -= DT;
+        run(player, ctx, intent, 1);
+        if (hand.grip === 0) return player.velocity.y;
+      }
+    }
+  }
+
+  it('lets go at nearly the same speed whatever the headset refresh rate', () => {
+    // A steady 2 m/s pull. The last tick alone read it as 0.93–2.27 m/s at 90 Hz and 21 % slow at
+    // 72, because a tick holds one frame of motion or two; the mean of the last 100 ms is within
+    // 10 % at every rate and phase measured. The Gorilla Tag lab asks for 5 %: what is left is the
+    // frame that straddles the release, which only interpolating poses to the tick can remove.
+    const steady = (u: number) => 0.5 * u;
+    const at60 = releaseSpeed(60, steady, 0.25, 1);
+    for (const hz of [72, 80, 90, 120, 144]) {
+      for (let phase = 0; phase < 1; phase += 0.1) {
+        const speed = releaseSpeed(hz, steady, 0.25 + phase / hz, 1);
+        expect(Math.abs(speed - at60) / at60, `${hz} Hz, phase ${phase.toFixed(1)}`).toBeLessThan(0.1);
+      }
+    }
+  });
+
+  it('keeps the stroke when the hand lets go as it slows, which is when a real hand lets go', () => {
+    // A 0.3 s stroke that eases in and out. Released at its end, the last tick saw a hand
+    // already stopping and kept −0.28 m/s: a full stroke with nothing to show for it.
+    const eased = (u: number) => (0.6 * (1 - Math.cos(Math.PI * u))) / 2;
+    expect(releaseSpeed(90, eased, 0.3, 1)).toBeGreaterThan(0.8);
   });
 });
 

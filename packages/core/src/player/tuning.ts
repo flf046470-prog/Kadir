@@ -28,13 +28,11 @@ export interface Tunable {
   max: number;
   step: number;
   /**
-   * Set when the field only does anything with real tracked hands.
-   *
-   * Most of these are live on every platform, which is easy to get wrong in the other direction:
-   * PC and mobile players go through the same hand-anchor machinery, because the client places
-   * their hands procedurally and the grab button sets the grip. `applyPalmPush` is the one
-   * exception — it skips any hand that is not actually tracked — so on a keyboard that slider
-   * moves and nothing happens.
+   * Set when the field only does anything with real tracked hands, and the panel hides it off a
+   * headset. PC, mobile and bots send no hands at all (`intent.hands = null`), so their climbing is
+   * the assisted climb, which reads none of the hand-anchor fields. This used to say the opposite —
+   * that a keyboard went through the same anchors — and four sliders that moved nothing sat in
+   * every desktop panel. `tuning.test.ts` now decides it by running a PC player, not by reading.
    */
   vrOnly?: boolean;
 }
@@ -55,6 +53,7 @@ export const TUNABLES = [
     min: 0.2,
     max: 3,
     step: 0.05,
+    vrOnly: true,
   },
   {
     field: 'handPushForce',
@@ -96,14 +95,16 @@ export const TUNABLES = [
     min: 0.1,
     max: 0.6,
     step: 0.01,
+    vrOnly: true,
   },
   {
-    field: 'maxHandCorrection',
-    label: 'Pull limit',
-    effect: 'The furthest one tick of hand-pulling may move you. The anti-teleport clamp.',
-    min: 0.1,
-    max: 1.5,
-    step: 0.05,
+    field: 'maxHandSpeed',
+    label: 'Hand speed limit',
+    effect: 'The fastest a hand may move and still pull you. Faster is a tracking glitch or a cheat, and moves nobody.',
+    min: 6,
+    max: 20,
+    step: 0.5,
+    vrOnly: true,
   },
   {
     field: 'handTwoHandMultiplier',
@@ -112,6 +113,7 @@ export const TUNABLES = [
     min: 1,
     max: 2.2,
     step: 0.05,
+    vrOnly: true,
   },
   {
     field: 'maxHorizontalSpeed',

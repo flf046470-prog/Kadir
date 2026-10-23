@@ -1,4 +1,14 @@
 /**
+ * The fastest a human hand moves, in m/s. One number for everything a hand does: a punch's damage
+ * stops growing here (`combat.ts`) and a pull stops moving the body here (`locomotion.ts`). Above
+ * it a hand is not a hand any more — a controller that lost tracking and came back, a recenter, a
+ * snap turn swinging held hands through an arc, or a modified client teleporting them — and
+ * nothing about it may count as effort. Written once so the two cannot disagree about what a
+ * human can do.
+ */
+export const HUMAN_HAND_SPEED = 12;
+
+/**
  * Every tunable that shapes how the game feels. One struct, no magic numbers scattered through
  * the movement code, so designers (and the animal system) can adjust behaviour from data.
  *
@@ -64,8 +74,14 @@ export interface MovementConfig {
   handGrabRadius: number;
   /** Multiplier when both hands are anchored — two hands really are stronger. */
   handTwoHandMultiplier: number;
-  /** Maximum body correction applied by hands in a single tick (anti-teleport). */
-  maxHandCorrection: number;
+  /**
+   * The fastest an anchored hand may move relative to the body and still pull it (m/s). A faster
+   * step is a pose jump, not effort: it moves nobody, and the hand re-grips where it now is. It is
+   * also the fastest a pull can move the body, which is what makes a spoofed hand worth no more
+   * than a perfect human's. Replaced `maxHandCorrection` (0.55 m a tick, 33 m/s), which a modified
+   * client could reach every tick: measured, 17 m/s along a wall against a fast human's 5.
+   */
+  maxHandSpeed: number;
   /** Palm push (no grip) force scaling. */
   handPushForce: number;
 
@@ -112,7 +128,7 @@ export const DEFAULT_MOVEMENT: MovementConfig = {
 
   handGrabRadius: 0.28,
   handTwoHandMultiplier: 1.3,
-  maxHandCorrection: 0.55,
+  maxHandSpeed: HUMAN_HAND_SPEED,
   handPushForce: 1.15,
 
   terminalVelocity: 55,

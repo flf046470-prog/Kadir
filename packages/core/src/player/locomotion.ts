@@ -1,4 +1,4 @@
-import { clamp, clamp01 } from '../math/scalar.js';
+import { angleDelta, clamp, clamp01 } from '../math/scalar.js';
 import type { Vec3 } from '../math/vec3.js';
 import { v3copy, v3dot, v3length, v3normalize, v3set, vec3 } from '../math/vec3.js';
 import type { MoveResult } from '../physics/character.js';
@@ -10,7 +10,7 @@ import type { InputIntent } from '../input/intent.js';
 import { Buttons, hasButton } from '../input/intent.js';
 import type { SimEventQueue } from '../sim/events.js';
 import type { HandState, PlayerState } from './state.js';
-import { LEFT, RIGHT } from './state.js';
+import { LEFT, PULL_WINDOW, RIGHT } from './state.js';
 
 export interface LocomotionContext {
   world: PhysicsWorld;
@@ -45,6 +45,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
 
   advanceTimers(player, dt);
 
+  const prevYaw = player.yaw;
   player.yaw = intent.lookYaw;
   player.pitch = intent.lookPitch;
   player.headHeight = intent.headHeight || player.headHeight;
@@ -60,14 +61,17 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
 
   startPunchThrows(player, intent, frozen, ctx);
-  updateHandPoses(player, intent, dt, grabLeft, grabRight);
+  updateHandPoses(player, intent, dt, grabLeft, grabRight, prevYaw);
 
   const handsAnchored = updateHandGrips(player, ctx);
   const handDriven = handsAnchored > 0;
 
   if (handDriven) {
     applyHandCorrection(player, handsAnchored, dt);
+    // A pose jump moved nobody this tick, so it says nothing about how fast the arms were going.
+    if (!player.hands[0].jumped && !player.hands[1].jumped) recordPull(player);
   } else {
+    releasePull(player);
     applyPalmPush(player, ctx, dt);
   }
 
@@ -238,6 +242,7 @@ function updateHandPoses(
   dt: number,
   grabLeft: boolean,
   grabRight: boolean,
+  prevYaw: number,
 ): void {
   const cfg = player.config;
   // Freezing has to reach the hands, and it has to reach them *here*: arms-first VR movement is
@@ -245,6 +250,9 @@ function updateHandPoses(
   // leave a frozen VR player free to pull themselves along — the one platform the effect matters
   // most on. This is the single place both input paths decide whether a hand is holding on.
   const frozen = player.gadgets.frozen > 0;
+  // Faster than a head turns: a snap turn (or a recenter). A 15° snap swings a held hand 0.17 m,
+  // under a pose jump, and pivoted the body round it at 11.6 m/s; the turn itself says what it was.
+  const snapped = Math.abs(angleDelta(prevYaw, player.yaw)) > HEAD_TURN_LIMIT * dt;
   for (let i = 0; i < 2; i++) {
     const hand = player.hands[i] as HandState;
     const source = intent.hands ? intent.hands[i] : null;
@@ -288,10 +296,18 @@ function updateHandPoses(
     // was. Snapping it here makes this tick's velocity exactly zero instead of a
     // multi-hundred-m/s spike that would clear resolvePunches' punch threshold and trigger
     // applyPalmPush from nothing but the jump itself.
+    hand.jumped = false;
     if (!hand.posed || hand.tracked !== wasTracked) {
       v3copy(hand.prevWorld, hand.world);
       v3copy(hand.prevLocal, hand.local);
       hand.posed = true;
+    } else if (hand.tracked && dt > 0 && isPoseJump(stepAgainstBody(hand, prevYaw, player.yaw), snapped, cfg.maxHandSpeed * dt)) {
+      // Faster than a hand moves: the pose jumped (see HandState.jumped). Same treatment as a
+      // tracking change — this tick's velocity is zero — and the grip is re-taken in
+      // `updateHandGrips`, so neither a punch, a palm push nor a pull can come of it.
+      v3copy(hand.prevWorld, hand.world);
+      v3copy(hand.prevLocal, hand.local);
+      hand.jumped = true;
     }
 
     if (dt > 0) {
@@ -309,6 +325,38 @@ function updateHandPoses(
       );
     }
   }
+}
+
+/**
+ * The fastest a head turns, in rad/s (720°/s; a fast human turn peaks around 600). Body yaw is the
+ * headset's yaw plus the comfort turn, so a tick that turns faster than this was a snap turn or a
+ * recenter — something the player's body did not do.
+ */
+const HEAD_TURN_LIMIT = (720 * Math.PI) / 180;
+
+/** A hand faster than a hand, or one a snap turn carried more than a centimetre. */
+function isPoseJump(step: number, snapped: boolean, limit: number): boolean {
+  return step > limit || (snapped && step > 0.01);
+}
+
+/**
+ * How far a hand moved relative to the body this tick, in world axes. Not `localVelocity`: that is
+ * in the body's own frame, which turns with it, so a snap turn swinging a held hand 0.4 m through
+ * the world reads there as no motion at all. Body yaw is the headset's yaw plus the comfort turn,
+ * and a hand is sent relative to it, so turning your head moves no hand here; only the snap does.
+ */
+function stepAgainstBody(hand: HandState, prevYaw: number, yaw: number): number {
+  const c0 = Math.cos(prevYaw);
+  const s0 = Math.sin(prevYaw);
+  const c1 = Math.cos(yaw);
+  const s1 = Math.sin(yaw);
+  const l0 = hand.prevLocal;
+  const l1 = hand.local;
+  return Math.hypot(
+    c1 * l1.x + s1 * l1.z - (c0 * l0.x + s0 * l0.z),
+    l1.y - l0.y,
+    -s1 * l1.x + c1 * l1.z - (-s0 * l0.x + c0 * l0.z),
+  );
 }
 
 function localToWorld(out: Vec3, origin: Vec3, local: Vec3): Vec3 {
@@ -341,13 +389,32 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
       continue;
     }
 
+    if (hand.jumped && hand.anchored) {
+      // The pose jumped while holding on. Keep holding only if the hand landed somewhere it could
+      // have grabbed, and hold it *there*: correcting back to the old anchor is what threw players.
+      ctx.world.closestSurface(_surface, hand.world, cfg.handGrabRadius, true);
+      if (_surface.hit && isGrabbable(_surface.surface)) {
+        v3copy(hand.anchor, hand.world);
+        hand.anchorCollider = _surface.colliderIndex;
+      } else {
+        hand.anchored = false;
+        hand.anchorCollider = -1;
+        ctx.events.emit('release', player.id, hand.world, ctx.tick, 0, { data: i === LEFT ? 'left' : 'right' });
+        continue;
+      }
+    }
+
     if (hand.gripHeld && !hand.anchored) {
       ctx.world.closestSurface(_surface, hand.world, cfg.handGrabRadius, true);
       if (_surface.hit && isGrabbable(_surface.surface)) {
         hand.anchored = true;
-        v3copy(hand.anchor, _surface.point);
+        // The anchor is where the hand closed, not the nearest point of the surface. A hand closes
+        // up to `handGrabRadius` short of a wall (or inside it — hands are not collided), and
+        // anchoring on the surface yanked the body that far in one tick: 0.2 m short was a 12 m/s
+        // lurch of the camera on every such grab. The surface only decides whether a grab counts.
+        v3copy(hand.anchor, hand.world);
         hand.anchorCollider = _surface.colliderIndex;
-        ctx.events.emit('grab', player.id, hand.anchor, ctx.tick, 1, {
+        ctx.events.emit('grab', player.id, _surface.point, ctx.tick, 1, {
           material: _surface.surface.material,
           data: i === LEFT ? 'left' : 'right',
         });
@@ -400,9 +467,13 @@ function applyHandCorrection(player: PlayerState, anchoredCount: number, dt: num
   _correction.y *= strength;
   _correction.z *= strength;
 
+  // No faster than a hand: a body held up against a wall builds an error it can then release all at
+  // once, and a spoofed hand moving just under `maxHandSpeed` every tick must buy no more than a
+  // real one moving that fast.
   const len = v3length(_correction);
-  if (len > cfg.maxHandCorrection) {
-    const s = cfg.maxHandCorrection / len;
+  const limit = cfg.maxHandSpeed * dt;
+  if (len > limit) {
+    const s = limit / len;
     _correction.x *= s;
     _correction.y *= s;
     _correction.z *= s;
@@ -421,6 +492,29 @@ function applyHandCorrection(player: PlayerState, anchoredCount: number, dt: num
   player.velocity.y -= cfg.gravity * 0.08 * dt;
   player.grounded = false;
   player.coyoteTimer = cfg.coyoteTime;
+}
+
+/** Remember this hand-driven tick's body velocity for the release (see `PlayerState.pull`). */
+function recordPull(player: PlayerState): void {
+  v3copy(player.pull[player.pullCount % PULL_WINDOW] as Vec3, player.velocity);
+  player.pullCount++;
+}
+
+/** Letting go: keep the mean of the recent pull, not the last tick of it. */
+function releasePull(player: PlayerState): void {
+  const n = Math.min(player.pullCount, PULL_WINDOW);
+  if (n === 0) return;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < n; i++) {
+    const v = player.pull[i] as Vec3;
+    x += v.x;
+    y += v.y;
+    z += v.z;
+  }
+  v3set(player.velocity, x / n, y / n, z / n);
+  player.pullCount = 0;
 }
 
 /** Palm push: shoving a surface with an open hand still moves you (no grip required). */
@@ -551,6 +645,7 @@ function launchFromGrab(player: PlayerState, ctx: LocomotionContext, climbing: b
     hand.anchored = false;
     hand.anchorCollider = -1;
   }
+  releasePull(player);
 
   // Existing velocity (from swinging) is preserved and added to, not replaced.
   player.velocity.x += dirX * cfg.climbLaunchForce * 0.55;

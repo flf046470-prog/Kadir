@@ -335,11 +335,22 @@ describe('punch speed', () => {
     expect(flicker.hits).toBe(0);
   });
 
-  it('is no faster than a human hand, whatever a client sends', () => {
-    // A modified client teleporting a hand across its reach envelope every tick.
+  it('is not a hand teleported across its reach every tick: that is a pose jump and lands nothing', () => {
+    // A modified client. It used to land at `maxSpeed`; faster than any hand moves, it is now read
+    // as a pose jump (`HandState.jumped`), the same as a controller coming back from lost tracking.
     const spoof = fight((t, intent) => {
       const out = t % 2 === 0 ? 0.7 : -0.5;
       intent.hands = [tracked(0, 1.1, -out + 0.2), tracked(0, 1.1, out)];
+    });
+    expect(spoof.hits).toBe(0);
+  });
+
+  it('is no faster than a human hand, whatever a client sends', () => {
+    // The best a spoof can still do: move the hand just under a pose jump every tick, 11.4 m/s.
+    const spoof = fight((t, intent) => {
+      const out = t % 2 === 0 ? 0.69 : 0.5;
+      intent.hands = [tracked(0, 0, 0), tracked(0, 1.1, out)];
+      intent.hands[0].tracked = false;
     });
     expect(spoof.hits).toBeGreaterThan(0);
     // A head hit at full stamina and `maxSpeed` — the best a perfect human can do.

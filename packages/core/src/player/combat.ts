@@ -2,6 +2,7 @@ import { clamp } from '../math/scalar.js';
 import { v3distance, v3normalize, vec3 } from '../math/vec3.js';
 import type { Vec3 } from '../math/vec3.js';
 import type { SimEventQueue } from '../sim/events.js';
+import { HUMAN_HAND_SPEED } from './config.js';
 import type { HandState, PlayerState } from './state.js';
 
 export interface CombatConfig {
@@ -28,7 +29,7 @@ export const DEFAULT_COMBAT: CombatConfig = {
   punchRadius: 0.42,
   punchCooldown: 0.35,
   baseDamage: 7,
-  maxSpeed: 12,
+  maxSpeed: HUMAN_HAND_SPEED,
   headMultiplier: 1.6,
   knockback: 5.2,
   staminaCost: 9,

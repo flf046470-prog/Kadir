@@ -26,6 +26,13 @@ export type HandSide = 0 | 1;
 export const LEFT: HandSide = 0;
 export const RIGHT: HandSide = 1;
 
+/**
+ * Hand-driven ticks whose mean velocity a release keeps (100 ms at 60 Hz). Six ticks hold a whole
+ * number of frames at 60, 80, 90 and 120 Hz, so the mean of a steady pull is exact there; at 72
+ * and 144 Hz it is within one frame in seven.
+ */
+export const PULL_WINDOW = 6;
+
 export interface HandState {
   /** Hand pose in world space (VR: tracked; PC/Mobile: procedurally placed for the avatar). */
   world: Vec3;
@@ -47,6 +54,15 @@ export interface HandState {
    * every single respawn — which, per this game's own falling-and-respawning design, is routine.
    */
   posed: boolean;
+  /**
+   * True on a tick this tracked hand moved relative to the body faster than a hand can
+   * (`MovementConfig.maxHandSpeed`): a pose jump, not a movement. A controller that lost tracking
+   * reports its last pose until it comes back, then the real one in a single frame; a recenter
+   * and a snap turn move every held hand at once. Read as effort, each was a launch — measured, a
+   * 0.5 m jump while holding a wall threw the player 19 m up. `updateHandPoses` reads such a tick
+   * as stationary and `updateHandGrips` re-grips the hand where it now is, or lets go.
+   */
+  jumped: boolean;
   /**
    * The hand's pose in the body's own frame — x right, y up, z forward, from the feet — and its
    * velocity in that frame. `velocity` above is the world's view: it includes everything the body
@@ -81,6 +97,7 @@ export function createHandState(): HandState {
     anchor: vec3(),
     anchorCollider: -1,
     posed: false,
+    jumped: false,
     local: vec3(),
     prevLocal: vec3(),
     localVelocity: vec3(),
@@ -142,6 +159,15 @@ export interface PlayerState {
   climbCollider: number;
 
   hands: [HandState, HandState];
+  /**
+   * The body's velocity over the last `PULL_WINDOW` hand-driven ticks, as a ring, and how many
+   * are filled. Letting go keeps their mean rather than the last tick's: a headset samples hands
+   * at 72–144 Hz into 60 Hz ticks, so one tick holds one frame of motion or two, and the last tick
+   * alone read a 2 m/s pull as anything from 0.93 to 2.27 m/s at 90 Hz. The published Gorilla Tag
+   * locomotion launches from a filtered history for the same reason.
+   */
+  pull: Vec3[];
+  pullCount: number;
 
   /** Equipment, charges and status effects. Owned here so a reset clears it with the player. */
   gadgets: PlayerGadgetState;
@@ -240,6 +266,8 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     climbCollider: -1,
 
     hands: [createHandState(), createHandState()],
+    pull: Array.from({ length: PULL_WINDOW }, () => vec3()),
+    pullCount: 0,
 
     gadgets: createGadgetState(),
     voiceLevel: 0,
@@ -297,6 +325,7 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
   player.gadgets.smoked = 0;
   player.gadgets.revealed = 0;
   player.voiceLevel = 0;
+  player.pullCount = 0;
   for (const hand of player.hands) {
     hand.anchored = false;
     hand.anchorCollider = -1;

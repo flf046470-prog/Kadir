@@ -79,6 +79,13 @@ passes. Writing the code does not tick it.
   most 3.7 strides/s, and the runs have footfalls (`Avatar.gait.test.ts`; `CLAUDE.md`, "Planted
   strides"). Left over: short-legged animals land at about body speed at a sprint, which needs a
   draw-back like the bound's.
+- [x] **A2a. Arm locomotion against the Gorilla Tag lab's P0 gates.** Done: a hand that moves faster
+  than a hand can (12 m/s, or carried by a snap turn) is a pose jump that re-grips and moves nobody;
+  grabs anchor where the hand closed; letting go keeps the last 100 ms of pull. Measured: a 0.5 m
+  tracking jump threw a player 19 m up, now nothing; a snap turn lurched 22.9 m/s, now 0; a spoofed
+  hand travelled 17.3 m/s along a wall, now at most 9.1; release speed across 72–144 Hz within 10 %
+  (was up to 42 %). Not met: the lab's 5 % (needs pose interpolation to the tick) and room-scale head
+  penetration (needs a device). `CLAUDE.md`, "A hand that jumps is not a pull".
 - [ ] **A3. PC against VR movement, measured** (Phase 2). Sustained ground speed, turn rate under
   pursuit, climb rate and chase outcome, with bots and synthetic VR intents. Gamepad dead zones and
   curves. Exit: a table in `docs/PERFORMANCE_BUDGETS.md`, every gap with its number.

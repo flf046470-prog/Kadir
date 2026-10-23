@@ -977,8 +977,8 @@ function with zero coverage, unlike the level-grip data above which is genuinely
   three orders of magnitude) and `applyPalmPush`'s launch trigger — a full-power phantom punch on
   anyone standing near the new spawn point, or a random launch off any geometry within palm range
   of it, on every respawn, attributable to nothing the player did. `applyHandCorrection` already
-  had an "anti-teleport" clamp (`maxHandCorrection`) for exactly this class of problem on the
-  anchored-hand path; the palm-push and punch paths had no equivalent.
+  had an "anti-teleport" clamp (then `maxHandCorrection`, now `maxHandSpeed` — see "A hand that
+  jumps is not a pull") for exactly this class of problem on the anchored-hand path; the palm-push and punch paths had no equivalent.
 
   `HandState.posed` (false by default) is the fix: `updateHandPoses` snaps `prevWorld` to the
   freshly computed `world` on the tick `posed` is false, so that tick's velocity reads as exactly
@@ -2735,6 +2735,80 @@ first frames — which the title and end cards are drawn over — were only ever
 finished shot now writes `shot-N.jpg` and, last, a `shot-N.json` marker; `pack:trailer -- --resume`
 keeps every shot whose marker names the same mode and map, and films the rest.
 
+## A hand that jumps is not a pull (the Gorilla Tag lab's P0 gates)
+
+The owner asked for the `godot-vr-autonomous-forge` skill. Its tooling is for Godot projects
+(`forge.py`, the Godot/XR project audits, a Docker runner) and does not apply to a three.js/WebXR
+game; nothing was ported and no paid model was called. What does apply is its Gorilla Tag lab:
+P0 gates for arm locomotion (no thrust from a tracking discontinuity, no fling from a turn, the same
+motion at 72–144 Hz, two hands not doubling speed, the server bounding what a client can claim)
+and `scripts/vr_locomotion_replay.py`, a JSONL invariant checker. Each gate was measured on this
+game's own `stepPlayer` (`.probe/gt-*.ts`, `.probe/stroke.ts`, `.probe/snapdrop.ts`, untracked)
+before anything changed:
+
+| gate | before | after |
+| --- | --- | --- |
+| 0.5 m pose jump while holding a wall (a controller back from lost tracking) | 30 m/s for a tick; let go then: **19 m** up | nothing moves |
+| 30° snap turn while holding on, then let go | 22.9 m/s lurch, kept | 0 |
+| hand closes 0.2 m short of a wall | body yanked 0.2 m in one tick (12 m/s) | 0 |
+| modified client, hand yanked 0.55 m a tick along a wall | **17.3 m/s** (fast human 5.1, run 7.2) | 0 |
+| best spoof left (just under a pose jump) | 9.1 m/s | 9.1 m/s |
+| release speed of a steady 2 m/s pull, 72–144 Hz vs 60 | up to 21 % off (42 % at 90 Hz) | under 10 % |
+| two hands vs one, same pull | 1.3× on the first tick, then equal | unchanged |
+
+The replay tool on the same scripted session (hang, pull, re-reach, 0.5 s occlusion, snap, let go;
+`--max-reach 2.0`, this game's envelope, `--max-speed 12`): before **fail** — `SPEED_LIMIT` ×3 at
+the re-reach, the tracking return and the snap, `TRACKING_LOSS_MOVEMENT` ×1, peak 30 m/s; after
+**pass**, peak 9.2 m/s (a free fall).
+
+The rules, all in `locomotion.ts`:
+
+- **A pose jump** (`HandState.jumped`) is a tracked hand that moved relative to the body faster
+  than `maxHandSpeed` in one tick, or one a turn faster than a head turns (`HEAD_TURN_LIMIT`,
+  720°/s) carried more than a centimetre. Its velocity reads zero and an anchored hand re-grips
+  where it now is if a grabbable surface is within `handGrabRadius`, else lets go. Measured in
+  world axes against the body (`stepAgainstBody`), not `localVelocity`: the body frame turns with a
+  snap, so a snap is invisible there. A jump only ever removes motion, so a client cannot use one.
+- **A grab anchors where the hand closed**, not on the nearest surface point. The surface only
+  decides whether the grab counts.
+- **`maxHandSpeed` replaced `maxHandCorrection`** (0.55 m a tick = 33 m/s). It caps the body's
+  hand-driven speed too, and is `HUMAN_HAND_SPEED` (12), the same constant `DEFAULT_COMBAT.maxSpeed`
+  now reads — one number for what a hand can do.
+- **Letting go keeps the mean of the last `PULL_WINDOW` (6) hand-driven ticks** (`PlayerState.pull`;
+  jump ticks are not recorded; respawn clears it). Besides the refresh rate it fixed the stroke: a
+  0.3 s eased stroke released at its end kept −0.28 m/s (the hand was already stopping, which is
+  when a real hand opens) and keeps 1.10 now. A 0.2 s flick released early lost 13 % (4.39 → 3.83).
+
+**A snap turn can drop you, and that was chosen.** Holding a wall: 15° and 30° (the default) hold
+30 of 30 hand placements; 45° holds 18, 90° holds 6 — the turned hand is no longer near the wall,
+which is also where the player sees it. The alternatives were measured or reasoned out: orbiting the
+body round the old anchor is the 22.9 m/s lurch, and keeping an anchor the hand has left lets snap,
+pull, snap, pull walk a player across open air.
+
+**Not met, and why.** The lab's 5 % for 72–144 Hz: the worst phase is 9.7 % at 72 Hz, from the frame
+that straddles the release; interpolating hand poses to the tick time in `GameClient.frame` would
+remove it, and was not done because it changes VR feel in a way nothing here can try on a headset.
+**Room-scale head penetration is not covered at all**: the camera is the rig plus the headset's
+physical offset, with no collision, so leaning into a wall puts the eyes inside it (a see-through
+wall in the Hunt). The sim's head is at the capsule, so the replay tool's head check only covers
+that. Needs a design (fade on head-in-geometry) and a device.
+
+**Tracking loss is left as a frozen pose.** `VRInput` sets `tracked` from connect/disconnect only;
+three.js keeps a lost controller's last `grip.matrix` (and sets `visible = false`). Holding through
+an occlusion is what that gives, and the return is now a jump. Reporting it untracked would drop
+the anchor instead — a fall every time a hand leaves the cameras' view while climbing.
+
+**The tuning panel showed four hand sliders on PC that moved nothing.** `pushForce`,
+`handGrabRadius`, the pull limit and `handTwoHandMultiplier` are read only by tracked-hand code, and
+PC, mobile and bots send `hands: null`; a test pinned the opposite claim. `tuning.test.ts` now runs
+a handless player through sprint, coast, hop, climb and launch at each slider's two ends and
+requires `vrOnly` exactly where the runs match (mutation: friction marked VR-only, or `pushForce`
+unmarked, fails it).
+
+Mutations, each failing its own test: no pose-jump rule (3), anchor on the surface point, the old
+0.55 m limit, release keeping the last tick (2), re-grip keeping the old anchor, the jump test blind
+to turning, no turn-rate rule (the 15° case).
+
 ## The store kit: art goes stale silently, and lives only in the container
 
 Asked to prepare the Steam and Epic Coming Soon files (`Steam ve epic games coming soon dosyalarını
@@ -2749,7 +2823,9 @@ files from `docs/PC_LISTINGS.md`'s blocks with the same parser `copy.test.ts` us
 **warns** for every file older than the last commit touching `packages/client`, `packages/core` or
 `assets` — measured, it named exactly the two trailer files while the trailer was being re-filmed.
 `copy.test.ts` holds every heading the kit names against the doc (mutation: renaming one fails both
-stores). `PC_LISTINGS.md` now has the Steamworks steps too, read from Valve's docs on 2026-10-18:
+stores). **The first kit was lost before it reached anyone**: built on 2026-10-18, it sat in `dist/` and
+`packaging/` of a container that was reset before the zips were sent. Send the zips the moment they
+are built; a container is not storage. `PC_LISTINGS.md` now has the Steamworks steps too, read from Valve's docs on 2026-10-18:
 review 3–5 business days, submit 7 ahead, page public ≥ 2 weeks before release, **21 days** from
 paying the app fee to release, tax verification up to 30 days.
 
@@ -2844,7 +2920,9 @@ Measured, Boxing, toe to toe, 20 s, damage per second:
 | flick / snap turn, no punch | 37.0 | **0** |
 
 A cheat is now at most a perfect human. That is the honest bound: no rule on positions can tell a
-flawless 12 m/s puncher from a client claiming to be one. Doing better is the statistical
+flawless 12 m/s puncher from a client claiming to be one. (Since "A hand that jumps is not a pull",
+the teleported hand in the table lands **nothing** — it is a pose jump — and the bound applies to a
+spoof that stays just under one: `simulation.test.ts` holds both.) Doing better is the statistical
 detection in roadmap Phase 12.
 
 A hand that gains or loses tracking is a pose jump like a respawn, so it snaps `prevWorld` and
@@ -3089,10 +3167,14 @@ Changing them is the owner's call (B3).
 Measurement beats reading the code, every time. What has actually worked:
 
 - Headless full-speed simulation with the real `Simulation` and `Bot` via `tsx`.
-- A/B screenshots compared with Pillow; Playwright + Chromium at
-  `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` with `--use-gl=swiftshader`.
+- A/B screenshots compared with Pillow; Playwright + Chromium at `/opt/pw-browsers/chromium` (a
+  symlink; the build behind it changes between containers — it was `chromium-1194`, then
+  `chromium-1243`) with `--use-gl=swiftshader`. A fresh container has no `node_modules`, no
+  `playwright` package (`npm i --no-save playwright`; the browser download is skipped by the
+  environment) and no `imageio-ffmpeg` (`python3 -m pip install imageio-ffmpeg` — plain `pip`
+  installs for another Python here).
 - Two real browser clients over real WebRTC, measuring RMS on the listener — `npm run check:voice`,
-  which in this container needs `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-1194/chrome-linux/chrome`
+  which in this container needs `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium`
   because Playwright looks for a `chrome-headless-shell` build that is not installed. Never run
   `npx playwright install`.
 - **Mutation testing on every fix** — break the fix, confirm the new test fails, restore.

@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { listAnimals } from '../content/animals.js';
 import { createPlayerState } from './state.js';
 import { DEFAULT_MOVEMENT, FEEL_BAND, FEEL_FIELDS, applyFeelProfile } from './config.js';
+import type { MovementConfig } from './config.js';
+import { stepPlayer } from './locomotion.js';
+import { PhysicsWorld } from '../physics/world.js';
+import { DEFAULT_SURFACE } from '../physics/types.js';
+import { vec3 } from '../math/vec3.js';
+import { SimEventQueue } from '../sim/events.js';
+import { Buttons, createIntent } from '../input/intent.js';
 import {
   TUNABLES,
   applyTuning,
@@ -13,6 +20,34 @@ import {
   tunableFor,
   tuningDiff,
 } from './tuning.js';
+
+/**
+ * A player with no tracked hands (PC, mobile, a bot): sprints, lets go and coasts, hops, sprints at
+ * a wall, climbs it on the grab button, launches off and falls back. Returns the whole path, so a
+ * field that touches any part of it changes the string.
+ */
+function handlessRun(config: MovementConfig): string {
+  const world = new PhysicsWorld([
+    { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(80, 2, 80), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+    { kind: 'box', id: 1, center: vec3(0, 3, 24), half: vec3(8, 3, 0.6), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+  ]);
+  const ctx = { world, events: new SimEventQueue(), tick: 0, killPlaneY: -40 };
+  const player = createPlayerState({ id: 'pc', position: vec3(0, 0, 0), config });
+  const intent = createIntent();
+  const path: string[] = [];
+  for (let tick = 0; tick < 420; tick++) {
+    const running = tick < 30 || (tick >= 60 && tick < 300);
+    intent.moveZ = running ? 1 : 0;
+    intent.buttons = running ? Buttons.Sprint : 0;
+    if (tick >= 60 && tick < 63) intent.buttons |= Buttons.Jump;
+    if (tick >= 200 && tick < 300) intent.buttons |= Buttons.GrabRight;
+    if (tick >= 296 && tick < 300) intent.buttons |= Buttons.Jump;
+    ctx.tick++;
+    stepPlayer(player, intent, ctx, 1 / 60);
+    path.push(`${player.position.x},${player.position.y},${player.position.z}`);
+  }
+  return path.join(';');
+}
 
 const pushForce = tunableFor('pushForce');
 if (!pushForce) throw new Error('pushForce must be tunable');
@@ -54,37 +89,30 @@ describe('tunable definitions', () => {
   });
 
   /**
-   * Which sliders do anything without a headset.
+   * Which sliders do anything without a headset — measured, not reasoned about.
    *
-   * The obvious guess — that everything with "hand" in its name is VR-only — is wrong, and that
-   * is why this is written down rather than left to a reader. PC and mobile players go through
-   * the same hand-anchor machinery: the client places their hands procedurally and the grab
-   * button sets the grip, so `pushForce`, `handGrabRadius`, `maxHandCorrection` and
-   * `handTwoHandMultiplier` are all live on a keyboard.
-   *
-   * `handPushForce` is the single exception, because `applyPalmPush` skips any hand that is not
-   * really tracked and a procedurally placed hand never is. A slider that cannot move anything
-   * is worse than an absent one, so the panel hides it off a headset — and this pins the list it
-   * hides by, so a future field that needs tracking has to declare itself.
+   * This used to be reasoned about, and the reasoning was wrong: it held that PC and mobile "go
+   * through the same hand-anchor machinery", so `pushForce`, `handGrabRadius`, the pull limit and
+   * `handTwoHandMultiplier` sat in every desktop panel and moved nothing — PC, mobile and bots send
+   * `hands: null`, and a hand that is not tracked never anchors. So every slider is driven to both
+   * ends under a player with no tracked hands who sprints, hops, climbs a wall on the grab button,
+   * launches off it and coasts to a stop, and `vrOnly` must be true exactly when the two runs match.
    */
-  it('marks exactly the field that needs real tracked hands', () => {
-    const vrOnly = TUNABLES.filter((t) => 'vrOnly' in t && t.vrOnly).map((t) => t.field);
-    expect(vrOnly).toEqual(['handPushForce']);
-  });
-
-  it('leaves the other hand-named fields available on every platform', () => {
-    for (const field of ['pushForce', 'handGrabRadius', 'maxHandCorrection', 'handTwoHandMultiplier']) {
-      const tunable = TUNABLES.find((t) => t.field === field);
-      expect(tunable, `${field} should still be tunable`).toBeDefined();
-      expect('vrOnly' in (tunable as object) && (tunable as { vrOnly?: boolean }).vrOnly, field).toBeFalsy();
+  it('hides exactly the sliders that move nothing for a player without tracked hands', () => {
+    for (const tunable of TUNABLES) {
+      const low = handlessRun(applyTuning(DEFAULT_MOVEMENT, { [tunable.field]: tunable.min }));
+      const high = handlessRun(applyTuning(DEFAULT_MOVEMENT, { [tunable.field]: tunable.max }));
+      const vrOnly = 'vrOnly' in tunable && tunable.vrOnly === true;
+      expect(low === high, `${tunable.field} is marked vrOnly: ${vrOnly}`).toBe(vrOnly);
     }
   });
 
   it('still offers a usable panel with no headset', () => {
     // Whatever gets marked VR-only later, a desktop session must not be left with a handful of
-    // sliders — the panel is how the feel gets found in the first place.
+    // sliders — the panel is how the feel gets found in the first place. It used to demand all but
+    // two, which was the wrong belief above written as a number; half is the property.
     const flat = TUNABLES.filter((t) => !('vrOnly' in t && t.vrOnly));
-    expect(flat.length).toBeGreaterThanOrEqual(TUNABLES.length - 2);
+    expect(flat.length).toBeGreaterThanOrEqual(Math.ceil(TUNABLES.length / 2));
   });
 
   /**
