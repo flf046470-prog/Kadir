@@ -180,6 +180,223 @@ describe('locomotion — shared across platforms', () => {
   });
 });
 
+/**
+ * The ground takes away the speed the stick is not asking for, while the stick is held as well.
+ *
+ * It used to brake only a released stick, so nothing ever slowed a player who kept steering — and
+ * every bot, and nearly every person, keeps steering. Measured on the commit before, each of these
+ * kept its old speed for as long as the stick stayed down: letting go of sprint 9.72 m/s, an empty
+ * stamina bar 9.72, crouching 7.20, a snare 7.20; a 90° turn kept the old direction and added the
+ * new one, 10.18 m/s for ever; weaving the view ±60° climbed to 14.40 m/s without sprinting.
+ */
+describe('the ground holds a runner to the speed they are allowed', () => {
+  const RUN = DEFAULT_MOVEMENT.maxSpeed;
+  const SPRINT = RUN * DEFAULT_MOVEMENT.sprintMultiplier;
+  const ice = { friction: 0.35, bounciness: 0, flags: SurfaceFlags.Climbable | SurfaceFlags.Slippery, material: 'ice' as const };
+  const flat = new PhysicsWorld([
+    { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(600, 2, 600), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+    { kind: 'box', id: 1, center: vec3(1000, -2, 0), half: vec3(300, 2, 300), yaw: 0, surface: ice },
+  ]);
+  const DIRT = vec3(0, 0.5, -300);
+  const ICE = vec3(1000, 0.5, -250);
+  const speedOf = (p: PlayerState): number => Math.hypot(p.velocity.x, p.velocity.z);
+
+  /** Run on the flat for `seconds`, `steer` setting the intent (and the player) before each tick. */
+  function drive(seconds: number, steer: (t: number, intent: InputIntent, p: PlayerState) => void, at = DIRT) {
+    const ctx = makeContext(flat);
+    const p = createPlayerState({ id: 'r', position: vec3(at.x, at.y, at.z) });
+    const intent = createIntent();
+    let peak = 0;
+    for (let k = 0; k < Math.round(seconds * 60); k++) {
+      steer(k * DT, intent, p);
+      ctx.tick++;
+      stepPlayer(p, intent, ctx, DT);
+      peak = Math.max(peak, speedOf(p));
+    }
+    return { p, peak };
+  }
+
+  it('drops back to a run when sprint is let go', () => {
+    const { p, peak } = drive(4, (t, i) => {
+      i.moveZ = 1;
+      i.buttons = t < 2 ? Buttons.Sprint : 0;
+    });
+    expect(peak).toBeGreaterThan(SPRINT * 0.99);
+    expect(speedOf(p)).toBeCloseTo(RUN, 1);
+  });
+
+  it('drops to a run when stamina runs out, and waits for its breath before sprinting again', () => {
+    // Out of breath means out until stamina is back to 25. Without that gap a held sprint key
+    // chattered at the floor: sprinting on 39 % of ticks, whose acceleration outran the braking of
+    // the rest, and 9.5 m/s held for ever on an empty bar.
+    let phase: 'fresh' | 'winded' | 'recovered' = 'fresh';
+    let windedAt = -1;
+    let sprintedWinded = 0;
+    let sprintedAgain = false;
+    let speedAfter = -1;
+    drive(16, (t, i, p) => {
+      i.moveZ = 1;
+      i.buttons = Buttons.Sprint;
+      // `sprinting` is what the last tick did, which it decided on the stamina the last call saw.
+      if (phase === 'winded' && p.sprinting) sprintedWinded++;
+      if (phase === 'recovered' && p.sprinting) sprintedAgain = true;
+      if (phase === 'fresh' && p.stamina <= 5) {
+        phase = 'winded';
+        windedAt = t;
+      } else if (phase === 'winded' && p.stamina >= 25) phase = 'recovered';
+      if (windedAt >= 0 && speedAfter < 0 && t >= windedAt + 1) speedAfter = speedOf(p);
+    });
+    expect(windedAt).toBeGreaterThan(0);
+    expect(speedAfter).toBeCloseTo(RUN, 1);
+    expect(sprintedWinded).toBe(0);
+    expect(sprintedAgain).toBe(true);
+  });
+
+  it('slows to a crouch when a runner crouches', () => {
+    const { p } = drive(4, (t, i) => {
+      i.moveZ = 1;
+      i.buttons = t < 2 ? 0 : Buttons.Crouch;
+    });
+    expect(speedOf(p)).toBeCloseTo(RUN * 0.55, 1);
+  });
+
+  it('halves the speed of a runner who steps in a snare, as the trap says it does', () => {
+    const { p } = drive(4, (t, i, player) => {
+      i.moveZ = 1;
+      if (t >= 2) {
+        player.gadgets.snared = 5;
+        player.gadgets.snareSlow = 0.5;
+      }
+    });
+    expect(speedOf(p)).toBeCloseTo(RUN * 0.5, 1);
+  });
+
+  /** Seconds after a 90° turn until the old direction is under 0.5 m/s, and the speed at the end. */
+  function turn(at: typeof DIRT): { gone: number; end: number; peak: number } {
+    let gone = -1;
+    const { p, peak } = drive(7, (t, i, player) => {
+      i.lookYaw = t < 3 ? 0 : Math.PI / 2;
+      i.moveZ = 1;
+      if (t >= 3 && gone < 0 && Math.abs(player.velocity.z) < 0.5) gone = t - 3;
+    }, at);
+    return { gone, end: speedOf(p), peak };
+  }
+
+  it('leaves the old direction behind after a turn, more slowly on ice', () => {
+    // Measured: gone in 0.48 s on dirt and 1.38 s on ice. Friction comes from the ground the
+    // player is on, whether or not they are steering.
+    const dirt = turn(DIRT);
+    const onIce = turn(ICE);
+    expect(dirt.gone).toBeGreaterThan(0);
+    expect(dirt.gone).toBeLessThan(0.7);
+    expect(onIce.gone).toBeGreaterThan(dirt.gone * 2);
+    expect(onIce.gone).toBeLessThan(2);
+    expect(dirt.end).toBeCloseTo(RUN, 1);
+    expect(onIce.end).toBeCloseTo(RUN, 1);
+    // And never faster than a run on the way round: the new direction grew while the old one died,
+    // 8.56 m/s at the top of the turn (11.67 sprinting).
+    expect(dirt.peak).toBeLessThan(RUN * 1.01);
+    expect(onIce.peak).toBeLessThan(RUN * 1.01);
+  });
+
+  it('cannot be weaved above a run', () => {
+    // Measured: 14.40 m/s before the ground braked a held stick, 8.09 before a turn stopped adding
+    // the two directions together, a run now.
+    const { peak } = drive(20, (t, i) => {
+      i.lookYaw = (Math.floor(t / 0.4) % 2 ? 1 : -1) * (Math.PI / 3);
+      i.moveZ = 1;
+    });
+    expect(peak).toBeLessThan(RUN * 1.01);
+  });
+
+  it('starts, stops and turns round as quickly as it always did', () => {
+    // Only speed the stick is not asking for is braked; speed it is asking for is still the
+    // acceleration's alone. Measured the same before and after: 90 % of a run from rest in 0.167 s,
+    // at rest 0.517 s after letting go.
+    let toRun = -1;
+    let stopped = -1;
+    let back = -1;
+    let rest = -1;
+    // A second standing first, so the run starts from the ground rather than from the drop onto it.
+    drive(8, (t, i, p) => {
+      i.moveZ = t < 1 ? 0 : t < 4 ? 1 : t < 6 ? -1 : 0;
+      if (t >= 1 && toRun < 0 && p.velocity.z >= RUN * 0.9) toRun = t - 1;
+      if (t >= 4 && stopped < 0 && p.velocity.z <= 0) stopped = t - 4;
+      if (t >= 4 && back < 0 && p.velocity.z <= -RUN * 0.9) back = t - 4;
+      if (t >= 6 && rest < 0 && Math.abs(p.velocity.z) < 0.05) rest = t - 6;
+    });
+    expect(toRun).toBeGreaterThan(0);
+    expect(toRun).toBeLessThan(0.2);
+    expect(stopped).toBeGreaterThan(0);
+    expect(stopped).toBeLessThan(0.21);
+    expect(back).toBeLessThan(0.36);
+    expect(rest).toBeGreaterThan(0.45);
+    expect(rest).toBeLessThan(0.55);
+  });
+
+  /** Net metres a second over 20 s, hopping on every landing at a sprint with `steer` on the stick. */
+  function hopping(steer: (t: number, i: InputIntent) => void): number {
+    let tick = 0;
+    const { p } = drive(20, (t, i, player) => {
+      steer(t, i);
+      tick++;
+      i.buttons = Buttons.Sprint | (player.grounded && tick % 2 === 0 ? Buttons.Jump : 0);
+    });
+    return Math.hypot(p.position.x - DIRT.x, p.position.z - DIRT.z) / 20;
+  }
+
+  it('gains nothing from steering in the air', () => {
+    // Air control pushed along the stick and nothing took the rest away, so turning mid-hop was
+    // free speed. Measured before: weaving the view ±45° made 12.0 m/s of progress and sweeping A/D
+    // with the mouse 17.3, against 9.6 straight ahead — nearly twice a sprint, and only for a
+    // keyboard. Now neither beats going straight.
+    const straight = hopping((_t, i) => {
+      i.moveZ = 1;
+    });
+    const weave = hopping((t, i) => {
+      i.lookYaw = Math.sin(t * Math.PI * 2) * (Math.PI / 4);
+      i.moveZ = 1;
+    });
+    const sweep = hopping((t, i) => {
+      const s = Math.sin(t * Math.PI * 2);
+      i.lookYaw = s * 0.8;
+      i.moveX = s > 0 ? 1 : -1;
+      i.moveZ = 0.3;
+    });
+    expect(straight).toBeGreaterThan(SPRINT * 0.95);
+    expect(weave).toBeLessThanOrEqual(straight);
+    expect(sweep).toBeLessThanOrEqual(straight);
+  });
+
+  it('keeps the speed of a launch above the run cap, and can still steer it', () => {
+    // A long jump is the one honest way past the cap; air control turns it without eating it.
+    const { p } = drive(1.2, (t, i, player) => {
+      i.moveZ = t < 1 ? 1 : 0;
+      i.moveX = t < 1 ? 0 : 1;
+      if (t >= 1 && t < 1 + DT) {
+        player.velocity.z = 14;
+        player.velocity.y = 6;
+        player.grounded = false;
+      }
+    });
+    expect(p.grounded).toBe(false);
+    expect(speedOf(p)).toBeGreaterThan(13.5);
+    expect(p.velocity.x).toBeGreaterThan(1);
+  });
+
+  it('keeps a run’s speed while a hop is charged, which a long jump spends', () => {
+    // Charging slows acceleration only, as it always has: braking a charging runner down to the
+    // charge's cap would take the run-up out of every long jump.
+    let slowest = Infinity;
+    drive(3.4, (t, i, p) => {
+      i.moveZ = 1;
+      i.buttons = t >= 3 ? Buttons.Jump : 0;
+      if (t >= 3) slowest = Math.min(slowest, speedOf(p));
+    });
+    expect(slowest).toBeGreaterThan(RUN * 0.98);
+  });
+});
+
 describe('VR hand physics', () => {
   let world: PhysicsWorld;
   let ctx: LocomotionContext;

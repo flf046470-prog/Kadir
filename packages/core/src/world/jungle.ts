@@ -71,7 +71,9 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 6: the floor is terrain. It rolls, it slopes down into the cave instead of dropping four
     // metres at its mouth, the river runs in a bed, and the canyon approach has no lip.
     // 7: fallen logs are solid and lie down — six were posts, and the undergrowth's could be walked through.
-    version: 7,
+    // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
+    //    It had closed the gap round the north end of the canyon's west wall to 0.5 m.
+    version: 8,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

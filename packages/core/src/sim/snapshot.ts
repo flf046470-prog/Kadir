@@ -22,6 +22,12 @@ export const SnapFlags = {
   Revealed: 1 << 13,
   /** Push-to-talk is held. Drives the name-plate speaker icon; `voice` drives the mouth. */
   Talking: 1 << 14,
+  /**
+   * Out of breath (`PlayerState.winded`). History rather than a function of stamina — at 15 a
+   * player may or may not be allowed to sprint — so a client rewound to a snapshot cannot work it
+   * out, and without it predicted the end of every sprint a round trip early or late.
+   */
+  Winded: 1 << 15,
 } as const;
 
 export interface HandSnapshot {
@@ -102,6 +108,7 @@ export function snapshotPlayer(player: PlayerState): PlayerSnapshot {
   if (player.gadgets.smoked > 0) flags |= SnapFlags.Smoked;
   if (player.gadgets.revealed > 0) flags |= SnapFlags.Revealed;
   if (player.voiceLevel > 0) flags |= SnapFlags.Talking;
+  if (player.winded) flags |= SnapFlags.Winded;
 
   const tracked = player.hands[0].tracked || player.hands[1].tracked;
   if (tracked) flags |= SnapFlags.HandsTracked;
@@ -172,6 +179,7 @@ export function applySnapshot(player: PlayerState, snap: PlayerSnapshot): void {
   player.climbing = (snap.flags & SnapFlags.Climbing) !== 0;
   player.crouching = (snap.flags & SnapFlags.Crouching) !== 0;
   player.sprinting = (snap.flags & SnapFlags.Sprinting) !== 0;
+  player.winded = (snap.flags & SnapFlags.Winded) !== 0;
   player.alive = (snap.flags & SnapFlags.Alive) !== 0;
   player.staggerTimer = (snap.flags & SnapFlags.Staggered) !== 0 ? 0.2 : 0;
   player.invulnTimer = (snap.flags & SnapFlags.Invulnerable) !== 0 ? 0.2 : 0;

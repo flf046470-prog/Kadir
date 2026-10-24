@@ -83,7 +83,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     // 5: the station's scrub logs are solid, and the fallen gum is drawn as a log.
     // 6: the apron is terrain that rolls and rises to the edge, instead of a flat sheet to a wall.
     // 7: the creek runs in a channel cut 0.3 m into the bed, so the water is the ground in it.
-    version: 7,
+    // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
+    version: 8,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

@@ -142,6 +142,14 @@ export interface PlayerState {
 
   crouching: boolean;
   sprinting: boolean;
+  /**
+   * Out of breath: stamina reached the floor while sprinting, and sprinting waits until it is back
+   * to `SPRINT_RECOVERY`. Without the gap a held sprint key chattered at the floor — it drains
+   * 14/s and refills 9/s, so it sprinted on 39 % of ticks, and the acceleration of those ticks
+   * outran the braking of the rest: 9.5 m/s held for ever on an empty bar. On the wire as
+   * `SnapFlags.Winded`, because it is history, not a function of stamina.
+   */
+  winded: boolean;
   /** 0..1 hop charge. */
   charge: number;
   chargeHeld: boolean;
@@ -251,6 +259,7 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
 
     crouching: false,
     sprinting: false,
+    winded: false,
     charge: 0,
     chargeHeld: false,
 
@@ -314,6 +323,7 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
   player.alive = true;
   player.health = 100;
   player.stamina = 100;
+  player.winded = false;
   player.invulnTimer = 1.5;
   player.tagCooldown = 0;
   player.lastIntentTick = tick;

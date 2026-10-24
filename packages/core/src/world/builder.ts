@@ -765,10 +765,13 @@ export class LevelBuilder {
       a.di - b.di || a.dj - b.dj || (a.di !== 0 ? a.i - b.i : a.j - b.j) ||
       Math.round(a.h / 2) - Math.round(b.h / 2) || (a.di !== 0 ? a.j - b.j : a.i - b.i),
     );
+    // Something to land on in a cell, at a height a cliff standing there would fill.
+    const groundIn = (i: number, j: number, low: number, high: number): boolean =>
+      column(i, j).some((l) => !l.edge && l.top > low && l.top <= high);
     let made = 0;
     let run: EdgeCell[] = [];
     const flush = (): void => {
-      if (run.length > 0) made += this.cliffRun(x0, z0, run, surface, zone);
+      if (run.length > 0) made += this.cliffRun(x0, z0, run, surface, zone, groundIn);
       run = [];
     };
     for (const e of edges) {
@@ -789,7 +792,14 @@ export class LevelBuilder {
   }
 
   /** One run of edge cells as jittered cliff segments, or as a flush plug over a crack. */
-  private cliffRun(x0: number, z0: number, run: EdgeCell[], surface: SurfaceName, zone: string): number {
+  private cliffRun(
+    x0: number,
+    z0: number,
+    run: EdgeCell[],
+    surface: SurfaceName,
+    zone: string,
+    groundIn: (i: number, j: number, low: number, high: number) => boolean,
+  ): number {
     const first = run[0] as EdgeCell;
     const { di, dj } = first;
     const alongI = di === 0; // a wall facing ±z runs along x (i); one facing ±x runs along z (j)
@@ -806,12 +816,30 @@ export class LevelBuilder {
     // Past both ends, so two runs meeting at a corner overlap instead of touching at a point. Not
     // for a plug, which must not spill onto the floor on either side of the crack it fills.
     const pad = first.crack ? 0 : 1.5;
-    const from = Math.min(...run.map(along)) - pad;
-    const to = Math.max(...run.map(along)) + 1 + pad;
+    const first0 = Math.min(...run.map(along));
+    const last0 = Math.max(...run.map(along));
+    const from = first0 - pad;
+    const to = last0 + 1 + pad;
+    // A run also ends where the void beside it turns into floor, and a pad there stands the wall on
+    // that floor. Measured on the jungle: the plunge pool's west edge padded 1.5 m onto the canyon
+    // floor and closed the 2 m gap between the canyon's west wall and the map's edge to 0.5 m —
+    // narrower than a player — so the slot behind that wall was a dead end 31 m deep, and the
+    // corner runners fled into. Such an end keeps the wall to the run; the segments are still laid
+    // over the padded length, so every random draw, and every other cliff, is what it was.
+    const onGround = (past: number): boolean => {
+      for (let m = 1; m <= 3; m++) {
+        const i = alongI ? past : first.i + di * m;
+        const j = alongI ? first.j + dj * m : past;
+        if (groundIn(i, j, ground - 8, ground + 0.6)) return true;
+      }
+      return false;
+    };
+    const lowEnd = pad > 0 && (onGround(first0 - 1) || onGround(first0 - 2)) ? first0 : from;
+    const highEnd = pad > 0 && (onGround(last0 + 1) || onGround(last0 + 2)) ? last0 + 1 : to;
     const base = alongI ? x0 : z0;
     let made = 0;
     for (let a = from; a < to - 1e-6; ) {
-      const b = first.crack ? to : Math.min(to, a + this.rand.range(8, 14));
+      const next = first.crack ? to : Math.min(to, a + this.rand.range(8, 14));
       let depth: number;
       let bottom: number;
       let topY: number;
@@ -828,16 +856,19 @@ export class LevelBuilder {
           Math.max(ground + this.rand.range(10, 14), reach + CLIFF_CLEARANCE + this.rand.range(0, 2)),
         );
       }
+      const start = Math.max(a, lowEnd);
+      const end = Math.min(next, highEnd);
+      a = next;
+      if (end <= start + 1e-6) continue;
       const middle = inner + sign * depth * 0.5;
-      const centreAlong = base + (a + b) / 2;
-      const half = (b - a) / 2;
+      const centreAlong = base + (start + end) / 2;
+      const half = (end - start) / 2;
       const center = alongI ? vec3(centreAlong, (bottom + topY) / 2, middle) : vec3(middle, (bottom + topY) / 2, centreAlong);
       const halves = alongI ? vec3(half, (topY - bottom) / 2, depth / 2) : vec3(depth / 2, (topY - bottom) / 2, half);
       const wall = this.box(center, halves, surface, 0, zone);
       // A plug is floor; only a wall is drawn as cliff rock.
       if (!first.crack && wall.kind === 'box') wall.drawAs = 'cliff';
       made++;
-      a = b;
     }
     return made;
   }

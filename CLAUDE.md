@@ -650,9 +650,10 @@ These silently invalidated real measurements in this repo. Check them before bel
 - **Each landed projectile emits two `gadgetHit` events** — one from `applyPayload` carrying the
   damage dealt, one from `detonate` with magnitude 1 meaning "direct hit". Counting events as hits
   reports a 100 % hit rate; the real figure is about half.
-- **Surface friction acts only when the stick is released.** Bots always steer, so a friction or
-  ground-material change cannot move a bot A/B. Identical numbers there are expected, not a dead
-  probe: count what the change touches (ticks on the surface) before reading them.
+- **Surface friction used to act only when the stick was released**, so a friction change could not
+  move a bot A/B. Since "The ground held nobody to a speed" it also brakes the speed a held stick is
+  not asking for, so it does move bots now — but only through turns and excess speed. A bot running
+  straight at the cap still never feels it: count what the change touches before reading a tie.
 - Roles are assigned when the round starts, not in `addPlayer`. Read `player.role` before the
   countdown ends and everyone is `idle`.
 - A mode's countdown freezes players, and a round reset restores the state you were watching. Both
@@ -3132,8 +3133,9 @@ over a bed listed first reads water every tick (the old rule read dirt on 156 of
   0. Avoiding it would narrow the river by a cell. Water materials get `polygonOffset` (−1, −1) so
   water wins the depth tie; it is GL state, so no second program. `levels.test.ts` still refuses any
   **authored** solid in a pool's plane, and says why terrain is exempt.
-- **Surface friction acts only on a released stick** (`locomotion.ts`, the `throttle ≤ 0.02`
-  branch). Bots always steer, so the bot A/B came out **byte-identical** on all three maps, after a
+- **Surface friction acted only on a released stick** at the time (`locomotion.ts`, the `throttle ≤ 0.02`
+  branch; see "The ground held nobody to a speed" for what changed). Bots always steer, so the bot
+  A/B came out **byte-identical** on all three maps, after a
   wet-tick count proved bots do stand in the creek (0 → 1,243 grounded ticks on water in two rounds).
   That is the "identical results" tell explained, not ignored: a friction change cannot move a bot.
   A player who lets go in the creek now coasts 6.1 m instead of 1.8 m, and a landing in any of
@@ -3144,6 +3146,65 @@ over a bed listed first reads water every tick (the old rule read dirt on 156 of
 
 Mutations, each failing its own test: the channel flat again (3,032 coplanar points), the cave slab
 back (42), the tie rule off (dirt 156 of 159), and no depth offset.
+
+## The ground held nobody to a speed, and steering was free speed
+
+Found measuring roadmap item A3 (PC against VR movement). Friction braked only a **released** stick,
+so a player who kept steering — every bot, nearly every person — was never slowed by anything.
+Measured on the commit before, each of these kept its old speed for as long as the stick stayed
+down: letting go of sprint 9.72 m/s, an empty stamina bar 9.72, crouching 7.20, a snare 7.20 (the
+catalog says it halves your speed); a 90° turn kept the old direction and added the new one,
+10.18 for ever; weaving the view ±60° reached 14.40 without sprinting. Six bots averaged 10.2 m/s
+and touched the 26 m/s ceiling on every map. `locomotion.ts` now:
+
+- **`brakeUnwanted`**: on the ground, the velocity across the wish, and along it above the cap, is
+  braked at the friction a released stick gets (`groundGrip`: config × surface). Speed the stick
+  is asking for is still the acceleration's alone, so starting, stopping, reversing and charging a
+  hop are unchanged (measured the same before and after: 90 % of a run in 0.167 s, at rest
+  0.517 s after letting go). Ice keeps its slide: the old direction dies in 0.48 s on dirt, 1.38 s
+  on ice.
+- **A snare scales the speed cap**, not just `control`.
+- **`winded`**: stamina ≤ 5 stops sprinting until it is back to 25. Without the gap a held sprint
+  chattered at the floor (39 % of ticks sprinting), and the acceleration of those ticks outran the
+  braking of the rest: 9.5 m/s for ever on an empty bar. It is history, not a function of stamina,
+  so it rides the last free snapshot flag bit (`SnapFlags.Winded`, bit 15) — a rewound client could
+  not work it out and mispredicted every sprint's end by a round trip.
+- **`steerWithoutGaining`**: steering turns the speed a player has; it never adds to it. A turn
+  used to add the new direction (growing at the acceleration's rate) to the old (dying at the
+  ground's), and in the air nothing took the old one away at all — **air strafing**. Measured with
+  PC input, hopping every landing at a sprint: straight 9.6 m/s of progress, weaving ±45° 11.5,
+  sweeping A/D with the mouse **17.3** — nearly twice a sprint, for a keyboard and not a headset.
+  Now neither beats straight. On the ground the push is *cut short* rather than the speed scaled
+  down: scaling killed the old direction too, and ice stopped sliding after 0.57 s instead of 1.38.
+  In the air the push turns the speed round (rescale). A launch above the cap (long jump, wall
+  bounce) keeps its speed either way.
+
+**Bots had been using the bug as their wall response.** With it fixed, a bot running at a wall
+stopped there: jungle stuck 3.6 % → 13.9 %, and a Hunt where the hunter spent 180 s against the back
+of the outback cave with its quarry on the other side. `Bot.slideAlongWall` (prey and chasers):
+along the wall away from the threat / towards the quarry; **back the other way at a corner** (the
+trench behind the jungle canyon's west wall trapped 470 bot-seconds in its two end corners, each wall
+in turn sending the bot into the other); **the same side across hop gaps** (`SIDE_MEMORY`: a bot
+leaves the wall between hops, and choosing again turned a chaser round once it passed its quarry's
+x — measured 19.4 m short after 10 s).
+
+**`enclose` padded walls onto floor.** Each wall runs 1.5 m past its run so corners overlap, and a run
+also ends where the void beside it turns into floor — the pad then stood on that floor. On the
+jungle it closed the 2 m gap round the north end of the canyon's west wall to 0.5 m, so the trench
+behind it was a 31 m dead end. Such an end now keeps to its run; the segments are still laid over
+the padded length so every random draw, and every other cliff, is unchanged (12 / 16 / 20 boxes
+moved on jungle / glacier / outback). All three maps are version 8. `levels.test.ts` checks no wall
+stands on ground at its own floor level.
+
+Measured after, six bots × 16 rounds × 90 s, HEAD before all of this in brackets: stuck 1.5 % (3.6) /
+3.4 % (6.1) / 2.8 % (3.9), 0 falls; tags 151 (180) / 48 (42) / 275 (220); mean speed 7.6 / 7.2 / 7.1
+(10.2), fastest 13–17.5 m/s (26, the ceiling). The Hunt, 24 rounds a map, survivors downed per
+round: 4.21 (3.67) / 3.96 (2.67) / 3.96 (4.13). And a bot chaser now catches someone standing still:
+on the old physics it orbited at 1.3–4.9 m and never came within the 1.25 m tag radius in 15 tries.
+
+Not done: long jumps chained off every landing still reach 26 m/s (a charged jump adds speed to the
+speed it has; that is a launch, and whether it should chain is a design call). Probes:
+`.probe/{ground,airstrafe,startstop,static-target,side-memory,bots,hunt}.ts`.
 
 ## The plan has two tracks, and only one of them waits on the owner
 

@@ -89,6 +89,13 @@ passes. Writing the code does not tick it.
 - [ ] **A3. PC against VR movement, measured** (Phase 2). Sustained ground speed, turn rate under
   pursuit, climb rate and chase outcome, with bots and synthetic VR intents. Gamepad dead zones and
   curves. Exit: a table in `docs/PERFORMANCE_BUDGETS.md`, every gap with its number.
+  *Under way (2026-10-24).* Measuring it found the ground braking nobody who kept steering, and air
+  strafing worth 17.3 m/s of progress against a 9.6 m/s sprint on a keyboard. Both fixed, with the
+  bots' wall response and a wall pad that sealed the jungle trench (CLAUDE.md, "The ground held
+  nobody to a speed"). Left: the VR "magnet grab" (`VRInput` sends Grab bits in arms-first, so the
+  assisted climb holds a headset player on a wall the hand is not touching: 0 m fall in 2 s against
+  6 m), gamepad radial dead zone and curve, climb rate, chase outcome against VR-shaped bots, and
+  the table.
 - [ ] **A4. The third-person camera's occlusion** (Phase 3). Measure the share of frames with
   geometry between the camera and the player; add pull-in or fade if that share is material; lock-on
   framing for Boxing. Exit: the occlusion share before and after.

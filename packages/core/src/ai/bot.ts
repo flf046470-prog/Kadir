@@ -51,6 +51,15 @@ const DETOUR_ANGLE = 1.35;
 const DETOUR_SECONDS = 1.4;
 /** How long cornered prey in a pit heads for the way out before it goes back to fleeing. */
 const PIT_ESCAPE_SECONDS = 6;
+/** How long a bot keeps sliding along the wall it ran into: a hopping bot touches it only between hops. */
+const WALL_MEMORY = 0.6;
+/**
+ * How long it keeps the way along that wall it chose. Longer than the slide, because a bot drops off
+ * a wall between hops and comes back to it, and choosing again then turned it round: a chaser sent
+ * along a wall towards the side its quarry was on chose again past the quarry, at the very end of
+ * the wall, and slid all the way back.
+ */
+const SIDE_MEMORY = 2.5;
 const FIRE_RANGE = 34;
 /** Past this far apart a fighter closes the distance instead of swinging at air. */
 const PUNCH_RANGE = 1.15;
@@ -96,6 +105,11 @@ export class Bot {
   private pitX = 0;
   private pitZ = 0;
   private pitEscape = 0;
+  /** The wall the bot is sliding along, how long since it touched it, and which way along it it goes. */
+  private wallX = 0;
+  private wallZ = 0;
+  private sinceWall = Infinity;
+  private slideSide = 0;
   private readonly pitSky: Vec3 = { x: 0, y: 1e3, z: 0 };
   private exitLeg: { foot: Vec3; top: Vec3; climbing: boolean; best: number } | null = null;
   private readonly carrot: Vec3 = { x: 0, y: 0, z: 0 };
@@ -141,11 +155,14 @@ export class Bot {
 
     let desiredYaw = this.wanderYaw;
     let braking = false;
+    // The point a chase steers by: what a chaser is heading for, or what prey is running from.
+    let chasePoint: Vec3 | null = null;
     if (target) {
       // A chaser down in a pit with its quarry up out of it heads for the way out first, exactly as
       // a racer does: straight at the quarry is straight into the pit's wall. `routeOut` used to
       // run only for bots with an objective and no target, and in Kangaroo Chase every bot has one.
       const goal = chasing ? this.routeOut(self, level, target.position) : target.position;
+      chasePoint = goal;
       const dx = goal.x - self.position.x;
       const dz = goal.z - self.position.z;
       const toTarget = Math.atan2(dx, dz);
@@ -210,6 +227,10 @@ export class Bot {
     if ((target || !objective) && distanceFromCentre > level.playRadius * 0.75) {
       desiredYaw = Math.atan2(-self.position.x, -self.position.z);
     }
+
+    // Running into a wall goes along it: prey away from what it is fleeing, a chaser towards what it
+    // is after. See `slideAlongWall`.
+    desiredYaw = this.slideAlongWall(self, desiredYaw, chasePoint, chasing ? 1 : -1, dt);
 
     // After the leash: the leash points at the middle of the map, which from the gorge floor is
     // through the gorge wall, and it was what pinned the prey there in the first place.
@@ -362,6 +383,71 @@ export class Bot {
     this.carrot.y = leg.foot.y + (leg.top.y - leg.foot.y) * t;
     this.carrot.z = leg.foot.z + az * t;
     return this.carrot;
+  }
+
+  /**
+   * Running into a wall, go along it instead: prey the side away from what it is running from, a
+   * chaser the side its quarry is on; back the other way in a corner; and the same way along the
+   * same wall between hops.
+   *
+   * Nobody had a wall response, and nobody seemed to need one, because the ground physics did it for
+   * them: pressing diagonally into a wall slid a player along it at up to 26 m/s, the speed ceiling,
+   * because the wall ate the part of the velocity the stick asked for and nothing braked the rest.
+   * That was a bug, and fixing it (`brakeUnwanted`) pinned bots where they met a wall: 20 % of jungle
+   * bot-seconds stuck, almost all prey on the canyon's west wall, and a hunter that spent 180 s of
+   * a Hunt against the back wall of the outback cave with its quarry on the other side. Measured
+   * after, six bots, 16 rounds a map: stuck 1.5 / 3.4 / 2.8 % (jungle / glacier / outback) against
+   * 3.6 / 6.1 / 3.9 % on the old physics. This is not the obstacle detour `think` withholds from
+   * chases — there is no look-ahead — only what a person does when the way they were going is a wall.
+   */
+  private slideAlongWall(self: PlayerState, desiredYaw: number, by: Vec3 | null, towards: 1 | -1, dt: number): number {
+    this.sinceWall += dt;
+    if (self.touchingWall) {
+      const len = Math.hypot(self.wallNormal.x, self.wallNormal.z);
+      if (len > 0.5) {
+        const nx = self.wallNormal.x / len;
+        const nz = self.wallNormal.z / len;
+        // Which way along the wall this bot is already going, if it is.
+        const along = this.slideSide * (-this.wallZ * nx + this.wallX * nz);
+        if (this.slideSide === 0 || this.sinceWall > SIDE_MEMORY) {
+          this.wallX = nx;
+          this.wallZ = nz;
+          this.slideSide = 0;
+          this.sinceWall = 0;
+        } else if (along < -0.5) {
+          // A wall across the way it was sliding: a corner. That way is shut, so back along the
+          // first wall the other way. Measured on the jungle before this, 470 bot-seconds in 16
+          // rounds pinned in the two corners at the ends of the slot behind the canyon's west wall,
+          // stepping from one wall to the other and back, because each wall in turn became the one
+          // to slide along and each sent it into the other.
+          this.slideSide = -this.slideSide;
+          this.sinceWall = 0;
+        } else if (along <= 0.5 && nx * this.wallX + nz * this.wallZ > 0) {
+          // The same wall, or one that carries on from it: follow it round.
+          this.wallX = nx;
+          this.wallZ = nz;
+          this.sinceWall = 0;
+        }
+        // Otherwise a wall the slide is leaving behind — the corner it turned round in, or the end
+        // of the wall it is rounding — or the far side of a passage. None of them is in the way, so
+        // none keeps the slide going.
+      }
+    }
+    if (this.sinceWall > WALL_MEMORY) {
+      if (this.sinceWall > SIDE_MEMORY) this.slideSide = 0;
+      return desiredYaw;
+    }
+    const wx = Math.sin(desiredYaw);
+    const wz = Math.cos(desiredYaw);
+    // Only a wish that runs into the wall; one that already leaves it needs nothing.
+    if (wx * this.wallX + wz * this.wallZ > -0.3) return desiredYaw;
+    const tx = -this.wallZ;
+    const tz = this.wallX;
+    if (this.slideSide === 0) {
+      const lean = by ? ((by.x - self.position.x) * tx + (by.z - self.position.z) * tz) * towards : 0;
+      this.slideSide = Math.abs(lean) > 1 ? Math.sign(lean) : wx * tx + wz * tz >= 0 ? 1 : -1;
+    }
+    return Math.atan2(this.slideSide * tx, this.slideSide * tz);
   }
 
   /**

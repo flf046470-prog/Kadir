@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Simulation, buildJungleWorld, createIntent, createHandIntent, Buttons, snapshotPlayer } from '@kc/core';
+import { Simulation, applySnapshot, buildJungleWorld, createIntent, createHandIntent, Buttons, snapshotPlayer } from '@kc/core';
 import type { EntitySnapshot, PlayerSnapshot, PlayerState } from '@kc/core';
 import { decodeIntent, encodeIntent } from './intent-codec.js';
 import { SlotTable, decodeSnapshot, encodeSnapshot } from './snapshot-codec.js';
@@ -393,6 +393,26 @@ describe('prediction and reconciliation', () => {
     expect(buffer.pending().length).toBeLessThanOrEqual(5);
     // Replaying the 5 pending inputs must move the player forward again, not leave it snapped back.
     expect(local.position.z).toBeGreaterThan(predicted.z - 1);
+  });
+
+  it('carries being out of breath across the wire, which stamina alone cannot tell a client', () => {
+    // At 15 stamina a player may sprint or may be waiting for their breath, depending on what came
+    // before. A client rewound to a snapshot without the flag predicted the end of every sprint a
+    // round trip early or late.
+    const sim = new Simulation({ level, modeId: 'kangaroo-chase', seed: 23 });
+    const server = sim.addPlayer({ id: 'me' });
+    const client = new Simulation({ level, modeId: 'kangaroo-chase', seed: 23 }).addPlayer({ id: 'me' });
+    for (const winded of [true, false]) {
+      server.winded = winded;
+      server.stamina = 15;
+      client.winded = !winded;
+      const snap = { tick: 1, players: [snapshotPlayer(server)], entities: [], mode: sim.mode.state() };
+      const slots = new SlotTable();
+      const decoded = decodeSnapshot(encodeSnapshot(snap, slots, {}), new SlotTable(), new Map());
+      applySnapshot(client, decoded.players[0] as PlayerSnapshot);
+      expect(client.stamina).toBe(15);
+      expect(client.winded).toBe(winded);
+    }
   });
 
   it('smooths small corrections and snaps big ones', () => {

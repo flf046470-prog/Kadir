@@ -1,7 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { Simulation } from '../sim/simulation.js';
+import { SimEventQueue } from '../sim/events.js';
 import { buildJungleWorld } from '../world/jungle.js';
-import { Buttons } from '../input/intent.js';
+import { LevelBuilder } from '../world/builder.js';
+import type { LevelDef } from '../world/level.js';
+import { PhysicsWorld } from '../physics/world.js';
+import { Rand } from '../math/rand.js';
+import { vec3 } from '../math/vec3.js';
+import type { Vec3 } from '../math/vec3.js';
+import { Buttons, createIntent } from '../input/intent.js';
+import { createPlayerState } from '../player/state.js';
+import { stepPlayer } from '../player/locomotion.js';
+import type { LocomotionContext } from '../player/locomotion.js';
 import { Bot, botName } from './bot.js';
 import type { PlayerState } from '../player/state.js';
 import '../modes/index.js';
@@ -493,5 +503,82 @@ describe('bots use their role’s weapon', () => {
       expect(pitchWithPreyAt(6)).toBeGreaterThan(0.2);
       expect(pitchWithPreyAt(-6)).toBeLessThan(-0.2);
     });
+  });
+});
+
+/**
+ * Running into a wall goes along it.
+ *
+ * The ground used to do this for everyone: a player pressed into a wall slid along it at up to
+ * 26 m/s, because nothing braked the part of the velocity the wall did not eat. With that fixed
+ * (`brakeUnwanted` in `locomotion.ts`), a bot running at a wall stopped at it, prey and chaser
+ * alike: 20 % of jungle bot-seconds stuck, and a Hunt where the hunter spent 180 s of a round
+ * against the back of the outback cave, its quarry on the other side.
+ */
+describe('a bot that runs into a wall goes along it', () => {
+  const DT = 1 / 60;
+
+  /** A floor and some walls, `[x, z, half x, half z]` each, 7 m tall. */
+  function walls(...boxes: [number, number, number, number][]): LevelDef {
+    const b = new LevelBuilder(new Rand(1));
+    b.box(vec3(0, -1, 0), vec3(60, 1, 60), 'dirt', 0, 'test');
+    for (const [x, z, hx, hz] of boxes) b.box(vec3(x, 3.5, z), vec3(hx, 3.5, hz), 'smoothStone', 0, 'test');
+    b.spawn(vec3(0, 0.5, 0), 0, 'test', 'start');
+    return b.build({
+      id: 'wall-rig',
+      name: 'wall rig',
+      version: 1,
+      seed: 1,
+      killPlaneY: -40,
+      playRadius: 300,
+      ambientColor: 0,
+      skyColor: 0,
+      fogDensity: 0,
+    });
+  }
+
+  /** Drive a bot for `seconds` with someone standing still at `at`; returns the bot's player. */
+  function drive(level: LevelDef, role: PlayerState['role'], from: Vec3, otherRole: PlayerState['role'], at: Vec3, seconds: number) {
+    const ctx: LocomotionContext = { world: new PhysicsWorld(level.colliders), events: new SimEventQueue(), tick: 0, killPlaneY: level.killPlaneY };
+    const self = createPlayerState({ id: 'self', position: vec3(from.x, 0.5, from.z) });
+    const other = createPlayerState({ id: 'other', position: vec3(at.x, 0.5, at.z) });
+    self.role = role;
+    other.role = otherRole;
+    const bot = new Bot('self', { skill: 1, seed: 5 });
+    const still = createIntent();
+    let closest = Infinity;
+    for (let tick = 0; tick < Math.round(seconds * 60); tick++) {
+      const intent = bot.think(self, [self, other], level, DT);
+      ctx.tick++;
+      stepPlayer(self, intent, ctx, DT);
+      stepPlayer(other, still, ctx, DT);
+      closest = Math.min(closest, Math.hypot(self.position.x - other.position.x, self.position.z - other.position.z));
+    }
+    return { self, closest };
+  }
+
+  it('takes prey along the wall, the side away from what it is running from', () => {
+    // A chaser just to the east of straight behind: the way out is west, along the wall.
+    const level = walls([0, 12, 30, 0.5]);
+    const { self } = drive(level, 'runner', vec3(0, 0, 9), 'chaser', vec3(2, 0, 0), 2.5);
+    expect(self.position.z).toBeGreaterThan(9.5);
+    expect(self.position.x).toBeLessThan(-10);
+  });
+
+  it('turns prey round in a corner instead of pinning it there', () => {
+    // The same wall, now ending in a second one at x = -3: west is a dead end, so back east.
+    const level = walls([13.5, 12, 16.5, 0.5], [-3, 1.25, 0.5, 11.25]);
+    const { self } = drive(level, 'runner', vec3(0, 0, 9), 'chaser', vec3(2, 0, 0), 5);
+    expect(self.position.x).toBeGreaterThan(8);
+  });
+
+  it('takes a chaser round a wall to its quarry, the side its quarry is on', () => {
+    // An 18 m wall almost straight between the two, its east end the quarry's side. Pressed into the
+    // wall a chaser stays there, its quarry 23 m away. And a bot leaves a wall between hops: choosing
+    // the side again each time it came back turned it round once it passed the quarry's x, 10 m short
+    // of the end, and it never got there (measured 19.4 m short after 10 s).
+    const level = walls([2, 7, 9, 0.5]);
+    const { closest } = drive(level, 'chaser', vec3(0, 0, 0), 'runner', vec3(1.2, 0, 30), 10);
+    expect(closest).toBeLessThan(3);
   });
 });

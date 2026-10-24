@@ -3,6 +3,25 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-24 — A3 under way: the ground model and air strafing (interactive)
+
+**Done:** the ground brakes the speed a held stick is not asking for (sprint end, empty stamina,
+crouch and snare now slow a runner; 90° turns and weaving no longer add speed); stamina has a
+5 → 25 breath gap, carried on the wire; steering never adds speed, on the ground or in the air
+(air strafing gave 17.3 m/s of progress against a 9.6 m/s sprint). Bots slide along walls (both
+roles), turn round in corners and keep their side between hops. `enclose` no longer pads walls onto
+floor (it had sealed the jungle canyon trench). All three maps version 8.
+
+**Measured:** six bots × 16 rounds: stuck 1.5 / 3.4 / 2.8 % (HEAD 3.6 / 6.1 / 3.9), 0 falls; Hunt
+downs per round 4.21 / 3.96 / 3.96 (HEAD 3.67 / 2.67 / 4.13). 13 new tests; 18 mutations, each
+caught by its own test. Details in `CLAUDE.md` ("The ground held nobody to a speed").
+
+**Left of A3:** VR magnet grab, gamepad dead zones, climb rate, VR-bot chase outcome, the table in
+`docs/PERFORMANCE_BUDGETS.md`.
+
+**Next:** the owner asked (2026-10-24) for Meta Store VR games to be studied from their store pages
+and reviews; see `docs/META_STORE_RESEARCH.md` once it exists.
+
 ## 2026-10-18 — GitHub access back; A2 planted strides done (interactive)
 
 **Pushed:** the five commits of 10-16 (surfaces, branches, the plan, A1), rebased over the 6th run's

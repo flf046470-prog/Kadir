@@ -22,6 +22,9 @@ export interface LocomotionContext {
 
 /** Below this speed a grounded player is treated as stationary. */
 const REST_SPEED = 0.05;
+/** Stamina at which a sprint runs out, and the stamina it must recover to before the next one. */
+const SPRINT_FLOOR = 5;
+const SPRINT_RECOVERY = 25;
 
 const _moveResult: MoveResult = makeMoveResult();
 const _surface: SurfaceQueryResult = makeSurfaceQueryResult();
@@ -657,6 +660,80 @@ function launchFromGrab(player: PlayerState, ctx: LocomotionContext, climbing: b
   });
 }
 
+/** How hard the ground brakes a player's feet, in m/s² — the same whether the stick is held or not. */
+function groundGrip(player: PlayerState): number {
+  const cfg = player.config;
+  return cfg.friction * cfg.surfaceFriction * frictionOfGround(player);
+}
+
+/**
+ * On the ground, brake the velocity the stick is not asking for — across the wished direction, and
+ * along it above `cap` — by `drop`, which is the friction a released stick would get.
+ *
+ * Holding the stick used to switch friction off altogether, so nothing ever took speed away from a
+ * player who kept steering. A 90° turn kept the old direction and added the new one (sprinting:
+ * 9.7 → 13.8 m/s, for ever); swinging the view ±60° ran a player up to 14.4 m/s without sprinting;
+ * letting go of sprint, running out of stamina, crouching and stepping in a snare all lowered a cap
+ * that only ever limited acceleration. Six bots averaged 10.2 m/s and touched the 26 m/s ceiling on
+ * every map. Speed you are moving *towards* — below the cap, or backwards — is left to
+ * acceleration exactly as before, so starting, stopping and reversing feel the same, and so does
+ * charging a hop: its slow-down is applied to acceleration only, as it always was.
+ */
+function brakeUnwanted(player: PlayerState, nx: number, nz: number, cap: number, drop: number): void {
+  const along = player.velocity.x * nx + player.velocity.z * nz;
+  const kept = Math.min(along, cap);
+  const ex = player.velocity.x - nx * kept;
+  const ez = player.velocity.z - nz * kept;
+  const excess = Math.hypot(ex, ez);
+  if (excess <= drop) {
+    player.velocity.x = nx * kept;
+    player.velocity.z = nz * kept;
+    return;
+  }
+  const s = (excess - drop) / excess;
+  player.velocity.x = nx * kept + ex * s;
+  player.velocity.z = nz * kept + ez * s;
+}
+
+/**
+ * Push `add` along the wished direction (`nx`, `nz`) without taking the speed past `limit`. Steering
+ * turns the speed a player has; it never adds to it, on the ground or off it.
+ *
+ * Acceleration pushed along the wished direction and only friction took away the rest, so a turn
+ * added the two: the new direction growing at the acceleration's rate while the old one died at the
+ * ground's. In the air nothing took the old one away at all. That was free speed, and a hop keeps
+ * whatever the ground gave it. Measured with PC input, hopping on every landing at a sprint:
+ * straight ahead 9.6 m/s of progress, weaving the view ±45° 11.5 (13.6 before the ground braked),
+ * sweeping A/D with the mouse 17.3 — nearly twice a sprint, open to a keyboard and not to a
+ * headset. Bots turn mid-hop all the time, which is how a chaser came to orbit a target it had
+ * reached at 14.9 m/s.
+ *
+ * On the ground the old direction is the ground's to take away (`brakeUnwanted`), at the ground's
+ * own rate — that rate is what ice *is* — so the push is cut short instead of the speed being
+ * scaled down. Scaling it down was tried first and killed the old direction with it: a 90° turn on
+ * ice stopped sliding after 0.57 s instead of 1.38. In the air there is no ground, so the push turns
+ * the speed round. A launch above the cap (a long jump, a wall bounce) keeps its speed either way.
+ */
+function steerWithoutGaining(player: PlayerState, nx: number, nz: number, add: number, limit: number): void {
+  const v = player.velocity;
+  if (player.grounded) {
+    const along = v.x * nx + v.z * nz;
+    const room = along * along + limit * limit - (v.x * v.x + v.z * v.z);
+    add = Math.min(add, Math.sqrt(Math.max(0, room)) - along);
+    if (add <= 0) return;
+    v.x += nx * add;
+    v.z += nz * add;
+    return;
+  }
+  v.x += nx * add;
+  v.z += nz * add;
+  const speed = Math.hypot(v.x, v.z);
+  if (speed > limit) {
+    v.x *= limit / speed;
+    v.z *= limit / speed;
+  }
+}
+
 /** Grounded acceleration, hop charging, air control, wall jumps. */
 function applyGroundAndAir(
   player: PlayerState,
@@ -685,8 +762,10 @@ function applyGroundAndAir(
   }
 
   player.crouching = hasButton(intent.buttons, Buttons.Crouch) || (intent.hands !== null && intent.headHeight < 1.15);
+  if (player.stamina <= SPRINT_FLOOR) player.winded = true;
+  else if (player.stamina >= SPRINT_RECOVERY) player.winded = false;
   player.sprinting =
-    hasButton(intent.buttons, Buttons.Sprint) && player.stamina > 5 && !player.crouching && player.grounded;
+    hasButton(intent.buttons, Buttons.Sprint) && !player.winded && !player.crouching && player.grounded;
 
   const targetHeight = player.crouching ? cfg.crouchHeight : cfg.standHeight;
   player.height += (targetHeight - player.height) * Math.min(1, dt * 12);
@@ -702,8 +781,10 @@ function applyGroundAndAir(
   const nz = wishLen > 1e-4 ? wishZ / wishLen : 0;
   const throttle = Math.min(1, wishLen);
 
+  // A snare halves the speed itself, which is what the trap says it does; scaling only `control`
+  // halved how fast a player could *reach* a speed, and a runner who stepped in one kept running.
   const speedCap =
-    cfg.maxSpeed * (player.sprinting ? cfg.sprintMultiplier : 1) * (player.crouching ? 0.55 : 1);
+    cfg.maxSpeed * (player.sprinting ? cfg.sprintMultiplier : 1) * (player.crouching ? 0.55 : 1) * snareControl;
 
   // Hop charging: holding jump on the ground compresses the kangaroo and slows it down.
   if (player.grounded && wantsJump) {
@@ -715,15 +796,15 @@ function applyGroundAndAir(
   const chargeSlow = player.grounded && player.chargeHeld ? 1 - player.charge * 0.65 : 1;
 
   if (throttle > 0.02) {
+    if (player.grounded) brakeUnwanted(player, nx, nz, speedCap * throttle, groundGrip(player) * dt);
     const currentAlong = player.velocity.x * nx + player.velocity.z * nz;
     const cap = speedCap * throttle * chargeSlow;
     if (currentAlong < cap) {
-      const add = Math.min(accel * dt * throttle, cap - currentAlong);
-      player.velocity.x += nx * add;
-      player.velocity.z += nz * add;
+      const limit = Math.max(Math.hypot(player.velocity.x, player.velocity.z), cap);
+      steerWithoutGaining(player, nx, nz, Math.min(accel * dt * throttle, cap - currentAlong), limit);
     }
   } else if (player.grounded) {
-    const friction = cfg.friction * cfg.surfaceFriction * frictionOfGround(player) * dt;
+    const friction = groundGrip(player) * dt;
     const speed = Math.hypot(player.velocity.x, player.velocity.z);
     if (speed > REST_SPEED) {
       const drop = Math.min(speed, friction);

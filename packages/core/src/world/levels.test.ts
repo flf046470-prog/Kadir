@@ -141,6 +141,43 @@ describe('every map', () => {
       expect(drops.slice(0, 5), `${entry.id}: ${drops.length} death drops`).toEqual([]);
     }
   });
+
+  it('never stands a boundary wall on ground a player can walk on', () => {
+    /**
+     * `enclose` pads each wall 1.5 m past the ends of its run so two walls meet at a corner, and a
+     * run also ends where the void beside it turns into floor. Padded there, the wall stood on that
+     * floor: on the jungle it closed the 2 m gap between the canyon's west wall and the map's edge to
+     * 0.5 m, so the slot behind that wall was a dead end. Checked with the walls taken away: under
+     * every wall, nowhere a body fits on ground at the level of the floor the wall stands beside —
+     * `enclose` builds each wall from 8 m under that floor, and within a step above it is where a
+     * player walking along it would be. The 0.2 m each wall overlaps its own floor's edge by is left
+     * out. (A raised surface a pad covers — the end of the outback station's 1.5 m rail — is not a
+     * way anywhere and is not counted.)
+     */
+    const ray = (): RaycastResult => ({
+      hit: false, distance: 0, point: vec3(), normal: vec3(), colliderIndex: -1, surface: SURFACES.rock,
+    });
+    const body = { radius: 0.35, height: 1.5 };
+    for (const entry of listLevels()) {
+      const level = buildLevel(entry.id);
+      const ground = new PhysicsWorld(level.colliders.filter((c) => c.zone !== 'edge'));
+      const blocked: string[] = [];
+      for (const c of level.colliders) {
+        if (c.kind !== 'box' || c.drawAs !== 'cliff') continue;
+        const bottom = c.center.y - c.half.y;
+        const floor = bottom + 8;
+        for (let x = c.center.x - c.half.x + 0.35; x <= c.center.x + c.half.x - 0.35; x += 0.5) {
+          for (let z = c.center.z - c.half.z + 0.35; z <= c.center.z + c.half.z - 0.35; z += 0.5) {
+            const hit = ray();
+            if (!ground.raycast(hit, vec3(x, floor + 0.6, z), vec3(0, -1, 0), floor + 0.6 - bottom).hit || hit.normal.y < 0.7) continue;
+            if (!capsuleFits(ground, vec3(x, hit.point.y + 0.05, z), body)) continue;
+            blocked.push(`wall #${c.id} on ground at (${x.toFixed(1)}, ${hit.point.y.toFixed(1)}, ${z.toFixed(1)})`);
+          }
+        }
+      }
+      expect(blocked.slice(0, 5), `${entry.id}: ${blocked.length} points of walkable ground under a wall`).toEqual([]);
+    }
+  });
 });
 
 describe('water', () => {

@@ -25,7 +25,10 @@ export interface MovementConfig {
   // --- core physical movement ---
   maxSpeed: number;
   acceleration: number;
-  /** Ground deceleration when there is no input, scaled by the surface's friction. */
+  /**
+   * Ground deceleration, scaled by the surface's friction: of everything when there is no input,
+   * and of the speed the stick is not asking for when there is (see `brakeUnwanted`).
+   */
   friction: number;
   gravity: number;
   /** VR hand push scaling: how much hand motion converts into body velocity. */

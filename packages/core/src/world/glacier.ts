@@ -68,7 +68,8 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     //    bots tagging each other back within 6 s in a pocket. After: 6.0 % stuck, crevasse 15 %,
     //    12 of 39 tags repeats. The ice columns moved to the floor past the ramp's foot; the wall
     //    ledges, which climbed to nowhere under the roof, are gone.
-    version: 7,
+    // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
+    version: 8,
     seed,
     killPlaneY,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and
