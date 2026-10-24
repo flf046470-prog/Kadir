@@ -325,6 +325,11 @@ export class SocialService {
   // ---------------------------------------------------------------------------------------------
   // Internals
 
+  /** The id of the party a player is in, or null. */
+  partyIdOf(playerId: string): string | null {
+    return this.partyFor(playerId)?.id ?? null;
+  }
+
   private partyFor(playerId: string): Party | null {
     const id = this.partyOf.get(playerId);
     return id ? (this.parties.get(id) ?? null) : null;

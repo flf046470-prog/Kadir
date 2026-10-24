@@ -3206,6 +3206,35 @@ Not done: long jumps chained off every landing still reach 26 m/s (a charged jum
 speed it has; that is a launch, and whether it should chain is a design call). Probes:
 `.probe/{ground,airstrafe,startstop,static-target,side-memory,bots,hunt}.ts`.
 
+## The Meta store reviews, and what they found in this game
+
+`docs/META_STORE_RESEARCH.md` (read 2026-10-24): eleven games next to ours on the Meta store, their
+star histograms and the 55 reviews the store ranks first. Design-level only — store copy and
+reviews, nothing of anyone's code or assets. Three of its findings were defects here, measured:
+
+- **Boxing paid for flailing.** A punch counted a hand's speed in any direction inside a hit zone
+  0.74 m from the head's centre: 12 cm circles at 14 Hz at your *own* guard did **32.8** damage a
+  second against a committed 8 m/s jab's 14.6 — the complaint that took The Thrill of the Fight 2 to
+  3.1 stars (35 % one-star). `closingShare` now scores a **tracked** glove by the speed it closes on
+  what it hits (full within 35°, none past 80°), and head or body by which of the two it is closing
+  on. Flail 32.8 → 4.9, an 8 cm flail 19.0 → 0, jabs unchanged. **Button punches are exempt on
+  purpose**: our own throw runs on through a target toe to toe, and judged the same way PC lost two
+  thirds of its damage at 0.7 m (18.6 → 6.3 a second); bot Boxing is identical (1897 a round).
+- **A party could auto-mute anyone.** The 30 % rule only bites in big rooms; up to twelve players the
+  threshold is three, and three friends could mute a stranger — the mass-report abuse the Yeeps and
+  Gym Class reviews describe. `ReportTracker` counts by group, and a group is the reporter's party.
+- **A timed ban gave no reason** at login (a permanent one did). Both do now.
+
+Already structural, and the reviews say keep it: no money prices; a client that can only send
+intent, so the "modder kicked and teleported everyone" reviews (Animal Company, POP: ONE, Capuchin)
+describe something this server cannot be told to do. Voice *content* (soundboards) is the one thing
+nothing here can police. New backlog: A27 guard, A28 repeated targeting, A29 prey that fights back,
+A30 "can't get in", B8 an appeal contact.
+
+**How the store pages read.** Firecrawl's JSON extraction of `meta.com/experiences/<slug>/<id>/`
+with `waitFor` 4000 returns the rating, the histogram and the five ranked reviews; the page shows no
+more without interaction, so a sample is five a game. Probes: `.probe/{flail,pcpunch}.ts`.
+
 ## The plan has two tracks, and only one of them waits on the owner
 
 The scheduled sessions spent five runs reporting "nothing safe and useful is left to do" while most

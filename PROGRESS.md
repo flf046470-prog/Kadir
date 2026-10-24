@@ -19,8 +19,13 @@ caught by its own test. Details in `CLAUDE.md` ("The ground held nobody to a spe
 **Left of A3:** VR magnet grab, gamepad dead zones, climb rate, VR-bot chase outcome, the table in
 `docs/PERFORMANCE_BUDGETS.md`.
 
-**Next:** the owner asked (2026-10-24) for Meta Store VR games to be studied from their store pages
-and reviews; see `docs/META_STORE_RESEARCH.md` once it exists.
+**Then (same day): the Meta store research** the owner asked for — `docs/META_STORE_RESEARCH.md`,
+eleven games, 55 ranked reviews and every histogram. Three defects it pointed at, measured and
+fixed: VR boxing paid for flailing (32.8 → 4.9 damage/s, jabs unchanged, PC unchanged), a party of
+three could auto-mute anyone in a room of twelve or fewer, and a timed ban gave no reason. Backlog
+A27–A30 and B8.
+
+**Next session — first task:** Track A, the rest of A3 (VR magnet grab first), then A27.
 
 ## 2026-10-18 — GitHub access back; A2 planted strides done (interactive)
 

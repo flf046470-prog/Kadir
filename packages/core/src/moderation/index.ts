@@ -81,9 +81,15 @@ export const KICK_REJOIN_MS = 5 * 60_000;
  *
  * The rule is deliberately hard to weaponise: it counts **distinct** reporters (one angry player
  * reporting ten times is one report, and the limiter caps them anyway), in a short window, and needs
- * at least three of them *and* three tenths of everybody else in the room — a party of friends in a
- * 32-player lobby cannot mute a stranger by themselves. The mute is temporary, and it only stops
- * this player's chat and voice reaching others; it takes nothing else away. Moderators are told.
+ * at least three of them *and* three tenths of everybody else in the room. The mute is temporary,
+ * and it only stops this player's chat and voice reaching others; it takes nothing else away.
+ * Moderators are told.
+ *
+ * **A party is one reporter.** The 30 % only bites in a big room: anywhere up to twelve players the
+ * threshold is three, and a party of three friends could mute any stranger they liked. That is the
+ * most-voted complaint in the reviews of Yeeps and Gym Class on the Meta store (2026-10-24: "they
+ * will literally mass report you and votekick you out every single round"; "this kid screamed a
+ * slur and I got muted"). So reports are counted by group, and a group is the reporter's party.
  */
 export const AUTO_MUTE_WINDOW_MS = 10 * 60_000;
 export const AUTO_MUTE_MS = 10 * 60_000;
@@ -93,25 +99,29 @@ export function autoMuteThreshold(roomSize: number): number {
   return Math.max(AUTO_MUTE_MIN_REPORTERS, Math.ceil(Math.max(0, roomSize - 1) * 0.3));
 }
 
-/** Distinct reporters per target over a sliding window. */
+/** Distinct reporting groups per target over a sliding window. */
 export class ReportTracker {
-  private byTarget = new Map<string, Map<string, number>>();
+  private byTarget = new Map<string, Map<string, { at: number; group: string }>>();
 
-  /** Record a report; returns how many distinct players reported this target inside the window. */
-  record(targetId: string, reporterId: string, now = Date.now()): number {
-    const reporters = this.byTarget.get(targetId) ?? new Map<string, number>();
-    reporters.set(reporterId, now);
-    for (const [id, at] of reporters) if (now - at > AUTO_MUTE_WINDOW_MS) reporters.delete(id);
+  /**
+   * Record a report; returns how many distinct groups reported this target inside the window. A
+   * group is whatever the caller says the reporter belongs to — their party — and the reporter
+   * alone when they belong to nothing.
+   */
+  record(targetId: string, reporterId: string, now = Date.now(), group = reporterId): number {
+    const reporters = this.byTarget.get(targetId) ?? new Map<string, { at: number; group: string }>();
+    reporters.set(reporterId, { at: now, group });
+    for (const [id, r] of reporters) if (now - r.at > AUTO_MUTE_WINDOW_MS) reporters.delete(id);
     this.byTarget.set(targetId, reporters);
-    return reporters.size;
+    return new Set([...reporters.values()].map((r) => r.group)).size;
   }
 
   count(targetId: string, now = Date.now()): number {
     const reporters = this.byTarget.get(targetId);
     if (!reporters) return 0;
-    let n = 0;
-    for (const at of reporters.values()) if (now - at <= AUTO_MUTE_WINDOW_MS) n++;
-    return n;
+    const groups = new Set<string>();
+    for (const r of reporters.values()) if (now - r.at <= AUTO_MUTE_WINDOW_MS) groups.add(r.group);
+    return groups.size;
   }
 
   clear(targetId: string): void {

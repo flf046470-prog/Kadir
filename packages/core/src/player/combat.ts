@@ -80,12 +80,22 @@ export function resolvePunches(
       if (canHit && !canHit(attacker, victim)) continue;
       if (victim.invulnTimer > 0) continue;
 
-      const head = v3distance(hand.world, victim.head) <= config.headRadius + config.punchRadius;
-      const body = distanceToBody(hand.world, victim) <= config.punchRadius;
-      if (!head && !body) continue;
+      const nearHead = v3distance(hand.world, victim.head) <= config.headRadius + config.punchRadius;
+      const nearBody = distanceToBody(hand.world, victim) <= config.punchRadius;
+      if (!nearHead && !nearBody) continue;
+      // What it lands on is what it is arriving at: a glove at chin height moving level is closing on
+      // the chest as much as on the head, and a glove rising under the jaw only on the head.
+      // Only a tracked hand: a button punch is a throw this code makes itself, aimed where the player
+      // looks, and it runs out to full reach whoever is in the way — toe to toe it passes through the
+      // target, which measured as a third of its damage gone on PC (18.6 → 6.3 a second at 0.7 m).
+      const atHead = nearHead ? speed * (hand.tracked ? closingShare(hand, attacker, victim.head) : 1) : 0;
+      const atBody = nearBody ? speed * (hand.tracked ? closingShare(hand, attacker, bodyPoint(hand.world, victim)) : 1) : 0;
+      const head = atHead > 0 && atHead >= atBody;
+      const landing = Math.max(atHead, atBody);
+      if (landing < config.punchSpeed) continue;
 
       const staminaFactor = attacker.stamina > config.staminaCost ? 1 : 0.4;
-      const speedFactor = clamp(speed / config.maxSpeed, 0.35, 1);
+      const speedFactor = clamp(landing / config.maxSpeed, 0.35, 1);
       const damage = config.baseDamage * speedFactor * (head ? config.headMultiplier : 1) * staminaFactor;
 
       applyKnockback(victim, hand, config, speedFactor);
@@ -150,6 +160,55 @@ export function punchSpeedOf(hand: HandState, attacker: PlayerState, config: Com
 }
 
 const _dir = vec3();
+const _point = vec3();
+
+/**
+ * How much of a hand's speed is closing on `target`: all of it within 35° of straight at it, none of
+ * it past 80° — across it, or away.
+ *
+ * A punch is how fast the glove arrives, not how fast it is moving. Speed in any direction used to
+ * count, inside a hit zone 0.74 m from the head's centre, so a VR player who held their hands at
+ * their own guard and spun them in small fast circles out-hit one who boxed: measured toe to toe,
+ * 32.8 damage a second from a 12 cm, 14 Hz flail that never left the guard, against 14.6 from a
+ * committed 8 m/s jab. That is the complaint that sank The Thrill of the Fight 2 to 3.1 stars on
+ * the Meta store (2026-10-24: "punching like a 9 year old with arthritis is how you get your
+ * punches to do damage"; "a spazzing house cat" beating clean shots), and the reverse of what its
+ * 4.7-star predecessor is praised for: "guard matters, punch velocity matters". A hook arrives from
+ * the side and an uppercut from below, and each is still closing on what it hits when it lands.
+ *
+ * Full credit inside a cone rather than the cosine itself: the hit zone is generous, so a punch
+ * registers while the glove is still half a metre out, where the line to the centre of the head is
+ * steeper than the line the punch will actually land on. A level jab at the chin is at 26° there.
+ */
+function closingShare(hand: HandState, attacker: PlayerState, target: Vec3): number {
+  const vx = hand.velocity.x - attacker.velocity.x;
+  const vy = hand.velocity.y - attacker.velocity.y;
+  const vz = hand.velocity.z - attacker.velocity.z;
+  const dx = target.x - hand.world.x;
+  const dy = target.y - hand.world.y;
+  const dz = target.z - hand.world.z;
+  const v = Math.hypot(vx, vy, vz);
+  const d = Math.hypot(dx, dy, dz);
+  if (v < 1e-6) return 0;
+  // A glove already at the centre of what it hit has no direction left to close in.
+  if (d < 1e-3) return 1;
+  const cos = (vx * dx + vy * dy + vz * dz) / (v * d);
+  return clamp((cos - CLOSING_NONE_COS) / (CLOSING_FULL_COS - CLOSING_NONE_COS), 0, 1);
+}
+
+/** Within 35° of straight at the target a punch lands with all its speed, and past 80° with none. */
+const CLOSING_FULL_COS = Math.cos((35 * Math.PI) / 180);
+const CLOSING_NONE_COS = Math.cos((80 * Math.PI) / 180);
+
+/** The nearest point on the victim's capsule core segment, the one `distanceToBody` measures to. */
+function bodyPoint(point: Vec3, victim: PlayerState): Vec3 {
+  const y0 = victim.position.y + victim.config.radius;
+  const y1 = victim.position.y + Math.max(victim.height - victim.config.radius, victim.config.radius);
+  _point.x = victim.position.x;
+  _point.y = clamp(point.y, y0, y1);
+  _point.z = victim.position.z;
+  return _point;
+}
 
 function applyKnockback(victim: PlayerState, hand: HandState, config: CombatConfig, speedFactor: number): void {
   v3normalize(_dir, hand.velocity);

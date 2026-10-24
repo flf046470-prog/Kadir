@@ -261,7 +261,7 @@ describe('punch speed', () => {
   type Pose = (tick: number, intent: InputIntent) => void;
 
   /** Toe to toe for `seconds`; the victim is healed every tick so the count is never cut short. */
-  function fight(pose: Pose, seconds = 10): { hits: number; worst: number } {
+  function fight(pose: Pose, seconds = 10): { hits: number; worst: number; damage: number; heads: number } {
     const sim = new Simulation({ level, modeId: 'boxing', seed: 9 });
     const a = sim.addPlayer({ id: 'a' });
     const b = sim.addPlayer({ id: 'b' });
@@ -271,6 +271,8 @@ describe('punch speed', () => {
     const idle = createIntent();
     let hits = 0;
     let worst = 0;
+    let damage = 0;
+    let heads = 0;
     for (let t = 0; t < TICK_RATE * seconds; t++) {
       place(a, 0, 1, 40);
       place(b, 0, 1, 40.7);
@@ -284,9 +286,11 @@ describe('punch speed', () => {
         if (event.type !== 'punchHit' || event.playerId !== 'a') continue;
         hits++;
         worst = Math.max(worst, event.magnitude);
+        damage += event.magnitude;
+        if (event.data === 'head') heads++;
       }
     }
-    return { hits, worst };
+    return { hits, worst, damage, heads };
   }
 
   const tracked = (x: number, y: number, z: number) => ({ tracked: true, pos: { x, y, z }, grip: 0 });
@@ -355,6 +359,52 @@ describe('punch speed', () => {
     expect(spoof.hits).toBeGreaterThan(0);
     // A head hit at full stamina and `maxSpeed` — the best a perfect human can do.
     expect(spoof.worst).toBeLessThanOrEqual(DEFAULT_COMBAT.baseDamage * DEFAULT_COMBAT.headMultiplier + 1e-6);
+  });
+
+  it('is not a flail: spinning the hands at your own guard does a fraction of a jab', () => {
+    // Measured before it counted only the speed a glove closes on its target: a 12 cm, 14 Hz flail
+    // that never left the guard did 32.8 damage a second against a committed 8 m/s jab's 14.6. The
+    // complaint that took The Thrill of the Fight 2 to 3.1 stars on the Meta store. Now 4.9, and
+    // an 8 cm flail lands nothing.
+    const circle = (r: number, hz: number) => (t: number, intent: InputIntent) => {
+      const a = (t / TICK_RATE) * hz * Math.PI * 2;
+      intent.hands = [
+        tracked(-0.18 + r * Math.cos(a), 1.2 + r * Math.sin(a), 0.2),
+        tracked(0.18 + r * Math.cos(a + 1.6), 1.2 + r * Math.sin(a + 1.6), 0.2),
+      ];
+    };
+    const jab = fight((t, intent) => {
+      const k = t % 30;
+      const z = k < 3 ? 0.2 + 0.4 * (k / 3) : k < 13 ? 0.6 - 0.04 * (k - 3) : 0.2;
+      intent.hands = [tracked(-0.18, 1.2, 0.2), tracked(0.18, 1.2, z)];
+    });
+    const fast = fight(circle(0.12, 14));
+    const small = fight(circle(0.08, 12));
+    expect(jab.hits).toBeGreaterThan(5);
+    expect(fast.damage).toBeLessThan(jab.damage * 0.5);
+    expect(small.hits).toBe(0);
+  });
+
+  it('scores a body shot as a body shot, even with the glove inside the head’s reach', () => {
+    // A level punch into the stomach passes within the head's generous hit zone on the way. What it
+    // lands on is what it is closing on; it used to take the head's 1.6 for being nearby.
+    const dig = fight((t, intent) => {
+      const k = t % 30;
+      const z = k < 3 ? 0.2 + 0.3 * (k / 3) : k < 13 ? 0.5 - 0.03 * (k - 3) : 0.2;
+      intent.hands = [tracked(-0.15, 0.8, 0.2), tracked(0.15, 0.8, z)];
+    });
+    expect(dig.hits).toBeGreaterThan(5);
+    expect(dig.heads).toBe(0);
+  });
+
+  it('lands a button punch toe to toe with all its speed, though it runs on through the target', () => {
+    // The closing rule is for tracked hands. A button throw runs out to full reach whoever is in the
+    // way, and judged by closing speed lost two thirds of its damage at 0.7 m (18.6 → 6.3 a second).
+    const pc = fight((_t, intent) => {
+      intent.hands = null;
+      intent.buttons = Buttons.PunchRight;
+    });
+    expect(pc.damage / 10).toBeGreaterThan(15);
   });
 
   it('still lands an honest jab at its true speed', () => {

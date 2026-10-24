@@ -183,6 +183,16 @@ passes. Writing the code does not tick it.
 - [ ] **A25. `docs/QA_PC.md` and `docs/QA_VR.md` as runnable checklists**, with every check that can
   run in CI running there.
 - [ ] **A26. Season 2**: cosmetics earned, never bought, on the 8-week cadence of Milestone C.
+- [ ] **A27. Guard in Boxing** (from the Meta store reviews, `docs/META_STORE_RESEARCH.md` §1).
+  Gloves raised in front of the head absorb most of a punch that meets them. Exit: a jab into a
+  raised guard lands a fraction of one into an open face, a test on it, and an answer for PC and
+  mobile players, who have no hands to raise.
+- [ ] **A28. Repeated targeting** (§2). How often one player is the target of the same chaser or
+  hunter round after round, measured with bots; a rule only if the number is material.
+- [ ] **A29. Prey that fights back** (§6). Runner distance covered with a chaser within 15 m, with and
+  without gadgets, in Kangaroo Chase and Infection: does a freeze gun turn running into camping?
+- [ ] **A30. "Can't get in"** (§7). What a browser and a Quest player see when the server is down, a
+  room is full or the protocol differs — a clear message for each, checked by a probe.
 
 ### Track B: the account holder, by month
 
@@ -194,6 +204,7 @@ passes. Writing the code does not tick it.
 | November | **B4. Hosting** (Railway plan or another container host), then the **domain**, which fixes the Android package id for good (`CLAUDE.md`: "Release identity is one irreversible decision"), then the privacy policy at a URL (A8). | crossplay online, Coming Soon pages, the Quest app |
 | December | **B5. Steamworks and Epic developer accounts**, the two $100 fees, tax and bank forms; then the Coming Soon pages from `pack:pc:listing`, `pack:trailer` and `docs/PC_LISTINGS.md`. Release date "To be announced". | every store date below |
 | Q1 2027 | **B6. Hardware**: one headset (Quest 3, or PC VR through SteamVR) and two or three Windows PCs, for a hardware pass (Phase 13) and measured system requirements. Code signing for Windows. | ticking "VR Supported"; a SmartScreen-clean installer |
+| when the domain exists | **B8. An appeal contact** for bans, at a URL the ban message can name (`docs/META_STORE_RESEARCH.md` §4). | fair bans |
 | Q2 2027 | **B7. Decisions**: free-to-play or paid; a paid ElevenLabs plan for the recorded effects, or synthesis only; the IARC rating; TURN for voice (`KC_TURN_URLS`/`KC_TURN_SECRET`). | Next Fest, Early Access |
 
 ### The store dates, if Track B keeps up

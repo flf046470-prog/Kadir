@@ -25,6 +25,8 @@ export interface LivePlayers {
    * the kick that follows it saved the room's stale profile.
    */
   liveProfile(playerId: string): PlayerProfile | null;
+  /** The party a player is in, or null. Reports from one party count once towards an auto-mute. */
+  partyOf?(playerId: string): string | null;
 }
 
 /**
@@ -68,9 +70,13 @@ export class ModerationService {
    */
   admit(profile: PlayerProfile, now = Date.now()): string | null {
     if (profile.banUntil && profile.banUntil > now) {
+      // The reason, whichever kind of ban: a timed one used to say only when it ends. "Banned for
+      // something I never did" with no reason given is a top complaint in the Meta store reviews
+      // of Gorilla Tag and Scary Baboon (2026-10-24), and a player who cannot read why cannot ask.
+      const why = profile.sanctionReason ? ` Reason: ${profile.sanctionReason}` : '';
       return profile.banUntil >= PERMANENT
-        ? `This account is banned.${profile.sanctionReason ? ` Reason: ${profile.sanctionReason}` : ''}`
-        : `This account is banned until ${new Date(profile.banUntil).toUTCString()}.`;
+        ? `This account is banned.${why}`
+        : `This account is banned until ${new Date(profile.banUntil).toUTCString()}.${why}`;
     }
     if (profile.muteUntil && profile.muteUntil > now && !this.sanctions.active(profile.playerId, now, 'mute')) {
       this.sanctions.add({ kind: 'mute', targetId: profile.playerId, expiresAt: profile.muteUntil, reason: 'other', issuedBy: 'system', at: now });
@@ -103,7 +109,8 @@ export class ModerationService {
     const live = this.live;
     const target = live?.find(targetId) ?? null;
     const reporter = live?.find(reporterId) ?? null;
-    const reporters = this.tracker.record(targetId, reporterId, now);
+    const party = live?.partyOf?.(reporterId) ?? null;
+    const reporters = this.tracker.record(targetId, reporterId, now, party ? `party:${party}` : reporterId);
     const view: ModReportView = {
       id: String(this.nextReportId++),
       reporterId,

@@ -107,9 +107,10 @@ describe('moderators', () => {
   it('a timed ban expires on its own', async () => {
     const { rooms, accounts } = await setup(['mod', 'kerem']);
     const now = Date.now();
-    await rooms.moderation.act('mod', 'ban', 'kerem', 60, '', now);
+    await rooms.moderation.act('mod', 'ban', 'kerem', 60, 'spamming the voice channel', now);
     const profile = await accounts.loadOrCreate('kerem');
-    expect(rooms.moderation.admit(profile, now + 30 * 60_000)).toMatch(/until/);
+    // When it ends and why, both: a timed ban used to give only the time.
+    expect(rooms.moderation.admit(profile, now + 30 * 60_000)).toMatch(/until .*Reason: spamming the voice channel/);
     expect(rooms.moderation.admit(profile, now + 61 * 60_000)).toBeNull();
   });
 
@@ -163,5 +164,26 @@ describe('reports', () => {
 
   it('in a big room, a few friends cannot mute a stranger by themselves', () => {
     expect(autoMuteThreshold(32)).toBeGreaterThanOrEqual(10);
+  });
+
+  it('auto-mute: a party is one reporter, however many of its members report', async () => {
+    // In a room this small the threshold is three, so before this a party of three could mute
+    // anyone in it — the mass reporting the Meta store reviews of Yeeps and Gym Class describe.
+    const ids = ['a', 'b', 'c', 'd', 'e', 'target'];
+    const { room, rooms } = await setup(ids);
+    for (const id of ['b', 'c']) {
+      await rooms.social.requestFriend('a', id);
+      await rooms.social.acceptFriend(id, 'a');
+      await rooms.social.invite('a', id);
+      await rooms.social.acceptInvite(id, rooms.social.partyIdOf('a') as string);
+    }
+    expect(rooms.social.partyIdOf('c')).toBe(rooms.social.partyIdOf('a'));
+    for (const id of ['a', 'b', 'c']) room.handleReport(id, 'target', 'harassment');
+    expect(rooms.moderation.isMuted('target')).toBe(false);
+    // Two players outside the party make three groups, which is the threshold.
+    room.handleReport('d', 'target', 'harassment');
+    expect(rooms.moderation.isMuted('target')).toBe(false);
+    room.handleReport('e', 'target', 'harassment');
+    expect(rooms.moderation.isMuted('target')).toBe(true);
   });
 });

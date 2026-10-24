@@ -87,6 +87,7 @@ export class RoomManager {
       disconnect: (playerId, code, reason) => this.roomOf(playerId)?.disconnect(playerId, code, reason),
       silenceVoice: (playerId) => this.roomOf(playerId)?.silenceVoice(playerId),
       liveProfile: (playerId) => this.liveProfile(playerId),
+      partyOf: (playerId) => this.social.partyIdOf(playerId),
     });
     this.social = new SocialService(accounts);
     this.social.attach({
