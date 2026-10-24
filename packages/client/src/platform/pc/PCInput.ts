@@ -2,6 +2,8 @@ import { Buttons } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import { HoldOrToggle } from '../latch.js';
 import type { PlatformInput } from '../Platform.js';
+import { shapeStick } from '../stick.js';
+import type { StickValue } from '../stick.js';
 
 /**
  * Keyboard + mouse (+ optional gamepad).
@@ -11,6 +13,13 @@ import type { PlatformInput } from '../Platform.js';
  */
 /** Pixels of drag that turn a held mouse button from an attack into a look. */
 const DRAG_LOOK_SLOP = 8;
+
+/** Both sticks' dead zone: enough for a worn pad's drift, in every direction alike (`shapeStick`). */
+const PAD_DEAD_ZONE = 0.18;
+/** Look's response curve: half the live travel for slow turns, the same top speed. */
+const LOOK_CURVE = 2;
+const MOVE_STICK: StickValue = { x: 0, y: 0 };
+const LOOK_STICK: StickValue = { x: 0, y: 0 };
 
 /** Every control row below the two that depend on how the browser is treating the mouse. */
 const PC_CONTROL_HINTS = [
@@ -183,15 +192,12 @@ export class PCInput implements PlatformInput {
     const pad = [...pads].find((p) => p?.connected);
     if (!pad) return null;
 
-    const dead = 0.18;
-    const axis = (i: number): number => {
-      const v = pad.axes[i] ?? 0;
-      return Math.abs(v) < dead ? 0 : v;
-    };
+    const move = shapeStick(pad.axes[0] ?? 0, pad.axes[1] ?? 0, PAD_DEAD_ZONE, 1, MOVE_STICK);
+    const look = shapeStick(pad.axes[2] ?? 0, pad.axes[3] ?? 0, PAD_DEAD_ZONE, LOOK_CURVE, LOOK_STICK);
 
-    this.yaw -= axis(2) * settings.controls.lookSensitivity * 2.5 * dt;
+    this.yaw -= look.x * settings.controls.lookSensitivity * 2.5 * dt;
     this.pitch = clamp(
-      this.pitch - axis(3) * settings.controls.lookSensitivity * 2 * dt * (settings.controls.invertY ? -1 : 1),
+      this.pitch - look.y * settings.controls.lookSensitivity * 2 * dt * (settings.controls.invertY ? -1 : 1),
       -1.45,
       1.45,
     );
@@ -215,7 +221,7 @@ export class PCInput implements PlatformInput {
     if (pressed(13)) buttons |= Buttons.Shop;
     if (pressed(11)) buttons |= Buttons.Talk;
 
-    return { moveX: axis(0), moveZ: -axis(1), buttons };
+    return { moveX: move.x, moveZ: -move.y, buttons };
   }
 
   private onKeyDown = (event: KeyboardEvent): void => {

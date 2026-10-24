@@ -3,6 +3,26 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-24 (later) — A3 done: the VR grab path, the gamepad sticks, and the table (interactive)
+
+**Done:** `docs/PERFORMANCE_BUDGETS.md` is A3's table — ground speed, turning, climb rate and chase
+outcome, PC against synthetic VR. Measuring it found four VR defects between the controller and the
+simulation, all fixed: the magnet grab (arms-first sent the assisted climb Grab bits; a fist in
+mid-air 1 m from a wall fell 0 m in 2 s, now 6 m), the gadget trigger closing the hand (60/60 →
+0/60), grab sensitivity reaching no hand (now `shapeGrip`, 0.89–0.17), and water no arms-first
+player could leave (0.00 m in 15 s in the jungle river → 22.6 m; a hand holds the floor under its
+own feet). Gamepad sticks are radial with a rescale and a look curve (`platform/stick.ts`).
+
+**Measured:** chase, 3 PC + 3 synthetic arms-first bots × 16 seeds × 90 s × 3 maps: VR chaser
+share 20–26 % (fair 16.7 %), PC 7–13 %; VR catches PC less often than the reverse everywhere.
+Tests: `VRInput.test.ts` (9), `stick.test.ts` (6), 3 gamepad tests, 4 comfort tests, 3 floor-hold
+tests; 17 mutations, each caught by its own test.
+
+**Left:** the chase gap is A20's to decide. Room-scale head penetration and a real headset pass
+are still hardware-gated.
+
+**Next session — first task:** Track A, A27 (a guard in Boxing).
+
 ## 2026-10-24 — A3 under way: the ground model and air strafing (interactive)
 
 **Done:** the ground brakes the speed a held stick is not asking for (sprint end, empty stamina,

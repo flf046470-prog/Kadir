@@ -4,7 +4,7 @@ import { v3copy, v3dot, v3length, v3normalize, v3set, vec3 } from '../math/vec3.
 import type { MoveResult } from '../physics/character.js';
 import { DEFAULT_MOVE_PARAMS, makeMoveResult, moveCapsule } from '../physics/character.js';
 import type { PhysicsWorld } from '../physics/world.js';
-import { SurfaceFlags, hasFlag, isGrabbable, makeSurfaceQueryResult } from '../physics/types.js';
+import { SurfaceFlags, hasFlag, makeSurfaceQueryResult } from '../physics/types.js';
 import type { SurfaceQueryResult } from '../physics/types.js';
 import type { InputIntent } from '../input/intent.js';
 import { Buttons, hasButton } from '../input/intent.js';
@@ -371,6 +371,32 @@ function localToWorld(out: Vec3, origin: Vec3, local: Vec3): Vec3 {
   );
 }
 
+/**
+ * The nearest thing a tracked hand at `point` can hold, into `_surface`; false if there is none.
+ *
+ * Anything climbable holds, anywhere. Anything else holds only as the floor under the player's own
+ * feet — a walkable face within a step of them, while standing — because arms-first VR has no stick
+ * and no hop: a floor no hand can push along is a floor the player cannot leave. Water was one.
+ * Measured in the jungle river, an arms-first player knuckle-walking at 8 m/s strokes moved 0.00 m
+ * in 15 s, and one walking in from the bank stopped 8 m out and stayed there, where PC walks across
+ * at full speed. NoGrip still means no climbing: a smooth stone wall or a glazed serac's side holds
+ * nothing, and a serac's top only once you are standing on it — the committed jump is still a jump.
+ *
+ * The climbable query runs first and alone wherever it finds something, so every hold that existed
+ * before is the same hold now.
+ */
+function closestHold(player: PlayerState, ctx: LocomotionContext, point: Vec3, radius: number): boolean {
+  ctx.world.closestSurface(_surface, point, radius, true);
+  if (_surface.hit) return true;
+  if (!player.grounded) return false;
+  ctx.world.closestSurface(_surface, point, radius, false);
+  return (
+    _surface.hit &&
+    _surface.normal.y >= DEFAULT_MOVE_PARAMS.minGroundNormalY &&
+    Math.abs(_surface.point.y - player.position.y) <= DEFAULT_MOVE_PARAMS.stepOffset
+  );
+}
+
 /** Acquire / release hand anchors. Returns how many hands are anchored. */
 function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
   const cfg = player.config;
@@ -395,8 +421,7 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
     if (hand.jumped && hand.anchored) {
       // The pose jumped while holding on. Keep holding only if the hand landed somewhere it could
       // have grabbed, and hold it *there*: correcting back to the old anchor is what threw players.
-      ctx.world.closestSurface(_surface, hand.world, cfg.handGrabRadius, true);
-      if (_surface.hit && isGrabbable(_surface.surface)) {
+      if (closestHold(player, ctx, hand.world, cfg.handGrabRadius)) {
         v3copy(hand.anchor, hand.world);
         hand.anchorCollider = _surface.colliderIndex;
       } else {
@@ -408,8 +433,7 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
     }
 
     if (hand.gripHeld && !hand.anchored) {
-      ctx.world.closestSurface(_surface, hand.world, cfg.handGrabRadius, true);
-      if (_surface.hit && isGrabbable(_surface.surface)) {
+      if (closestHold(player, ctx, hand.world, cfg.handGrabRadius)) {
         hand.anchored = true;
         // The anchor is where the hand closed, not the nearest point of the surface. A hand closes
         // up to `handGrabRadius` short of a wall (or inside it — hands are not collided), and

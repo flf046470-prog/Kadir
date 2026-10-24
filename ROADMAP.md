@@ -86,16 +86,16 @@ passes. Writing the code does not tick it.
   hand travelled 17.3 m/s along a wall, now at most 9.1; release speed across 72–144 Hz within 10 %
   (was up to 42 %). Not met: the lab's 5 % (needs pose interpolation to the tick) and room-scale head
   penetration (needs a device). `CLAUDE.md`, "A hand that jumps is not a pull".
-- [ ] **A3. PC against VR movement, measured** (Phase 2). Sustained ground speed, turn rate under
-  pursuit, climb rate and chase outcome, with bots and synthetic VR intents. Gamepad dead zones and
-  curves. Exit: a table in `docs/PERFORMANCE_BUDGETS.md`, every gap with its number.
-  *Under way (2026-10-24).* Measuring it found the ground braking nobody who kept steering, and air
-  strafing worth 17.3 m/s of progress against a 9.6 m/s sprint on a keyboard. Both fixed, with the
-  bots' wall response and a wall pad that sealed the jungle trench (CLAUDE.md, "The ground held
-  nobody to a speed"). Left: the VR "magnet grab" (`VRInput` sends Grab bits in arms-first, so the
-  assisted climb holds a headset player on a wall the hand is not touching: 0 m fall in 2 s against
-  6 m), gamepad radial dead zone and curve, climb rate, chase outcome against VR-shaped bots, and
-  the table.
+- [x] **A3. PC against VR movement, measured** (Phase 2). Done 2026-10-24: the table is
+  `docs/PERFORMANCE_BUDGETS.md` (ground speed, turning, climb rate, chase outcome). Measuring it
+  found and fixed: the ground braking nobody who kept steering, air strafing (17.3 m/s of progress
+  against a 9.6 m/s sprint), the bots' wall response and a wall pad that sealed the jungle trench
+  (CLAUDE.md, "The ground held nobody to a speed"); the VR magnet grab (a fist in mid-air 1 m from a
+  wall: 0 m fall in 2 s, now 6 m), the gadget trigger closing the hand, a grab-sensitivity slider
+  that reached no hand, water no arms-first player could leave (0.00 m in 15 s in the jungle river,
+  now 22.6 m), and per-axis gamepad sticks (CLAUDE.md, "A VR grab, from the trigger to the
+  river"). The gap it leaves is A20's: synthetic arms-first players are the chaser 20–26 % of a
+  Kangaroo Chase round against a fair 16.7 %, PC players 7–13 %.
 - [ ] **A4. The third-person camera's occlusion** (Phase 3). Measure the share of frames with
   geometry between the camera and the player; add pull-in or fade if that share is material; lock-on
   framing for Boxing. Exit: the occlusion share before and after.
@@ -159,8 +159,9 @@ passes. Writing the code does not tick it.
   rounds.
 - [ ] **A19. Rooms per box**, load-tested locally against the built server. Exit: the number,
   written in `CLAUDE.md` beside the per-room figures.
-- [ ] **A20. The crossplay decision**, from A3's numbers and the Boxing probe (options A–D in the
-  Ultimate Edition roadmap). Exit: a measured recommendation in that file.
+- [ ] **A20. The crossplay decision**, from A3's numbers (`docs/PERFORMANCE_BUDGETS.md`, "Chase
+  outcome") and the Boxing probe (options A–D in the Ultimate Edition roadmap). Exit: a measured
+  recommendation in that file.
 - [ ] **A21. The Next Fest demo build**: Kangaroo Chase, Roo Ball and the Training Room on one map,
   behind a build flag. Exit: `check:smoke` against the demo build.
 

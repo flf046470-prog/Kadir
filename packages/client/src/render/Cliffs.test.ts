@@ -120,5 +120,6 @@ describe('the cliffs round every map', () => {
       expect(rock, `${level.id} cliff triangles`).toBeLessThan(40_000);
       renderer.dispose();
     }
-  });
+    // Three whole level renderers at the high tier: 4.3 s on its own, past the 5 s default in a full run.
+  }, 30_000);
 });

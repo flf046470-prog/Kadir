@@ -524,6 +524,91 @@ describe('VR hand physics', () => {
  * 21 m/s; closing a hand 0.2 m short of a wall yanked the body into it at 12 m/s; and a modified
  * client yanking its hand 0.55 m a tick travelled along a wall at 17 m/s against a fast human's 5.
  */
+/**
+ * Arms-first VR has no stick and no hop, so the hands are the only way across a floor — and a floor
+ * no hand could hold was a floor the player could not leave. Water was one: knuckle-walking at
+ * 8 m/s strokes in the middle of the jungle river moved nobody at all in 15 s. A hand now holds the
+ * floor under the player's own feet whatever it is made of, and nothing else that is not climbable.
+ */
+describe('a hand pushes along the floor it stands on', () => {
+  const WATER = { friction: 0.3, bounciness: 0, flags: SurfaceFlags.Water, material: 'water' as const };
+  const SMOOTH = { friction: 1, bounciness: 0, flags: SurfaceFlags.NoGrip, material: 'stone' as const };
+  /** A water floor, and a smooth stone block 2 m tall with its face at x = 5.4. */
+  function pool(): LocomotionContext {
+    return makeContext(
+      new PhysicsWorld([
+        { kind: 'box', id: 0, center: vec3(0, -1, 0), half: vec3(60, 1, 60), yaw: 0, surface: { ...WATER } },
+        { kind: 'box', id: 1, center: vec3(6, 1, 0), half: vec3(0.6, 1, 8), yaw: 0, surface: { ...SMOOTH } },
+      ]),
+    );
+  }
+
+  /** Both hands, alternately gripping the floor and pulling back, at `speed` m/s. */
+  function knuckleWalk(intent: InputIntent, t: number, speed: number, length = 0.7): void {
+    const period = (2 * length) / speed;
+    intent.hands ??= [createHandIntent(), createHandIntent()];
+    for (let i = 0; i < 2; i++) {
+      const hand = intent.hands[i]!;
+      const phase = (t / period + 0.5 * i) % 1;
+      hand.tracked = true;
+      hand.grip = phase < 0.5 ? 1 : 0;
+      hand.pos =
+        phase < 0.5
+          ? { x: i ? 0.25 : -0.25, y: 0.03, z: length / 2 - (phase / 0.5) * length }
+          : { x: i ? 0.25 : -0.25, y: 0.03 + 0.27 * Math.sin(Math.PI * ((phase - 0.5) / 0.5)), z: -length / 2 + ((phase - 0.5) / 0.5) * length };
+    }
+  }
+
+  function closedOn(player: PlayerState, ctx: LocomotionContext, local: { x: number; y: number; z: number }, ticks: number): void {
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    intent.lookYaw = Math.PI / 2; // facing the block
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.hands[1]!.tracked = true;
+    intent.hands[1]!.grip = 1;
+    intent.hands[1]!.pos = { ...local };
+    run(player, ctx, intent, ticks);
+  }
+
+  it('pulls a player across water', () => {
+    const ctx = pool();
+    const player = createPlayerState({ id: 'vr', position: vec3(-20, 0, 0) });
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    intent.lookYaw = 0;
+    for (let i = 0; i < 180; i++) {
+      knuckleWalk(intent, i * DT, 4);
+      ctx.tick++;
+      stepPlayer(player, intent, ctx, DT);
+    }
+    expect(player.position.z, 'knuckle-walking on water moved nobody').toBeGreaterThan(6);
+  });
+
+  it('holds no smooth wall, from the floor or from the air', () => {
+    const standing = createPlayerState({ id: 'vr', position: vec3(4.8, 0, 0) });
+    // Low on the face, within a step of the feet: still a wall.
+    closedOn(standing, pool(), { x: 0, y: 0.2, z: 0.62 }, 20);
+    expect(standing.hands[1].anchored).toBe(false);
+
+    const falling = createPlayerState({ id: 'vr', position: vec3(4.8, 6, 0) });
+    closedOn(falling, pool(), { x: 0, y: 1.2, z: 0.62 }, 20);
+    expect(falling.hands[1].anchored).toBe(false);
+  });
+
+  it('does not catch a smooth ledge by its top', () => {
+    // From the air beside it, at the top of a jump that left the feet a step below its top: the
+    // seracs are a committed jump, and stay one.
+    const jumping = createPlayerState({ id: 'vr', position: vec3(4.8, 1.7, 0) });
+    closedOn(jumping, pool(), { x: 0, y: 0.33, z: 0.9 }, 6);
+    expect(jumping.hands[1].anchored).toBe(false);
+
+    // From the floor, reaching up to a top two metres above the feet.
+    const reaching = createPlayerState({ id: 'vr', position: vec3(4.8, 0, 0) });
+    closedOn(reaching, pool(), { x: 0, y: 2.03, z: 0.9 }, 20);
+    expect(reaching.hands[1].anchored).toBe(false);
+  });
+});
+
 describe('a hand that jumps is not a pull', () => {
   let world: PhysicsWorld;
   let ctx: LocomotionContext;

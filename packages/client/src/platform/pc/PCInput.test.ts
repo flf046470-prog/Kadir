@@ -305,3 +305,74 @@ describe('the gamepad mapping', () => {
     }
   });
 });
+
+/** Stand a gamepad in front of `navigator` with its sticks at `axes` and no button down. */
+function withPadAxes(axes: number[], run: () => void): void {
+  const host = globalThis as Record<string, unknown>;
+  const saved = Object.getOwnPropertyDescriptor(host, 'navigator');
+  const pad = { connected: true, axes, buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
+  Object.defineProperty(host, 'navigator', { value: { getGamepads: () => [pad] }, configurable: true, writable: true });
+  try {
+    run();
+  } finally {
+    if (saved) Object.defineProperty(host, 'navigator', saved);
+    else delete host.navigator;
+  }
+}
+
+/**
+ * The sticks, read whole (`platform/stick.ts`) rather than an axis at a time.
+ *
+ * Per axis, a stick pushed 8° off forward ran straight forward — every heading within 10.3° of an
+ * axis was out of reach — and the first speed past the dead zone was 18 % of full. The Gamepad API
+ * reports up as negative y.
+ */
+describe('the gamepad sticks', () => {
+  let dom: ReturnType<typeof fakeDom>;
+  let input: PCInput;
+
+  beforeEach(() => {
+    dom = fakeDom();
+    input = new PCInput(dom.canvas);
+    input.start();
+  });
+
+  afterEach(() => {
+    input.stop();
+    dom.restore();
+  });
+
+  const sampled = (axes: number[], frames = 1) => {
+    const out = createIntent();
+    withPadAxes(axes, () => {
+      for (let i = 0; i < frames; i++) input.sample(out, 1 / 60, DEFAULT_SETTINGS);
+    });
+    return out;
+  };
+
+  it('runs at the heading the stick is pushed, even close to straight ahead', () => {
+    const angle = (8 * Math.PI) / 180;
+    const out = sampled([Math.sin(angle), -Math.cos(angle), 0, 0]);
+    expect(Math.atan2(out.moveX, out.moveZ)).toBeCloseTo(angle, 6);
+    expect(Math.hypot(out.moveX, out.moveZ)).toBeCloseTo(1, 6);
+  });
+
+  it('walks slowly with the stick just past its dead zone, rather than jumping to a fifth of full speed', () => {
+    const out = sampled([0, -0.2, 0, 0]);
+    expect(out.moveZ).toBeGreaterThan(0);
+    expect(out.moveZ).toBeLessThan(0.05);
+  });
+
+  it('turns slowly for a small push of the look stick, and as fast as ever for a full one', () => {
+    // One second each, at the default sensitivity: linear per axis, 0.3 turned 0.75 rad.
+    const small = sampled([0, 0, 0.3, 0], 60).lookYaw;
+    expect(-small).toBeGreaterThan(0);
+    expect(-small).toBeLessThan(0.1);
+    input.stop();
+    dom.restore();
+    dom = fakeDom();
+    input = new PCInput(dom.canvas);
+    input.start();
+    expect(-sampled([0, 0, 1, 0], 60).lookYaw).toBeCloseTo(2.5 * DEFAULT_SETTINGS.controls.lookSensitivity, 6);
+  });
+});

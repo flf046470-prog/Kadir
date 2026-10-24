@@ -6,6 +6,8 @@
  * vignette that never opens, a pinch that will not release, a haptic that buzzes continuously.
  */
 
+import { DEFAULT_MOVEMENT } from '@kc/core';
+
 /** A hand joint position, in metres, in whatever space the caller is working in. */
 export interface JointPos {
   x: number;
@@ -44,25 +46,51 @@ export function pinchStrength(thumbTip: JointPos, indexTip: JointPos, handScale 
   return (PINCH_OPEN_M - d) / (PINCH_OPEN_M - PINCH_CLOSED_M);
 }
 
-/** The trigger/pinch threshold at the default `grabSensitivity` of 1 — unchanged from before this existed. */
-const GRAB_THRESHOLD_BASE = 0.4;
+/**
+ * The squeeze that closes a hand at the default `grabSensitivity` of 1: the simulation's own
+ * `gripThreshold`, which every tracked hand is held to and which the server runs.
+ */
+const GRAB_THRESHOLD_BASE = DEFAULT_MOVEMENT.gripThreshold;
 const GRAB_THRESHOLD_MIN = 0.12;
-const GRAB_THRESHOLD_MAX = 0.6;
+const GRAB_THRESHOLD_MAX = 0.95;
 
 /**
- * How much grip (0..1, from `pinchStrength` or a controller trigger) is needed to start a grab,
- * from the player's `comfort.grabSensitivity`.
+ * How much squeeze (0..1, from a controller's grip or `pinchStrength`) closes a hand, from the
+ * player's `comfort.grabSensitivity`.
  *
  * `Settings.comfort` shipped this as `sensitivity`, read only as `settings.comfort.sensitivity *
  * 0.4` — so turning the number *up* raised the threshold and made a grab *harder* to trigger,
  * backwards from what "sensitivity" means to anyone reading it. It also had no slider anywhere in
- * the Settings menu, so nobody could have discovered the inversion by using it. Division rather
- * than multiplication fixes the direction; clamping keeps the result inside grip's own 0..1 range
- * at the extremes so a low setting never makes grabbing outright impossible.
+ * the Settings menu, so nobody could have discovered the inversion by using it.
+ *
+ * Then it turned out the threshold reached no hand. It set the Grab button bits, which a tracked
+ * hand never reads (`locomotion.ts` closes it at `gripThreshold`): the only thing they drove was
+ * the assisted climb, holding a player to a wall their hand was not touching. The slider moved the
+ * magnet, not the hand. It moves the hand now (`shapeGrip`), so 1 is the simulation's own 0.55.
+ *
+ * `base ** s` rather than `base / s`: the quotient passed 1 below a sensitivity of 0.55 and had to
+ * be clamped, so the whole bottom of the slider was one threshold — a slider that moves nothing for
+ * a third of its travel. The power spans it, 0.89 (a firm squeeze) at 0.2 to 0.17 at 3.
  */
 export function grabThresholdFor(sensitivity: number): number {
   const s = Number.isFinite(sensitivity) && sensitivity > 0 ? sensitivity : 1;
-  return Math.min(GRAB_THRESHOLD_MAX, Math.max(GRAB_THRESHOLD_MIN, GRAB_THRESHOLD_BASE / s));
+  return Math.min(GRAB_THRESHOLD_MAX, Math.max(GRAB_THRESHOLD_MIN, GRAB_THRESHOLD_BASE ** s));
+}
+
+/**
+ * The grip a hand reports, reshaped so the simulation's fixed threshold falls at the player's.
+ *
+ * The simulation closes every tracked hand at one `gripThreshold`, which is right: it is what the
+ * server runs, and a server that took each player's threshold would be taking a number it cannot
+ * check. So the player's sensitivity is applied here, the way a stick's response curve is: a
+ * straight line from 0 up to (`threshold`, `simThreshold`) and another on to 1, so a squeeze of
+ * `threshold` is reported as exactly the simulation's threshold, nothing changes order, and 0 and 1
+ * stay where they were. At the default sensitivity it is the identity.
+ */
+export function shapeGrip(raw: number, threshold: number, simThreshold = DEFAULT_MOVEMENT.gripThreshold): number {
+  const grip = Number.isFinite(raw) ? Math.min(1, Math.max(0, raw)) : 0;
+  if (grip <= threshold) return (grip / threshold) * simThreshold;
+  return simThreshold + ((grip - threshold) / (1 - threshold)) * (1 - simThreshold);
 }
 
 /** Adult wrist-to-middle-metacarpal length, the reference `pinchStrength` scales against. */

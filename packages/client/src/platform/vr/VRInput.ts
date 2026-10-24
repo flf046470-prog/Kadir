@@ -3,8 +3,10 @@ import { Buttons, createHandIntent } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import type { PlatformInput } from '../Platform.js';
 import type { Renderer } from '../../render/Renderer.js';
-import { grabThresholdFor, handScaleFrom, hapticFor, pinchStrength } from './comfort.js';
+import { grabThresholdFor, handScaleFrom, hapticFor, pinchStrength, shapeGrip } from './comfort.js';
 import { FrameRateMeter, displayRateOf } from './displayRate.js';
+import { shapeStick } from '../stick.js';
+import type { StickValue } from '../stick.js';
 import type { HapticEvent } from './comfort.js';
 
 interface HandTracker {
@@ -16,12 +18,15 @@ interface HandTracker {
   lastWorld: THREE.Vector3;
   velocity: THREE.Vector3;
   tracked: boolean;
+  /** How far the hand is closed, 0..1: a controller's grip (squeeze) axis, or a bare hand's pinch. */
   gripValue: number;
-  triggerValue: number;
 }
 
 const HAND_LOCAL = new THREE.Vector3();
 const WORLD = new THREE.Vector3();
+/** The assisted-mode move stick's dead zone; headset sticks drift less than a worn gamepad's. */
+const MOVE_DEAD_ZONE = 0.12;
+const MOVE_STICK: StickValue = { x: 0, y: 0 };
 
 /**
  * WebXR input — the game's most expressive control scheme.
@@ -148,7 +153,6 @@ export class VRInput implements PlatformInput {
       velocity: new THREE.Vector3(),
       tracked: false,
       gripValue: 0,
-      triggerValue: 0,
     };
 
     controller.addEventListener('connected', (event) => {
@@ -228,14 +232,15 @@ export class VRInput implements PlatformInput {
 
       const gamepad = hand.source?.gamepad;
       if (gamepad) {
+        // The grip alone. The trigger is the gadget (`VR_BINDINGS`), and this used to be the
+        // larger of the two: firing the freeze gun closed the right hand on whatever it was near,
+        // measured as a hand anchored to a wall on 60 ticks of 60 while the trigger was held.
         hand.gripValue = gamepad.buttons[1]?.value ?? 0;
-        hand.triggerValue = gamepad.buttons[0]?.value ?? 0;
       } else {
         // Hand tracking: an XRInputSource in this mode has no gamepad at all, so reading
         // button values leaves bare hands connected but unable to grab anything. Pinch is
         // the equivalent gesture, and it is what the Quest's own UI trains players to use.
         hand.gripValue = readPinch(hand.hand);
-        hand.triggerValue = hand.gripValue;
       }
     }
 
@@ -285,10 +290,9 @@ export class VRInput implements PlatformInput {
       if (hand.source?.handedness !== handedness) continue;
       const axes = hand.source.gamepad?.axes;
       if (!axes) return null;
-      // WebXR reports [touchpadX, touchpadY, stickX, stickY] on most controllers.
-      const x = axes[2] ?? axes[0] ?? 0;
-      const y = axes[3] ?? axes[1] ?? 0;
-      return { x: Math.abs(x) < 0.12 ? 0 : x, y: Math.abs(y) < 0.12 ? 0 : y };
+      // WebXR reports [touchpadX, touchpadY, stickX, stickY] on most controllers. Raw: the turn
+      // reads its own thresholds off x, and the move stick is shaped where it is used.
+      return { x: axes[2] ?? axes[0] ?? 0, y: axes[3] ?? axes[1] ?? 0 };
     }
     return null;
   }
@@ -314,17 +318,19 @@ export class VRInput implements PlatformInput {
     } else {
       // Assisted mode: the stick is an accessibility fallback (seated play, limited reach) and
       // is deliberately slower than hands, so hands stay the fast option even here.
-      const stick = this.readStick('left');
+      const raw = this.readStick('left');
+      const stick = shapeStick(raw?.x ?? 0, raw?.y ?? 0, MOVE_DEAD_ZONE, 1, MOVE_STICK);
       const assist = settings.comfort.seated ? 1 : 0.55;
-      out.moveX = (stick?.x ?? 0) * assist;
-      out.moveZ = (stick?.y ? -stick.y : 0) * assist;
+      out.moveX = stick.x * assist;
+      out.moveZ = stick.y ? -stick.y * assist : 0;
     }
 
     // Jump is a button-triggered launch: the view moves without the body having asked, which is
     // the classic nausea source. Arms-first drops it; pushing off the ground with a hand is the
-    // way up. Every other button (grab, emote, shop) is unaffected.
+    // way up. Emote and shop are unaffected; for grabbing, see below.
     let buttons = armsOnly ? this.buttons & ~Buttons.Jump : this.buttons;
     if (!out.hands) out.hands = [createHandIntent(), createHandIntent()];
+    const threshold = grabThresholdFor(settings.comfort.grabSensitivity);
 
     for (let i = 0; i < 2; i++) {
       const hand = this.hands[i] as HandTracker;
@@ -332,7 +338,9 @@ export class VRInput implements PlatformInput {
       if (!intentHand) continue;
 
       intentHand.tracked = hand.tracked;
-      intentHand.grip = Math.max(hand.gripValue, hand.triggerValue);
+      // The simulation closes the hand at its own threshold; the player's sensitivity decides
+      // where along the squeeze that is.
+      intentHand.grip = shapeGrip(hand.gripValue, threshold);
       if (!hand.tracked) continue;
 
       hand.grip.getWorldPosition(WORLD);
@@ -345,7 +353,12 @@ export class VRInput implements PlatformInput {
       intentHand.pos.y = HAND_LOCAL.y;
       intentHand.pos.z = HAND_LOCAL.z;
 
-      if (intentHand.grip > grabThresholdFor(settings.comfort.grabSensitivity)) {
+      // The Grab bits are the assisted climb's, the stick-driven climb PC and mobile have, and a
+      // tracked hand does not read them. Arms-first sends none: there they held a player to any
+      // wall within 1.35 m whose hand was touching nothing, measured as no fall at all in 2 s
+      // where a closed fist in the air falls 6 m. Assisted mode keeps them — that climb is the
+      // accessibility path the mode exists for — closing at the same squeeze as the hand.
+      if (!armsOnly && hand.gripValue >= threshold) {
         buttons |= i === 0 ? Buttons.GrabLeft : Buttons.GrabRight;
       }
     }

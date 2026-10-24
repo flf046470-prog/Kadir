@@ -939,10 +939,14 @@ or negative value reaches `THREE.MathUtils.degToRad` in `updateTurn` and poisons
 permanently, freezing the camera's yaw for the rest of the session. Both fields now have sliders in
 the Comfort (VR) section — verified rendering in a real browser, values and labels intact.
 
+**Superseded in part:** that threshold reached no hand, only the magnet grab. It is `0.55 ** s` and
+moves the hand's own grip now — see "A VR grab, from the trigger to the river".
+
 ## A respawn used to teleport the body without telling the hands
 
 Grabbing is real, collision-based physics (`updateHandGrips`/`updateClimb` both call
-`world.closestSurface`, gated by `isGrabbable`), not a velocity trick — there is no separate
+`world.closestSurface`, gated by `isGrabbable` — a hand also holds the floor under its own feet,
+see "A VR grab, from the trigger to the river"), not a velocity trick — there is no separate
 movable-object system in this game beyond gadgets (`PhysicsWorld` says so outright: *"Dynamic
 entities (players) are handled separately"*), and there is no distinct ledge-grab mechanic despite
 `LevelDef.grips`/`GripKind` (`branch`/`ledge`/`vine`/`rock`/`root`) being authored into every map:
@@ -3234,6 +3238,54 @@ A30 "can't get in", B8 an appeal contact.
 **How the store pages read.** Firecrawl's JSON extraction of `meta.com/experiences/<slug>/<id>/`
 with `waitFor` 4000 returns the rating, the histogram and the five ranked reviews; the page shows no
 more without interaction, so a sample is five a game. Probes: `.probe/{flail,pcpunch}.ts`.
+
+## A VR grab, from the trigger to the river
+
+Roadmap A3's measurements (`docs/PERFORMANCE_BUDGETS.md` has the whole table) found four defects
+between the controller and the simulation, where neither half's own tests could see.
+`VRInput.test.ts` drives the real `VRInput` over three.js groups standing in for the XR spaces
+(parented to the rig, as three.js parents them — set them in world space and the hands land a body
+away) and feeds its intent to the real `stepPlayer`.
+
+- **The magnet grab.** `VRInput` set `GrabLeft`/`GrabRight` whenever a hand was squeezed. A tracked
+  hand never reads them (`locomotion.ts` closes it on its own grip value), so all they drove was
+  the assisted climb, PC's stick climb, which takes any wall within `gripReach` (1.35 m). A fist
+  closed in mid-air a metre from a wall held the player there: no fall in 2 s, where it falls 6 m.
+  Arms-first sends no Grab bits now. Assisted mode keeps them, because the stick climb is that
+  mode's accessibility path (seated, limited reach); any client may choose assisted mode, so there
+  is no server rule to add.
+- **The trigger was a grip.** The grip sent was `max(squeeze, trigger)`, and the trigger is the
+  gadget (`VR_BINDINGS`): firing the freeze gun closed the right hand on whatever it was near, a
+  wall on 60 ticks of 60. The squeeze alone closes a controller hand; a bare hand's pinch is its
+  squeeze.
+- **Grab sensitivity reached no hand.** It set the Grab bits' threshold, the magnet's (0.4 at the
+  default, while the hand closed at 0.55). `shapeGrip` reshapes the grip sent so the simulation's
+  one `gripThreshold` falls at the player's squeeze, the way a stick's response curve works; the
+  server still runs one threshold. `grabThresholdFor` is `0.55 ** s` (0.89 at 0.2, 0.17 at 3): as
+  `0.55 / s` the bottom third of the slider clamped to one value.
+- **Water held anyone who moved with their arms.** No hand could hold a floor that is not
+  climbable, and arms-first has no stick and no hop. An arms-first player who stopped in the jungle
+  river stayed there: 0.00 m in 15 s at 8 m/s strokes, and one walking in from the bank stopped 8 m
+  out. `closestHold` lets a hand hold the floor under the player's own feet (grounded, a walkable
+  face, within a step of them) whatever it is made of, and nothing else that is not climbable — so
+  NoGrip still means no climbing, and a glazed serac's top holds only once you stand on it. The
+  climbable query runs first and alone where it finds something, so every older hold is unchanged.
+  Four mutations, each failing its own test; the grounded check's first test could not fail (the
+  step band rejected the same case) and was rebuilt with the feet a step below the ledge's top.
+
+The gamepad sticks were read per axis (`|v| < 0.18 ? 0 : v`): at full deflection 20.8 % of angles
+landed more than 1° off the heading pushed (up to 10.3°), the dead zone was a square (0.18 on an
+axis, 0.255 on a diagonal), and the first step past it was 18 % of full speed. `platform/stick.ts`
+(`shapeStick`, shared by the PC pad and the VR assisted stick) is radial with a rescale, and look
+has a curve of 2: turns of 30°/s or less get 46 % of the live travel instead of 3.6 %, at the same
+top speed. VR's turn stick reads its own thresholds off the raw x.
+
+**The chase gap is the headline, and it is A20's to decide.** Three PC bots against three synthetic
+arms-first players built from the same bot's decisions (`.probe/a3-chase.ts`): VR is the chaser
+20–26 % of the round against a fair 16.7 %, PC 7–13 %, and VR catches PC less often than PC catches
+VR on every map at every stroke speed. A relaxed 4 m/s stroke runs at half a PC run; on a wall a
+4 m/s stroke out-climbs PC. The synthetic player cannot vault or fling, so its numbers are a lower
+bound — but on the outback, where little blocks it, the gap is as wide as anywhere.
 
 ## The plan has two tracks, and only one of them waits on the owner
 

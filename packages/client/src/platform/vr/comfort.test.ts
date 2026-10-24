@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
+import { DEFAULT_MOVEMENT } from '@kc/core';
+
 import {
   approach,
   grabThresholdFor,
   handScaleFrom,
   hapticFor,
   pinchStrength,
+  shapeGrip,
   vignetteIntensity, easeRigHeight, isTeleport, STEP_EASE_LIMIT } from './comfort.js';
 
 const at = (x: number, y = 0, z = 0) => ({ x, y, z });
@@ -13,12 +16,13 @@ const at = (x: number, y = 0, z = 0) => ({ x, y, z });
 /**
  * `grabSensitivity` shipped as `sensitivity`, read only as `grip > sensitivity * 0.4` — so turning
  * the number up raised the threshold and made a grab *harder*, the opposite of what "sensitivity"
- * means, and there was no slider anywhere to notice it with. `grabThresholdFor` replaces the
- * multiply with a clamped inverse: higher input, lower threshold, easier grab.
+ * means, and there was no slider anywhere to notice it with. `grabThresholdFor` fixed the direction
+ * — and then the threshold turned out to reach no hand, only the Grab bits the assisted climb reads
+ * (see `VRInput.grab.test.ts`). It is the squeeze that closes the hand now, through `shapeGrip`.
  */
 describe('grabThresholdFor', () => {
-  it('matches the original default threshold when sensitivity is untouched', () => {
-    expect(grabThresholdFor(1)).toBeCloseTo(0.4, 5);
+  it('is the simulation\'s own grip threshold when sensitivity is untouched', () => {
+    expect(grabThresholdFor(1)).toBeCloseTo(DEFAULT_MOVEMENT.gripThreshold, 5);
   });
 
   it('lowers the threshold as sensitivity rises, not raises it', () => {
@@ -27,22 +31,68 @@ describe('grabThresholdFor', () => {
     expect(high).toBeLessThan(low);
   });
 
+  it('moves with every step of the slider, end to end', () => {
+    // The slider runs 0.2 to 3 in steps of 0.1. As `0.55 / s`, everything below 0.55 asked for
+    // more than a full squeeze and was clamped to one value: a third of the slider moved nothing.
+    let previous = Infinity;
+    for (let tenths = 2; tenths <= 30; tenths++) {
+      const threshold = grabThresholdFor(tenths / 10);
+      expect(threshold, `sensitivity ${tenths / 10}`).toBeLessThan(previous - 0.004);
+      previous = threshold;
+    }
+  });
+
   it('never demands more grip than the input signal can ever report', () => {
-    // grip is 0..1 (max of trigger value and pinch strength); a threshold above that would make
-    // the lowest sensitivity setting silently disable grabbing rather than merely stiffen it.
+    // grip is 0..1; a threshold at or above that would make the lowest setting silently disable
+    // grabbing rather than merely stiffen it.
     for (const s of [0.2, 0.5, 1, 2, 3]) {
-      expect(grabThresholdFor(s)).toBeLessThan(1);
+      expect(grabThresholdFor(s)).toBeLessThan(0.96);
     }
   });
 
   it('never lets a high sensitivity make an accidental brush of the fingers count as a grab', () => {
-    expect(grabThresholdFor(3)).toBeGreaterThan(0);
+    expect(grabThresholdFor(3)).toBeGreaterThan(0.12);
   });
 
   it('falls back to the default rather than a zero or negative threshold on bad input', () => {
-    expect(grabThresholdFor(0)).toBeCloseTo(0.4, 5);
-    expect(grabThresholdFor(-2)).toBeCloseTo(0.4, 5);
-    expect(grabThresholdFor(Number.NaN)).toBeCloseTo(0.4, 5);
+    for (const bad of [0, -2, Number.NaN]) {
+      expect(grabThresholdFor(bad)).toBeCloseTo(DEFAULT_MOVEMENT.gripThreshold, 5);
+    }
+  });
+});
+
+describe('shapeGrip', () => {
+  const sim = DEFAULT_MOVEMENT.gripThreshold;
+
+  it('reports the player\'s threshold as exactly the simulation\'s', () => {
+    for (const threshold of [0.17, 0.3, 0.55, 0.75, 0.89]) {
+      expect(shapeGrip(threshold, threshold)).toBeCloseTo(sim, 9);
+      expect(shapeGrip(threshold - 0.01, threshold)).toBeLessThan(sim);
+      expect(shapeGrip(threshold + 0.01, threshold)).toBeGreaterThan(sim);
+    }
+  });
+
+  it('is the identity at the default sensitivity', () => {
+    for (const raw of [0, 0.2, 0.55, 0.7, 1]) expect(shapeGrip(raw, grabThresholdFor(1))).toBeCloseTo(raw, 9);
+  });
+
+  it('keeps an open hand open and a full squeeze full, and never changes their order', () => {
+    for (const threshold of [0.17, 0.89]) {
+      expect(shapeGrip(0, threshold)).toBe(0);
+      expect(shapeGrip(1, threshold)).toBeCloseTo(1, 9);
+      let previous = -1;
+      for (let raw = 0; raw <= 1.0001; raw += 0.05) {
+        const grip = shapeGrip(raw, threshold);
+        expect(grip).toBeGreaterThan(previous);
+        previous = grip;
+      }
+    }
+  });
+
+  it('treats garbage from a runtime as an open hand', () => {
+    expect(shapeGrip(Number.NaN, 0.55)).toBe(0);
+    expect(shapeGrip(-1, 0.55)).toBe(0);
+    expect(shapeGrip(4, 0.55)).toBeCloseTo(1, 9);
   });
 });
 
