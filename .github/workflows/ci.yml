@@ -101,3 +101,7 @@ jobs:
       # A PC build's page and a browser player meet in one room on the hosted server, and the PC
       # page still starts, saying why, when the hosted server is gone.
       - run: npm run check:crossplay
+      # The VR path with no headset: an emulated Quest 3 (IWER, `?xrsim`) driven by keyboard and
+      # mouse into the simulation, a refused VR session falling back to the desktop game, and the
+      # simulator staying off beside a real headset.
+      - run: npm run check:xrsim

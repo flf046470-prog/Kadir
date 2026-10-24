@@ -8,7 +8,8 @@ import { VoiceChat } from './audio/VoiceChat.js';
 import { MobileInput } from './platform/mobile/MobileInput.js';
 import { PCInput } from './platform/pc/PCInput.js';
 import { VRInput } from './platform/vr/VRInput.js';
-import { detectDevice } from './platform/detect.js';
+import { detectDevice, overridePlatform, platformFromQuery, withPlatform } from './platform/detect.js';
+import { showDesktopXrNotice, startDesktopXr, wantsDesktopXr } from './platform/vr/desktopXrRuntime.js';
 import { profileFor } from './platform/Platform.js';
 import type { PlatformInput } from './platform/Platform.js';
 import { Renderer } from './render/Renderer.js';
@@ -128,12 +129,22 @@ async function main(): Promise<void> {
 
   const store = new LocalStore();
   const settings: Settings = store.loadSettings();
+  // `?platform=pc` is the way out of a VR start that failed (`platformFromQuery`).
+  const forced = platformFromQuery(location.search);
+  // The desktop VR simulator replaces `navigator.xr`, so it has to be in place before the device
+  // probe asks it anything (`desktopXrRuntime.ts`). There is nothing to simulate on a page told to
+  // play flat.
+  if (wantsDesktopXr(location.search) && forced !== 'pc' && forced !== 'mobile') {
+    const simulator = await startDesktopXr();
+    if (!simulator.active) showDesktopXrNotice(simulator.message);
+  }
   // Asked alongside device detection, so a PC build waiting on the hosted server costs no boot
   // time it was not already spending; a page nobody pointed elsewhere asks nothing at all.
-  const [device, server] = await Promise.all([
+  const [detected, server] = await Promise.all([
     detectDevice(),
     chooseServer(location.origin, onlineOriginOf(document), (origin) => probeServer(origin)),
   ]);
+  const device = forced ? overridePlatform(forced, detected) : detected;
   /** The page's own server is `null` to the session store, which keeps its original key. */
   const sessionServer = server.origin === location.origin ? null : server.origin;
   const api = new Api(sessionServer ?? '');
@@ -374,10 +385,17 @@ async function main(): Promise<void> {
     // (`captureView.ts`), and take the cover backdrops without the player's own kangaroo in them
     // with `__kcHideSelf`. Only under automation, which is the only thing that calls either. The
     // first only reads; the second changes what this tab draws and nothing the game simulates.
+    // `__kcSelf` is the local player as the simulation holds them, for `check:xrsim`, which proves a
+    // key or a mouse button reaches the simulation through the emulated headset. It only reads.
     if (navigator.webdriver) {
-      const hooks = window as unknown as { __kcView?: () => unknown; __kcHideSelf?: (hidden: boolean) => void };
+      const hooks = window as unknown as {
+        __kcView?: () => unknown;
+        __kcHideSelf?: (hidden: boolean) => void;
+        __kcSelf?: () => unknown;
+      };
       hooks.__kcView = () => game?.captureView() ?? null;
       hooks.__kcHideSelf = (hidden) => game?.setSelfVisible(!hidden);
+      hooks.__kcSelf = () => game?.selfView() ?? null;
     }
 
     hud = new Hud({
@@ -426,6 +444,14 @@ async function main(): Promise<void> {
     void startErrorReporting({ platform: device.kind, release: configuredRelease() }, settings.errorReports);
 
     if (device.kind === 'vr') setupVr();
+    // The way back from `?platform=pc` on a machine that can present VR: the switch is a reload
+    // either way, so neither mode carries state the other has to undo.
+    if (forced && forced !== 'vr' && detected.hasXr) {
+      backToVr = button('Back to VR', () => location.assign(withPlatform(location.href, null)));
+      Object.assign(backToVr.style, { position: 'absolute', right: '16px', bottom: '16px' });
+      backToVr.style.display = inMatch ? 'none' : '';
+      shellRoot.append(backToVr);
+    }
     if (session.token) {
       social.start(session.playerId, () => (inMatch && game && !game.isSoloPractice ? game.currentRoomCode || null : null));
     }
@@ -575,19 +601,51 @@ async function main(): Promise<void> {
         void game?.audio.resume();
         void vrInput.enterVr().then((ok) => {
           if (ok) {
+            vrFailed?.remove();
             shell.hide();
             hud?.setVisible(false);
             vrMenu?.show();
+          } else {
+            showVrFailed(vrInput.lastError);
           }
         });
       },
       'primary',
     );
+    // In the corner, clear of the menus' own column. Centred at the bottom it sat exactly on the
+    // tutorial's "Got it" and took its clicks, so a PCVR player in a desktop browser could not get
+    // past the first screen to the button that puts the headset on — found by `check:xrsim`.
     enterButton.style.position = 'absolute';
-    enterButton.style.bottom = '24px';
-    enterButton.style.left = '50%';
-    enterButton.style.transform = 'translateX(-50%)';
+    enterButton.style.bottom = '16px';
+    enterButton.style.right = '16px';
     shellRoot.append(enterButton);
+
+    /**
+     * A VR start that failed, said on the screen it failed on.
+     *
+     * It used to be a console warning and nothing else, on a page booted as VR because the
+     * browser said it could present — which a PC with an OpenXR runtime installed says whether or
+     * not the headset is on. That page had no keyboard or mouse input, so the player was left on a
+     * menu they could not play from. Now they are told why and offered the desktop game.
+     */
+    let vrFailed: HTMLElement | null = null;
+    const showVrFailed = (reason: string | null): void => {
+      vrFailed?.remove();
+      vrFailed = el(
+        'div',
+        { class: 'kc-panel kc-panel--natural', id: 'kc-vr-failed', style: { position: 'absolute', bottom: '72px', right: '16px', width: 'min(460px, 92vw)', zIndex: '20' } },
+        el('h3', {}, 'VR could not start'),
+        el('p', {}, reason ?? 'The browser refused the VR session.'),
+        el('p', {}, 'Check that the headset is on and awake, and that its VR runtime (SteamVR, Meta Quest Link or Windows Mixed Reality) is running. Or play on this screen with a keyboard and mouse.'),
+        el(
+          'div',
+          { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
+          button('Try again', () => vrFailed?.remove()),
+          button('Play on desktop', () => location.assign(withPlatform(location.href, 'pc')), 'primary'),
+        ),
+      );
+      shellRoot.append(vrFailed);
+    };
 
     vrInput.onSessionChange = (active) => {
       if (!active) {
@@ -605,8 +663,10 @@ async function main(): Promise<void> {
    * mid-reconnect is still one they want to go back to.
    */
   let inMatch = false;
+  let backToVr: HTMLButtonElement | null = null;
   function setInMatch(value: boolean): void {
     inMatch = value;
+    if (backToVr) backToVr.style.display = value ? 'none' : '';
     shell.setInMatch(value);
   }
 

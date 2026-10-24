@@ -3287,6 +3287,54 @@ VR on every map at every stroke speed. A relaxed 4 m/s stroke runs at half a PC 
 4 m/s stroke out-climbs PC. The synthetic player cannot vault or fling, so its numbers are a lower
 bound — but on the outback, where little blocks it, the gap is as wide as anywhere.
 
+## The desktop VR simulator found three VR bugs no test could
+
+`?xrsim` installs IWER (Meta's Immersive Web Emulation Runtime, `iwer@2.5.0`, MIT) as
+`navigator.xr` before `detectDevice` runs, so the game boots as VR on a desktop and runs the code a
+headset runs. `platform/vr/desktopXr.ts` turns keys and the mouse into a head and two Touch
+controllers (pure, unit tested; its button keys are checked against `VR_BINDINGS`), and
+`desktopXrRuntime.ts` copies that onto the device every frame. Guide: `docs/DESKTOP_VR_SIMULATOR.md`.
+`npm run check:xrsim` (CI browser job) drives it and reads the outcome from `__kcSelf`.
+
+- **It never installs over a device that can present** (a headset, or Meta's Immersive Web Emulator
+  extension, which is IWER too) and says so. IWER is a dynamic import in the named `xrsim` chunk,
+  excluded from the precache like `sentry`. `@iwer/devui` was not used: it brings React and a
+  second three.js (0.184 against our 0.182).
+- **Desktop Chrome has a `navigator.xr` that cannot present**, and IWER declines to replace a
+  native one unless `forceInstall`. Ask `isSessionSupported('immersive-vr')` first, then force.
+
+What it found, every one invisible to the VR unit tests because their harness made the same
+assumptions as the code:
+
+- **The body faced the player's back.** A WebXR viewer and a three.js camera look down -z; the
+  game's yaw faces +z. `bodyYaw` was the head's yaw unchanged, so the stick pushed forward walked
+  **-1.00 along the view**, everyone else saw a VR avatar facing away from where it looked, and
+  hands in front of the face were behind the body. Half a turn in `VRInput.sample`; the harness
+  now turns its camera the same way. Three tests, mutation-tested.
+- **Head height was measured from the world's y = 0.** It was the XR camera's pose less the rig's
+  height — but the pose is already rig-relative (three.js keeps the XR camera out of the scene
+  graph). Standing in the jungle cave 4 m down read **5.6 m**, so ducking could never crouch there
+  and a face was 4 m above its body; on a ledge over 1.2 m it read the 0.4 m floor, crouched
+  whatever the player did. It is `xrCamera.position.y` now. Two tests, mutation-tested.
+- **"Enter VR" sat on the tutorial's "Got it"** and took its clicks: a PCVR player in a desktop
+  browser could not get past the first screen. It is in the corner now.
+
+And one that is not VR's alone: **strafing is mirrored on every platform.** `locomotion.ts`'s
+`_right = (cos yaw, 0, -sin yaw)` is the character's *left* in three.js's right-handed world (an
+object facing +Z has its own +X on its left). Measured on PC: D moved the player **-1.00 along
+the camera's right**, and a screenshot pair shows the near log sliding right as the camera goes
+left. It is a core convention (wish direction, hand placement, bots), so it is its own change.
+
+Also from this work: **a VR start that fails says so** (it was a console warning, on a page booted
+as VR with no keyboard input), with **Play on desktop** → `?platform=pc` (`platformFromQuery`) and
+**Back to VR**. A PC with an OpenXR runtime installed reports `immersive-vr` support with the
+headset off, which is how a player lands there.
+
+**Under swiftshader a session draws ~2 frames a second** and each frame steps at most 100 ms of
+game, so the check polls for outcomes rather than timing them, and a one-frame J/K jab cannot be
+sampled there; its 6–12 m/s profile is a unit test. **A captured mouse sends every click to the
+canvas**: release pointer lock before clicking the simulator's own buttons, as a tester presses Esc.
+
 ## The plan has two tracks, and only one of them waits on the owner
 
 The scheduled sessions spent five runs reporting "nothing safe and useful is left to do" while most

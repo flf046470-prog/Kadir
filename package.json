@@ -62,6 +62,8 @@
     "check:party": "node scripts/check-party.mjs",
     "check:shell": "node scripts/check-shell.mjs",
     "check:crossplay": "node scripts/check-crossplay.mjs",
+    "check:xrsim": "node scripts/check-xrsim.mjs",
+    "play:xrsim": "npm run build:client && npm run build:server && node -e \"console.log('Desktop VR simulator: open http://localhost:8787/?xrsim')\" && node dist/server/main.js",
     "capture:shots": "node scripts/capture-shots.mjs",
     "pack:preview": "node scripts/pack-preview.mjs",
     "assets:sculpt": "python3 tools/blender/sculpt.py",
@@ -79,6 +81,7 @@
   },
   "dependencies": {
     "@sentry/browser": "^10.75.0",
+    "iwer": "2.5.0",
     "three": "^0.182.0",
     "ws": "^8.18.3"
   },

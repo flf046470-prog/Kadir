@@ -182,19 +182,27 @@ export class VRInput implements PlatformInput {
     return this.renderer.renderer.xr.isPresenting;
   }
 
+  /** Why the last `enterVr` failed, in the browser's words, for the screen that says so. */
+  lastError: string | null = null;
+
   /** Enter VR. Must be called from a user gesture (button press) per the WebXR spec. */
   async enterVr(): Promise<boolean> {
     const xr = navigator.xr;
-    if (!xr) return false;
+    if (!xr) {
+      this.lastError = 'This browser has no WebXR.';
+      return false;
+    }
     try {
       const session = await xr.requestSession('immersive-vr', {
         optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking', 'layers'],
       });
       await this.renderer.renderer.xr.setSession(session);
       this.session = session;
+      this.lastError = null;
       return true;
     } catch (error) {
-      console.warn('[vr] session request failed:', (error as Error).message);
+      this.lastError = (error as Error).message || String(error);
+      console.warn('[vr] session request failed:', this.lastError);
       return false;
     }
   }
@@ -211,9 +219,14 @@ export class VRInput implements PlatformInput {
       this.renderer.setDisplayRate(displayRateOf(this.session?.frameRate, this.frames.rate()));
     }
     const xrCamera = this.renderer.renderer.xr.getCamera();
-    xrCamera.getWorldPosition(WORLD);
-    const rigY = this.renderer.rig.position.y;
-    this.headHeight = Math.max(0.4, WORLD.y - rigY);
+    // The head's height above the play space's floor, which is the pose itself: three.js sets the
+    // XR camera from the viewer pose in the reference space, and the camera is not in the scene
+    // graph, so the rig that carries the play space with the body never applies to it. This used
+    // to subtract the rig's height from that pose, which measured the head against the world's
+    // y = 0 instead: 1.6 m on the jungle floor, 5.6 m standing in the cave 4 m below it (where
+    // ducking could never crouch, and a punch aimed at the face found it 4 m up), and the 0.4 m
+    // floor on any ledge over 1.2 m (crouched whatever the player did). Found by `check:xrsim`.
+    this.headHeight = Math.max(0.4, xrCamera.position.y);
     if (settings.comfort.heightCalibration > 0) {
       this.headHeight = settings.comfort.heightCalibration;
     }
@@ -298,7 +311,14 @@ export class VRInput implements PlatformInput {
   }
 
   sample(out: InputIntent, _dt: number, settings: Settings): void {
-    const bodyYaw = this.headYaw + this.turnOffset;
+    // Half a turn from the head's own yaw. A three.js camera (and a WebXR viewer) looks down its
+    // local -z, so a head at yaw θ looks along (-sin θ, 0, -cos θ), while the game's yaw faces
+    // (sin, 0, cos). Without it the body faced the way the player's back did: pushing the stick
+    // forward walked backwards (measured: -1.00 along the view), everyone else saw the avatar
+    // facing away from where its player looked, and the hands held up in front of the face were
+    // behind the body. The test harness had made the same assumption, so nothing caught it until
+    // a real WebXR runtime did (`check:xrsim`).
+    const bodyYaw = wrapAngle(this.headYaw + this.turnOffset + Math.PI);
     out.lookYaw = bodyYaw;
     out.lookPitch = this.headPitch;
     out.headHeight = this.headHeight;
@@ -440,6 +460,10 @@ function readPinch(hand: THREE.XRHandSpace): number {
  * `right = (cos yaw, 0, -sin yaw)` and `forward = (sin yaw, 0, cos yaw)`).
  * Getting this inverse wrong sends hands to mirrored positions, so it is unit tested.
  */
+function wrapAngle(a: number): number {
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
 export function toBodyLocal(out: THREE.Vector3, world: THREE.Vector3, origin: THREE.Vector3, yaw: number): void {
   const dx = world.x - origin.x;
   const dz = world.z - origin.z;

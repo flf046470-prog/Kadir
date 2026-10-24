@@ -40,8 +40,9 @@ export default defineConfig({
         // `sentry` is named rather than left to the hash so the precache builder can exclude it
         // by name. It is reached only by a dynamic import and must stay that way: precaching it
         // would have the service worker download the crash reporter during install, which is the
-        // startup budget the lazy import exists to protect.
-        manualChunks: { three: ['three'], sentry: ['@sentry/browser'] },
+        // startup budget the lazy import exists to protect. `xrsim` (the desktop VR simulator's
+        // emulated WebXR runtime) is named for the same reason: only `?xrsim` ever loads it.
+        manualChunks: { three: ['three'], sentry: ['@sentry/browser'], xrsim: ['iwer'] },
       },
     },
   },

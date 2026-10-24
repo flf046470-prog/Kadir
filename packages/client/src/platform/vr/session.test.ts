@@ -57,7 +57,8 @@ function fakeRenderer(): { renderer: Renderer; setSession: ReturnType<typeof vi.
         getController: object3d,
         getControllerGrip: object3d,
         getHand: object3d,
-        getCamera: () => ({ getWorldPosition: () => {}, quaternion: {} }),
+        // The head pose, in the reference space, as three.js poses its XR camera.
+        getCamera: () => ({ position: { x: 0, y: 1.6, z: 0 }, quaternion: {} }),
       },
     },
     rig: { add: () => {}, position: { y: 0 } },

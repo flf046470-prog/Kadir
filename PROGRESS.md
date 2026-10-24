@@ -3,6 +3,30 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-24 (evening) — a desktop VR simulator, and the VR bugs it found (interactive)
+
+**Asked:** a desktop VR simulator to test VR with a keyboard and mouse. The request named Godot; there
+is no Godot project in this repository or any of the owner's (checked every branch and repo), so the
+owner chose the WebXR equivalent for Kangaroo Chase.
+
+**Done:** `?xrsim` installs IWER (`iwer@2.5.0`) as an emulated Quest 3; keys and the mouse drive the
+head, both controllers, triggers, grips, sticks, a hand on its own, a jab and a duck
+(`platform/vr/desktopXr.ts`, `desktopXrRuntime.ts`, `docs/DESKTOP_VR_SIMULATOR.md`,
+`npm run play:xrsim`). Never over a real headset; IWER off the boot path and the precache. A failed
+VR start is on screen with **Play on desktop** (`?platform=pc`) and **Back to VR**.
+
+**Found and fixed:** the VR body faced backwards (the stick walked -1.00 along the view); VR head
+height was measured from y = 0 (5.6 m in a 4 m pit); "Enter VR" covered "Got it". **Found, not yet
+fixed:** strafing is mirrored on every platform (D moved -1.00 along the camera's right).
+
+**Measured:** `check:xrsim` 28/28 in Chromium (swiftshader); unit tests `desktopXr.test.ts` (15),
+VRInput head height (2) and body yaw (3), each fix mutation-tested.
+
+**Left:** A27 (guard in Boxing) is in `git stash` with a patch backup, half done — its measurements
+also found that button punches landed on the way back and grab toggles punched.
+
+**Next session — first task:** fix the mirrored strafe in `@kc/core`, then unstash and finish A27.
+
 ## 2026-10-24 (later) — A3 done: the VR grab path, the gamepad sticks, and the table (interactive)
 
 **Done:** `docs/PERFORMANCE_BUDGETS.md` is A3's table — ground speed, turning, climb rate and chase

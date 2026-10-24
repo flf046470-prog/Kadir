@@ -124,8 +124,10 @@ function settingsWith(comfort: Partial<Settings['comfort']>): Settings {
 function frame(set: Headset, player: PlayerState, yaw: number, hands: [number, number, number][], settings: Settings): InputIntent {
   const { x, y, z } = player.position;
   set.body.position.set(x, y, z);
-  set.camera.position.set(x, y + 1.6, z);
-  set.camera.quaternion.setFromEuler(new THREE.Euler(0, yaw, 0, 'YXZ'));
+  // The head as three.js poses its XR camera: in the reference space the rig carries, standing,
+  // and looking down its own -z — so a head facing the game's `yaw` is turned half a turn from it.
+  set.camera.position.set(0, 1.6, 0);
+  set.camera.quaternion.setFromEuler(new THREE.Euler(0, yaw + Math.PI, 0, 'YXZ'));
   for (let i = 0; i < 2; i++) {
     const [right, up, forward] = hands[i]!;
     // Rig-relative, the space XR poses arrive in; the simulation's own body-local mapping.
@@ -292,5 +294,91 @@ describe('the assisted-mode stick', () => {
     const intent = pushed(0, -1, DEFAULT_SETTINGS);
     expect(intent.moveX).toBe(0);
     expect(intent.moveZ).toBe(0);
+  });
+});
+
+/**
+ * Head height is the head above the floor the player stands on, wherever that floor is.
+ *
+ * It was the XR camera's pose less the rig's height, and the pose is already relative to the rig
+ * (three.js poses the XR camera in the reference space and keeps it out of the scene graph), so it
+ * measured the head against the world's y = 0. Found by the desktop simulator: standing in the
+ * jungle cave, 4 m down, a standing player's head read 5.6 m and a ducked one 5.0 — crouch, which
+ * in VR is ducking, could not happen there, and on a ledge it could not stop.
+ */
+describe('the head height', () => {
+  const heightOn = (floor: number, eye: number) => {
+    const set = headset();
+    const player = createPlayerState({ id: 'vr', position: vec3(3, floor, -2) });
+    const intent = createIntent();
+    set.body.position.set(3, floor, -2);
+    set.camera.position.set(0, eye, 0);
+    set.input.updateTracking(DT, DEFAULT_SETTINGS);
+    set.input.sample(intent, DT, DEFAULT_SETTINGS);
+    expect(player.position.y).toBe(floor);
+    return intent.headHeight;
+  };
+
+  it('is the same standing in a pit, on the ground and on a ledge', () => {
+    for (const floor of [-4, 0, 1.5, 3]) expect(heightOn(floor, 1.6), `on a floor at ${floor} m`).toBeCloseTo(1.6, 6);
+  });
+
+  it('drops below the crouch line when the player ducks, wherever they stand', () => {
+    // `locomotion.ts` crouches a tracked player whose head is below 1.15 m.
+    for (const floor of [-4, 0, 3]) expect(heightOn(floor, 1.0), `on a floor at ${floor} m`).toBeLessThan(1.15);
+  });
+});
+
+/**
+ * The body faces where the head looks.
+ *
+ * A WebXR viewer looks down -z and the game's yaw faces +z, and the body yaw was the head's yaw
+ * unchanged — so the body faced the player's back. Measured with the desktop simulator: the stick
+ * pushed forward walked -1.00 along the view. The harness above had assumed the same, which is why
+ * every other test here passed.
+ */
+describe('the body yaw', () => {
+  const lookingAlong = (dx: number, dz: number) => {
+    const set = headset();
+    set.camera.position.set(0, 1.6, 0);
+    // A camera turned so its -z points along (dx, dz).
+    set.camera.quaternion.setFromEuler(new THREE.Euler(0, Math.atan2(-dx, -dz), 0, 'YXZ'));
+    // Both hands 0.4 m in front of the face, the way the head is looking.
+    for (const grip of set.grips) grip.position.set(dx * 0.4, 1.3, dz * 0.4);
+    set.input.updateTracking(DT, DEFAULT_SETTINGS);
+    const intent = createIntent();
+    set.input.sample(intent, DT, DEFAULT_SETTINGS);
+    return intent;
+  };
+
+  it('faces the way the head looks', () => {
+    for (const [dx, dz] of [[0, -1], [1, 0], [0, 1], [-0.6, 0.8]] as const) {
+      const intent = lookingAlong(dx, dz);
+      expect(Math.sin(intent.lookYaw), `looking along (${dx}, ${dz})`).toBeCloseTo(dx, 6);
+      expect(Math.cos(intent.lookYaw), `looking along (${dx}, ${dz})`).toBeCloseTo(dz, 6);
+    }
+  });
+
+  it('puts the hands held in front of the face in front of the body', () => {
+    const intent = lookingAlong(0, -1);
+    for (const hand of intent.hands ?? []) expect(hand.pos.z).toBeCloseTo(0.4, 6);
+  });
+
+  it('walks the way the head looks with the stick pushed forward', () => {
+    const set = headset();
+    set.camera.position.set(0, 1.6, 0);
+    set.camera.quaternion.setFromEuler(new THREE.Euler(0, 0, 0, 'YXZ')); // looking down -z
+    set.pads[0]!.axes[3] = -1; // the left stick, pushed forward
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });
+    const ctx = rig();
+    const settings = settingsWith({ vrLocomotion: 'assisted' });
+    for (let i = 0; i < 30; i++) {
+      set.input.updateTracking(DT, settings);
+      const intent = createIntent();
+      set.input.sample(intent, DT, settings);
+      ctx.tick++;
+      stepPlayer(player, intent, ctx, DT);
+    }
+    expect(player.position.z).toBeLessThan(-0.3);
   });
 });

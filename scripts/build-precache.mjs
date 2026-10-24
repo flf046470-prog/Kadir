@@ -38,11 +38,12 @@ const DIRS = ['assets', 'icons'];
  * startup budget quietly untrue.
  *
  * Matched by name rather than by size or content: `sentry` is a named chunk in vite.config.ts
- * for this reason.
+ * for this reason. So is `xrsim`, the desktop VR simulator's emulated WebXR runtime, which only a
+ * page opened with `?xrsim` loads: precached, every install would download a headset emulator.
  */
 function excludedFromPrecache(rel) {
   const name = path.basename(rel);
-  return name.endsWith('.map') || /^sentry-/.test(name);
+  return name.endsWith('.map') || /^(sentry|xrsim)-/.test(name);
 }
 
 async function listDir(rel) {

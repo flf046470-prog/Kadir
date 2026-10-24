@@ -62,3 +62,26 @@ function suggestQuality(kind: PlatformKind, cores: number, memoryGb: number): Qu
 export function overridePlatform(kind: PlatformKind, base: DeviceCapabilities): DeviceCapabilities {
   return { ...base, kind };
 }
+
+/**
+ * `?platform=pc|mobile|vr`, or null. The way out of a VR start that failed.
+ *
+ * The platform is chosen once, at boot, from whether the browser says it can present
+ * `immersive-vr` — and a PC with an OpenXR runtime installed (SteamVR, the Oculus app, Windows
+ * Mixed Reality) says it can whether or not a headset is plugged in and awake. So the game booted
+ * as VR, "Enter VR" failed with nothing on screen but a console warning, and the page had no
+ * keyboard or mouse input at all: the player could not play. A failed start now offers "Play on
+ * desktop", which reloads with `?platform=pc`. Reloading without it is the way back.
+ */
+export function platformFromQuery(search: string): PlatformKind | null {
+  const value = new URLSearchParams(search).get('platform');
+  return value === 'pc' || value === 'mobile' || value === 'vr' ? value : null;
+}
+
+/** The page with `?platform=` set, or removed when `kind` is null. */
+export function withPlatform(href: string, kind: PlatformKind | null): string {
+  const url = new URL(href);
+  if (kind) url.searchParams.set('platform', kind);
+  else url.searchParams.delete('platform');
+  return url.toString();
+}

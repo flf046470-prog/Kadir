@@ -382,6 +382,44 @@ export class GameClient {
     return captureViewOf(this.sim.players.values(), this.localId, this.cameraYaw, this.sim.world, focus);
   }
 
+  /**
+   * The local player as the simulation holds them, for `check:xrsim` only: it proves a key reaches
+   * the simulation through the emulated headset, which no screenshot can. Reads and never writes.
+   */
+  selfView(): {
+    yaw: number;
+    pitch: number;
+    headHeight: number;
+    position: { x: number; y: number; z: number };
+    buttons: number;
+    hands: {
+      tracked: boolean;
+      gripHeld: boolean;
+      anchored: boolean;
+      local: { x: number; y: number; z: number };
+      world: { x: number; y: number; z: number };
+      speed: number;
+    }[];
+  } | null {
+    const self = this.sim.players.get(this.localId);
+    if (!self) return null;
+    return {
+      yaw: self.yaw,
+      pitch: self.pitch,
+      headHeight: self.headHeight,
+      position: { ...self.position },
+      buttons: this.intent.buttons,
+      hands: self.hands.map((hand) => ({
+        tracked: hand.tracked,
+        gripHeld: hand.gripHeld,
+        anchored: hand.anchored,
+        local: { ...hand.local },
+        world: { ...hand.world },
+        speed: Math.hypot(hand.localVelocity.x, hand.localVelocity.y, hand.localVelocity.z),
+      })),
+    };
+  }
+
   get modeState(): ModeStateView {
     return this.sim.mode.state();
   }
