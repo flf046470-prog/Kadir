@@ -8,7 +8,7 @@ import { toBodyLocal } from './VRInput.js';
  */
 function simLocalToWorld(local: THREE.Vector3, origin: THREE.Vector3, yaw: number): THREE.Vector3 {
   const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
-  const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
+  const right = new THREE.Vector3(-Math.cos(yaw), 0, Math.sin(yaw));
   return new THREE.Vector3(
     origin.x + right.x * local.x + forward.x * local.z,
     origin.y + local.y,
@@ -35,8 +35,9 @@ describe('VR body-local transform', () => {
   it('keeps a right-hand offset on the right when facing east', () => {
     const origin = new THREE.Vector3();
     const out = new THREE.Vector3();
-    // Facing +x (yaw = 90°), a hand at world -z is to the player's right.
-    toBodyLocal(out, new THREE.Vector3(0, 1.2, -0.3), origin, Math.PI / 2);
+    // Facing +x (yaw = 90°), the right is +z: forward × up. This test used to say -z, and passed,
+    // because it was written from the same mirrored axis as the code it tested.
+    toBodyLocal(out, new THREE.Vector3(0, 1.2, 0.3), origin, Math.PI / 2);
     expect(out.x).toBeCloseTo(0.3, 6);
     expect(out.z).toBeCloseTo(0, 6);
   });

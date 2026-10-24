@@ -122,9 +122,16 @@ function advanceTimers(player: PlayerState, dt: number): void {
   }
 }
 
+/**
+ * The body's axes. Right is `forward × up` in this right-handed, y-up world: a camera looking along
+ * `forward` has it as its screen's +x. It was `(cos, 0, -sin)` — the character's *left* — and since
+ * everything built on it agreed with everything else, D walked left, the stick climb slid left and
+ * the right fist came off the left shoulder without one test inside the simulation noticing
+ * (`handedness.test.ts` judges by a three.js camera instead).
+ */
 function directionsFromYaw(yaw: number): void {
   v3set(_forward, Math.sin(yaw), 0, Math.cos(yaw));
-  v3set(_right, Math.cos(yaw), 0, -Math.sin(yaw));
+  v3set(_right, -Math.cos(yaw), 0, Math.sin(yaw));
 }
 
 /** How long a synthesised punch takes to reach full extension, and to come back. */
@@ -355,10 +362,11 @@ function stepAgainstBody(hand: HandState, prevYaw: number, yaw: number): number 
   const s1 = Math.sin(yaw);
   const l0 = hand.prevLocal;
   const l1 = hand.local;
+  // `localToWorld`'s axes at each yaw: right (-cos, 0, sin), forward (sin, 0, cos).
   return Math.hypot(
-    c1 * l1.x + s1 * l1.z - (c0 * l0.x + s0 * l0.z),
+    -c1 * l1.x + s1 * l1.z - (-c0 * l0.x + s0 * l0.z),
     l1.y - l0.y,
-    -s1 * l1.x + c1 * l1.z - (-s0 * l0.x + c0 * l0.z),
+    s1 * l1.x + c1 * l1.z - (s0 * l0.x + c0 * l0.z),
   );
 }
 
@@ -606,11 +614,13 @@ function updateClimb(
   // Slide the anchor across the surface with the movement stick, then re-project it so the
   // anchor always stays exactly on geometry (this is what lets you climb around a tree trunk).
   const tangentUpY = 1 - Math.abs(player.climbNormal.y);
+  // The normal points out of the wall, at the climber, so they face -normal and their right is
+  // (-normal) × up. Sliding along (-nz, 0, nx) moved a held right to the left.
   v3set(
     _tmp2,
-    -player.climbNormal.z,
+    player.climbNormal.z,
     0,
-    player.climbNormal.x,
+    -player.climbNormal.x,
   );
   v3normalize(_tmp2, _tmp2);
 

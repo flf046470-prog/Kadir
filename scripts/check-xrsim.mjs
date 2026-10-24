@@ -55,8 +55,15 @@ for (let i = 0; i < 80; i++) {
   await new Promise((r) => setTimeout(r, 150));
 }
 
-const launch = { args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] };
-if (process.env.PLAYWRIGHT_CHROMIUM_PATH) launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
+// The full browser in its new headless mode, not Playwright's default headless shell. Under pointer
+// lock the shell reports each mouse move as a jump to the page's origin and back (+860 then -860 px
+// for a 20 px move, measured), which turned the emulated head 9 rad and threw a hand 1.08 m the
+// wrong way in CI. The full browser reports the 20 px.
+const launch = { channel: 'chromium', args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader'] };
+if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
+  delete launch.channel;
+  launch.executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
+}
 const browser = await chromium.launch(launch);
 
 const results = [];
@@ -304,6 +311,24 @@ try {
       : null;
     const moved = fromPc && toPc ? Math.hypot(toPc.x - fromPc.x, toPc.z - fromPc.z) : 0;
     check('…and that page is played with the keyboard', Boolean(flat) && !flat.hands[0].tracked && moved > 1, `${moved.toFixed(2)} m`);
+    // Right as the drawn camera has it, not as the game's yaw arithmetic does: that arithmetic had
+    // left and right swapped on every platform, and D walked the player -1.00 along the screen.
+    // From a standstill: W's run is still coasting, and its forward drift is not D's doing.
+    let before = await self(page);
+    for (let i = 0; i < 40 && before; i++) {
+      await wait(250);
+      const now = await self(page);
+      const still = now && Math.hypot(now.position.x - before.position.x, now.position.z - before.position.z) < 0.01;
+      before = now;
+      if (still) break;
+    }
+    const stepped = before
+      ? await holdUntil(page, () => page.keyboard.down('KeyD'), () => page.keyboard.up('KeyD'), (s) => Math.hypot(s.position.x - before.position.x, s.position.z - before.position.z) > 1, 15000)
+      : null;
+    const sx = stepped ? stepped.position.x - before.position.x : 0;
+    const sz = stepped ? stepped.position.z - before.position.z : 0;
+    const right = before ? (sx * before.screenRight.x + sz * before.screenRight.z) / (Math.hypot(sx, sz) || 1) : 0;
+    check('…where D steps to the right of the screen', right > 0.9, `${right.toFixed(2)} along the camera's right`);
   }
 
   // ── 3. Beside a real headset ─────────────────────────────────────────────────────────────────

@@ -454,21 +454,22 @@ function readPinch(hand: THREE.XRHandSpace): number {
   return pinchStrength(thumb.position, index.position, scale);
 }
 
-/**
- * World -> body-local, the exact inverse of the mapping the simulation uses
- * (`world = position + right * local.x + forward * local.z`, with
- * `right = (cos yaw, 0, -sin yaw)` and `forward = (sin yaw, 0, cos yaw)`).
- * Getting this inverse wrong sends hands to mirrored positions, so it is unit tested.
- */
 function wrapAngle(a: number): number {
   return Math.atan2(Math.sin(a), Math.cos(a));
 }
 
+/**
+ * World -> body-local, the exact inverse of the mapping the simulation uses
+ * (`world = position + right * local.x + forward * local.z`, with
+ * `right = (-cos yaw, 0, sin yaw)` and `forward = (sin yaw, 0, cos yaw)`).
+ * Getting this inverse wrong sends hands to mirrored positions, so it is unit tested — and a
+ * mirrored mapping still round-trips, so `handedness.test.ts` also checks which side is which.
+ */
 export function toBodyLocal(out: THREE.Vector3, world: THREE.Vector3, origin: THREE.Vector3, yaw: number): void {
   const dx = world.x - origin.x;
   const dz = world.z - origin.z;
   const cos = Math.cos(yaw);
   const sin = Math.sin(yaw);
-  out.set(dx * cos - dz * sin, world.y - origin.y, dx * sin + dz * cos);
+  out.set(dz * sin - dx * cos, world.y - origin.y, dx * sin + dz * cos);
 }
 

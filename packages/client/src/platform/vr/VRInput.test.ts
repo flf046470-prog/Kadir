@@ -132,9 +132,9 @@ function frame(set: Headset, player: PlayerState, yaw: number, hands: [number, n
     const [right, up, forward] = hands[i]!;
     // Rig-relative, the space XR poses arrive in; the simulation's own body-local mapping.
     set.grips[i]!.position.set(
-      Math.cos(yaw) * right + Math.sin(yaw) * forward,
+      -Math.cos(yaw) * right + Math.sin(yaw) * forward,
       up,
-      -Math.sin(yaw) * right + Math.cos(yaw) * forward,
+      Math.sin(yaw) * right + Math.cos(yaw) * forward,
     );
   }
   set.input.updateTracking(DT, settings);

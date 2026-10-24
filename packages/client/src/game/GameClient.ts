@@ -391,6 +391,8 @@ export class GameClient {
     pitch: number;
     headHeight: number;
     position: { x: number; y: number; z: number };
+    /** The screen's right in the world: the drawn camera's own x axis, flattened. */
+    screenRight: { x: number; z: number };
     buttons: number;
     hands: {
       tracked: boolean;
@@ -403,11 +405,16 @@ export class GameClient {
   } | null {
     const self = this.sim.players.get(this.localId);
     if (!self) return null;
+    // From the camera three.js draws with, never from the game's own yaw arithmetic: left and right
+    // were once wrong in that arithmetic on every platform, consistently enough to look right.
+    const right = new THREE.Vector3().setFromMatrixColumn(this.renderer.camera.matrixWorld, 0);
+    const flat = Math.hypot(right.x, right.z) || 1;
     return {
       yaw: self.yaw,
       pitch: self.pitch,
       headHeight: self.headHeight,
       position: { ...self.position },
+      screenRight: { x: right.x / flat, z: right.z / flat },
       buttons: this.intent.buttons,
       hands: self.hands.map((hand) => ({
         tracked: hand.tracked,

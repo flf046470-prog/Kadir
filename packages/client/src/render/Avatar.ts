@@ -1803,17 +1803,18 @@ export class Avatar {
           // A raised, waving arm on the left; the right stays where the emote pose put it.
           const lift = i === 0 ? Math.sin(this.emotePhase * 7) * 0.18 : 0;
           hand.position.set(
-            Math.cos(snapshot.yaw) * side * 0.3 + Math.sin(snapshot.yaw) * 0.1,
+            -Math.cos(snapshot.yaw) * side * 0.3 + Math.sin(snapshot.yaw) * 0.1,
             0.72 + (i === 0 ? 0.42 + lift : 0.05),
-            -Math.sin(snapshot.yaw) * side * 0.3 + Math.cos(snapshot.yaw) * 0.1,
+            Math.sin(snapshot.yaw) * side * 0.3 + Math.cos(snapshot.yaw) * 0.1,
           );
           hand.visible = true;
           continue;
         }
+        // The body's right is (-cos yaw, 0, sin yaw), as in `locomotion.ts`.
         hand.position.set(
-          Math.cos(snapshot.yaw) * side * 0.28 + Math.sin(snapshot.yaw) * forward,
+          -Math.cos(snapshot.yaw) * side * 0.28 + Math.sin(snapshot.yaw) * forward,
           0.72 + swing * 0.4,
-          -Math.sin(snapshot.yaw) * side * 0.28 + Math.cos(snapshot.yaw) * forward,
+          Math.sin(snapshot.yaw) * side * 0.28 + Math.cos(snapshot.yaw) * forward,
         );
         hand.visible = true;
       }

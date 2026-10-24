@@ -74,7 +74,8 @@ then shows **"VR could not start"** with the browser's reason, and **Play on des
 `npm run check:xrsim` (CI, browser job) drives all of the above in Chromium and reads the result out
 of the simulation (`__kcSelf`, automation only): the head turns, each grip closes its own hand, each
 button reaches the intent, W walks the way the head looks, a ducked head crouches, a refused session
-falls back to a playable desktop page, and the simulator stays off beside a headset.
+falls back to a playable desktop page where D steps to the right of the screen (judged by the drawn
+camera, not the game's own arithmetic), and the simulator stays off beside a headset.
 
 What it cannot tell you: comfort, tracking quality, frame rate on a Quest, or how a real punch or
 climb feels. That still needs a headset.

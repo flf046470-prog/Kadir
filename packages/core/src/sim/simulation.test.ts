@@ -325,7 +325,10 @@ describe('punch speed', () => {
       const c = Math.cos(yaw);
       const s = Math.sin(yaw);
       intent.lookYaw = yaw;
-      intent.hands = room.map((h) => tracked(h.x * c - h.z * s, 1.1, h.x * s + h.z * c)) as InputIntent['hands'];
+      // `room` is the body frame at yaw 0, where right is -x: in the world each hand sits at
+      // (-x, z). Its body-local position at `yaw` is that point read against right (-c, 0, s)
+      // and forward (s, 0, c).
+      intent.hands = room.map((h) => tracked(h.x * c + h.z * s, 1.1, h.z * c - h.x * s)) as InputIntent['hands'];
     });
     expect(glance.hits).toBe(0);
   });

@@ -381,7 +381,8 @@ describe('the ground holds a runner to the speed they are allowed', () => {
     });
     expect(p.grounded).toBe(false);
     expect(speedOf(p)).toBeGreaterThan(13.5);
-    expect(p.velocity.x).toBeGreaterThan(1);
+    // Steered right, which at yaw 0 (facing +z) is -x.
+    expect(p.velocity.x).toBeLessThan(-1);
   });
 
   it('keeps a run’s speed while a hop is charged, which a long jump spends', () => {
@@ -681,6 +682,33 @@ describe('a hand that jumps is not a pull', () => {
       run(player, ctx, intent, 1);
       expect(Math.hypot(player.velocity.x, player.velocity.z), `${degrees}°`).toBeLessThan(1); // was 11.6 and 22.9 m/s
     }
+  });
+
+  it('does not read a fast head turn as a jump when the hands stay put in the room', () => {
+    // A hand is sent relative to the head's yaw, so turning the head moves it through the body's
+    // frame while it stays still in the world; measured in world axes (`stepAgainstBody`) that is
+    // no motion at all. Read with the body's axes mirrored, a 600°/s turn under `HEAD_TURN_LIMIT`
+    // moved a hand 0.7 m out by 0.24 m a tick — a pose jump, which lets go of a wall.
+    const player = createPlayerState({ id: 'gt', position: vec3(0, 0, 0) });
+    const intent = createIntent();
+    intent.hands = [createHandIntent(), createHandIntent()];
+    intent.headHeight = 1.6;
+    const hand = handOf(intent);
+    hand.tracked = true;
+    const room = { x: 0.7, y: 1.1, z: 0 };
+    let jumps = 0;
+    for (let i = 0; i < 40; i++) {
+      const yaw = (i * DT * 600 * Math.PI) / 180;
+      intent.lookYaw = yaw;
+      const dx = room.x - player.position.x;
+      const dz = room.z - player.position.z;
+      // The body's right is (-cos, 0, sin), its forward (sin, 0, cos).
+      hand.pos = { x: dz * Math.sin(yaw) - dx * Math.cos(yaw), y: room.y, z: dx * Math.sin(yaw) + dz * Math.cos(yaw) };
+      run(player, ctx, intent, 1);
+      if (i > 0 && player.hands[1].jumped) jumps++;
+    }
+    expect(jumps).toBe(0);
+    expect(player.hands[1].world.x).toBeCloseTo(room.x, 2);
   });
 
   it('does not yank the body into a wall when the hand closes short of it', () => {

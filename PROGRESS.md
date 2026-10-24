@@ -3,6 +3,26 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-24 (night) — left and right were swapped on every platform (interactive)
+
+**Done:** the simulation's body "right" was the character's left. Fixed in `locomotion.ts` (the
+axis, the stick-climb tangent, `stepAgainstBody`), `VRInput.toBodyLocal` and `Avatar`'s fallback
+hands. CLAUDE.md → "Left and right were swapped on every platform".
+
+**Measured:** against a three.js camera's own x axis (`handedness.test.ts`, 6 tests): D / stick
+right -1.00 → +1.00 along the screen's right at seven yaws; stick climb -1.00 → right; each
+procedural fist on its own shoulder; VR and procedural hands on one convention. `check:xrsim` gained
+"D steps to the right of the screen", read from the drawn camera. Five mutations, each failing its
+own test (the `stepAgainstBody` one survived 704 tests until a 600°/s head-turn test was added).
+Kangaroo Chase with bots byte-identical; bot Boxing 111 → 109 hits a round over 32 seeds (noise).
+
+**CI:** the browser job on `01904f7` failed `check:xrsim` 27/28 ("holding 2 moves the right hand":
+-1.08 m). The cause was Playwright's default headless shell, which under pointer lock reports a 20 px
+move as +860/-860 px. That reproduces here exactly (-1.08 m, 28/29). The check now launches the full
+Chromium (`channel: 'chromium'`), which passes it here 29/29.
+
+**Next session — first task:** unstash and finish A27 (guard in Boxing).
+
 ## 2026-10-24 (evening) — a desktop VR simulator, and the VR bugs it found (interactive)
 
 **Asked:** a desktop VR simulator to test VR with a keyboard and mouse. The request named Godot; there

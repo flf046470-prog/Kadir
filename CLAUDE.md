@@ -36,6 +36,9 @@ what you would guess, and defects that were found by measuring rather than by re
 ## API shapes that are not what you would guess
 
 - `Simulation`: the intent API is **`sim.setIntent(id, intent)`** — there is no `applyIntent`.
+- **The body's right is `(-cos yaw, 0, sin yaw)`**, forward `(sin yaw, 0, cos yaw)`. It was the
+  character's left until "Left and right were swapped on every platform". Anything that writes
+  body-local x by hand must use it, and is checked against a three.js camera, never against a copy.
 - Social HTTP: `GET /api/social` returns the whole `SocialView`; actions are `POST
   /api/friends/{request,accept,remove}` and `/api/party/{invite,accept,decline,leave,kick}` with
   `{playerId}` or `{partyId}`. A refusal is **409 with a body** (`{ok:false, message, view}`), not
@@ -3319,11 +3322,9 @@ assumptions as the code:
 - **"Enter VR" sat on the tutorial's "Got it"** and took its clicks: a PCVR player in a desktop
   browser could not get past the first screen. It is in the corner now.
 
-And one that is not VR's alone: **strafing is mirrored on every platform.** `locomotion.ts`'s
-`_right = (cos yaw, 0, -sin yaw)` is the character's *left* in three.js's right-handed world (an
-object facing +Z has its own +X on its left). Measured on PC: D moved the player **-1.00 along
-the camera's right**, and a screenshot pair shows the near log sliding right as the camera goes
-left. It is a core convention (wish direction, hand placement, bots), so it is its own change.
+And one that is not VR's alone: **strafing was mirrored on every platform** — D moved the PC
+player **-1.00 along the camera's right**. Fixed; see "Left and right were swapped on every
+platform".
 
 Also from this work: **a VR start that fails says so** (it was a console warning, on a page booted
 as VR with no keyboard input), with **Play on desktop** → `?platform=pc` (`platformFromQuery`) and
@@ -3334,6 +3335,49 @@ headset off, which is how a player lands there.
 game, so the check polls for outcomes rather than timing them, and a one-frame J/K jab cannot be
 sampled there; its 6–12 m/s profile is a unit test. **A captured mouse sends every click to the
 canvas**: release pointer lock before clicking the simulator's own buttons, as a tester presses Esc.
+
+**Playwright's default headless shell garbles a pointer-locked mouse.** CI ran `check:xrsim` there
+(no `PLAYWRIGHT_CHROMIUM_PATH`) and it failed, 27/28, on a run that passed here. Logged move by
+move, a 20 px move under lock arrives as `+860` then `-860`, a jump to the page's origin and back;
+the emulated head ended at yaw 9.3 rad and a hand went 1.08 m the wrong way. The full Chromium build
+reports the 20 px. The check launches `channel: 'chromium'` (new headless, the full browser) for that
+reason. Any other check that captures the mouse needs the same.
+
+## Left and right were swapped on every platform
+
+`locomotion.ts`'s body axis `_right` was `(cos yaw, 0, -sin yaw)`. In this right-handed, y-up world
+that is the character's **left**: right is `forward × up` = `(-cos yaw, 0, sin yaw)`, and an object
+facing +Z has its own +X on its left. Everything built on the axis agreed with everything else, so
+nothing inside the simulation could see it — and `vr-transform.test.ts` asserted it outright
+("facing +x, a hand at -z is to the player's right"). Each defect, measured against the x axis of a
+three.js camera looking where the player looks (`handedness.test.ts`):
+
+- **D, or the stick pushed right, walked -1.00 along the screen's right** — PC, mobile and VR's
+  assisted stick. The browser had said the same.
+- **The stick climb slid the other way (-1.00).** Its tangent `(-nz, 0, nx)`, from a normal that
+  points out of the wall at the climber, is the climber's left too.
+- **Procedural hands were held, and their fists thrown, from the opposite shoulder** — PC, mobile,
+  bots — and `Avatar` drew its fallback hands there.
+- **VR hands were where they belonged in the world, and on the wrong side of the body frame.**
+  `toBodyLocal` was the exact inverse of the mirrored mapping, so the round trip hid it, while
+  `hand.local.x` meant left on a headset and right everywhere else.
+
+One fix each: `_right`, the climb tangent `(nz, 0, -nx)`, `toBodyLocal`, `stepAgainstBody` (which
+had the old axes written out by hand) and `Avatar`'s fallback hands. Bots never send `moveX`, so
+**Kangaroo Chase is byte-identical** before and after (six bots × 4 seeds, jungle and outback). Bot
+Boxing went 111 → 109 hits a round over 32 seeds, which is noise: the first 8 seeds read 127 → 117.
+
+- **A mirrored inverse still round-trips.** `toBodyLocal` passed its round-trip test throughout,
+  because that test copied the simulation's axes. A test that two halves agree cannot say either
+  is right. Only an outside reference can, and for left and right that is three.js's camera.
+- **`stepAgainstBody`'s revert survived all 704 core and VR tests.** It is caught by a head turning
+  at 600°/s with the hands still in the room. Read with the old axes, a hand 0.7 m out moved
+  0.24 m a tick: a pose jump on 39 ticks of 39, which lets go of a wall.
+- `check:xrsim` holds D to the drawn camera's right on its desktop page. `__kcSelf().screenRight`
+  is read from `renderer.camera.matrixWorld`, never from the yaw.
+
+Five mutations, each reverting one fix alone and failing its own test: the axis (three tests), the
+climb tangent, `toBodyLocal` (three), `stepAgainstBody` and the avatar's hands.
 
 ## The plan has two tracks, and only one of them waits on the owner
 
