@@ -231,6 +231,8 @@ export class Hud {
         makeButton('GRAB', 'grab'),
         makeButton('HOP', 'jump', true),
         makeButton('PUNCH', 'punch'),
+        // Beside PUNCH: held while the other thumb steers, as the left trigger is on a pad.
+        makeButton('GUARD', 'guard'),
         makeButton('EMOTE', 'emote'),
         // The one button PC and gamepad both have (Ctrl / face button 1) that mobile never did —
         // no touch path reached `Buttons.Crouch` at all, so the crouch speed cap, stealth and the
@@ -622,7 +624,10 @@ export class Hud {
         this.showToast(`Finished in ${event.magnitude.toFixed(2)}s`, 3000);
         break;
       case 'punchHit':
-        if (event.otherId === localId) this.showToast('Hit!', 700);
+        // A blocked punch is told to both sides: the defender that the guard worked, the attacker
+        // that the punch met gloves, which is the cue to go round them or under them.
+        if (event.data === 'guard' && (event.otherId === localId || event.playerId === localId)) this.showToast('Blocked', 700);
+        else if (event.otherId === localId) this.showToast('Hit!', 700);
         break;
       default:
         break;

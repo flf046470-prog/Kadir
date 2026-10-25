@@ -30,6 +30,11 @@ export const Buttons = {
   Shop: 1 << 11,
   /** Push-to-talk. Held, not toggled — the sim only relays it, voice audio never touches it. */
   Talk: 1 << 12,
+  /**
+   * Hold the gloves up in front of the face. Only for hands the game places: a VR player raises
+   * their own, and a tracked hand guards wherever it is held.
+   */
+  Guard: 1 << 13,
 } as const;
 
 export type ButtonMask = number;

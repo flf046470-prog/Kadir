@@ -30,6 +30,8 @@ export interface MobileButtonState {
    * game.
    */
   crouch: boolean;
+  /** Hold the gloves up (`Buttons.Guard`): a phone has no hands to raise. Held, not toggled. */
+  guard: boolean;
 }
 
 /**
@@ -50,6 +52,7 @@ export class MobileInput implements PlatformInput {
     { action: 'Crouch', hint: 'Crouch button' },
     { action: 'Grab / climb', hint: 'Grab button' },
     { action: 'Punch', hint: 'Punch button' },
+    { action: 'Guard (hold)', hint: 'Guard button' },
     { action: 'Emote', hint: 'Emote button' },
     { action: 'Use gadget', hint: 'Gadget button' },
     // The button is labelled NEXT; it used to say "tap the gadget name", which nothing ever
@@ -69,6 +72,7 @@ export class MobileInput implements PlatformInput {
     shop: false,
     talk: false,
     crouch: false,
+    guard: false,
   };
 
   /**
@@ -167,6 +171,7 @@ export class MobileInput implements PlatformInput {
     if (this.held('shop')) buttons |= Buttons.Shop;
     if (this.held('talk')) buttons |= Buttons.Talk;
     if (this.held('crouch')) buttons |= Buttons.Crouch;
+    if (this.held('guard')) buttons |= Buttons.Guard;
     // Sprint is automatic on touch: holding the stick at full deflection sprints, so the player
     // never has to find a second button while running for their life.
     if (Math.hypot(out.moveX, out.moveZ) > 0.92) buttons |= Buttons.Sprint;

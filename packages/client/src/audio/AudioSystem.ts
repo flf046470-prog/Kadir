@@ -222,7 +222,9 @@ export class AudioSystem {
         this.whoosh(at, 0.35);
         break;
       case 'punchHit':
-        this.impact(at, Math.min(1, event.magnitude / 20), event.data === 'head' ? 180 : 120);
+        // Into a guard it is glove on glove: low and dull. `magnitude` is already the share that
+        // got through, so it is quiet without help.
+        this.impact(at, Math.min(1, event.magnitude / 20), event.data === 'guard' ? 70 : event.data === 'head' ? 180 : 120);
         break;
       case 'bodyHit':
         // A ball is small and hollow beside a landing kangaroo: the same knock, pitched well up,

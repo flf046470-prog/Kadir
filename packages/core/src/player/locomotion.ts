@@ -63,6 +63,8 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   const grabLeft = hasButton(intent.buttons, Buttons.GrabLeft);
   const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
 
+  player.guarding = !frozen && hasButton(intent.buttons, Buttons.Guard);
+
   startPunchThrows(player, intent, frozen, ctx);
   updateHandPoses(player, intent, dt, grabLeft, grabRight, prevYaw);
 
@@ -142,6 +144,10 @@ const PUNCH_REACH = 0.92;
 /** Resting reach of an idle hand; a held grab pulls it out to `GRAB_REACH`. */
 const IDLE_REACH = 0.25;
 const GRAB_REACH = 0.55;
+/** A raised guard: gloves this far in front of the face, either side of the nose, below the eyes. */
+const GUARD_REACH = 0.24;
+const GUARD_LATERAL = 0.1;
+const GUARD_DROP = 0.06;
 
 /**
  * Turn the punch buttons into an arm that actually moves.
@@ -276,6 +282,7 @@ function updateHandPoses(
       localToWorld(_handWorld, player.position, source.pos);
       v3copy(hand.world, _handWorld);
       hand.gripHeld = source.grip >= cfg.gripThreshold;
+      hand.striking = true;
     } else {
       hand.tracked = false;
       const side = i === LEFT ? -1 : 1;
@@ -289,13 +296,34 @@ function updateHandPoses(
       // permanent platform advantage in the two modes built on fighting.
       // Positive pitch is up — the camera builds its forward vector as `sin(pitch)` on Y — so an
       // uppercut is a punch thrown while looking up.
-      const aim = thrust > 0 ? Math.sin(player.pitch) * reach : 0;
+      // It grows with the throw, so the fist goes in a straight line. Switched on whole as a throw
+      // started (`thrust > 0 ? sin(pitch) * reach : 0`), it moved the fist 13 cm in the first tick
+      // looking up — 10.8 m/s against the throw's own 7.6, extra damage from a step in this code —
+      // and switched off as the throw ended, a 9 cm drop that read as a punch thrown downwards.
+      const aim = Math.sin(player.pitch) * PUNCH_REACH * thrust;
       // Both shoulders swing inwards on a thrust: the fist travels to the centre line rather than
       // out past the opponent's shoulder, which is what a punch thrown at someone looks like.
       const lateral = 0.32 * (1 - thrust * 0.55);
       v3set(hand.local, side * lateral, player.height * 0.62 + aim, reach);
+      if (player.guarding && !grabbing) {
+        // Held up in front of the face, and a punch goes straight out from there to the same full
+        // extension and comes back to it, so the other glove stays up while one is out. Blended
+        // with the pose above instead, the fist dipped to the chest first and arrived at a third of
+        // the damage. Climbing takes the hands, so a grab wins.
+        const guardY = player.height * cfg.headHeightRatio - GUARD_DROP;
+        v3set(
+          hand.local,
+          side * (GUARD_LATERAL + thrust * (0.32 * 0.45 - GUARD_LATERAL)),
+          guardY + thrust * (player.height * 0.62 + Math.sin(player.pitch) * PUNCH_REACH - guardY),
+          GUARD_REACH + thrust * (PUNCH_REACH - GUARD_REACH),
+        );
+      }
       localToWorld(hand.world, player.position, hand.local);
       hand.gripHeld = i === LEFT ? grabLeft : grabRight;
+      // On the way out, not back: the return is slower but still past `punchSpeed`, and it is not
+      // a punch. Nor the tick a throw starts, when the hand has not left yet: the last throw's aim
+      // snaps off as it ends (a 9 cm drop looking up), and that read as a punch thrown downwards.
+      hand.striking = hand.punchThrow > PUNCH_RETRACT && hand.punchThrow < PUNCH_EXTEND + PUNCH_RETRACT;
     }
 
     if (frozen) hand.gripHeld = false;

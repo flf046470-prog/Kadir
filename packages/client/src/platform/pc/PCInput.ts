@@ -28,6 +28,7 @@ const PC_CONTROL_HINTS = [
   { action: 'Crouch', hint: 'Ctrl' },
   { action: 'Grab / climb', hint: 'Right mouse' },
   { action: 'Punch', hint: 'Left mouse' },
+  { action: 'Guard (hold)', hint: 'E' },
   { action: 'Emote', hint: 'X' },
   { action: 'Use gadget', hint: 'F' },
   { action: 'Next gadget', hint: 'Q' },
@@ -164,6 +165,7 @@ export class PCInput implements PlatformInput {
     if (this.keys.has('KeyQ')) buttons |= Buttons.CycleGadget;
     if (this.keys.has('KeyB')) buttons |= Buttons.Shop;
     if (this.keys.has('KeyV')) buttons |= Buttons.Talk;
+    if (this.keys.has('KeyE')) buttons |= Buttons.Guard;
     if (this.grabLatch.update(this.mouseButtons.has(2), settings.controls.holdToGrab)) {
       buttons |= Buttons.GrabRight | Buttons.GrabLeft;
     }
@@ -205,7 +207,10 @@ export class PCInput implements PlatformInput {
     let buttons = 0;
     const pressed = (i: number): boolean => pad.buttons[i]?.pressed === true;
     if (pressed(0)) buttons |= Buttons.Jump;
-    if (pressed(10) || pressed(6)) buttons |= Buttons.Sprint;
+    // The left trigger guards, beside the right trigger's punch, as a boxing game's pad does. It used
+    // to sprint too, a second binding for what the left stick click already does.
+    if (pressed(10)) buttons |= Buttons.Sprint;
+    if (pressed(6)) buttons |= Buttons.Guard;
     if (pressed(1)) buttons |= Buttons.Crouch;
     if (pressed(4)) buttons |= Buttons.GrabLeft;
     if (pressed(5)) buttons |= Buttons.GrabRight;

@@ -1,5 +1,5 @@
 import { clamp } from '../math/scalar.js';
-import { v3distance, v3normalize, vec3 } from '../math/vec3.js';
+import { v3distance, v3normalize, v3set, vec3 } from '../math/vec3.js';
 import type { Vec3 } from '../math/vec3.js';
 import type { SimEventQueue } from '../sim/events.js';
 import { HUMAN_HAND_SPEED } from './config.js';
@@ -22,6 +22,12 @@ export interface CombatConfig {
   staminaCost: number;
   /** Radius around the head that counts as a head hit. */
   headRadius: number;
+  /** The share of a punch that gets through a glove in its way (see `guarded`). */
+  guardShare: number;
+  /** How far a glove reaches across the line of a punch, from its centre, to stop it. */
+  guardRadius: number;
+  /** A glove further than this from what it covers is not a guard; it is an arm held out. */
+  guardReach: number;
 }
 
 export const DEFAULT_COMBAT: CombatConfig = {
@@ -34,6 +40,9 @@ export const DEFAULT_COMBAT: CombatConfig = {
   knockback: 5.2,
   staminaCost: 9,
   headRadius: 0.32,
+  guardShare: 0.2,
+  guardRadius: 0.15,
+  guardReach: 0.45,
 };
 
 export interface PunchHit {
@@ -41,6 +50,8 @@ export interface PunchHit {
   victim: PlayerState;
   damage: number;
   head: boolean;
+  /** It met one of the victim's gloves on the way and only `guardShare` of it got through. */
+  blocked: boolean;
   point: Vec3;
   speed: number;
 }
@@ -67,7 +78,7 @@ export function resolvePunches(
 
   for (let i = 0; i < 2; i++) {
     const hand = attacker.hands[i] as HandState;
-    if (hand.punchCooldown > 0) continue;
+    if (hand.punchCooldown > 0 || !hand.striking) continue;
     const speed = punchSpeedOf(hand, attacker, config);
     if (speed < config.punchSpeed) continue;
 
@@ -85,20 +96,26 @@ export function resolvePunches(
       if (!nearHead && !nearBody) continue;
       // What it lands on is what it is arriving at: a glove at chin height moving level is closing on
       // the chest as much as on the head, and a glove rising under the jaw only on the head.
-      // Only a tracked hand: a button punch is a throw this code makes itself, aimed where the player
-      // looks, and it runs out to full reach whoever is in the way — toe to toe it passes through the
-      // target, which measured as a third of its damage gone on PC (18.6 → 6.3 a second at 0.7 m).
-      const atHead = nearHead ? speed * (hand.tracked ? closingShare(hand, attacker, victim.head) : 1) : 0;
-      const atBody = nearBody ? speed * (hand.tracked ? closingShare(hand, attacker, bodyPoint(hand.world, victim)) : 1) : 0;
-      const head = atHead > 0 && atHead >= atBody;
+      // A button punch too, now that it only counts on the way out (`HandState.striking`). It was
+      // exempt while it landed on the way back, which is most of where it landed.
+      const body = bodyPoint(hand.world, victim);
+      const atHead = nearHead ? speed * closingShare(hand, attacker, victim.head) : 0;
+      const atBody = nearBody ? speed * closingShare(hand, attacker, body) : 0;
+      // Closing on both alike, it lands on the head at head height and on the body below it. A tie
+      // used to go to the head, so a PC punch thrown level at the chest was a head shot every time
+      // (64 of 64), and in bot Boxing 3 % of all hits were ties below the chin scored as the head.
+      const head = atHead > atBody || (atHead > 0 && atHead === atBody && hand.world.y >= victim.head.y - config.headRadius);
       const landing = Math.max(atHead, atBody);
       if (landing < config.punchSpeed) continue;
+      // And if a glove is in the way of what it is arriving at, the glove takes it.
+      const blocked = guarded(hand, attacker, victim, head ? victim.head : body, config);
+      const through = blocked ? config.guardShare : 1;
 
       const staminaFactor = attacker.stamina > config.staminaCost ? 1 : 0.4;
       const speedFactor = clamp(landing / config.maxSpeed, 0.35, 1);
-      const damage = config.baseDamage * speedFactor * (head ? config.headMultiplier : 1) * staminaFactor;
+      const damage = config.baseDamage * speedFactor * (head ? config.headMultiplier : 1) * staminaFactor * through;
 
-      applyKnockback(victim, hand, config, speedFactor);
+      applyKnockback(victim, hand, config, speedFactor * through);
       victim.health = Math.max(0, victim.health - damage);
       victim.invulnTimer = Math.max(victim.invulnTimer, 0.25);
       // Credit for a knockout goes to whoever landed the last punch.
@@ -111,13 +128,14 @@ export function resolvePunches(
         victim,
         damage,
         head,
+        blocked,
         point: { ...hand.world },
         speed,
       };
       hits.push(hit);
       events.emit('punchHit', attacker.id, hand.world, tick, damage, {
         otherId: victim.id,
-        data: head ? 'head' : 'body',
+        data: blocked ? 'guard' : head ? 'head' : 'body',
       });
       if (victim.health <= 0) {
         victim.alive = false;
@@ -199,6 +217,57 @@ function closingShare(hand: HandState, attacker: PlayerState, target: Vec3): num
 /** Within 35° of straight at the target a punch lands with all its speed, and past 80° with none. */
 const CLOSING_FULL_COS = Math.cos((35 * Math.PI) / 180);
 const CLOSING_NONE_COS = Math.cos((80 * Math.PI) / 180);
+
+/**
+ * Whether one of the victim's gloves is in the way of a punch on its way to `target`: within
+ * `guardRadius` of the line to the target from `STRIKE_TRAIL` back along the punch's path, between
+ * the two, and held within `guardReach` of what it covers.
+ *
+ * Gloves stopped nothing before this. A VR player holding a textbook guard took a jab to the face
+ * at full damage, so the one defence in boxing was decoration, and the reviews of the game this
+ * mode is compared with praise exactly that ("guard matters, punch velocity matters").
+ *
+ * The line, not the glove's distance from the face, decides it, so a guard covers what is behind it
+ * from the side the punch comes from: two gloves in front of the face stop a straight, a hook
+ * arriving from the side gets round them, and a body shot goes under them.
+ *
+ * The path, not last tick's position: a punch registers anywhere in a generous hit zone, often
+ * after the glove has passed the guard (measured, every button punch into a guard got through when
+ * the line started where the glove was a tick before). Half a metre back along the way it is going
+ * is where it came from, for a straight and for the end of a hook alike.
+ *
+ * Only a hand the player put there. A tracked hand is wherever its owner holds it. A hand the game
+ * places (PC, mobile, bots) is placed at the chest whether or not anyone is defending, so it guards
+ * only while its owner holds the guard button and `locomotion.ts` has raised it.
+ */
+function guarded(hand: HandState, attacker: PlayerState, victim: PlayerState, target: Vec3, config: CombatConfig): boolean {
+  const vx = hand.velocity.x - attacker.velocity.x;
+  const vy = hand.velocity.y - attacker.velocity.y;
+  const vz = hand.velocity.z - attacker.velocity.z;
+  const v = Math.hypot(vx, vy, vz);
+  if (v < 1e-6) return false;
+  const back = STRIKE_TRAIL / v;
+  const from = v3set(_from, hand.world.x - vx * back, hand.world.y - vy * back, hand.world.z - vz * back);
+  const lx = target.x - from.x;
+  const ly = target.y - from.y;
+  const lz = target.z - from.z;
+  const length2 = lx * lx + ly * ly + lz * lz;
+  if (length2 < 1e-9) return false;
+  for (const glove of victim.hands) {
+    if (!glove.tracked && !victim.guarding) continue;
+    const g = glove.world;
+    if (Math.hypot(g.x - target.x, g.y - target.y, g.z - target.z) > config.guardReach) continue;
+    const t = ((g.x - from.x) * lx + (g.y - from.y) * ly + (g.z - from.z) * lz) / length2;
+    if (t <= 0 || t >= 1) continue;
+    const off = Math.hypot(g.x - (from.x + lx * t), g.y - (from.y + ly * t), g.z - (from.z + lz * t));
+    if (off <= config.guardRadius) return true;
+  }
+  return false;
+}
+
+/** How far back along a punch's path `guarded` looks for a glove in the way. */
+const STRIKE_TRAIL = 0.5;
+const _from = vec3();
 
 /** The nearest point on the victim's capsule core segment, the one `distanceToBody` measures to. */
 function bodyPoint(point: Vec3, victim: PlayerState): Vec3 {

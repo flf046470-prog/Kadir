@@ -84,6 +84,8 @@ somewhere else. `packages/core/src/input/intent.test.ts` scans the source and en
   in the phone's thumb cluster, and read by nothing. Measured: held for 900 ticks across four
   modes it moved no position, health, stamina or gadget charge and emitted no event. Removed; left
   as a hole so recorded intents still decode.
+- **`Guard` is bit 13** (PC `KeyE`, pad button 6, mobile GUARD; VR sends none — a tracked glove
+  guards where it is). See "A glove in the way takes the punch".
 - `PunchLeft` is sent by **no platform** — PC and mobile have one punch button and it says right.
   The bot's coin flip is the only producer. `locomotion.ts` therefore lets a held punch button
   fall back to the free fist **once the named one has finished its throw** (not merely while it is
@@ -3241,6 +3243,58 @@ A30 "can't get in", B8 an appeal contact.
 **How the store pages read.** Firecrawl's JSON extraction of `meta.com/experiences/<slug>/<id>/`
 with `waitFor` 4000 returns the rating, the histogram and the five ranked reviews; the page shows no
 more without interaction, so a sample is five a game. Probes: `.probe/{flail,pcpunch}.ts`.
+
+## A glove in the way takes the punch (A27), and a button punch landed on its way back
+
+Gloves stopped nothing: a VR player holding a textbook guard took a jab to the face at full damage,
+and PC and mobile had no hands to raise. `combat.ts` → `guarded` now asks whether one of the
+victim's gloves is within `guardRadius` (0.15) of the line a punch travels to what it is closing on —
+from `STRIKE_TRAIL` (0.5 m) back along its path, not from where it was last tick, because the hit
+zone is generous and a punch registers after it has passed the guard (measured: every button punch
+into a guard got through with the line starting a tick back). The glove must be within `guardReach`
+(0.45) of what it covers, so an arm held out is not a guard. A blocked punch does `guardShare` (0.2)
+of the damage and knockback, and `punchHit` carries `data: 'guard'` (a dull knock, a pale puff,
+"Blocked" on the HUD). The line decides, so a guard covers what is behind it from the side the punch
+comes from: a straight into raised gloves is stopped, a hook from the side and a body shot are not.
+
+- **PC and mobile get `Buttons.Guard`** (bit 13: `E`, pad button 6 — the left trigger, beside the
+  punch on 7 — and a GUARD touch button). It raises the placed gloves in front of the face, and a
+  punch goes straight out from there and back to it. **A placed glove counts only while the guard is
+  held**: it sits at the chest whether or not anyone is defending. A tracked hand always counts. VR
+  needs no button, and its hint says to hold the gloves up. On a landscape phone the action cluster
+  is four across now: a sixth button in three columns made a third row, which reached 16 px into the
+  gear cluster on an 844×390 screen (measured from the buttons' rects in a practice match).
+- **Measured, toe to toe** (`.probe/a27-guard.ts`), damage a second: jab into an open face 8.96;
+  into a raised VR guard 1.79 (16 of 16 blocked); gloves at arm's length 8.96, none blocked; into a
+  PC guard 1.79; a body dig under a PC guard 6.65, a 90° hook round either guard 8.96, neither
+  blocked; a PC punch looking up 23.6, into a guard 4.7–4.9; thrown from the guard 17.0.
+
+Doing it found the button punch was not what it looked like:
+
+- **It landed on the way back.** Toe to toe, 72 of 74 button hits were the fist retracting — still
+  past `punchSpeed`, and not a punch. `HandState.striking` is set by `locomotion.ts`: a placed hand
+  only during its throw's extension, a tracked hand always. It also ended the **grab toggle**:
+  pulling the placed hands out to climbing reach in one tick, every tick, landed 40.9 damage a
+  second with no punch button, twice the punch button's own.
+- **A level punch was a head shot every time** (64 of 64): button punches were exempt from
+  `closingShare`, so head and body tied, and a tie went to the head. They are judged by closing now,
+  and a tie goes to the head only at head height — in bot Boxing 19 % of hits are ties, 3 % of all
+  hits below the chin. A level PC punch is a body shot at 11.0 a second, looking up a head shot.
+- **The aim jumped.** `sin(pitch) * reach` switched on whole as a throw started: 13 cm in one tick
+  looking up, 10.8 m/s against the throw's 7.6. It grows with the throw now. A straight line up is
+  still 1.19× the speed of one level, because it is 0.80 m against 0.67 in the same time.
+- **Bots boxed from inside each other.** Players do not collide, so a bot that only stepped in ran
+  through its opponent: median distance at a throw 0.49 m over eight rounds (0.13 on the worst).
+  `PUNCH_STANDOFF` steps back inside 0.75 m: 0.96–1.08 m. And the head/body aim is drawn once a
+  punch (`aimHigh`), not every tick, which zig-zagged the fist 40 cm on its way.
+
+Bot Boxing, 4 bots × 16 rounds × 90 s, before → after: 128 → 150 hits a round, 10 % → 0 % on the way
+back, 73 % → 49 % head shots, 1,923 → 1,716 damage. Bots do not guard yet.
+
+`combat.test.ts` sets gloves up exactly where a rule has to decide (the tie, the guard gate) —
+the cases a whole fight cannot reach on purpose. Thirteen mutations, each failing its own test;
+four survived the first test set (placed gloves always guarding, the old tie, the old aim, no
+standoff) and each has a test now.
 
 ## A VR grab, from the trigger to the river
 

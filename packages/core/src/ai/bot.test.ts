@@ -259,6 +259,70 @@ describe('bots use their role’s weapon', () => {
     return { sim, tags, fireButtonPresses };
   }
 
+  /**
+   * Four bots boxing for a minute: hits landed, the pitch each held between punches, and the median
+   * distance to the nearest opponent at the tick a punch was thrown.
+   */
+  function boxing(seed: number): { hits: number; pitchChanges: number; pitchChangesOnThrow: number; throwDistance: number } {
+    const sim = new Simulation({ level, modeId: 'boxing', seed });
+    const bots = [0, 1, 2, 3].map((i) => {
+      sim.addPlayer({ id: `bot${i}`, name: botName(i) });
+      return new Bot(`bot${i}`, { skill: 0.7, seed: seed * 10 + i });
+    });
+    const lastPitch = new Map<string, number>();
+    let hits = 0;
+    let pitchChanges = 0;
+    let pitchChangesOnThrow = 0;
+    const distances: number[] = [];
+    for (let tick = 0; tick < 60 * 60; tick++) {
+      for (const bot of bots) {
+        const self = sim.players.get(bot.playerId);
+        if (!self) continue;
+        const intent = bot.think(self, sim.players.values(), level, 1 / 60, sim.mode.objectiveFor?.(self) ?? null);
+        const before = lastPitch.get(bot.playerId);
+        const throwing = (intent.buttons & (Buttons.PunchLeft | Buttons.PunchRight)) !== 0;
+        if (before !== undefined && before !== intent.lookPitch) {
+          pitchChanges++;
+          if (throwing) pitchChangesOnThrow++;
+        }
+        if (throwing) {
+          let nearest = Infinity;
+          for (const other of sim.players.values()) {
+            if (other.id === self.id || !other.alive) continue;
+            nearest = Math.min(nearest, Math.hypot(other.position.x - self.position.x, other.position.z - self.position.z));
+          }
+          distances.push(nearest);
+        }
+        lastPitch.set(bot.playerId, intent.lookPitch);
+        sim.setIntent(bot.playerId, intent, false);
+      }
+      sim.step();
+      hits += sim.events.drain().filter((e) => e.type === 'punchHit').length;
+    }
+    distances.sort((a, b) => a - b);
+    return { hits, pitchChanges, pitchChangesOnThrow, throwDistance: distances[distances.length >> 1] ?? 0 };
+  }
+
+  it('boxes at punching distance, not from inside the opponent', () => {
+    // Players do not collide, so a bot that only ever stepped in ran through its opponent and threw
+    // from the far side: every glove started behind its target, and 653 throws landed 7. Measured
+    // over eight 60 s rounds, the median distance at a throw was 0.13–1.00 m a round without
+    // stepping back inside 0.75 m (0.49 over all of them) and 0.96–1.08 with it; hits 785 → 983.
+    for (const seed of [1, 2, 3, 4]) {
+      const run = boxing(seed);
+      expect(run.hits, `seed ${seed}`).toBeGreaterThan(0);
+      expect(run.throwDistance, `seed ${seed}`).toBeGreaterThan(0.75);
+    }
+  });
+
+  it('aims a punch once, not afresh every tick it is out', () => {
+    // Drawn every tick, the aim flipped between head and body while the fist was out, and a punch
+    // aimed where the eyes are zig-zagged 40 cm up and down on its way.
+    const run = boxing(1);
+    expect(run.pitchChanges).toBeGreaterThan(10);
+    expect(run.pitchChangesOnThrow).toBe(run.pitchChanges);
+  });
+
   it('boxes in a Conversion Duel bout instead of waiting out the clock', () => {
     /**
      * Conversion Duel's premise is that a catch starts a fistfight, and the bots did not throw a
@@ -291,6 +355,9 @@ describe('bots use their role’s weapon', () => {
 
     const fighters = [kangaroo, human].map((p) => new Bot(p.id, { skill: 0.9, seed: 11 + p.id.length }));
     let punchHits = 0;
+    // Read during the bout, not after it: a bout that ends in a knockout converts the loser and
+    // restores both to full health, so the health left at the end says nothing about the fight.
+    let lowest = 100;
     for (let tick = 0; tick < 60 * 12; tick++) {
       for (const bot of fighters) {
         const self = sim.players.get(bot.playerId);
@@ -299,12 +366,12 @@ describe('bots use their role’s weapon', () => {
       }
       sim.step();
       punchHits += sim.events.drain().filter((e) => e.type === 'punchHit').length;
+      lowest = Math.min(lowest, kangaroo.health, human.health);
     }
 
     expect(punchHits).toBeGreaterThan(0);
-    // Somebody is visibly worse off than they started — a bout that ends level is a bout nobody
+    // Somebody was visibly worse off than they started — a bout that stays level is a bout nobody
     // fought, and that is what the tiebreak used to have to adjudicate.
-    const lowest = Math.min(kangaroo.health, human.health);
     expect(lowest).toBeLessThan(100);
   });
 

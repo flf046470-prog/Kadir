@@ -221,8 +221,9 @@ describe('Boxing mode', () => {
     runTicks(sim, TICK_RATE * 6);
     expect(sim.mode.state().phase).toBe('playing');
 
+    // B stands at A's right: A faces +z, so its right is -x.
     place(a, 0, 1, 40);
-    place(b, 0.7, 1, 40);
+    place(b, -0.7, 1, 40);
     b.invulnTimer = 0;
 
     // Drive A's right hand into B at punch speed, the way the VR platform layer would.
@@ -240,7 +241,7 @@ describe('Boxing mode', () => {
       sim.setIntent('a', intent);
       sim.step();
       place(a, 0, 1, 40);
-      place(b, 0.7, 1, 40);
+      place(b, -0.7, 1, 40);
     }
     expect(b.health).toBeLessThan(health);
   });
@@ -257,43 +258,57 @@ describe('Boxing mode', () => {
  * turning swung the hands through an arc that read as punch speed, and a hand teleported across
  * its reach envelope every tick read as any speed it liked.
  */
-describe('punch speed', () => {
-  type Pose = (tick: number, intent: InputIntent) => void;
+type Pose = (tick: number, intent: InputIntent) => void;
 
-  /** Toe to toe for `seconds`; the victim is healed every tick so the count is never cut short. */
-  function fight(pose: Pose, seconds = 10): { hits: number; worst: number; damage: number; heads: number } {
-    const sim = new Simulation({ level, modeId: 'boxing', seed: 9 });
-    const a = sim.addPlayer({ id: 'a' });
-    const b = sim.addPlayer({ id: 'b' });
-    runTicks(sim, TICK_RATE * 6);
-    sim.events.drain();
-    const intent = createIntent();
-    const idle = createIntent();
-    let hits = 0;
-    let worst = 0;
-    let damage = 0;
-    let heads = 0;
-    for (let t = 0; t < TICK_RATE * seconds; t++) {
-      place(a, 0, 1, 40);
-      place(b, 0, 1, 40.7);
-      b.health = 100;
-      b.alive = true;
-      pose(t, intent);
-      sim.setIntent('a', intent);
-      sim.setIntent('b', idle);
-      sim.step();
-      for (const event of sim.events.drain()) {
-        if (event.type !== 'punchHit' || event.playerId !== 'a') continue;
-        hits++;
-        worst = Math.max(worst, event.magnitude);
-        damage += event.magnitude;
-        if (event.data === 'head') heads++;
-      }
+/**
+ * Toe to toe for `seconds`: `a` at z 40 facing +z, `b` 0.7 m in front of it. The victim is healed
+ * every tick so the count is never cut short. `defend` poses `b`, idle by default; `onHit` sees the
+ * attacker on each tick one of its punches lands.
+ */
+function fight(
+  pose: Pose,
+  seconds = 10,
+  defend?: Pose,
+  onHit?: (attacker: PlayerState, at: { x: number; y: number; z: number }) => void,
+): { hits: number; worst: number; damage: number; heads: number; blocked: number } {
+  const sim = new Simulation({ level, modeId: 'boxing', seed: 9 });
+  const a = sim.addPlayer({ id: 'a' });
+  const b = sim.addPlayer({ id: 'b' });
+  runTicks(sim, TICK_RATE * 6);
+  sim.events.drain();
+  const intent = createIntent();
+  const guard = createIntent();
+  let hits = 0;
+  let worst = 0;
+  let damage = 0;
+  let heads = 0;
+  let blocked = 0;
+  for (let t = 0; t < TICK_RATE * seconds; t++) {
+    place(a, 0, 1, 40);
+    place(b, 0, 1, 40.7);
+    b.health = 100;
+    b.alive = true;
+    pose(t, intent);
+    defend?.(t, guard);
+    sim.setIntent('a', intent);
+    sim.setIntent('b', guard);
+    sim.step();
+    for (const event of sim.events.drain()) {
+      if (event.type !== 'punchHit' || event.playerId !== 'a') continue;
+      onHit?.(a, event.position);
+      hits++;
+      worst = Math.max(worst, event.magnitude);
+      damage += event.magnitude;
+      if (event.data === 'head') heads++;
+      if (event.data === 'guard') blocked++;
     }
-    return { hits, worst, damage, heads };
   }
+  return { hits, worst, damage, heads, blocked };
+}
 
-  const tracked = (x: number, y: number, z: number) => ({ tracked: true, pos: { x, y, z }, grip: 0 });
+const tracked = (x: number, y: number, z: number) => ({ tracked: true, pos: { x, y, z }, grip: 0 });
+
+describe('punch speed', () => {
 
   it('is not turning: a PC flick beside an opponent lands nothing', () => {
     // Measured before the fix: 58 hits in 20 s, punch button never pressed.
@@ -400,14 +415,75 @@ describe('punch speed', () => {
     expect(dig.heads).toBe(0);
   });
 
-  it('lands a button punch toe to toe with all its speed, though it runs on through the target', () => {
-    // The closing rule is for tracked hands. A button throw runs out to full reach whoever is in the
-    // way, and judged by closing speed lost two thirds of its damage at 0.7 m (18.6 → 6.3 a second).
-    const pc = fight((_t, intent) => {
+  it('lands a button punch on its way out, and only then', () => {
+    // A button throw is judged by what it is closing on, like a glove, now that it counts only on
+    // the way out (`HandState.striking`). It used to be exempt, and it landed on the way back: 72 of
+    // 74 hits toe to toe, at 18.6 a second, which is most of why judging it by closing lost two
+    // thirds of that (6.3). Thrown level it is a body shot at 11.0 a second, looking up a head
+    // shot at 23.6.
+    let back = 0;
+    const straight = fight(
+      (_t, intent) => {
+        intent.hands = null;
+        intent.buttons = Buttons.PunchRight;
+      },
+      10,
+      undefined,
+      (a, at) => {
+        // Either fist: a held button falls back to the free one once the other has thrown.
+        const hand = a.hands.find((h) => Math.hypot(h.world.x - at.x, h.world.y - at.y, h.world.z - at.z) < 1e-6);
+        if (!hand || hand.local.z <= hand.prevLocal.z) back++;
+      },
+    );
+    expect(straight.hits).toBeGreaterThan(20);
+    expect(back, 'a punch landed while the glove was coming back').toBe(0);
+    expect(straight.heads, 'a punch thrown level at the chest scored as a head shot').toBe(0);
+    expect(straight.damage / 10).toBeGreaterThan(9);
+
+    const up = fight((_t, intent) => {
       intent.hands = null;
       intent.buttons = Buttons.PunchRight;
+      intent.lookPitch = 0.5;
     });
-    expect(pc.damage / 10).toBeGreaterThan(15);
+    expect(up.heads).toBe(up.hits);
+    expect(up.damage).toBeGreaterThan(straight.damage * 1.6);
+  });
+
+  it('throws a fist looking up in a straight line, no faster than one thrown level', () => {
+    // The aim grows with the throw. Switched on whole as a throw started, it moved the fist 13 cm
+    // in its first tick looking up: 10.8 m/s against the throw's own 7.6, damage from a step in the
+    // code rather than from the punch. A straight line up is still a little longer than one level
+    // (0.80 m against 0.67 in the same time), so it is a little faster, and no more.
+    const peak = (pitch: number): number => {
+      const sim = new Simulation({ level, modeId: 'boxing', seed: 9 });
+      const p = sim.addPlayer({ id: 'p' });
+      runTicks(sim, TICK_RATE * 6);
+      const intent = createIntent();
+      let fastest = 0;
+      for (let t = 0; t < TICK_RATE * 3; t++) {
+        place(p, 0, 1, 40);
+        intent.hands = null;
+        intent.buttons = Buttons.PunchRight;
+        intent.lookPitch = pitch;
+        sim.setIntent('p', intent);
+        sim.step();
+        for (const hand of p.hands) fastest = Math.max(fastest, Math.hypot(hand.localVelocity.x, hand.localVelocity.y, hand.localVelocity.z));
+      }
+      return fastest;
+    };
+    expect(peak(0.5)).toBeLessThan(peak(0) * 1.25);
+  });
+
+  it('is not grabbing: toggling the grab lands nothing', () => {
+    // A grab pulls the placed hands out to climbing reach in one tick, past `punchSpeed`. Toe to
+    // toe, toggling it every tick landed 40.9 damage a second without the punch button: more than
+    // twice what the punch button does.
+    const toggle = fight((t, intent) => {
+      intent.hands = null;
+      intent.buttons = t % 2 ? Buttons.GrabLeft | Buttons.GrabRight : 0;
+      intent.lookPitch = 0.5;
+    });
+    expect(toggle.hits).toBe(0);
   });
 
   it('still lands an honest jab at its true speed', () => {
@@ -421,6 +497,119 @@ describe('punch speed', () => {
     expect(jab.hits).toBeGreaterThan(5);
     const expected = DEFAULT_COMBAT.baseDamage * (6 / DEFAULT_COMBAT.maxSpeed) * DEFAULT_COMBAT.headMultiplier;
     expect(jab.worst).toBeCloseTo(expected, 1);
+  });
+});
+
+/**
+ * A27: a glove in the way takes the punch.
+ *
+ * Gloves stopped nothing before this: a VR player holding a textbook guard took a jab to the face
+ * at full damage, and PC and mobile players had no hands to raise at all. `b` faces `a` here.
+ */
+describe('the guard', () => {
+  /** A 6 m/s jab at the face of a standing VR player, whose head is at 1.6 m. */
+  const jab: Pose = (t, intent) => {
+    const k = t % 36;
+    const z = k < 5 ? 0.15 + 0.1 * k : k < 25 ? 0.65 - 0.025 * (k - 5) : 0.15;
+    intent.hands = [tracked(0, 0, 0), tracked(0, 1.55, z)];
+    intent.hands[0].tracked = false;
+  };
+  /** VR, both hands where the defender puts them, facing the attacker. */
+  const vr =
+    (left: [number, number, number], right: [number, number, number]): Pose =>
+    (_t, intent) => {
+      intent.lookYaw = Math.PI;
+      intent.headHeight = 1.6;
+      intent.hands = [tracked(...left), tracked(...right)];
+    };
+  const raised = vr([-0.1, 1.53, 0.24], [0.1, 1.53, 0.24]);
+  const lowered = vr([-0.3, 1.0, 0.1], [0.3, 1.0, 0.1]);
+
+  it('takes most of a jab into raised gloves, and none into an open face', () => {
+    const open = fight(jab, 10, lowered);
+    const guarded = fight(jab, 10, raised);
+    expect(open.hits).toBeGreaterThan(5);
+    expect(open.blocked).toBe(0);
+    expect(guarded.blocked).toBe(guarded.hits);
+    expect(guarded.damage).toBeLessThan(open.damage * DEFAULT_COMBAT.guardShare * 1.05);
+  });
+
+  it('is not an arm held out: gloves at arm’s length cover nothing', () => {
+    const out = fight(jab, 10, vr([-0.1, 1.53, 0.6], [0.1, 1.53, 0.6]));
+    expect(out.hits).toBeGreaterThan(5);
+    expect(out.blocked).toBe(0);
+  });
+
+  it('covers the face from the front, so a hook from the side gets round it', () => {
+    // Across the side of the head, level with its centre: right to left at 6 m/s.
+    const hook: Pose = (t, intent) => {
+      const k = t % 36;
+      const x = k < 5 ? 0.6 - 0.1 * k : k < 25 ? 0.1 + 0.025 * (k - 5) : 0.6;
+      intent.hands = [tracked(0, 0, 0), tracked(x, 1.59, 0.7)];
+      intent.hands[0].tracked = false;
+    };
+    const round = fight(hook, 10, raised);
+    expect(round.hits).toBeGreaterThan(5);
+    expect(round.blocked).toBe(0);
+  });
+
+  it('gives PC and mobile a guard button, which raises the gloves the game places', () => {
+    const up = (_t: number, intent: InputIntent) => {
+      intent.hands = null;
+      intent.buttons = Buttons.PunchRight;
+      intent.lookPitch = 0.5;
+    };
+    const facing = (buttons: number): Pose => (_t, intent) => {
+      intent.hands = null;
+      intent.lookYaw = Math.PI;
+      intent.buttons = buttons;
+    };
+    const open = fight(up, 10, facing(0));
+    const guarded = fight(up, 10, facing(Buttons.Guard));
+    expect(open.heads).toBe(open.hits);
+    expect(guarded.blocked).toBe(guarded.hits);
+    expect(guarded.damage).toBeLessThan(open.damage * DEFAULT_COMBAT.guardShare * 1.05);
+  });
+
+  it('guards the face, so a body shot goes under it', () => {
+    const level: Pose = (_t, intent) => {
+      intent.hands = null;
+      intent.buttons = Buttons.PunchRight;
+      intent.lookPitch = 0;
+    };
+    const guarded = fight(level, 10, (_t, intent) => {
+      intent.hands = null;
+      intent.lookYaw = Math.PI;
+      intent.buttons = Buttons.Guard;
+    });
+    expect(guarded.hits).toBeGreaterThan(5);
+    expect(guarded.blocked).toBe(0);
+  });
+
+  it('is a raised guard, not a hand that happens to be in the way', () => {
+    // A placed glove is at the chest whether or not anyone is defending, and out on the centre line
+    // whenever its owner throws. Toe to toe, two PC players trading punches with no guard held block
+    // nothing.
+    const trade: Pose = (_t, intent) => {
+      intent.hands = null;
+      intent.buttons = Buttons.PunchRight;
+      intent.lookPitch = 0.5;
+    };
+    const exchange = fight(trade, 10, (t, intent) => {
+      trade(t, intent);
+      intent.lookYaw = Math.PI;
+    });
+    expect(exchange.hits).toBeGreaterThan(5);
+    expect(exchange.blocked).toBe(0);
+  });
+
+  it('still punches from the guard: the other glove stays up', () => {
+    const fromGuard = fight((_t, intent) => {
+      intent.hands = null;
+      intent.buttons = Buttons.PunchRight | Buttons.Guard;
+      intent.lookPitch = 0.5;
+    });
+    expect(fromGuard.heads).toBeGreaterThan(20);
   });
 });
 

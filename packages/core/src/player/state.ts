@@ -74,6 +74,15 @@ export interface HandState {
   local: Vec3;
   prevLocal: Vec3;
   localVelocity: Vec3;
+  /**
+   * Whether this hand can land a punch this tick. A tracked hand always can: its owner's arm is
+   * the punch. A hand the game places can only while a throw is on its way out, because the game
+   * moves it for other reasons too, and `combat.ts` used to read each of them as a punch: measured
+   * toe to toe, 72 of 74 button punches landed on the glove's way *back*, and toggling grab (which
+   * pulls the hands out to climbing reach in one tick) landed 40.9 damage a second without the
+   * punch button — more than twice what the punch button does.
+   */
+  striking: boolean;
   /** Seconds until this hand may register another punch. */
   punchCooldown: number;
   /**
@@ -101,6 +110,7 @@ export function createHandState(): HandState {
     local: vec3(),
     prevLocal: vec3(),
     localVelocity: vec3(),
+    striking: false,
     punchCooldown: 0,
     punchThrow: 0,
   };
@@ -167,6 +177,12 @@ export interface PlayerState {
   climbCollider: number;
 
   hands: [HandState, HandState];
+  /**
+   * Holding the guard button (PC, mobile): the hands the game places are raised in front of the
+   * face, and only then do they stop a punch (`combat.ts`). A tracked hand needs no button; it
+   * guards wherever its owner holds it. Taken from this tick's intent, never carried over.
+   */
+  guarding: boolean;
   /**
    * The body's velocity over the last `PULL_WINDOW` hand-driven ticks, as a ring, and how many
    * are filled. Letting go keeps their mean rather than the last tick's: a headset samples hands
@@ -275,6 +291,7 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     climbCollider: -1,
 
     hands: [createHandState(), createHandState()],
+    guarding: false,
     pull: Array.from({ length: PULL_WINDOW }, () => vec3()),
     pullCount: 0,
 

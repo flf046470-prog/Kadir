@@ -63,6 +63,8 @@ const SIDE_MEMORY = 2.5;
 const FIRE_RANGE = 34;
 /** Past this far apart a fighter closes the distance instead of swinging at air. */
 const PUNCH_RANGE = 1.15;
+/** Closer than this a fighter steps back: two capsules touch at 0.7 m. */
+const PUNCH_STANDOFF = 0.75;
 /** Roughly where an opponent's head sits relative to the puncher, for the 1.6x head multiplier. */
 const HEAD_AIM_PITCH = 0.5;
 
@@ -77,6 +79,8 @@ export class Bot {
   private jumpTimer = 0;
   private grabTimer = 0;
   private punchTimer = 0;
+  /** Whether the punch this bot is throwing is aimed at the head. */
+  private aimHigh = false;
   private fireTimer = 0;
   private aimError = 0;
   /** Where the bot was when the current progress window opened, and how long ago that was. */
@@ -608,8 +612,11 @@ export class Bot {
     const dx = opponent.position.x - self.position.x;
     const dz = opponent.position.z - self.position.z;
     intent.lookYaw = approachAngle(self.yaw, Math.atan2(dx, dz), dt * (6 + this.options.skill * 8));
-    // Closing is worth more than circling: step in when out of reach, hold the stance when in it.
-    intent.moveZ = best > PUNCH_RANGE ? 1 : 0;
+    // Closing is worth more than circling: step in when out of reach, hold the stance when in it,
+    // and step back out of the opponent. Players do not collide, so a bot running in at 7 m/s slid
+    // through to the other side of its opponent and stayed there: measured, the median distance at
+    // a throw was 0.20 m, every glove started behind the target, and 653 throws landed 7.
+    intent.moveZ = best > PUNCH_RANGE ? 1 : best < PUNCH_STANDOFF ? -1 : 0;
     intent.moveX = 0;
 
     // Skill decides how often a bot is actually swinging rather than resetting its guard, so a
@@ -621,9 +628,12 @@ export class Bot {
       intent.buttons |= this.rand.bool(0.5) ? Buttons.PunchLeft : Buttons.PunchRight;
       // A skilled bot doubles up; a poor one leaves gaps the player can punish.
       this.punchTimer = this.rand.range(0.05, 0.75) * (1.4 - this.options.skill);
+      // Head shots are worth 1.6x, and aiming for them is the skill the bot is being graded on.
+      // Chosen once a punch: drawn every tick, the aim flipped head to body and back while the fist
+      // was out, and a punch aimed where the eyes are zig-zagged 40 cm up and down on its way.
+      this.aimHigh = this.rand.bool(this.options.skill);
     }
-    // Head shots are worth 1.6x, and aiming for them is the skill the bot is being graded on.
-    intent.lookPitch = this.rand.bool(this.options.skill) ? HEAD_AIM_PITCH : 0;
+    intent.lookPitch = this.aimHigh ? HEAD_AIM_PITCH : 0;
     intent.tick = 0;
     return intent;
   }

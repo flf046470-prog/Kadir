@@ -89,6 +89,8 @@ export class VRInput implements PlatformInput {
     const physical = [
       { action: 'Turn', hint: 'Right thumbstick' },
       { action: 'Punch', hint: 'Throw a real punch' },
+      // A glove held in front of the face takes a punch arriving through it (`combat.ts`, `guarded`).
+      { action: 'Guard', hint: 'Hold your gloves up in front of your face' },
       // Implemented in the simulation, not by a button: `locomotion.ts` crouches a tracked player
       // whose head drops below 1.15 m. Worth saying out loud in a game about not being seen.
       { action: 'Crouch', hint: 'Duck your head — there is no crouch button' },

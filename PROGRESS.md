@@ -3,6 +3,20 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-25 — A27: a guard in Boxing (interactive)
+
+**Done:** a glove on the line of a punch takes it (`combat.ts` → `guarded`, 20 % gets through);
+`Buttons.Guard` for PC (E, pad left trigger) and mobile (GUARD button); VR hint. Found on the way
+and fixed: button punches landed on the way back, a level one was always a head shot, the aim
+jumped 13 cm in a tick looking up, grab-toggling landed 40.9 a second with no punch, and bots
+boxed from inside each other. CLAUDE.md → "A glove in the way takes the punch".
+
+**Measured:** jab 8.96 → 1.79 a second into raised VR gloves, same into a PC guard; hook and body
+shot not blocked; bot Boxing 128 → 150 hits a round, 73 % → 49 % head. Thirteen mutations, each
+failing its own test. `npm run verify` green.
+
+**Next:** the owner's new request — team boxing (1v1–4v4) and a cage fight.
+
 ## 2026-10-24 (night) — left and right were swapped on every platform (interactive)
 
 **Done:** the simulation's body "right" was the character's left. Fixed in `locomotion.ts` (the

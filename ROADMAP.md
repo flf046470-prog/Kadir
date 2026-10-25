@@ -184,10 +184,12 @@ passes. Writing the code does not tick it.
 - [ ] **A25. `docs/QA_PC.md` and `docs/QA_VR.md` as runnable checklists**, with every check that can
   run in CI running there.
 - [ ] **A26. Season 2**: cosmetics earned, never bought, on the 8-week cadence of Milestone C.
-- [ ] **A27. Guard in Boxing** (from the Meta store reviews, `docs/META_STORE_RESEARCH.md` §1).
+- [x] **A27. Guard in Boxing** (from the Meta store reviews, `docs/META_STORE_RESEARCH.md` §1).
   Gloves raised in front of the head absorb most of a punch that meets them. Exit: a jab into a
   raised guard lands a fraction of one into an open face, a test on it, and an answer for PC and
   mobile players, who have no hands to raise.
+  *Done 2026-10-25:* 8.96 → 1.79 a second into a raised guard, a hook and a body shot get round it;
+  `Buttons.Guard` for PC (E, left trigger) and mobile (GUARD). CLAUDE.md → "A glove in the way".
 - [ ] **A28. Repeated targeting** (§2). How often one player is the target of the same chaser or
   hunter round after round, measured with bots; a rule only if the number is material.
 - [ ] **A29. Prey that fights back** (§6). Runner distance covered with a chaser within 15 m, with and

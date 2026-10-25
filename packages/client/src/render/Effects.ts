@@ -401,6 +401,12 @@ export function recipeFor(event: SimEvent, rand: Rand, lastGround?: SurfaceMater
     }
     case 'punchHit': {
       const hit = event.magnitude;
+      if (event.data === 'guard') {
+        // Stopped by a glove: a small pale puff where the gloves met, no burst of sparks.
+        flash(at, 0xdfe8ff, 0.35, out.glow);
+        sparks(at, 0xdfe8ff, 5, 2.5, 0.1, 0.25, rand, out.glow);
+        break;
+      }
       flash(at, 0xfff6d8, 0.7, out.glow);
       sparks(at, PUNCH_COLOR, Math.round(10 + Math.min(14, hit * 0.5)), 6, 0.15, 0.38, rand, out.glow);
       break;

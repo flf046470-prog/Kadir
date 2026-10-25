@@ -228,10 +228,13 @@ export const UI_CSS = `
 /* Landscape phones are short: shrink the control cluster and the scoreboard so they never
    overlap. A control the player cannot reach is worse than a control they cannot read. */
 @media (max-height: 480px) {
-  .kc-touchbtns { grid-template-columns: repeat(3, 60px); gap: 8px; }
+  /* Four across, two rows: a third row (GUARD made six buttons) reached 16px into the gear
+     cluster above it on an 844x390 phone. */
+  .kc-touchbtns { grid-template-columns: repeat(4, 60px); gap: 8px; }
   .kc-touchbtns--gear { grid-template-columns: repeat(2, 52px); gap: 6px; }
   .kc-touchbtn { width: 60px; height: 60px; font-size: 11px; }
-  .kc-touchbtn--big { width: 72px; height: 72px; grid-column: 3; grid-row: 1 / span 2; align-self: end; }
+  .kc-touchbtn--big { width: 72px; height: 72px; grid-column: 4; grid-row: 1 / span 2; align-self: end; }
+  .kc-touchbtns--gear .kc-touchbtn--big { grid-column: 3; }
   .kc-scores { font-size: 11px; padding: 6px 9px; min-width: 108px; max-height: 34vh; overflow: hidden; }
   .kc-headline { font-size: 20px; }
   .kc-chat { bottom: 96px; font-size: 11px; width: 62vw; }

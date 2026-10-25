@@ -254,8 +254,7 @@ function withPadButton(index: number, run: () => void): void {
  *
  * Asserted over the whole pad rather than on that one pair, because the failure is a property of
  * the mapping — any future control dropped onto an occupied index fails here the same way. Two
- * buttons sharing an *action* is fine and deliberate (L3 and the left trigger both sprint); the
- * invariant runs the other way.
+ * buttons sharing an *action* would be fine; the invariant runs the other way.
  */
 describe('the gamepad mapping', () => {
   let dom: ReturnType<typeof fakeDom>;
@@ -297,10 +296,15 @@ describe('the gamepad mapping', () => {
     expect(maskFor(2)).toBe(Buttons.UseGadget);
   });
 
+  it('guards on the left trigger, beside the punch on the right', () => {
+    expect(maskFor(6)).toBe(Buttons.Guard);
+    expect(maskFor(7)).toBe(Buttons.PunchRight);
+  });
+
   it('still reaches every control the keyboard has', () => {
     // A mapping with no collisions is easy to get by deleting bindings, so pin the coverage too.
     const reachable = Array.from({ length: 17 }, (_, i) => maskFor(i)).reduce((a, b) => a | b, 0);
-    for (const action of ['Jump', 'Sprint', 'Crouch', 'GrabLeft', 'GrabRight', 'PunchRight', 'Emote', 'UseGadget', 'CycleGadget', 'Shop', 'Talk'] as const) {
+    for (const action of ['Jump', 'Sprint', 'Crouch', 'GrabLeft', 'GrabRight', 'PunchRight', 'Guard', 'Emote', 'UseGadget', 'CycleGadget', 'Shop', 'Talk'] as const) {
       expect(reachable & Buttons[action], `${action} is unreachable on a gamepad`).toBeTruthy();
     }
   });
