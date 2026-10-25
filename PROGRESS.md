@@ -3,6 +3,19 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-25 (evening) — CI red on 60c8f31: the world behind a menu
+
+**Done:** `check:smoke` timed out in CI on the practice click (30 s, after "click action done").
+Cause, measured: the main menu draws the whole world behind an 86–95 % opaque screen at full cost,
+and Cage Fight's spawn facing turned that view towards the map's busy middle (frames 1.5 → 2.3 s in
+swiftshader, the `setLook` line alone). A Playwright click waits on about ten frames. Under a menu
+the world is drawn one frame in four now (`game/backdrop.ts`), never in a headset.
+
+**Measured:** Playwright clicks, practice 22.5 → 7.6 s, leave match 21.1 → 4.7 s; `check:smoke`
+exit 0 on all three viewports; two mutations of the rule each fail `backdrop.test.ts`.
+
+**Next:** the owner's request — first-person view, hand tracking, the kangaroo's legs, easter eggs.
+
 ## 2026-10-25 (afternoon) — Cage Fight: team boxing in a cage (interactive, A31)
 
 **Done:** mode `cage-fight`, 1v1 up to 4v4 in a steel cage on every map (`LevelBuilder.cage`,

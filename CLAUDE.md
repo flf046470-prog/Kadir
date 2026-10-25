@@ -3524,6 +3524,26 @@ passed every test, because the test's winners also had more health. It is tested
 **Found, not fixed:** the jungle's 83 scattered `boulder` props (up to 1.39 scale) and its undergrowth
 rocks have no collider. A spectator's camera ended inside one beside the cage. Roadmap A32.
 
+## The world behind a menu was drawn at full cost
+
+Every menu screen is a `.kc-screen` whose background is 86–95 % opaque, and the world behind it was
+still drawn every frame — measured in swiftshader on the jungle, ~2 s a frame on the main menu, the
+same as in play. On a phone that is battery spent on a tint. It also made `check:smoke` fragile:
+Playwright's `click` waits on about ten of the page's frames (a real click measured 17.6 s of its
+30 s limit), and when Cage Fight's spawn facing turned the backdrop from the map's edge wall towards
+its busy middle (+50 % frame time), the practice click timed out in CI after "click action done" /
+"waiting for scheduled navigations to finish" — a line that says nothing about frames.
+
+`game/backdrop.ts`: under a menu (`GameCallbacks.worldCovered`, wired to
+`shell.currentScreen !== 'none'`) the world is drawn one frame in `BACKDROP_EVERY` (4), starting with
+the first; the simulation, camera and sound still run every frame. Never in a headset — an undrawn
+XR frame is a reprojected one. Measured, Playwright's own clicks: practice 22.5 s → 7.6 s, leave
+match 21.1 s → 4.7 s; `check:smoke` passes locally on all three viewports.
+
+**The governor needs 120 frames before it will judge** (`MIN_SAMPLES`, "roughly two seconds at
+60 fps"). At 2 s a frame that is four minutes at a tier the device cannot hold, and at 10 fps it is
+twelve seconds — the devices that most need a lower tier wait longest. Not changed here; noted.
+
 ## The plan has two tracks, and only one of them waits on the owner
 
 The scheduled sessions spent five runs reporting "nothing safe and useful is left to do" while most

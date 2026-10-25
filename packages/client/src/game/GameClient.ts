@@ -46,6 +46,7 @@ import { easeRigHeight, isTeleport } from '../platform/vr/comfort.js';
 import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { practiceLevelFor } from './practice.js';
+import { drawsFrame } from './backdrop.js';
 import { captureFocusOf, captureViewOf } from './captureView.js';
 import type { CaptureView } from './captureView.js';
 import { Renderer } from '../render/Renderer.js';
@@ -72,6 +73,8 @@ export interface GameCallbacks {
   onShopToggle(): void;
   /** The moderator report queue changed, or a moderator action came back. Optional. */
   onModeration?(): void;
+  /** True while a menu screen covers the world, which is then drawn one frame in `BACKDROP_EVERY`. */
+  worldCovered(): boolean;
 }
 
 /** One other player, as the safety panel shows them. */
@@ -211,6 +214,8 @@ export class GameClient {
   private inputSuspended = false;
 
   private accumulator = 0;
+  /** Frames since a menu covered the world; see `drawsFrame`. */
+  private coveredFrames = 0;
   private lastFrameTime = 0;
   private running = false;
   private online = false;
@@ -1140,7 +1145,10 @@ export class GameClient {
     if (local) this.renderer.updateShadowFocus(local.position.x, local.position.z);
 
     this.stats.players = this.remotes.size + 1;
-    this.renderer.render();
+    const covered = this.callbacks.worldCovered();
+    const draw = drawsFrame(this.coveredFrames, covered, this.renderer.renderer.xr.isPresenting);
+    this.coveredFrames = covered ? this.coveredFrames + 1 : 0;
+    if (draw) this.renderer.render();
   }
 
   private stepSimulation(): void {

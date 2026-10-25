@@ -346,6 +346,8 @@ async function main(): Promise<void> {
       profileForQuality: profile,
       tuning,
       callbacks: {
+        // Every screen is a near-opaque `.kc-screen` over the canvas; see `BACKDROP_EVERY`.
+        worldCovered: () => shell.currentScreen !== 'none',
         onModeState: (state) => {
           hud?.update(state, game?.localPlayer);
           if (wristHud) {
