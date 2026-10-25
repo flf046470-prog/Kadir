@@ -87,6 +87,31 @@ describe('Simulation', () => {
     runTicks(sim, 30);
     expect(Math.hypot(player.velocity.x, player.velocity.z)).toBeLessThan(player.config.maxHorizontalSpeed);
   });
+
+  it('reports each placement once, with the facing it gave, before an intent can turn it back', () => {
+    // A flat-screen client's intent carries its view's yaw, so every spawn point's facing was
+    // undone the tick after it was set. The `placed` event is how the client hears of it.
+    const placed = (): { id: string; yaw: unknown }[] =>
+      sim.events.drain().filter((e) => e.type === 'placed').map((e) => ({ id: e.playerId, yaw: e.data }));
+    const player = sim.addPlayer({ id: 'a' });
+    const spawnYaw = player.yaw;
+    const intent = createIntent();
+    intent.lookYaw = spawnYaw + 2;
+    sim.setIntent('a', intent);
+    sim.step();
+    // Joining is reported with the spawn's facing, not the intent's that ran in the same step.
+    expect(placed()).toEqual([{ id: 'a', yaw: spawnYaw }]);
+    runTicks(sim, 5);
+    expect(placed()).toEqual([]);
+    // A fall to the kill plane is a placement too.
+    place(player, player.position.x, level.killPlaneY - 5, player.position.z);
+    player.alive = false;
+    sim.step();
+    const after = placed();
+    expect(after).toHaveLength(1);
+    expect(after[0]?.yaw).toBe(player.yaw);
+    expect(player.yaw).not.toBe(intent.lookYaw);
+  });
 });
 
 describe('Kangaroo Chase mode', () => {

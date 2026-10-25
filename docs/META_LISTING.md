@@ -31,25 +31,26 @@ faster, jumps higher, or hits harder.
 
 ## Long description
 
-1485 of a maximum 1500 characters (line breaks counted as two — see `scripts/lib/copy.mjs`).
+1499 of a maximum 1500 characters (line breaks counted as two — see `scripts/lib/copy.mjs`).
 
 ```
 Kangaroo Chase is a physical-movement social game: in VR your hands and body are the controller,
 not a joystick standing in for one. Climb a ledge by reaching for it, throw a punch by throwing
 one, and cover ground the way a kangaroo does — leaning into a hop, not pressing a button.
 
-Ten modes across three worlds:
-- Kangaroo Chase — the tag mode the game is named for. Hop, climb and wall-bounce through the
-  jungle to escape the chaser, or close the gap if you are it.
+Eleven modes across three worlds:
+- Kangaroo Chase — the tag mode the game is named for. Escape the chaser through the jungle,
+  or close the gap if you are it.
 - The Hunt — one armed hunter, several survivors racing the clock. Earn cash mid-round for traps,
   smoke and armour.
 - Conversion Duel — a fistfight for keeps. Lose, and you convert to the winner's species.
 - Roo Ball — two teams, one giant ball, no hands. Hop into it to score.
+- Cage Fight — team boxing in a steel cage, 1v1 up to 4v4.
 - Freeze Tag, King of the Hill, Infection, Parkour Race, VR Boxing and a Training Room round out
   the roster, and private rooms take house rules.
 
-Play with up to 32 people per room, with voice chat that fades with distance so you hear who is
-actually near you. Cross-play means a friend on a phone or PC can share a match with you
+Up to 32 people per room, with voice chat that fades with distance so you hear who is near
+you. Cross-play means a friend on a phone or PC can share a match with you
 in a headset.
 
 Fairness is a hard rule: every animal and gadget is free, season cosmetics are earned by playing,
@@ -60,9 +61,9 @@ Comfort: snap or smooth turning, a vignette that scales with how much you turn, 
 height calibration.
 ```
 
-Every claim in it is checkable against this repository rather than aspirational: ten mode files
+Every claim in it is checkable against this repository rather than aspirational: eleven mode files
 under `packages/core/src/modes/` (`chase`, `hunt`, `duel`, `freezetag`, `hill`, `infection`,
-`parkour`, `boxing`, `rooball`, `social`) plus the custom-mode editor (`packages/core/src/modes/custom.ts`);
+`parkour`, `boxing`, `rooball`, `cage`, `social`) plus the custom-mode editor (`packages/core/src/modes/custom.ts`);
 `KC_MAX_PLAYERS` defaults to 32 (`docs/DEPLOY.md`), capped lower per mode by its `maxPlayers`; voice falloff is `proximityGainAt` in
 `packages/core/src/modes/social.ts`, applied by `packages/client/src/audio/VoiceChat.ts`; the
 free-item and no-pay-to-win claims are

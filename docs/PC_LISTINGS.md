@@ -49,11 +49,11 @@ official subtitle" on a capsule and nothing else, and there is no official subti
 
 ## Short description
 
-270 of a maximum 300 characters.
+280 of a maximum 300 characters.
 
 ```
 Hop, climb and wall-bounce as a kangaroo, or any of 16 animals, through jungle, glacier and
-outback. Tag, hunt, brawl and play Roo Ball across 10 game modes with up to 32 players and
+outback. Tag, hunt, fight in a cage and play Roo Ball across 11 game modes with up to 32 players and
 proximity voice chat. No loot boxes, and nothing for sale makes you faster or stronger.
 ```
 
@@ -64,7 +64,7 @@ so the same 300 keeps one text for both.
 
 ## About this game
 
-2031 of a maximum 10,000 characters.
+2174 of a maximum 10,000 characters.
 
 ```
 Kangaroo Chase is a physical tag game for up to 32 players. You do not press a button to move
@@ -82,9 +82,11 @@ the cave and the canyon, or close the gap if you are it.
 - The Hunt: one armed hunter against a team of survivors and a clock. Earn cash mid-round for
 traps, smoke and armour.
 - Roo Ball: two teams, one giant ball and no hands. Hop into it to score.
+- Cage Fight: two corners and a steel cage. The card runs 1v1, 2v2, 3v3 and 4v4, and a fight
+goes to the corner with somebody still standing.
 - Conversion Duel: a fistfight for keeps. Lose, and you become the winner's species.
 - Freeze Tag, King of the Hill, Infection, Parkour Race and VR Boxing, plus a Training Room to
-learn the moves against bots. That makes 10 game modes, and private rooms take house rules.
+learn the moves against bots. That makes 11 game modes, and private rooms take house rules.
 
 THREE WORLDS
 
@@ -115,7 +117,7 @@ that is the limit held. No links, no other games, no imitation of the store's ow
 all three are refused by Steam's description rules. No other storefront is named, which keeps the
 same text clear of Epic's rule on media that references other platforms.
 
-Every claim was checked against the code, not written to sound right: 16 animals and 10 modes are
+Every claim was checked against the code, not written to sound right: 16 animals and 11 modes are
 `listAnimals()` and `listModes()`; 32 players is `KC_MAX_PLAYERS`; 3% is `FEEL_BAND` and the
 hitbox is unchanged by `visual.scale` (`AnimalVisual`); mute/block/report is the Players & safety
 menu; party-follow is `SocialService`; earned season cosmetics are `SEASON_SHELF` and the season
@@ -204,7 +206,7 @@ against the game.
 ```
 Hop, climb and wall-bounce
 3 worlds to chase across
-10 game modes
+11 game modes
 16 animals, one set of rules
 Up to 32 players
 Coming soon. No loot boxes, no pay-to-win.

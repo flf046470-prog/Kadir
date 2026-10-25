@@ -93,6 +93,18 @@ describe('mouse look without pointer lock', () => {
     expect(look(input).yaw).toBeLessThan(0);
   });
 
+  it('faces where the game placed the player, and the mouse carries on from there', () => {
+    // A `placed` event (a spawn, a cage corner) calls this; the intent carries the view's yaw, so
+    // without it the next tick turned the player straight back.
+    input.setLook(1.2, 0);
+    expect(look(input).yaw).toBe(1.2);
+    dom.fire('mousedown', { button: 0, target: null });
+    dom.fire('mousemove', { movementX: 100, movementY: 0 });
+    const turned = look(input).yaw;
+    expect(turned).toBeLessThan(1.2);
+    expect(turned).toBeGreaterThan(0.5);
+  });
+
   it('ignores mouse movement when no button is held, since the cursor cannot be recentred', () => {
     dom.fire('mousemove', { movementX: 100, movementY: 0 });
     expect(look(input).yaw).toBe(0);

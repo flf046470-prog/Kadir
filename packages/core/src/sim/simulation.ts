@@ -196,6 +196,7 @@ export class Simulation {
     this.locomotion.tick = this.tick;
     this.modeCtx.tick = this.tick;
     this.gadgetCtx.tick = this.tick;
+    this.reportPlacements();
 
     for (const player of this.players.values()) {
       if (!player.active) continue;
@@ -231,6 +232,21 @@ export class Simulation {
     // stopped being the hunter this tick no longer has a rifle when their projectiles resolve.
     this.mode.step(this.modeCtx);
     this.gadgets.step(this.gadgetCtx);
+    // Last, so the facing reported is the one the mode left, whoever placed the player this tick.
+    this.reportPlacements();
+  }
+
+  /**
+   * A `placed` event for every player put somewhere since the last report, with the facing they
+   * were given. Also run at the top of `step`: a player placed between steps (`addPlayer`) would
+   * otherwise be reported after their first intent had already turned them back.
+   */
+  private reportPlacements(): void {
+    for (const player of this.players.values()) {
+      if (!player.placed) continue;
+      player.placed = false;
+      this.events.emit('placed', player.id, player.position, this.tick, 0, { data: player.yaw });
+    }
   }
 
   /**

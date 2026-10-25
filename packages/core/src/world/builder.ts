@@ -6,7 +6,7 @@ import { SurfaceFlags, makeRaycastResult } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
 import { colliderAabb, colliderBottom, colliderReach, colliderTop, makeAabb } from '../physics/geometry.js';
 import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
-import type { BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
+import type { ArenaDef, BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
 
 export interface SurfacePreset {
   friction: number;
@@ -14,6 +14,14 @@ export interface SurfacePreset {
   flags: number;
   material: SurfaceMaterial;
 }
+
+/** A fight cage: centre to each fence panel, the fence's height, the floor's, and the floor's margin past the fence. */
+export const CAGE_RADIUS = 6;
+export const CAGE_FENCE = 3.2;
+export const CAGE_FLOOR = 0.5;
+export const CAGE_APRON = 1.2;
+/** A fence panel's thickness. */
+const CAGE_PANEL = 0.08;
 
 /**
  * Thinnest a ramp step may be, in metres.
@@ -131,6 +139,11 @@ export const SURFACES = {
   cliffRock: { friction: 1, bounciness: 0.05, flags: SurfaceFlags.NoGrip, material: 'rock' },
   cliffIce: { friction: 0.28, bounciness: 0.05, flags: SurfaceFlags.NoGrip | SurfaceFlags.Slippery, material: 'ice' },
   cliffRedRock: { friction: 1, bounciness: 0.05, flags: SurfaceFlags.NoGrip, material: 'redRock' },
+  /**
+   * A fight cage's chain-link fence and its posts. No grip for the boundary's reason: a fence a
+   * headset player can climb is a way out of the fight.
+   */
+  cageMesh: { friction: 0.6, bounciness: 0.15, flags: SurfaceFlags.NoGrip, material: 'metal' },
 } as const satisfies Record<string, SurfacePreset>;
 
 export type SurfaceName = keyof typeof SURFACES;
@@ -172,6 +185,7 @@ export class LevelBuilder {
   readonly checkpoints: CheckpointDef[] = [];
   readonly zones: ZoneDef[] = [];
   readonly portals: PortalDef[] = [];
+  readonly arenas: ArenaDef[] = [];
   private nextId = 0;
   /** Raycasts against what is built so far, rebuilt when something is added. */
   private probe: { world: PhysicsWorld; count: number } | null = null;
@@ -348,6 +362,8 @@ export class LevelBuilder {
     for (const p of this.portals) out.push({ position: p.position, pad: p.radius + 1.5, anyHeight: false });
     for (const c of this.checkpoints) out.push({ position: c.position, pad: Math.min(c.radius, 3), anyHeight: false });
     for (const body of this.bodies) out.push({ position: body.position, pad: 1, anyHeight: true });
+    // The floor's corners, and a step's width round them where people stand to watch.
+    for (const arena of this.arenas) out.push({ position: arena.center, pad: (arena.radius + CAGE_APRON) * Math.SQRT2 + 1.5, anyHeight: false });
     for (const zone of this.zones) {
       for (const exit of zone.exits ?? []) {
         out.push({ position: exit.foot, pad: 2, anyHeight: true });
@@ -604,6 +620,73 @@ export class LevelBuilder {
         zone,
       );
     }
+  }
+
+  /**
+   * A fight cage: a square floor `CAGE_FLOOR` high with an octagon of fence on it, the fence
+   * `radius` from the centre to each panel and `CAGE_FENCE` tall. `groundY` is the ground it stands
+   * on; the floor reaches half a metre below it, so ground that rolls a little leaves no gap under
+   * the edge.
+   *
+   * The fence is eight thin panels marked `drawAs: 'cage'` (drawn as chain-link, see
+   * `render/Cage.ts`) and a post at each corner. It is taller than any hop and lower than a charged
+   * one (about 5 m), so in Cage Fight leaving it is a choice, and is scored as one (a ring-out).
+   * Decoration already standing in the footprint is removed: a bush through a fight floor is a bush
+   * growing out of the canvas.
+   *
+   * Call it before `sculpt` and before anything is scattered, so the ground and the undergrowth
+   * both work round it; `sites()` keeps a pad round its corners clear.
+   */
+  cage(x: number, groundY: number, z: number, zone: string, radius = CAGE_RADIUS): ArenaDef {
+    const top = groundY + CAGE_FLOOR;
+    const half = radius + CAGE_APRON;
+    this.box(vec3(x, (top + groundY - 0.5) / 2, z), vec3(half, (top - groundY + 0.5) / 2, half), 'wood', 0, zone);
+
+    const side = 2 * radius * Math.tan(Math.PI / 8);
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      // A box's local +Z faces (sin yaw, 0, cos yaw): yawed to `angle`, its long local X runs across
+      // the line from the centre, which is what a fence panel does.
+      const panel = this.box(
+        vec3(x + Math.sin(angle) * radius, top + CAGE_FENCE / 2, z + Math.cos(angle) * radius),
+        vec3(side / 2, CAGE_FENCE / 2, CAGE_PANEL / 2),
+        'cageMesh',
+        angle,
+        zone,
+      );
+      if (panel.kind === 'box') panel.drawAs = 'cage';
+      const corner = angle + Math.PI / 8;
+      const reach = radius / Math.cos(Math.PI / 8);
+      this.cylinder(vec3(x + Math.sin(corner) * reach, top + CAGE_FENCE / 2 + 0.1, z + Math.cos(corner) * reach), 0.09, CAGE_FENCE / 2 + 0.1, 'cageMesh', zone);
+    }
+
+    // So are the loose rock spheres a map strews about: one at a corner stood 10 cm proud of the floor.
+    const cleared: Vec3[] = [];
+    for (let i = this.colliders.length - 1; i >= 0; i--) {
+      const c = this.colliders[i] as Collider;
+      if (c.kind !== 'sphere' || c.center.y - c.radius > top) continue;
+      if (Math.abs(c.center.x - x) <= half + c.radius && Math.abs(c.center.z - z) <= half + c.radius) {
+        this.colliders.splice(i, 1);
+        cleared.push(c.center);
+      }
+    }
+    // The prop drawn on a cleared boulder goes with it, wherever its centre is: a sphere reaches
+    // further than the footprint a prop is cleared from, and a rock left behind would be one you
+    // walk through.
+    // `rocks` stands the prop on the ground under the sphere's centre, so match it in plan.
+    const onCleared = (prop: PropInstance): boolean =>
+      prop.kind === 'rock' && cleared.some((c) => Math.abs(c.x - prop.position.x) < 0.01 && Math.abs(c.z - prop.position.z) < 0.01);
+    for (let i = this.props.length - 1; i >= 0; i--) {
+      const prop = this.props[i] as PropInstance;
+      const inside = Math.abs(prop.position.x - x) <= half + 0.5 && Math.abs(prop.position.z - z) <= half + 0.5 && prop.position.y < top + CAGE_FENCE;
+      if (inside || onCleared(prop)) this.props.splice(i, 1);
+    }
+    // Colliders were taken out as well as added, so a count no longer says the probe is current.
+    this.probe = null;
+
+    const arena: ArenaDef = { center: vec3(x, top, z), radius, fenceHeight: CAGE_FENCE };
+    this.arenas.push(arena);
+    return arena;
   }
 
   /**
@@ -886,6 +969,7 @@ export class LevelBuilder {
       checkpoints: this.checkpoints,
       zones: this.zones,
       portals: this.portals,
+      arenas: this.arenas,
     };
   }
 }

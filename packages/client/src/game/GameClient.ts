@@ -886,6 +886,7 @@ export class GameClient {
       this.effects.handleEvent(event, this.renderer.camera.getWorldPosition(this.tmpVec2));
       if (isLocal && event.type === 'portal') this.enterPortal(String(event.data ?? ''));
       if (isLocal && event.type === 'land') this.applyLandingKick(event.magnitude);
+      if (isLocal && event.type === 'placed' && typeof event.data === 'number') this.input.setLook?.(event.data, 0);
       if (isLocal || event.otherId === this.localId) {
         this.callbacks.onLocalEvent(event);
         this.playHaptics(event, isLocal);
@@ -1347,13 +1348,15 @@ export class GameClient {
     // (or a platform switch mid-session) cannot resurface later as a stale dip.
     this.landingKick = Math.max(0, this.landingKick - dt * 6);
 
+    // A respawn, a kickoff, a cage corner: the body moved further than it could have by moving.
+    const teleported =
+      this.rigPlaced && isTeleport(px - this.rigLast.x, py - this.rigLast.y, pz - this.rigLast.z, Math.hypot(local.velocity.x, local.velocity.y, local.velocity.z), dt);
+    this.rigLast.set(px, py, pz);
+    this.rigPlaced = true;
+
     if (this.input.kind === 'vr') {
-      // Teleports (respawn, kickoff) are cut to black and faded in; vertical snaps the body's own
-      // velocity does not explain (a step, a push out of a collider) are eased. See `easeRigHeight`.
-      const teleported =
-        this.rigPlaced && isTeleport(px - this.rigLast.x, py - this.rigLast.y, pz - this.rigLast.z, Math.hypot(local.velocity.x, local.velocity.y, local.velocity.z), dt);
-      this.rigLast.set(px, py, pz);
-      this.rigPlaced = true;
+      // Teleports are cut to black and faded in; vertical snaps the body's own velocity does not
+      // explain (a step, a push out of a collider) are eased. See `easeRigHeight`.
       if (teleported) this.rigHeight.ready = false;
       const rigY = easeRigHeight(this.rigHeight, py, local.velocity.y, dt);
       this.renderer.rig.position.set(px, rigY, pz);
@@ -1375,7 +1378,11 @@ export class GameClient {
     }
 
     this.cameraYaw = local.yaw;
-    this.cameraPitch += (local.pitch - this.cameraPitch) * Math.min(1, dt * 14);
+    // A teleport cuts. Eased, the camera flew from the old place to the new one through whatever
+    // stood between them, about ten frames of it.
+    const ease = (perSecond: number): number => (teleported ? 1 : Math.min(1, dt * perSecond));
+    const follow = ease(16);
+    this.cameraPitch += (local.pitch - this.cameraPitch) * ease(14);
 
     const headY = py + local.height * 0.85;
     const orbitPitch = this.cameraPitch - CAMERA_ELEVATION;
@@ -1400,7 +1407,7 @@ export class GameClient {
     // the whole view sliding — a byproduct of leaving `lookAt` alone rather than a second effect.
     const dip = this.landingKick * LANDING_DIP_HEIGHT;
     this.tmpVec.set(px - dirX * distance, headY - dirY * distance + CAMERA_HEIGHT * 0.25 - dip, pz - dirZ * distance);
-    this.renderer.camera.position.lerp(this.tmpVec, Math.min(1, dt * 16));
+    this.renderer.camera.position.lerp(this.tmpVec, follow);
     // Look ahead of the kangaroo along its facing, further at speed, and follow the player's own
     // pitch so looking up still looks up.
     const speed = Math.hypot(local.velocity.x, local.velocity.z);

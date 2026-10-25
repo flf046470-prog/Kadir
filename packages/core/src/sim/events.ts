@@ -31,7 +31,13 @@ export type SimEventType =
   /** A loose body was kicked, caught, thrown or bounced. `data` says which; see `bodies/`. */
   | 'bodyHit'
   /** Roo Ball: the ball crossed a goal line. `data` is the scoring team, `playerId` the last toucher. */
-  | 'goal';
+  | 'goal'
+  /**
+   * The simulation put a player somewhere: a spawn, a respawn, a kickoff, a cage corner. `data` is
+   * the yaw it turned them to. A flat-screen client turns its view to it, because its intent
+   * carries the view's own yaw and would turn the player straight back on the next tick.
+   */
+  | 'placed';
 // `chat` and `voice` were members here and were never emitted by anything, in either direction:
 // no `.emit()` call site in this package named them, and no consumer existed in any of the three
 // switches that turn an event into something a player perceives. Both already have a working home

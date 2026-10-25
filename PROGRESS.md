@@ -3,6 +3,32 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-25 (afternoon) — Cage Fight: team boxing in a cage (interactive, A31)
+
+**Done:** mode `cage-fight`, 1v1 up to 4v4 in a steel cage on every map (`LevelBuilder.cage`,
+`ArenaDef`, maps `version` 9, a tenth lobby door); chain-link fence (`render/Cage.ts`). Found on the
+way and fixed:
+- No spawn facing ever reached a PC or mobile player. It is a `placed` event now, and it calls
+  `setLook`, which had no caller.
+- Teleports flew the flat-screen camera across the map; they cut now.
+- The fence vanished past ~40 m (alpha test against mip-averaged alpha); it is blended now.
+- Ring-outs credited stale punches and played a self-knockout cue; both fixed.
+- A cleared boulder could leave its rock prop behind; it goes with the boulder now.
+
+CLAUDE.md → "Cage Fight".
+
+**Measured:**
+- Bots, 8 players, 2 rounds a map: 31 / 34 / 35 fights, 0 friendly hits, 0 fighter-ticks outside the
+  fence.
+- In a browser, the view against the cage: cageside 2.75 → 0.00 rad, a corner 2.90 → 0.15 rad.
+- Fence pixels at 45 m: 0 → 5.9k.
+- 21 core and 4 render mutations, each failing its own test.
+- The `code-review` skill ran on the diff; 7 findings fixed, 1 false (roles do not carry over: every
+  round is a new `Simulation`).
+
+**Next:** A32 (the jungle's 83 collider-less boulder props), then A28; task #4 (the store kit) still
+waits for a rebuild, since the copy now says 11 modes.
+
 ## 2026-10-25 — A27: a guard in Boxing (interactive)
 
 **Done:** a glove on the line of a punch takes it (`combat.ts` → `guarded`, 20 % gets through);

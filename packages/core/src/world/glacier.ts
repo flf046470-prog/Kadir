@@ -40,6 +40,10 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   b.spawn(vec3(0, 0.5, 0), 0, 'shelf', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
   b.lobbyToys(vec3(0, 0.5, 0), 0);
+  // The fight cage, on the open ice between the doors and the rink's south rim. Measured over the whole
+  // rink: one of two places where the floor is clear and there is room to stand round the fence
+  // without a pressure ridge or the rim in the way; the other is the top of the crevasse's way out.
+  b.cage(-2, 0, -27, 'shelf');
 
   b.zone('shelf', vec3(0, 0, 0), 50, 'canyon', 0.04);
   // Below the ice and genuinely dark — the same role the jungle's cave plays, and the reason the
@@ -69,7 +73,8 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
     //    12 of 39 tags repeats. The ice columns moved to the floor past the ramp's foot; the wall
     //    ledges, which climbed to nowhere under the roof, are gone.
     // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
-    version: 8,
+    // 9: a fight cage beside the lobby, and a tenth door (Cage Fight) in the ring.
+    version: 9,
     seed,
     killPlaneY,
     // Scales with the map: 54 puts the turn-back at 40.5 m, which is this rink's far rim, and

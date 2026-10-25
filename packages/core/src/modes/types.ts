@@ -209,4 +209,9 @@ export type GameModeFactory = (def: GameModeDef) => GameMode;
  * when sliding past, and slow down on the way in. Roo Ball needs that to reach a ball; a race does
  * not, and turning it on for every mode wedged racers that the unhurried version never wedged.
  */
-export type Objective = Vec3 & { arrive?: boolean };
+/**
+ * `arrive`: slow down and stop on the point rather than run through it (Roo Ball, a fighter's
+ * corner). `brawl`: the objective is not a place but a fight — box the nearest player of another
+ * team (`red`/`blue`) who is still in it; the point is only where the fight is.
+ */
+export type Objective = Vec3 & { arrive?: boolean; brawl?: boolean };

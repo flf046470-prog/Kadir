@@ -115,6 +115,15 @@ export interface PlatformInput {
    * vibrator is too coarse for events this frequent, and a desktop has nothing to buzz.
    */
   feedback?(event: HapticEvent, hand?: 'left' | 'right' | 'both', scale?: number): void;
+  /**
+   * Point the view where the simulation just turned the player (a `placed` event).
+   *
+   * PC and mobile own their view's yaw and send it in every intent, so a facing the server gives
+   * a spawn is undone a tick later unless the view is turned to it. VR does not implement this on
+   * purpose: a headset's yaw is the player's own head, and turning the world round it is a
+   * comfort decision, not a correction.
+   */
+  setLook?(yaw: number, pitch: number): void;
 }
 
 export interface UiHost {

@@ -34,6 +34,8 @@ export const ROLE_BADGES: Record<PlayerRole, { label: string; tone: 'threat' | '
  */
 export const MODE_ROLE_NAMES: Readonly<Record<string, Partial<Record<PlayerRole, string>>>> = {
   duel: { chaser: 'KANGAROO', runner: 'HUMAN' },
+  // Cage Fight: you are in a corner, or cageside waiting for your fight.
+  'cage-fight': { red: 'RED CORNER', blue: 'BLUE CORNER', spectator: 'CAGESIDE' },
 };
 
 /**

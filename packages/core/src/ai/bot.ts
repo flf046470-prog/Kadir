@@ -138,7 +138,7 @@ export class Bot {
     others: Iterable<PlayerState>,
     level: LevelDef,
     dt: number,
-    objective: { x: number; y: number; z: number; arrive?: boolean } | null = null,
+    objective: { x: number; y: number; z: number; arrive?: boolean; brawl?: boolean } | null = null,
   ): InputIntent {
     const precise = objective?.arrive === true;
     const intent = this.intent;
@@ -152,7 +152,9 @@ export class Bot {
 
     // Inside the ring nothing else applies: a fighter has one opponent, cannot leave, and the
     // only thing that resolves the bout is damage.
-    if (self.role === 'fighter') return this.fight(self, others, dt);
+    if (self.role === 'fighter') return this.fight(self, others, dt, false);
+    // A team fight (Cage Fight): the same boxing, against the other corner.
+    if (objective?.brawl) return this.fight(self, others, dt, true);
 
     const chasing = THREAT_ROLES.has(self.role);
     const target = this.pickTarget(self, others, chasing);
@@ -588,12 +590,15 @@ export class Bot {
    * wide margin; matching on the mode's bout list instead would mean handing the AI a view of
    * mode internals that no player has.
    */
-  private fight(self: PlayerState, others: Iterable<PlayerState>, dt: number): InputIntent {
+  private fight(self: PlayerState, others: Iterable<PlayerState>, dt: number, teams: boolean): InputIntent {
     const intent = this.intent;
     let opponent: PlayerState | null = null;
     let best = Infinity;
     for (const other of others) {
-      if (other.id === self.id || other.role !== 'fighter' || !other.active) continue;
+      if (other.id === self.id || !other.active || !other.alive) continue;
+      // In a team fight the other corner is the opponent, and a team-mate is not; everyone else
+      // (`spectator`, cageside) is not in the fight at all.
+      if (teams ? (other.role !== 'red' && other.role !== 'blue') || other.role === self.role : other.role !== 'fighter') continue;
       const distance = v3distance(self.position, other.position);
       if (distance < best) {
         best = distance;

@@ -21,6 +21,23 @@ export interface SpawnPoint {
   tag?: 'runner' | 'chaser' | 'start' | 'lobby';
 }
 
+/**
+ * A fight cage standing in the world: an octagon of fence on a raised floor.
+ *
+ * Part of the level rather than conjured by the mode that fights in it, because it has to be
+ * solid the same way on the server, in every client's prediction and in the renderer, and a room
+ * changes mode between rounds without changing map. Only Cage Fight puts anybody in it; in every
+ * other mode it is a landmark beside the lobby that a charged hop clears.
+ */
+export interface ArenaDef {
+  /** The middle of the floor, on its surface. */
+  center: Vec3;
+  /** Centre to the middle of each fence panel (the octagon's apothem). */
+  radius: number;
+  /** How high the fence stands above the floor. */
+  fenceHeight: number;
+}
+
 export type GripKind = 'branch' | 'ledge' | 'vine' | 'rock' | 'root';
 
 /** Explicit, authored grab points. Surfaces are also grabbable, but grips are highlighted. */
@@ -78,6 +95,7 @@ export const LOBBY_MODE_IDS = [
   'boxing',
   'parkour',
   'roo-ball',
+  'cage-fight',
 ] as const;
 
 export interface ZoneDef {
@@ -135,6 +153,8 @@ export interface LevelDef {
   bodies?: BodySpawn[];
   /** Doorways into the game modes, standing in the lobby. */
   portals: PortalDef[];
+  /** Fight cages. Every shipped map has one; a map without one plays Cage Fight in a ring. */
+  arenas?: ArenaDef[];
   killPlaneY: number;
   /**
    * How far from the origin the game is *worth playing*, not how far it is possible to walk.

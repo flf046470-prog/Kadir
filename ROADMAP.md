@@ -196,6 +196,15 @@ passes. Writing the code does not tick it.
   without gadgets, in Kangaroo Chase and Infection: does a freeze gun turn running into camping?
 - [ ] **A30. "Can't get in"** (§7). What a browser and a Quest player see when the server is down, a
   room is full or the protocol differs — a clear message for each, checked by a probe.
+- [x] **A31. Cage Fight** (the owner's request, 2026-10-25): team boxing, 1v1 up to 4v4, in a steel
+  cage on every map. *Done:* a cage beside each lobby and a tenth door; corners for the round, a fight
+  card that climbs 1v1 → the smaller team (at most 4v4), knockouts and ring-outs, the bench rotated.
+  Bots, 8 players, 2 rounds a map: 30–35 fights, 28 of 31 by knockout on the jungle, no friendly hits,
+  nobody outside the fence. CLAUDE.md → "Cage Fight".
+- [ ] **A32. Undergrowth rocks you walk through.** The jungle's scattered `boulder` and `rock` props
+  have no collider (83 boulders, up to 1.39 scale): a rock a player passes through and the camera ends
+  up inside. Found from a Cage Fight screenshot. Exit: each is solid or is small enough to be
+  ground cover, decided per size and measured on the bots like the fallen logs.
 
 ### Track B: the account holder, by month
 

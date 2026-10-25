@@ -36,6 +36,9 @@ what you would guess, and defects that were found by measuring rather than by re
 ## API shapes that are not what you would guess
 
 - `Simulation`: the intent API is **`sim.setIntent(id, intent)`** — there is no `applyIntent`.
+- **A facing set by the simulation reaches a flat-screen client only as a `placed` event**
+  (`data` = yaw), which calls `PlatformInput.setLook`. Write `player.yaw` after `respawnPlayer` and
+  it is reported; turn a player without placing them and the next intent undoes it. See "Cage Fight".
 - **The body's right is `(-cos yaw, 0, sin yaw)`**, forward `(sin yaw, 0, cos yaw)`. It was the
   character's left until "Left and right were swapped on every platform". Anything that writes
   body-local x by hand must use it, and is checked against a three.js camera, never against a copy.
@@ -3432,6 +3435,94 @@ Boxing went 111 → 109 hits a round over 32 seeds, which is noise: the first 8 
 
 Five mutations, each reverting one fix alone and failing its own test: the axis (three tests), the
 climb tangent, `toBodyLocal` (three), `stepAgainstBody` and the avatar's hands.
+
+## Cage Fight: team boxing in a steel cage, and a facing nobody received
+
+The owner asked for 1v1 up to 4v4 boxing in a cage (`Bir yeni mod ekleyelim … kafes dövüşü`). Mode
+`cage-fight` (`modes/cage.ts`), a tenth lobby door. The cage is **level geometry**, not something a
+mode spawns: `LevelBuilder.cage` lays a wood floor, eight `cageMesh` panels (`NoGrip`, so a VR player
+cannot climb out) and eight posts, and records an `ArenaDef`. Physics, the renderer and prediction
+needed nothing new, and a room can change mode between rounds without changing map. Each map has one
+(`version` 9 everywhere), placed where `levels.test.ts`'s site rules and the cage's own tests pass.
+
+- **Rules.** Corners are fixed for the round. The card climbs 1v1, 2v2… up to the smaller team, at
+  most 4v4 (`fightCard`), and cycles. The bench is picked by fewest fights fought, then by a shuffle.
+  A knockout or leaving the cage (`outsideCage`: the octagon itself, +0.3 m, or 1.2 m below the floor)
+  sends a fighter cageside. A fight goes to the corner left standing; at 45 s, to more standing, then
+  to more health between them. `canDamage` allows only standing fighters of opposite corners, during
+  the fight.
+- **A knockout is credited only to the other corner of this fight.** `lastTaggedBy` outlives a fight,
+  and a fighter who stepped out untouched used to score a knockout for whoever hit them last, perhaps
+  from the bench. That ring-out was also sent as `punchHit` from the victim to the victim, so their own
+  client played the hardest hit cue in the game as the puncher. Now nothing punch-shaped is sent, and
+  going cageside is a `roleChange` to `spectator`: the quiet chime and "You are now CAGESIDE".
+- **Bots brawl through `Objective.brawl`.** `Bot.fight(…, teams)` takes the nearest standing player
+  of the other team colour.
+  - Measured with 8 bots, 2 rounds a map: 31 / 34 / 35 fights, 28 / 32 / 33 of them by knockout.
+  - Median fight 7.8–8.9 s; every size was played.
+  - 0 friendly hits, and 0 fighter-ticks outside the fence out of 288k.
+- **`cage()` clears loose boulders and props from its footprint, and nothing else.** A sphere is
+  cleared if it reaches the footprint and a prop only if it stands in it, so the rock drawn on a big
+  boulder just outside could stay behind with no collider. Now both go together. It also resets the
+  builder's probe cache, which is keyed on the collider count, a count that removals had just made
+  meaningless. `cage.test.ts` fits a capsule every half metre on each fight floor, because a trunk or
+  crate there would stand through the floor mid-fight. Mutation: one trunk in the jungle cage fails it.
+
+### The fence was invisible from the lobby
+
+The chain-link was alpha-tested at 0.5, and under a third of its tile is wire, so from the third mip
+level on the average alpha is below any cut-off that keeps the holes open up close. Measured with a
+fixed camera (`probe-cage.html`, untracked) as fence pixels at each distance:
+
+| | 6 m | 20 m | 30 m | 45 m | 60 m |
+| --- | --- | --- | --- | --- | --- |
+| alpha-tested | 84k | 11k | 1.7k | **0** | **0** |
+| blended | 126k | 34k | 14k | 5.9k | 3.2k |
+
+Up close the total contrast is unchanged (6,347 vs 6,360). In the game, from the jungle spawn 44 m
+away, only the two rails were drawn: a cage of floating bars.
+
+The fence is blended now, with no depth write and one pass for both sides. Every texel is the same
+grey, holes included, because black under the holes darkened the far haze; and since every texel is
+that one grey, the order the panels blend in cannot show. The mesh sits at the cage rather than at the
+origin, because transparent objects are sorted by their own position. `Cage.test.ts` has 4 mutations.
+
+### The facing a spawn gives never reached a flat-screen player
+
+Every spawn point has a `yaw`, and every mode sets one when it places somebody: the kickoff, the
+corner, the bench. **None of it ever reached a PC or mobile player.** Their intent carries their
+view's yaw, so the tick after the placement turned them straight back. `PCInput.setLook` existed,
+documented as "applied by the settings screen", and nothing called it.
+
+`respawnPlayer` sets `PlayerState.placed`. `Simulation.step` reports it once as a `placed` event
+whose `data` is the yaw, and `GameClient` calls `input.setLook(yaw, 0)` for the local player. Two
+details matter:
+
+- **The report runs at the top of `step` as well as at the end.** A placement between steps
+  (`addPlayer`) was otherwise reported after the first intent had already turned the player back,
+  and it carried the intent's yaw. The trace showed every join reported at yaw 0.
+- **VR does not implement `setLook`, on purpose.** A headset's yaw is the player's own head.
+
+Measured in a real browser, Cage Fight on the jungle, angle between the view and the cage:
+
+| | before | after |
+| --- | --- | --- |
+| cageside | 2.75 rad (the cage behind them) | 0.00 |
+| in a corner | 2.90 rad | 0.15–0.24 (facing the other corner, off the middle by their slot) |
+
+A teleport also cuts the flat-screen camera now: eased at `dt * 16`, it flew through whatever stood
+between the old place and the new one for about ten frames.
+
+The `code-review` skill's findings on this work were each checked before acting. Seven were fixed:
+the fence, the stale credit, the self-knockout cue, the boulder props, the probe cache, the pitch
+easing written twice, and a redundant check. One was false. "Roles carry over between rounds" is
+wrong because every round is a new `Simulation` (`Room.startNextRound`), with its players created
+`idle`. Mutation testing found one further gap: removing "more fighters standing wins at the bell"
+passed every test, because the test's winners also had more health. It is tested on its own now.
+21 core mutations and 4 render mutations each fail their own test.
+
+**Found, not fixed:** the jungle's 83 scattered `boulder` props (up to 1.39 scale) and its undergrowth
+rocks have no collider. A spectator's camera ended inside one beside the cage. Roadmap A32.
 
 ## The plan has two tracks, and only one of them waits on the owner
 

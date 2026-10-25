@@ -4,6 +4,7 @@ import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
 import type { BoxCollider, Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import { terrainGeometry } from './Terrain.js';
 import { cliffGeometry } from './Cliffs.js';
+import { buildCageFence } from './Cage.js';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
 import type { PerformanceProfile } from '../platform/Platform.js';
 import type { AssetLibrary } from './AssetLibrary.js';
@@ -95,6 +96,7 @@ const PORTAL_COLORS: Record<string, number> = {
   boxing: 0xdc2626,
   parkour: 0x9b5de5,
   'roo-ball': 0x2fae5a,
+  'cage-fight': 0xb8c1cc,
 };
 
 /**
@@ -116,6 +118,7 @@ const PORTAL_LABELS: Record<string, string> = {
   boxing: 'VR Boxing',
   parkour: 'Parkour Race',
   'roo-ball': 'Roo Ball',
+  'cage-fight': 'Cage Fight',
 };
 
 export class LevelRenderer {
@@ -131,6 +134,7 @@ export class LevelRenderer {
    * per round.
    */
   private disposables: (THREE.BufferGeometry | THREE.Material | THREE.Texture)[] = [];
+  private cageDisposers: (() => void)[] = [];
   private instanced: THREE.InstancedMesh[] = [];
   private checkpointRings: THREE.Mesh[] = [];
   private portals: { group: THREE.Group; arch: THREE.Mesh; material: THREE.MeshStandardMaterial }[] = [];
@@ -386,6 +390,7 @@ export class LevelRenderer {
     const buckets = new Map<string, { collider: Collider; index: number }[]>();
     const logs: BoxCollider[] = [];
     const branches: BoxCollider[] = [];
+    const fence: BoxCollider[] = [];
     const cliffs = new Map<SurfaceMaterial, BoxCollider[]>();
     this.level.colliders.forEach((collider, index) => {
       if (collider.kind === 'heightfield') {
@@ -398,6 +403,10 @@ export class LevelRenderer {
       }
       if (collider.kind === 'box' && collider.drawAs === 'branch') {
         branches.push(collider);
+        return;
+      }
+      if (collider.kind === 'box' && collider.drawAs === 'cage') {
+        fence.push(collider);
         return;
       }
       // `enclose` only ever builds them square to the axes; a turned one is drawn as the box it is.
@@ -450,6 +459,12 @@ export class LevelRenderer {
     if (logs.length > 0) this.buildLogs(logs);
     if (branches.length > 0) this.buildBranches(branches);
     for (const [material, walls] of cliffs) this.buildCliffs(material, walls);
+    if (fence.length > 0) {
+      const cage = buildCageFence(fence, (collider, out) => colliderMatrix(collider, out), this.profile.shadows);
+      this.group.add(cage.fence, cage.rails);
+      this.instanced.push(cage.fence, cage.rails);
+      this.cageDisposers.push(cage.dispose);
+    }
   }
 
   /** The walls round the map, as one mesh of carved rock per surface. See `Cliffs.ts`. */
@@ -896,6 +911,7 @@ export class LevelRenderer {
     this.distantLand.dispose();
     for (const mesh of this.instanced) mesh.dispose();
     for (const item of this.disposables) item.dispose();
+    for (const dispose of this.cageDisposers) dispose();
     this.group.clear();
   }
 }

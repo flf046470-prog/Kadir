@@ -170,6 +170,11 @@ export interface PlayerState {
   /** Seconds of tag immunity (after being tagged or respawning). */
   invulnTimer: number;
   tagCooldown: number;
+  /**
+   * Set by `respawnPlayer`: the simulation put this player somewhere this tick. `Simulation.step`
+   * reports it once as a `placed` event carrying the facing the placement gave, and clears it.
+   */
+  placed: boolean;
 
   climbing: boolean;
   climbAnchor: Vec3;
@@ -284,6 +289,7 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     staggerTimer: 0,
     invulnTimer: 0,
     tagCooldown: 0,
+    placed: false,
 
     climbing: false,
     climbAnchor: vec3(),
@@ -342,6 +348,7 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
   player.stamina = 100;
   player.winded = false;
   player.invulnTimer = 1.5;
+  player.placed = true;
   player.tagCooldown = 0;
   player.lastIntentTick = tick;
   // Status effects die with the life; charges and cash do not, because they are round-scoped

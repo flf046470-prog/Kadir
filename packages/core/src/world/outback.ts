@@ -55,6 +55,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   b.body('football', vec3(18, 0.4, -12));
   b.body('beachball', vec3(-16, 0.6, 14));
   buildSpawns(b);
+  // The fight cage, out on the flat south-west of the doors (measured: the nearest clear 16 m disc).
+  b.cage(-22, 0, -16, 'flat');
 
   b.zone('flat', vec3(0, 0, 0), 72, 'jungle', 0);
   b.zone('gorge', vec3(-74, -8, 0), 34, 'canyon', 0.25);
@@ -84,7 +86,8 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
     // 6: the apron is terrain that rolls and rises to the edge, instead of a flat sheet to a wall.
     // 7: the creek runs in a channel cut 0.3 m into the bed, so the water is the ground in it.
     // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
-    version: 8,
+    // 9: a fight cage beside the lobby, and a tenth door (Cage Fight) in the ring.
+    version: 9,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every

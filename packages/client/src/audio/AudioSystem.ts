@@ -275,13 +275,16 @@ export class AudioSystem {
         this.roleCue(at, String(event.data ?? ''), isLocalPlayer);
         break;
       case 'roundState':
-        // Phase changes arrive through the mode state every tick and need no cue. The two that do
-        // are Conversion Duel's: a catch that starts a fistfight, and the bell that ends it level.
+        // Phase changes arrive through the mode state every tick and need no cue. The ones that do
+        // are the fights': the bell that starts one (Conversion Duel's bouts, Cage Fight's fights),
+        // a bout ending level, and a cage fight decided — two strokes of the bell, lower for a draw.
         if (event.data === 'bout') {
           this.impact(at, 0.8, 240);
           this.chime(at, 540, 3);
-        } else if (event.data === 'draw') {
+        } else if (event.data === 'draw' || event.data === 'fight:draw') {
           this.chime(at, 300, 2);
+        } else if (typeof event.data === 'string' && event.data.startsWith('fight:')) {
+          this.chime(at, 600, 2);
         }
         break;
       default:

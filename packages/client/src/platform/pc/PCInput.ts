@@ -294,7 +294,7 @@ export class PCInput implements PlatformInput {
     event.preventDefault();
   };
 
-  /** Applied by the settings screen so sensitivity changes take effect immediately. */
+  /** See `PlatformInput.setLook`. */
   setLook(yaw: number, pitch: number): void {
     this.yaw = yaw;
     this.pitch = pitch;

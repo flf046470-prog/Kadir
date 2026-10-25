@@ -102,8 +102,11 @@ export interface BoxCollider extends ColliderBase {
    *
    * `branch` is a climbable tree branch (`LevelBuilder.tree`): drawn as a round, tapering bough
    * inscribed in the box — its top is the box's top — rather than as a square plank.
+   *
+   * `cage` is a fight cage's fence panel (`LevelBuilder.cage`): drawn as chain-link you can see
+   * through, which is the point of a cage — the fight is for the people round it.
    */
-  drawAs?: 'log' | 'cliff' | 'branch';
+  drawAs?: 'log' | 'cliff' | 'branch' | 'cage';
 }
 
 export interface SphereCollider extends ColliderBase {

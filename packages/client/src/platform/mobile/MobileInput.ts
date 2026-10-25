@@ -231,6 +231,7 @@ export class MobileInput implements PlatformInput {
     );
   }
 
+  /** See `PlatformInput.setLook`. */
   setLook(yaw: number, pitch: number): void {
     this.yaw = yaw;
     this.pitch = pitch;

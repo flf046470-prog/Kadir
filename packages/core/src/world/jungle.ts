@@ -43,6 +43,8 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
   b.spawn(vec3(0, 0.5, 3), 0, 'jungle', 'lobby');
   b.addModePortals(LOBBY_MODE_IDS, vec3(0, 0.5, 0));
   b.lobbyToys(vec3(0, 0.5, 0), 0);
+  // The fight cage, south-west of the doors on open ground (measured: the nearest clear 16 m disc).
+  b.cage(-18, 0, -19, 'jungle');
 
   // Everything that stands on the floor exists now, so the floor can take its shape round it; the
   // undergrowth is scattered after, onto the ground as it finally is.
@@ -73,7 +75,8 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 7: fallen logs are solid and lie down — six were posts, and the undergrowth's could be walked through.
     // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
     //    It had closed the gap round the north end of the canyon's west wall to 0.5 m.
-    version: 8,
+    // 9: a fight cage beside the lobby, and a tenth door (Cage Fight) in the ring.
+    version: 9,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
