@@ -117,6 +117,9 @@ button.go:hover { filter: brightness(1.1); }
 @media (pointer: coarse) { .keys { display: none; } .keys-touch { display: block; } }
 body.cam-on #objective { opacity: 0; }
 @media (prefers-reduced-motion: reduce) { #cam .tlx i { animation: none; } #fade, #card { transition-duration: .01s; } }
+.lang { display: inline-flex; gap: .5rem; align-items: center; margin-top: 1rem; font-size: .9rem; opacity: .85; }
+.lang select { background: transparent; color: inherit; border: 1px solid currentColor; padding: .2rem .4rem; font: inherit; }
+.lang option { color: #000; }
 </style>
 
 <canvas id="view" aria-label="Oyun görüntüsü"></canvas>
@@ -171,6 +174,7 @@ body.cam-on #objective { opacity: 0; }
       <button class="go ghost" id="continueBtn" type="button" hidden>Devam et</button>
       <button class="go ghost quit" type="button" hidden>Masaüstüne çık</button>
     </div>
+    <label class="lang">🌐 <select class="langSel" aria-label="Language"></select></label>
   </div>
 </section>
 
@@ -180,7 +184,8 @@ body.cam-on #objective { opacity: 0; }
     <div class="settings">
       <label for="sens">Fare hassasiyeti <input id="sens" type="range" min="0.4" max="2.5" step="0.1" value="1"></label>
       <label for="bobToggle"><input id="bobToggle" type="checkbox" checked> Kamera sallanması</label>
-      <label for="quality">Görüntü kalitesi <select id="quality"><option value="high">Yüksek</option><option value="medium">Orta</option><option value="low">Düşük</option></select></label>
+      <label>🌐 <select class="langSel" aria-label="Language"></select></label>
+      <label for="quality">Görüntü kalitesi <select id="quality"><option value="high" data-tr="Yüksek">Yüksek</option><option value="medium" data-tr="Orta">Orta</option><option value="low" data-tr="Düşük">Düşük</option></select></label>
     </div>
     <div class="row">
       <button class="go" id="resumeBtn" type="button"><span class="dot"></span>Devam et</button>
@@ -227,6 +232,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 const MODEL_DATA = {/*MODELS*/};
 // Blender-baked texture sets (textures/*.jpg|png as data URLs, inlined by build.py). Empty = procedural canvas textures only.
 const TEXTURE_DATA = {/*TEXTURES*/};
+// translations: i18n/<lang>.json, inlined by build.py; keys are the Turkish source text
+const I18N_DATA = {/*I18N*/};
 
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
@@ -655,9 +662,43 @@ function addEvidence(id) {
 function addSeal(id) { if (state.seals.has(id)) return; state.seals.add(id); toast(`<b>Mühür kırıldı</b>${SEAL_NAMES[id]}`); }
 function raiseEcho(n = 1) { state.echo = Math.min(8, state.echo + n); [...$('echoBar').children].forEach((c, i) => c.classList.toggle('on', i < state.echo)); FX.emit('echo', state.echo); if (state.echo >= 3 && Math.random() < .6) later(1500, () => sfx.whisper({ x: player.x + 2, y: 1.6, z: player.z - 1 }, 2, .18)); }
 
+/* ================================================================ languages
+   Turkish is the source. Every string on its way to the screen passes through t(): an exact match first, then the parts
+   of a 'a · b' line one by one. Strings with numbers or names in them use tf() with {0}, {1} placeholders. */
+const LANGS = { tr: 'Türkçe', en: 'English', de: 'Deutsch', fr: 'Français', es: 'Español', 'pt-BR': 'Português (Brasil)', ru: 'Русский', 'zh-CN': '简体中文', ja: '日本語', ko: '한국어' };
+let lang = (() => {
+  try { const l = localStorage.getItem('derinlik.lang'); if (LANGS[l]) return l; } catch (_) {}
+  const n = navigator.language || 'en', b = n.split('-')[0];
+  return LANGS[n] ? n : b === 'pt' ? 'pt-BR' : b === 'zh' ? 'zh-CN' : LANGS[b] ? b : 'en';
+})();
+function t(s) {
+  if (lang === 'tr' || !s || typeof s !== 'string') return s;
+  const d = I18N_DATA[lang] || {};
+  if (d[s] != null) return d[s];
+  return s.includes(' · ') ? s.split(' · ').map((p) => d[p] ?? p).join(' · ') : s;
+}
+function tf(key, ...a) { return (lang === 'tr' ? key : (I18N_DATA[lang] || {})[key] ?? key).replace(/\{(\d)\}/g, (_, i) => a[i]); }
+const tHTML = (html) => (lang === 'tr' ? html : String(html).split(/(<[^>]+>)/).map((p) => (p.startsWith('<') || !p.trim() ? p : p.replace(p.trim(), t(p.trim())))).join(''));
+const i18nNodes = new Map();   // static page text: the Turkish original of each text node, so a language change can redo it
+function translatePage() {
+  document.documentElement.lang = lang;
+  for (const root of document.querySelectorAll('#start, #paused, #end, #reader, #touch, #cam')) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n; (n = w.nextNode());) {
+      if (n.parentElement.closest('#endTitle, #endText, #endStats, #endEyebrow, #readerTitle, #readerText, #recTime, #camClock, #camPlace, select, #continueBtn')) continue;
+      if (!i18nNodes.has(n)) { if (!n.textContent.trim()) continue; i18nNodes.set(n, n.textContent); }
+      const src = i18nNodes.get(n); n.textContent = src.replace(src.trim(), t(src.trim()));
+    }
+  }
+  for (const o of document.querySelectorAll('option[data-tr]')) o.textContent = t(o.dataset.tr);
+  const saved = typeof loadSave === 'function' && loadSave();
+  if (saved) $('continueBtn').textContent = tf('Devam et · Bölüm {0}', saved.chapter + 1);
+}
+function setLang(l) { if (!LANGS[l]) return; lang = l; try { localStorage.setItem('derinlik.lang', l); } catch (_) {} translatePage(); for (const s of document.querySelectorAll('.langSel')) s.value = l; FX.emit('lang', l); }
+
 let toastTimer = 0;
-function toast(html, ms = 4200) { const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
-function objective(text) { $('objText').textContent = text; }
+function toast(html, ms = 4200) { const t = $('toast'); t.innerHTML = tHTML(html); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
+function objective(text) { $('objText').textContent = t(text); }
 let subQueue = Promise.resolve();
 /** Subtitled lines, one after another. Speaker 'Ekin' is the player. */
 function say(lines) {
@@ -665,7 +706,7 @@ function say(lines) {
     subQueue = subQueue.then(() => new Promise((res) => {
       const p = document.createElement('p'); if (who === 'Ekin') p.className = 'ekin';
       const dur = ms ?? Math.max(2400, text.length * 55);
-      p.innerHTML = `<span>${who}</span>${text}`; $('subs').replaceChildren(p);
+      p.innerHTML = `<span>${t(who)}</span>${t(text)}`; $('subs').replaceChildren(p);
       if (who !== 'Ekin' && ac) sfx.whisper(null, Math.min(2.5, dur / 1000), who === 'İkinci Ses' ? .2 : .05);
       FX.emit('say', who, text, dur);
       later(dur, () => { $('subs').replaceChildren(); res(); });
@@ -673,7 +714,7 @@ function say(lines) {
   }
   return subQueue;
 }
-function card(html, ms = 3600) { $('cardText').innerHTML = html; $('card').style.opacity = '1'; later(ms, () => { $('card').style.opacity = '0'; }); }
+function card(html, ms = 3600) { $('cardText').innerHTML = tHTML(html); $('card').style.opacity = '1'; later(ms, () => { $('card').style.opacity = '0'; }); }
 
 /* ================================================================ player + collision */
 const player = { x: 0, z: 1.8, yaw: Math.PI, pitch: -.04, crouched: false, eye: 1.64, r: .3, bob: 0, stride: 0, enabled: false, sprinting: false, noise: 0 };
@@ -808,7 +849,7 @@ function updateInteraction() {
     const hit = firstHit(W.interact, 2.3), obj = hit && interactOf(hit.object);
     if (obj && (obj.enabled ? obj.enabled() : true)) state.focus = obj;
   }
-  const html = state.focus ? `<kbd>${isTouch ? 'ETKİLEŞ' : 'E'}</kbd>${state.focus.prompt}` : '';
+  const html = state.focus ? `<kbd>${isTouch ? t('ETKİLEŞ') : 'E'}</kbd>${t(state.focus.prompt)}` : '';
   if ($('prompt').innerHTML !== html) $('prompt').innerHTML = html;
 }
 function doInteract() { if (state.reading) return closeReader(); if (state.focus) state.focus.interact(); }
@@ -843,21 +884,21 @@ function updateCamcorder(dt) {
   for (let i = 0; i < id.data.length; i += 4) { const v = Math.random() * 255; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 255; }
   g.putImageData(id, 0, 0);
 }
-function openReader(title, text) { state.reading = true; $('readerTitle').textContent = title; $('readerText').textContent = text; $('reader').hidden = false; sfx.click(); }
+function openReader(title, text) { state.reading = true; $('readerTitle').textContent = t(title); $('readerText').textContent = t(text); $('reader').hidden = false; sfx.click(); }
 function closeReader() { state.reading = false; $('reader').hidden = true; if (state.afterRead) { const f = state.afterRead; state.afterRead = null; f(); } }
 function note(mesh, id, onRead) {
   const e = EVIDENCE[id];
-  return addInteract(mesh, { prompt: `Oku: ${e.title}`, interact() { addEvidence(id); state.afterRead = onRead || null; openReader(e.title, e.text); } });
+  return addInteract(mesh, { get prompt() { return tf('Oku: {0}', t(e.title)); }, interact() { addEvidence(id); state.afterRead = onRead || null; openReader(e.title, e.text); } });
 }
 function toggleArchive(force) {
   state.archive = force ?? !state.archive; $('archive').hidden = !state.archive; if (!state.archive) return;
   const cats = {};
   for (const [k, e] of Object.entries(EVIDENCE)) if (state.evidence.has(k)) (cats[e.cat] ??= []).push(e);
-  let html = `<h3>KANIT ARŞİVİ</h3><div class="meta">Kanıt ${state.evidence.size} · Yankı ${state.echo}/8 · kapatmak için Tab</div>`;
-  for (const [cat, items] of Object.entries(cats)) html += `<h4>${cat}</h4><ul>${items.map((e) => `<li><b>${e.title}</b>${e.text}</li>`).join('')}</ul>`;
+  let html = `<h3>${t('KANIT ARŞİVİ')}</h3><div class="meta">${tf('Kanıt {0} · Yankı {1}/8 · kapatmak için Tab', state.evidence.size, state.echo)}</div>`;
+  for (const [cat, items] of Object.entries(cats)) html += `<h4>${t(cat)}</h4><ul>${items.map((e) => `<li><b>${t(e.title)}</b>${t(e.text)}</li>`).join('')}</ul>`;
   const made = Object.keys(CHOICES).filter((k) => state.choices[k]);
-  html += `<h4>Kararlar</h4><ul>${made.length ? made.map((k) => `<li>${CHOICE_TEXT[k][state.choices[k]]}</li>`).join('') : '<li class="locked">Henüz bir karar vermedin.</li>'}</ul>`;
-  html += `<h4>Kırık mühürler</h4><ul>${state.seals.size ? [...state.seals].map((k) => `<li><b>${SEAL_NAMES[k]}</b></li>`).join('') : '<li class="locked">Bütün mühürler yerinde.</li>'}</ul>`;
+  html += `<h4>${t('Kararlar')}</h4><ul>${made.length ? made.map((k) => `<li>${t(CHOICE_TEXT[k][state.choices[k]])}</li>`).join('') : `<li class="locked">${t('Henüz bir karar vermedin.')}</li>`}</ul>`;
+  html += `<h4>${t('Kırık mühürler')}</h4><ul>${state.seals.size ? [...state.seals].map((k) => `<li><b>${SEAL_NAMES[k]}</b></li>`).join('') : `<li class="locked">${t('Bütün mühürler yerinde.')}</li>`}</ul>`;
   $('archiveBody').innerHTML = html;
 }
 
@@ -878,7 +919,7 @@ function buildChapter(i, { persist = true } = {}) {
   ambient.color.set(spec.ambient[0]); ambient.intensity = spec.ambient[1] * 2.2;
   player.x = spec.spawn[0]; player.z = spec.spawn[1]; player.yaw = spec.spawn[2]; player.pitch = -.04; player.crouched = false;
   state.checkpoint = [...spec.spawn];
-  $('objChapter').textContent = `Bölüm ${i + 1} · ${CHAPTERS[i].place}`; objective(spec.objective);
+  $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, CHAPTERS[i].place); objective(spec.objective);
   $('camPlace').textContent = `${CHAPTERS[i].place} · ${CHAPTERS[i].year}`;
   FX.emit('build', i, spec); // last chance to restyle or add static meshes before they are batched
   batchStatic();
@@ -891,7 +932,7 @@ function goChapter(i) {
   $('fade').style.opacity = '1'; sfx.whisper(null, 2.4, .3); sfx.rumble(null, 2);
   later(1800, () => {
     buildChapter(i);
-    card(`BÖLÜM ${i + 1}<span class="t">${CHAPTERS[i].place.split(' ·')[0]} — ${CHAPTERS[i].title}</span>`, 3200);
+    card(`${tf('BÖLÜM {0}', i + 1)}<span class="t">${CHAPTERS[i].place.split(' ·')[0]} — ${t(CHAPTERS[i].title)}</span>`, 3200);
     later(1400, () => { $('fade').style.opacity = '0'; player.enabled = true; state.transit = false; });
   });
 }
@@ -1014,7 +1055,7 @@ class Copy {
     if (this.mode === 'chase') {
       this.moveTo(player.x, player.z, 2.7, dt);
       if (!this.canSee()) { this.lostT += dt; if (this.lostT > 2.5) { this.mode = 'investigate'; FX.emit('chase', false, this); } } else this.last = [player.x, player.z];
-      if (dist < .85) { this.mode = 'patrol'; FX.emit('chase', false, this); FX.emit('catch', this); respawn(`${this.name} seni yakaladı. Son kayıt noktasından devam ediyorsun.`); }
+      if (dist < .85) { this.mode = 'patrol'; FX.emit('chase', false, this); FX.emit('catch', this); respawn(tf('{0} seni yakaladı. Son kayıt noktasından devam ediyorsun.', t(this.name))); }
     } else if (this.mode === 'investigate') {
       if (this.moveTo(this.last[0], this.last[1], 1.6, dt)) { this.wait += dt; if (this.wait > 2) { this.wait = 0; this.mode = 'patrol'; } }
     } else {
@@ -1163,7 +1204,7 @@ function buildNevsehir() {
     const d = { i: (i + 1) % 4, spin: 0, top, g };
     const set = () => { d.top.material.map = glyphTexture(d.i); d.top.material.needsUpdate = true; };
     set(); dials.push(d);
-    addInteract(cyl, { get prompt() { return `Taşı çevir · şu an: ${GLYPHS[d.i]}`; }, enabled: () => !state.flags.dialsSolved, interact() {
+    addInteract(cyl, { get prompt() { return tf('Taşı çevir · şu an: {0}', t(GLYPHS[d.i])); }, enabled: () => !state.flags.dialsSolved, interact() {
       d.i = (d.i + 1) % 4; set(); d.spin += Math.PI / 2; sfx.rumble({ x, y: .5, z: 12.2 }, .7);
       if (dials.every((q, k) => q.i === SOLUTION[k])) { state.flags.dialsSolved = true; later(900, solved); }
     } });
@@ -1201,8 +1242,8 @@ function buildNevsehir() {
   const elise = onlyThroughCamera(makeElise());
   elise.position.set(2.2, 0, 27.6); elise.rotation.y = Math.PI * .85;
   const eliseHit = hitPlane(.5, 1.25, [2.2, .62, 27.55], Math.PI), recHit = hitPlane(.5, 1.25, [2.2, .62, 27.5], Math.PI);
-  const token = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .025, 20), plainMat('clay', { color: 0x9a6a48, roughness: .95 }));
-  token.position.set(3.15, 1.275, 27.45); token.userData.dynamic = true; W.group.add(token);
+  const token = new THREE.Mesh(new THREE.CylinderGeometry(.075, .075, .025, 20), plainMat('clay', { color: 0x9a6a48, roughness: .95 }));
+  token.position.set(2.99, 1.275, 27.52); token.userData.dynamic = true; W.group.add(token);
   let met = !!state.choices.elise;
   every(5, () => { if (!met && state.camRaised === false && Math.hypot(player.x - 2.2, player.z - 27.6) < 6) sfx.whisper({ x: 2.2, y: 1, z: 27.6 }, 1.2, .06); }); // the crying
   camTarget(eliseHit, .8, () => {
@@ -1269,7 +1310,7 @@ function buildKola() {
   const FREQ_TEXT = { 417: '417 Hz · Rezonansı uygula: reaktör kapısını aç', 528: '528 Hz · Rezonansı uygula: Kopya\'yı dondur' };
   const freqChoice = { 417: confirmChoice('freq', FREQ_TEXT[417], () => { if (choose('freq', '417')) applyFreq('417', false); }, { tag: 'freq:417' }),
     528: confirmChoice('freq', FREQ_TEXT[528], () => { if (choose('freq', '528')) applyFreq('528', false); }, { tag: 'freq:528' }) };
-  addInteract(dial, { get prompt() { return `Frekans: ${FREQS[fi]} Hz · değiştir`; }, enabled: () => !state.choices.freq, interact() { fi = (fi + 1) % FREQS.length; setLabel(); sfx.tone(FREQS[fi], .9, .06, { x: 5.8, y: 1.1, z: 13.6 }); dial.rotation.y += 1; } });
+  addInteract(dial, { get prompt() { return tf('Frekans: {0} Hz · değiştir', FREQS[fi]); }, enabled: () => !state.choices.freq, interact() { fi = (fi + 1) % FREQS.length; setLabel(); sfx.tone(FREQS[fi], .9, .06, { x: 5.8, y: 1.1, z: 13.6 }); dial.rotation.y += 1; } });
   const already = state.choices.freq;
   const blast = box([-.9, 0, 23.0], [.9, 2.4, 23.4], M.rust, { tile: 1 });
   const blastMove = mover(blast, [0, 2.35, 0], already === '417' ? .01 : 3, { sound: already !== '417' });
@@ -1566,10 +1607,10 @@ function ending(kind) {
   later(3000 + TAPE.length * 3400 + 600, () => { $('subs').hidden = false; say([['???', 'Kapıları kapattığını mı sandın?', 3200]]); if (ac) sfx.whisper(null, 2.6, .35); });
   later(3000 + TAPE.length * 3400 + 5200, () => {
     const [eyebrow, title, text] = ENDINGS[kind], c = state.choices;
-    $('endEyebrow').textContent = eyebrow; $('endTitle').textContent = title; $('endText').textContent = text;
-    $('endStats').textContent = [`Süre ${Math.floor(state.time / 60)} dk`, `Deniz: ${c.power === 'pump' && c.deniz === 'together' ? 'hayatta' : 'kayıp'}`,
-      `Élise: ${c.elise === 'carried' ? 'adı seninle' : 'kayıtta'}`, `Volkova: ${c.freq === '528' ? 'uyutuldu' : 'serbest'}`,
-      `Camille: ${c.camille === 'ally' ? 'yanında' : 'kapının ardında'}`].join(' · ');
+    $('endEyebrow').textContent = t(eyebrow); $('endTitle').textContent = t(title); $('endText').textContent = t(text);
+    $('endStats').textContent = [tf('Süre {0} dk', Math.floor(state.time / 60)), `Deniz: ${t(c.power === 'pump' && c.deniz === 'together' ? 'hayatta' : 'kayıp')}`,
+      `Élise: ${t(c.elise === 'carried' ? 'adı seninle' : 'kayıtta')}`, `Volkova: ${t(c.freq === '528' ? 'uyutuldu' : 'serbest')}`,
+      `Camille: ${t(c.camille === 'ally' ? 'yanında' : 'kapının ardında')}`].join(' · ');
     $('end').hidden = false;
   });
 }
@@ -1651,11 +1692,16 @@ function begin(fromSave) {
   buildChapter(chapter);
   $('fade').style.transition = 'none'; $('fade').style.opacity = '1';
   if (chapter === 0) card('03.17\'den önce oraya var.<br>Bundan sonra kimse sana inanmayacak.', 4200);
-  else card(`BÖLÜM ${chapter + 1}<span class="t">${CHAPTERS[chapter].place.split(' ·')[0]} — ${CHAPTERS[chapter].title}</span>`, 3200);
+  else card(`${tf('BÖLÜM {0}', chapter + 1)}<span class="t">${CHAPTERS[chapter].place.split(' ·')[0]} — ${t(CHAPTERS[chapter].title)}</span>`, 3200);
   later(chapter === 0 ? 4800 : 3400, () => { $('fade').style.transition = ''; $('fade').style.opacity = '0'; $('hud').hidden = false; if (isTouch) $('touch').hidden = false; player.enabled = true; });
 }
+for (const sel of document.querySelectorAll('.langSel')) {
+  sel.innerHTML = Object.entries(LANGS).map(([k, n]) => `<option value="${k}">${n}</option>`).join(''); sel.value = lang;
+  sel.addEventListener('change', () => setLang(sel.value));
+}
+translatePage();
 const saved = loadSave();
-if (saved) { $('continueBtn').hidden = false; $('continueBtn').textContent = `Devam et · Bölüm ${saved.chapter + 1}`; }
+if (saved) { $('continueBtn').hidden = false; $('continueBtn').textContent = tf('Devam et · Bölüm {0}', saved.chapter + 1); }
 $('startBtn').addEventListener('click', () => ready.then(() => begin(null)));
 $('continueBtn').addEventListener('click', () => ready.then(() => begin(loadSave())));
 // desktop build (DerinlikDesktop): the shell's preload exposes derinlikDesktop; a browser tab has no window to close

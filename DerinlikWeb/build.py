@@ -3,6 +3,7 @@
 
 - Inlines every models/*.glb (base64) into MODEL_DATA; models/manifest.json may add a "place" note per model.
 - Inlines every textures/*.jpg|png|webp as a data URL into TEXTURE_DATA (keyed by file stem).
+- Inlines every i18n/<lang>.json (Turkish source text -> translation) into I18N_DATA; i18n/source.json is the key list.
 - Inlines the realism modules src/fx-*.js at the /*FX_MODULES*/ marker, each wrapped in its own block scope,
   and hoists their `import ... from '...'` lines to the top of the module script (deduplicated).
 
@@ -41,6 +42,10 @@ for t in sorted((root / "textures").glob("*")) if (root / "textures").exists() e
     if t.suffix.lower() in MIME:
         textures[t.stem] = f"data:{MIME[t.suffix.lower()]};base64," + base64.b64encode(t.read_bytes()).decode()
 src = src.replace("{/*TEXTURES*/}", json.dumps(textures) if textures else "{}")
+
+# --- translations (i18n/<lang>.json: Turkish source text -> translation)
+i18n = {f.stem: json.loads(f.read_text(encoding="utf-8")) for f in sorted((root / "i18n").glob("*.json")) if f.stem != "source"} if (root / "i18n").exists() else {}
+src = src.replace("{/*I18N*/}", json.dumps(i18n, ensure_ascii=False) if i18n else "{}")
 
 # --- realism modules
 wanted = None if args.only is None else {n.strip() for n in args.only.split(",") if n.strip()}
