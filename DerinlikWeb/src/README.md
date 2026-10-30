@@ -35,13 +35,14 @@ Events emitted by the core:
 | `mover` | `{mesh, offset, dur, start}` | A slab, seal disc, blast door or final door starts moving |
 | `gate` | `gate` | An Echo Gate wakes. `gate.group`, `gate.radius`, `gate.light`, and `gate.k` ramps 0→1 over 2.5 s. |
 | `echo` | `level` | Echo level changed (0–8) |
-| `say` | `who`, `text`, `ms` | A subtitle line starts. Speakers: `'Ekin'`, `'Camille'`, `'İkinci Ses'`, `'Diğer Ekin'`, `'Kayıttaki Ekin'`. |
+| `say` | `who`, `text`, `ms` | A subtitle line starts. Speakers: `'Ekin'`, `'Camille'`, `'Camille (telsiz)'`, `'İkinci Ses'`, `'Deniz'`, `'Deniz?'` (the Copy imitating her), `'Kayıttaki Deniz'`, `'Élise'`. |
 | `chase` | `on`, `copy` | The Copy starts or stops chasing |
 | `catch` | `copy` | The Copy caught the player (a respawn follows) |
 | `respawn` | — | The player was put back at the checkpoint |
-| `capture` | `target` | The camcorder recorded a hidden thing |
+| `capture` | `target` | The camcorder held a camera-only thing in frame long enough (Élise) |
+| `choice` | `key`, `value` | The player made a decision (`state.choices[key] = value`; keys and values in `CHOICES`). It is saved at once and never offered again. |
 | `transit` | `nextChapter` | A gate started a chapter change (screen fades) |
-| `ending` | `'A'`, `'B'` or `'C'` | An ending was chosen |
+| `ending` | `'eve'`, `'geri'`, `'tanik'`, `'unutulan'`, `'yeni'`, `'kanit'` or `'bekci'` | An ending was reached |
 
 ## Static batching and surface tags
 - **Batching.** After `build`, the core merges every plain static mesh that is a direct child of `W.group` and uses a shared (cached) material into one mesh per material. Those meshes have `userData.batch = true`. The originals stay in the scene invisible, so raycasts still hit them.
@@ -62,10 +63,11 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
 - **`W.group`** — root of everything in the current chapter. Add your meshes here so they are cleared on chapter change. Geometry under it is disposed on reset unless `userData.shared` is set.
 - **`W.lights`** — every bulb and flame: `{group, light, glass, kind: 'bulb'|'lamp'|'flame'|'alarm', color, base, on, set(on)}`. Flame intensity is rewritten every step by the core flicker.
 - **`W.figures`** — `{group, role, copy?}`. Roles:
-  - `'copy'` — Volkova's normal look. `copy` is the `Copy` instance with `x`, `z`, `heading`, `mode`, `wait`.
+  - `'copy'` — the Copy's normal look (Volkova, or Deniz in Paris when she was taken). `copy` is the `Copy` instance with `x`, `z`, `heading`, `mode` (`'patrol'`, `'investigate'`, `'chase'`, `'lured'`, `'frozen'`), `wait`, `name`, `frozen`.
   - `'copy-true'` — the black form only the camcorder shows; a child of the copy group.
   - `'camille'`.
-  - `'other'` — the other Ekin, camcorder-only.
+  - `'deniz'` — Deniz Arat, the explorer who came before Ekin (only while she is alive).
+  - `'elise'` — Élise Moreau's echo, a 1.25 m child, camcorder-only.
   - The figure group's local −Z is its front. The core only moves and rotates the group, so a module may replace the group's children.
   - The core builds every figure from `MODELS.figure` when it is present (`tools/make_props.py`: a static 1.70 m person in
     a lab coat, scaled per character as a whole; meshes named `coat`, `skin`, `hair`, `hairLong`, `legs`, `eyes`), and

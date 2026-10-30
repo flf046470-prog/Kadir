@@ -10,20 +10,21 @@ import fs from 'fs'; import http from 'http'; import path from 'path';
 const [,, htmlPath, outRoot, ...rest] = process.argv;
 const only = rest.includes('--only') ? new Set(rest[rest.indexOf('--only') + 1].split(',')) : null;
 
-// at: [chapter, x, z, lookX, lookZ, lookY]; torch / cam on or off; run: seconds of game time before the frame.
+// at: [chapter, x, z, lookX, lookZ, lookY]; torch / cam on or off; run: seconds of game time before the frame;
+// choices: the decisions already made, so the chapter is built in that state (DerinlikWeb/game.html CHOICES).
 // Viewpoints come from the gallery regression (every one of them is a place the player can stand).
 const SHOTS = [
   { name: 's01_sakarya_basement', at: [0, -.6, 1.4, .4, 8, 1.25], run: .6 },
-  { name: 's02_sakarya_sigil_camcorder', at: [0, 0, 16.2, 0, 17.985, 1.25], cam: true, run: .6 },
-  { name: 's03_sakarya_gate', at: [0, 0, 30.0, 0, 32.55, 1.2], open: [-1.0, 30.3, -2.0, 30.285, .79], run: .6 },
+  { name: 's02_sakarya_wheel', at: [0, -.2, 15.9, .35, 17.8, 1.1], torch: true, run: .6 },
+  { name: 's03_sakarya_gate', at: [0, 0, 30.0, 0, 32.55, 1.2], choices: { power: 'pump' }, run: 3 },
   { name: 's04_nevsehir_hall', at: [1, 0, 8.0, 0, 17, 1.6], run: .6 },
-  { name: 's05_nevsehir_other_camcorder', at: [1, 0, 24.0, 2.2, 27.55, 1.0], cam: true, run: .6 },
+  { name: 's05_nevsehir_elise_camcorder', at: [1, 1.0, 24.6, 2.2, 27.55, .8], cam: true, run: .6 },
   { name: 's06_kola_corridor', at: [2, 0, 2.0, 0, 20, 1.5], run: .6 },
   { name: 's07_kola_copy', at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 5.0 },
   { name: 's08_paris_catacombs', at: [3, 0, 1.0, 0, 13, 1.3], run: .6 },
   { name: 's09_paris_final_chamber', at: [3, 0, 26.0, 0, 36.6, 2.6], warm: [0, 24.0, 0, 36.6, 2.6], run: .4 },
   // key-art plates: same places, no HUD, 4K
-  { name: 'k_gate', plate: true, at: [0, 0, 29.2, 0, 32.55, 1.25], open: [-1.0, 30.3, -2.0, 30.285, .79], run: .6 },
+  { name: 'k_gate', plate: true, at: [0, 0, 29.2, 0, 32.55, 1.25], choices: { power: 'relay' }, run: 3 },
   { name: 'k_kola', plate: true, at: [2, 0, 2.0, 0, 20, 1.5], run: .6 },
   { name: 'k_copy', plate: true, at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 5.0 },
   { name: 'k_paris', plate: true, at: [3, 0, 1.0, 0, 13, 1.3], run: .6 },
@@ -61,15 +62,13 @@ for (const s of SHOTS) {
   const page = pages[kind];
   // time advances in separate calls: dialogue lines chain through promises, which only settle between calls
   const step = async (sec) => { for (let t = 0; t < sec - 1e-6; t += .5) await page.evaluate((dt) => window.__derinlik.advance(dt), Math.min(.5, sec - t)); };
-  const place = (at, rebuild) => page.evaluate(([[ch, x, z, lx, lz, ly], rebuild]) => {
+  const place = (at, rebuild) => page.evaluate(([[ch, x, z, lx, lz, ly], rebuild, choices]) => {
     const d = window.__derinlik;
-    if (rebuild) d.buildChapter(ch);
+    if (rebuild) { for (const k of Object.keys(d.choices)) delete d.choices[k]; Object.assign(d.choices, choices); d.buildChapter(ch); }
     d.player.enabled = true; d.player.crouched = false; d.player.x = x; d.player.z = z; d.player.eye = 1.64; d.face(lx, lz, ly); d.advance(1 / 30);
-  }, [at, rebuild]);
+  }, [at, rebuild, s.choices || {}]);
   await page.evaluate((s) => { const d = window.__derinlik; if (d.state.camRaised) d.toggleCam(); d.DEBUG.enemyOff = !s.enemy; }, s);
   await place(s.at, true);
-  // the Sakarya gate only glows after the control room's breaker is thrown and the tape has played
-  if (s.open) { await place([s.at[0], ...s.open], false); await page.evaluate(() => window.__derinlik.doInteract()); await step(17.5); await place(s.at, false); }
   if (s.warm) { await place([s.at[0], ...s.warm], false); await step(3); await place(s.at, false); }
   await page.evaluate((s) => { const d = window.__derinlik; if (d.torch.visible !== !!s.torch) { d.torch.visible = !!s.torch; d.FX.emit('torch', d.torch.visible); } }, s);
   await step(s.run);

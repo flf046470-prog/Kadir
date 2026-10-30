@@ -153,19 +153,19 @@ body.cam-on #objective { opacity: 0; }
 
 <section class="screen" id="start">
   <div class="screen-inner">
-    <div class="eyebrow">Birinci şahıs psikolojik korku · 4 bölüm · ~25 dakika</div>
+    <div class="eyebrow">Birinci şahıs psikolojik korku · 4 bölüm · 7 son</div>
     <h1>DERİNLİK</h1>
     <p class="sub">THE DEPTHS: ECHOES OF THE FORGOTTEN</p>
     <p class="lede">2028. Ekin Yalın, terk edilmiş yapıları çeken küçük bir YouTuber. Anonim bir e-posta onu Sakarya'daki bir binanın bodrumuna çağırıyor: <em>“KAPI 01 — SAKARYA. 03.17'den önce oraya var.”</em> Sakarya'dan Nevşehir'e, Kola Yarımadası'ndan Paris'in altına uzanan bir ağ seni bekliyor.</p>
     <dl class="keys">
       <dt>W A S D · Fare</dt><dd>Yürü ve bak · Shift ile koş</dd>
       <dt>F</dt><dd>El feneri</dd>
-      <dt>Q / Sağ tık</dt><dd>Video kamera: çıplak gözün görmediğini görür. Bir şeyi kadrajda tutmak onu kaydeder.</dd>
+      <dt>Q / Sağ tık</dt><dd>Video kamera: çıplak gözün görmediğini gösterir.</dd>
       <dt>C / Ctrl</dt><dd>Çömel (daha sessiz)</dd>
       <dt>E</dt><dd>Etkileşim · Tab: kanıt arşivi · Esc: duraklat</dd>
     </dl>
-    <p class="lede keys-touch">Sol alttaki çubukla yürü, ekranın sağ yarısında parmağını sürükleyerek bak. ETKİLEŞ, KAMERA, FENER, ÇÖMEL, KOŞ ve MENÜ düğmeleri sağ altta. Kamera çıplak gözün görmediğini görür; bir şeyi kadrajda tutmak onu kaydeder.</p>
-    <p class="note">Kulaklık önerilir. Ani yüksek sesli korkutma yok. Yakalanırsan son kayıt noktasından devam edersin. Mitoloji tamamen kurgusaldır.</p>
+    <p class="lede keys-touch">Sol alttaki çubukla yürü, ekranın sağ yarısında parmağını sürükleyerek bak. ETKİLEŞ, KAMERA, FENER, ÇÖMEL, KOŞ ve MENÜ düğmeleri sağ altta. Kamera çıplak gözün görmediğini gösterir.</p>
+    <p class="note">Kulaklık önerilir. Ani yüksek sesli korkutma yok. Yakalanırsan son kayıt noktasından devam edersin. Kararların kalıcıdır; başka bir son için baştan oyna. Mitoloji tamamen kurgusaldır.</p>
     <div class="row">
       <button class="go" id="startBtn" type="button"><span class="dot"></span>Kayda başla</button>
       <button class="go ghost" id="continueBtn" type="button" hidden>Devam et</button>
@@ -569,41 +569,69 @@ function ambienceWind(freq = 320, gain = .045) {
 
 /* ================================================================ state, save, evidence */
 const EVIDENCE = {
-  email:   { cat: 'Belgeler', title: 'Anonim e-posta', text: '“KAPI 01 — SAKARYA. 03.17\'den önce oraya var. Bundan sonra kimse sana inanmayacak.” Gönderen adresi boş.' },
-  wall:    { cat: 'Kamera', hidden: true, title: 'Duvardaki isim (Sakarya)', text: 'Yalnızca kamerada görünen bir kazıma: “EKİN — 03.17”. Çıplak gözle duvar boş.' },
-  tape:    { cat: 'Kayıtlar', title: 'Çekilmemiş kaset', text: 'Senin el yazınla etiketlenmiş bir MiniDV. Görüntüdeki Ekin: “Nevşehir\'e gitme.” Bu videoyu sen hiç çekmedin.' },
-  tablet:  { cat: 'Belgeler', title: 'Kil tablet çevirisi', text: '“Onu öldüremedik, çünkü o hiç yaşamamış olanların sesiydi. Hapsettik. Ve kimse bizi hatırlamasın diye kendi adlarımızı da mühre koyduk.”' },
-  other:   { cat: 'Kamera', hidden: true, title: 'Diğer Ekin (Nevşehir)', text: 'Arşivin dibinde, kameranın gördüğü ama odada olmayan biri: sensin. “Bu sefer de kamerayı açtın, değil mi?”' },
-  log1986: { cat: 'Belgeler', title: 'SIFIR-17 deney günlüğü', text: '14.03.1986 — Rezonans 417 Hz\'de kararlı. Denek kayıtta kendi sesini duyduğunu söylüyor. Denek 2028 doğumlu olduğunu iddia ediyor. Laborant Volkova\'nın davranışı değişti; artık hiç uyumuyor.' },
-  subject: { cat: 'Kamera', hidden: true, title: 'Denek kaydı (SIFIR-17)', text: 'Monitörde yalnızca kameranın gördüğü satır: “DENEK 17/17: EKİN YALIN — KAYIT DEVAM EDİYOR”.' },
-  camille: { cat: 'Kayıtlar', title: 'Dr. Camille Moreau', text: 'PALİMPSEST projesinin yöneticisi. Kızı Élise yedi yıl önce kayboldu. Dört mührü açan o.' },
-  drawing: { cat: 'Kamera', hidden: true, title: 'Élise\'in çizimi (Paris)', text: 'Kameranın gördüğü bir çocuk çizimi: dört kapı ve ortasında bir kadın. Altında: “Bekçi kapıyı açmayacak.”' },
+  email:     { cat: 'Belgeler', title: 'Anonim e-posta', text: '“KAPI 01 — SAKARYA. 03.17\'den önce oraya var. Bundan sonra kimse sana inanmayacak.” Gönderen adresi boş. Başlıkta yalnızca bir aktarım kodu var: PLM-01.' },
+  scratch:   { cat: 'Belgeler', title: 'Duvardaki kazıma (Sakarya)', text: 'Taze bir kazıma: “D.A. · 11.10 · POMPA ODASI →”. Senden önce biri buraya inmiş.' },
+  denizTape: { cat: 'Kayıtlar', title: 'Deniz Arat\'ın kaseti', text: '“Ben Deniz Arat. 11 Ekim. Bana da o e-posta geldi… Pompa odasının kapısı kilitlendi; içerideyim.”' },
+  deniz:     { cat: 'Kayıtlar', title: 'Deniz Arat', text: 'Senden bir hafta önce aynı e-postayı alan kaşif. Üç gün pompa odasında kaldı. Seninle geliyor.' },
+  tablet:    { cat: 'Belgeler', title: 'Kil tablet çevirisi', text: '“Onu öldüremedik, çünkü o hiç yaşamamış olanların sesiydi. Hapsettik. Ve kimse bizi hatırlamasın diye kendi adlarımızı da mühre koyduk.”' },
+  eliseName: { cat: 'Belgeler', title: 'Élise\'in adı', text: 'Üzerinde ÉLISE MOREAU yazan bir kil mühür. Adı taşta kaldıkça çıkamıyordu; şimdi senin cebinde.' },
+  eliseTape: { cat: 'Kayıtlar', title: 'Élise kaydı', text: 'Arşivde ağlayan çocuğun kaydı. Vizörde paraziti dağıldı ve gitti. İkinci Ses: “Bir ses daha.”' },
+  log1986:   { cat: 'Belgeler', title: 'SIFIR-17 deney günlüğü', text: '14.03.1986 — Rezonans 417 Hz\'de kararlı: reaktör kapısı açılıyor. 528 Hz\'de kopya donuyor, ama kapı kilitli kalıyor; havalandırma ızgarası düşüyor. Denek 17 (laborant V. Volkova) kayıtta kendi sesini duyduğunu söylüyor. Üç gündür hiç uyumadı.' },
+  denizCam:  { cat: 'Kayıtlar', title: 'Deniz\'in kamerası', text: 'Koridorun sonunda, yere düşmüş. Son kare kararmış; sesi hâlâ kayıtta.' },
+  camille:   { cat: 'Kayıtlar', title: 'Dr. Camille Moreau', text: 'PALİMPSEST projesinin yöneticisi ve PLM-01 aktarıcısının sahibi. E-postaları o gönderdi: önce Deniz\'e, sonra sana. Kızı Élise yedi yıl önce Yankı\'ya düştü.' },
+  drawing:   { cat: 'Belgeler', title: 'Élise\'in çizimi (Paris)', text: 'Arşiv duvarında bir çocuk çizimi: dört kapı ve ortasında küçük bir kız. Altında: “ADIMI UNUTMA”.' },
 };
-const HIDDEN_TOTAL = Object.values(EVIDENCE).filter((e) => e.hidden).length;
 const SEAL_NAMES = { sakarya: 'Sakarya', nevsehir: 'Nevşehir', kola: 'SIFIR-17', paris: 'Paris' };
 const state = {
   started: false, chapter: 0, evidence: new Set(), seals: new Set(), echo: 0, time: 0, ended: false,
   camRaised: false, recT: 0, dwellTarget: null, dwell: 0, focus: null, reading: false, archive: false, transit: false, checkpoint: null, flags: {},
+  choices: {},   // the player's decisions: kept across chapters and in the save, never reset by buildChapter
 };
-const SAVE_KEY = 'derinlik.save.v1';
+// every decision and the answers it allows; each one changes what happens later (see endingFor)
+const CHOICES = { power: ['pump', 'relay'], elise: ['carried', 'recorded'], freq: ['417', '528'], deniz: ['bait', 'together'], camille: ['ally', 'shut'], final: ['erase', 'broadcast', 'open', 'stay'] };
+// the ledger line the archive and the toast show for each answer
+const CHOICE_TEXT = {
+  power: { pump: 'Sakarya: jeneratörü pompaya verdin. Deniz hayatta.', relay: 'Sakarya: görüntüyü Paris\'e gönderdin. Deniz boğuldu.' },
+  elise: { carried: 'Nevşehir: Élise\'in adını yanında taşıyorsun.', recorded: 'Nevşehir: Élise\'i kaydettin. Yankı güçlendi.' },
+  freq: { '417': 'SIFIR-17: 417 Hz. Reaktör kapısı açıldı, Volkova serbest.', '528': 'SIFIR-17: 528 Hz. Volkova dondu, mühür sağlam.' },
+  deniz: { bait: 'SIFIR-17: Deniz onu oyaladı. Deniz kayıp.', together: 'SIFIR-17: Deniz\'le birlikte saklandınız.' },
+  camille: { ally: 'Paris: kamerayı Camille\'e verdin.', shut: 'Paris: kapıyı Camille\'in önüne indirdin.' },
+  final: { erase: 'Son karar: SİL.', broadcast: 'Son karar: YAYINLA.', open: 'Son karar: kapı açıldı.', stay: 'Son karar: içeride kaldın.' },
+};
+// a decision is made once: it is applied, written to the save at once, and never offered again
+function choose(key, val) {
+  if (state.choices[key] || !CHOICES[key] || !CHOICES[key].includes(val)) return false;
+  state.choices[key] = val; FX.emit('choice', key, val); toast(CHOICE_TEXT[key][val]); save(); return true;
+}
+const denizAlive = () => state.choices.power === 'pump' && state.choices.deniz !== 'bait';
+const SAVE_KEY = 'derinlik.save.v2';
 function save() {
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, chapter: state.chapter, evidence: [...state.evidence], seals: [...state.seals], echo: state.echo, time: Math.round(state.time) })); } catch (_) {}
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, chapter: state.chapter, evidence: [...state.evidence], seals: [...state.seals], echo: state.echo, time: Math.round(state.time), choices: state.choices })); } catch (_) {}
 }
 function loadSave() {
+  try { localStorage.removeItem('derinlik.save.v1'); } catch (_) {} // the old story's saves do not fit the new one
   try {
     const raw = localStorage.getItem(SAVE_KEY); if (!raw) return null;
     const s = JSON.parse(raw);
-    if (s.v !== 1 || !(s.chapter >= 0 && s.chapter < 4) || !Array.isArray(s.evidence)) throw new Error('bad save');
+    if (s.v !== 2 || !(s.chapter >= 0 && s.chapter < 4) || !Array.isArray(s.evidence) || !s.choices || typeof s.choices !== 'object') throw new Error('bad save');
+    for (const [k, v] of Object.entries(s.choices)) if (!CHOICES[k] || !CHOICES[k].includes(v)) throw new Error('bad choice');
     return s;
   } catch (_) { try { localStorage.removeItem(SAVE_KEY); } catch (__) {} return null; } // a corrupt save never blocks a new game
 }
+// a decision needs two presses of the same option within 4 s, so it is never made by accident; `enabled` can hide it until it applies
+const confirmAt = {};
+function confirmChoice(key, label, fn, { enabled = () => true, tag = key } = {}) {
+  return { get prompt() { return confirmAt[tag] && simTime - confirmAt[tag] < 4 ? `${label} · emin misin? Tekrar E` : label; }, enabled: () => !state.ended && !state.choices[key] && enabled(), interact() {
+    if (confirmAt[tag] && simTime - confirmAt[tag] < 4) { confirmAt[tag] = 0; fn(); } else { for (const k in confirmAt) confirmAt[k] = 0; confirmAt[tag] = simTime; sfx.click(); }
+  } };
+}
 function addEvidence(id) {
   if (state.evidence.has(id)) return;
-  state.evidence.add(id); const e = EVIDENCE[id];
-  toast(`<b>Kanıt eklendi</b>${e.title}${e.hidden ? ' · gizli kanıt ' + [...state.evidence].filter((k) => EVIDENCE[k].hidden).length + '/' + HIDDEN_TOTAL : ''}`);
+  state.evidence.add(id); toast(`<b>Kanıt eklendi</b>${EVIDENCE[id].title}`);
 }
+// state.seals: the seals that are broken
+function addSeal(id) { if (state.seals.has(id)) return; state.seals.add(id); toast(`<b>Mühür kırıldı</b>${SEAL_NAMES[id]}`); }
 function raiseEcho(n = 1) { state.echo = Math.min(8, state.echo + n); [...$('echoBar').children].forEach((c, i) => c.classList.toggle('on', i < state.echo)); FX.emit('echo', state.echo); if (state.echo >= 3 && Math.random() < .6) later(1500, () => sfx.whisper({ x: player.x + 2, y: 1.6, z: player.z - 1 }, 2, .18)); }
-function addSeal(id) { if (state.seals.has(id)) return; state.seals.add(id); toast(`<b>Mühür etkin</b>${SEAL_NAMES[id]} · ${state.seals.size}/4`); }
 
 let toastTimer = 0;
 function toast(html, ms = 4200) { const t = $('toast'); t.innerHTML = html; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
@@ -799,16 +827,13 @@ function note(mesh, id, onRead) {
 }
 function toggleArchive(force) {
   state.archive = force ?? !state.archive; $('archive').hidden = !state.archive; if (!state.archive) return;
-  const found = [...state.evidence], hiddenFound = found.filter((k) => EVIDENCE[k].hidden).length;
   const cats = {};
-  for (const [k, e] of Object.entries(EVIDENCE)) (cats[e.cat] ??= []).push([k, e]);
-  let html = `<h3>KANIT ARŞİVİ</h3><div class="meta">Kanıt ${found.length}/${Object.keys(EVIDENCE).length} · gizli kanıt ${hiddenFound}/${HIDDEN_TOTAL} · mühür ${state.seals.size}/4 · Yankı ${state.echo}/8 · kapatmak için Tab</div>`;
-  for (const [cat, items] of Object.entries(cats)) {
-    html += `<h4>${cat === 'Kamera' ? 'Kamera kanıtları (yalnızca kameranın gördükleri)' : cat}</h4><ul>`;
-    for (const [k, e] of items) html += state.evidence.has(k) ? `<li><b>${e.title}</b>${e.text}</li>` : `<li class="locked">${e.hidden ? 'Henüz kaydedilmedi. Kameranı aç ve etrafına bak.' : 'Henüz bulunmadı.'}</li>`;
-    html += '</ul>';
-  }
-  html += `<h4>Mühürler</h4><ul>${Object.entries(SEAL_NAMES).map(([k, n]) => `<li${state.seals.has(k) ? '' : ' class="locked"'}><b>${n}</b>${state.seals.has(k) ? 'Etkin' : 'Etkin değil'}</li>`).join('')}</ul>`;
+  for (const [k, e] of Object.entries(EVIDENCE)) if (state.evidence.has(k)) (cats[e.cat] ??= []).push(e);
+  let html = `<h3>KANIT ARŞİVİ</h3><div class="meta">Kanıt ${state.evidence.size} · Yankı ${state.echo}/8 · kapatmak için Tab</div>`;
+  for (const [cat, items] of Object.entries(cats)) html += `<h4>${cat}</h4><ul>${items.map((e) => `<li><b>${e.title}</b>${e.text}</li>`).join('')}</ul>`;
+  const made = Object.keys(CHOICES).filter((k) => state.choices[k]);
+  html += `<h4>Kararlar</h4><ul>${made.length ? made.map((k) => `<li>${CHOICE_TEXT[k][state.choices[k]]}</li>`).join('') : '<li class="locked">Henüz bir karar vermedin.</li>'}</ul>`;
+  html += `<h4>Kırık mühürler</h4><ul>${state.seals.size ? [...state.seals].map((k) => `<li><b>${SEAL_NAMES[k]}</b></li>`).join('') : '<li class="locked">Bütün mühürler yerinde.</li>'}</ul>`;
   $('archiveBody').innerHTML = html;
 }
 
@@ -816,7 +841,7 @@ function toggleArchive(force) {
 const CHAPTERS = [
   { place: 'SAKARYA', title: 'KAPI', year: '2028', build: () => buildSakarya() },
   { place: 'NEVŞEHİR', title: 'HAFIZA', year: '2028', build: () => buildNevsehir() },
-  { place: 'SIFIR-17 · KOLA', title: 'SIFIR-17', year: '1986 / 2028', build: () => buildKola() },
+  { place: 'SIFIR-17 · KOLA', title: 'SIFIR-17', year: '2028', build: () => buildKola() },
   { place: 'PARİS', title: 'SON TANIK', year: '2028', build: () => buildParis() },
 ];
 let enemy = null;
@@ -893,9 +918,22 @@ function makeFigure({ coat = M.coat, hair = M.hair, skin = M.skin, h = 1.7, long
   g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   return g;
 }
+/** Deniz Arat: the explorer Camille wrote to a week before Ekin (dark jacket, short hair). */
+function makeDeniz() {
+  const g = makeFigure({ coat: plainMat('deniz-jacket', { color: 0x2a2f38, roughness: .85 }), hair: plainMat('deniz-hair', { color: 0x17110d, roughness: .9 }), h: 1.72 });
+  W.group.add(g); W.figures.push({ group: g, role: 'deniz' }); return g;
+}
+/** Élise Moreau's echo: a child only the camcorder shows. */
+function makeElise() {
+  const g = makeFigure({ coat: new THREE.MeshStandardMaterial({ color: 0x3b4450, roughness: .9, transparent: true, opacity: .8 }), hair: plainMat('elise-hair', { color: 0x4a3322, roughness: .9 }), h: 1.25, longHair: true });
+  W.group.add(g); W.figures.push({ group: g, role: 'elise' }); return g;
+}
 class Copy {
-  constructor(path) {
-    this.path = path; this.fig = makeFigure(); W.group.add(this.fig);
+  /** look: whose shape it wears ('volkova' or 'deniz'); name: who the catch message says caught you. */
+  constructor(path, { look = 'volkova', name = 'Volkova' } = {}) {
+    this.path = path; this.name = name; this.frozen = false;
+    this.fig = look === 'deniz' ? makeFigure({ coat: plainMat('deniz-jacket', { color: 0x2a2f38, roughness: .85 }), hair: plainMat('deniz-hair', { color: 0x17110d, roughness: .9 }), h: 1.72 }) : makeFigure();
+    W.group.add(this.fig);
     this.true = makeFigure({ coat: new THREE.MeshBasicMaterial({ color: 0x020202 }), hair: new THREE.MeshBasicMaterial({ color: 0x000000 }), skin: new THREE.MeshBasicMaterial({ color: 0x050505 }), legs: new THREE.MeshBasicMaterial({ color: 0x020202 }), h: 1.95, eyes: false });
     const eyeM = new THREE.MeshBasicMaterial({ color: 0xff2a1a, fog: false });
     // in the eye sockets: the model figure is scaled as a whole (its own 1.70 m units), the fallback one part by part
@@ -909,10 +947,15 @@ class Copy {
     this.reset();
     W.updaters.push(Object.assign((dt) => this.update(dt), { onCam: (on) => this.onCam(on) }));
   }
-  reset() { this.i = 0; this.x = this.path[0][0]; this.z = this.path[0][1]; this.mode = 'patrol'; this.wait = 0; this.lostT = 0; this.heading = Math.atan2(-(this.path[1][0] - this.path[0][0]), -(this.path[1][1] - this.path[0][1])); this.place(); } // starts walking away from where you arrive
+  reset() { if (this.frozen) return; this.i = 0; this.x = this.path[0][0]; this.z = this.path[0][1]; this.mode = 'patrol'; this.wait = 0; this.lostT = 0; this.heading = Math.atan2(-(this.path[1][0] - this.path[0][0]), -(this.path[1][1] - this.path[0][1])); this.place(); } // starts walking away from where you arrive
   onCam(on) { this.true.visible = on; this.fig.children.forEach((c) => { if (c !== this.true) c.visible = !on; }); }
   place() { this.fig.position.set(this.x, 0, this.z); this.fig.rotation.y = this.heading; }
+  /** 528 Hz: stops where it stands for good, and never sees or hears you again. */
+  freeze() { this.frozen = true; if (this.mode === 'chase') FX.emit('chase', false, this); this.mode = 'frozen'; }
+  /** Walks to (x, z) for `secs`, ignoring the player, then patrols again. Call again to move the target (a decoy). */
+  lure(x, z, secs) { if (this.frozen) return; if (this.mode === 'chase') FX.emit('chase', false, this); this.mode = 'lured'; this.lureAt = [x, z]; this.lureT = secs; }
   canSee() {
+    if (this.frozen) return false;
     const dx = player.x - this.x, dz = player.z - this.z, dist = Math.hypot(dx, dz);
     const range = (torch.visible ? 9 : 4.5) * (player.crouched ? .55 : 1) * (1 + state.echo * .04);
     if (dist > range) return false;
@@ -929,14 +972,19 @@ class Copy {
     [this.x, this.z] = resolve(this.x + dx / d * st, this.z + dz / d * st, 1.9, .28); return d - st < .1;
   }
   update(dt) {
-    if (DEBUG.enemyOff || !player.enabled || state.transit) { this.place(); return; }
+    if (DEBUG.enemyOff || this.frozen || !player.enabled || state.transit) { this.place(); return; }
+    if (this.mode === 'lured') {
+      this.moveTo(this.lureAt[0], this.lureAt[1], 2.7, dt); this.lureT -= dt;
+      if (this.lureT <= 0) { this.mode = 'patrol'; this.wait = 1.8; }
+      this.place(); return;
+    }
     const dist = Math.hypot(player.x - this.x, player.z - this.z);
     if (this.canSee()) { if (this.mode !== 'chase') { sfx.whisper({ x: this.x, y: 1.6, z: this.z }, 1.4, .3); FX.emit('chase', true, this); } this.mode = 'chase'; this.last = [player.x, player.z]; this.lostT = 0; }
     else if (player.noise > 0 && dist < player.noise * (1 + state.echo * .04) && this.mode === 'patrol') { this.mode = 'investigate'; this.last = [player.x, player.z]; }
     if (this.mode === 'chase') {
       this.moveTo(player.x, player.z, 2.7, dt);
       if (!this.canSee()) { this.lostT += dt; if (this.lostT > 2.5) { this.mode = 'investigate'; FX.emit('chase', false, this); } } else this.last = [player.x, player.z];
-      if (dist < .85) { this.mode = 'patrol'; FX.emit('chase', false, this); FX.emit('catch', this); respawn('Volkova seni yakaladı. Son kayıt noktasından devam ediyorsun.'); }
+      if (dist < .85) { this.mode = 'patrol'; FX.emit('chase', false, this); FX.emit('catch', this); respawn(`${this.name} seni yakaladı. Son kayıt noktasından devam ediyorsun.`); }
     } else if (this.mode === 'investigate') {
       if (this.moveTo(this.last[0], this.last[1], 1.6, dt)) { this.wait += dt; if (this.wait > 2) { this.wait = 0; this.mode = 'patrol'; } }
     } else {
@@ -967,23 +1015,28 @@ function buildSakarya() {
   note(paper([2.25, 1.103, 6.05], .3), 'email');
   prop('crate', [2.3, 0, 1.45], .2, { collide: true }); prop('crate', [2.35, .58, 1.5], .55, { collide: true }); prop('crate', [2.3, 0, 2.4], -.12, { collide: true });
   prop('chair', [-1.3, 0, 6.1], 2.2, { collide: true });
-  const scratch = onlyThroughCamera(decal(textTexture(['EKİN', '03.17'], { font: '86px "IBM Plex Sans Condensed", sans-serif', glow: 6 }), 1.0, .5, [-2.985, 1.45, 6.4], Math.PI / 2, { color: 0xbfe6ff, additive: true }));
-  camTarget(scratch, 1.5, () => { addEvidence('wall'); raiseEcho(); scratch.userData.revealed = true; say([['Ekin', 'Benim adım. Bu duvara kim yazdı?', 2800]]); });
+  // Deniz's scratch: visible to the naked eye, the first sign someone came down here before you
+  decal(textTexture(['D.A. · 11.10', 'POMPA ODASI →'], { font: '70px "IBM Plex Sans Condensed", sans-serif', fg: '#2b2620' }), 1.0, .5, [-2.985, 1.45, 6.4], Math.PI / 2, { opacity: .8 });
+  addInteract(hitPlane(1.0, .5, [-2.97, 1.45, 6.4], Math.PI / 2), { prompt: 'Kazımaya bak', enabled: () => !state.evidence.has('scratch'), interact() {
+    addEvidence('scratch'); say([['Ekin', 'D.A.… On bir Ekim. Benden önce biri inmiş.', 2800]]);
+  } });
   new Door(-.5, 8.1, 1, 2.1, { name: 'Bodrum kapısı' });
 
-  // 02 Corridor A: crouch section, then a slab with a sigil only the camcorder sees
+  // 02 Corridor A: crouch section, then a slab that a rusted hand wheel lowers, a quarter at a time
   room(-.6, .6, 8.2, 18.3, 2.2, M.stone, { n: false, s: false });
   box([-.6, 1.3, 12], [.6, 2.2, 15], M.stone); box([-.6, 1.24, 11.96], [.6, 1.3, 15.04], M.wood, { collide: false });
-  const slab = box([-.6, 0, 18], [.6, 2.2, 18.3], M.slab, { tile: 1.1 });
-  const slabMove = mover(slab, [0, -2.25, 0], 4);
-  const sigil = onlyThroughCamera(decal(sigilTexture(), .8, .8, [0, 1.25, 17.985], Math.PI, { color: 0x9fdcff, additive: true }));
-  camTarget(sigil, 2, () => {
-    addSeal('sakarya'); raiseEcho(); slabMove.go(); objective('Taş çekildi. İlerle.');
-    later(4200, () => { sigil.visible = false; W.hiddenOnly.splice(W.hiddenOnly.indexOf(sigil), 1); });
-  });
+  const slab = box([-.6, 0, 18], [.6, 2.2, 18.3], M.slab, { tile: 1.1 }); slab.userData.dynamic = true;
+  const TURNS = 4, done = !!state.choices.power;
+  let turns = done ? TURNS : 0, turning = null;
+  if (done) { slab.position.y -= 2.25; slab.userData.collider.min[1] -= 2.25; slab.userData.collider.max[1] -= 2.25; }
+  prop('valve', [.6, 1.2, 17.3], -Math.PI / 2);
+  addInteract(hitPlane(.4, .4, [.55, 1.2, 17.3], -Math.PI / 2), { get prompt() { return `Çarkı çevir · ${turns}/${TURNS}`; }, enabled: () => turns < TURNS && !(turning && !turning.done), interact() {
+    turns++; turning = mover(slab, [0, -2.25 / TURNS, 0], 1.1); turning.go(); sfx.rattle({ x: .5, y: 1.2, z: 17.3 });
+    if (turns === TURNS) objective('Taş çekildi. İlerle.');
+  } });
   zone([-.6, 0, 8.4], [.6, 3, 9.6], () => { if (!torch.visible) objective('Zifiri karanlık. El fenerini aç (F).'); });
   zone([-.6, 0, 10.5], [.6, 3, 11.8], () => objective('Tavan alçalıyor: çömel (C / Ctrl).'));
-  zone([-.6, 0, 15.5], [.6, 3, 17.8], () => { if (!state.seals.has('sakarya')) objective('Taş bir levha. Çıplak gözle boş… Kamerayı kaldır (Q / sağ tık) ve ortada tut.'); });
+  zone([-.6, 0, 15.5], [.6, 3, 17.8], () => { if (turns < TURNS) objective('Taş bir levha yolu kapatıyor. Yanındaki paslı çarkı çevir.'); });
   every(2.7, () => sfx.drip({ x: .45, y: .2, z: 16.4 }));
 
   // 03 Corridor B: an open door that slams and locks behind you; the bulb dies; steps ahead
@@ -997,22 +1050,68 @@ function buildSakarya() {
     later(2200, () => sfx.steps({ x: 0, y: 1, z: 26.8 })); later(4000, () => objective('Geri dönüş yok. İlerle.'));
   });
 
-  // 04 Control room: the tape you have not recorded yet, then the first Echo Gate
-  room(-3, 3, 27.2, 33, 2.6, M.old, { s: [{ c: 0, w: 1.2, h: 2.2 }] });
+  // 04 Control room: Deniz's tape, a panel with two levers and one circuit left, then the first Echo Gate
+  room(-3, 3, 27.2, 33, 2.6, M.old, { s: [{ c: 0, w: 1.2, h: 2.2 }], w: [{ c: 31.8, w: .9, h: 2 }] });
   box([-2.6, .74, 29.8], [-1.4, .78, 30.8], M.wood); for (const x of [-2.56, -1.48]) for (const z of [29.84, 30.72]) box([x, 0, z], [x + .04, .74, z + .04], M.wood, { tile: .5 });
   box([1.8, 0, 29.4], [2.7, 1.05, 32.6], M.old); box([1.9, 1.05, 29.8], [2.3, 1.08, 32.2], M.metal, { collide: false, tile: .6 });
-  bulb([0, 2.35, 30.2], 0xa8c4ff, 1.4, 8);
+  const lamp = bulb([0, 2.35, 30.2], 0xa8c4ff, 1.4, 8);
   prop('chair', [-2.0, 0, 29.3], .15, { collide: true }); prop('radio', [2.35, 1.05, 31.9], -Math.PI / 2);
   const gate = echoGate(0, 1.2, 32.55, 0, () => goChapter(1));
+  // the flooded pump room behind the west wall, and Deniz in it
+  room(-5.4, -3.2, 30.6, 33, 2.4, M.old, { e: false });
+  const pumpDoor = new Door(-3.1, 31.35, .9, 2, { base: -90, mat: M.metal, name: 'Pompa odası kapısı' }); pumpDoor.locked = true;
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 2.4), new THREE.MeshStandardMaterial({ color: 0x0b1416, roughness: .12, metalness: .3, transparent: true, opacity: .88 }));
+  water.rotation.x = -Math.PI / 2; water.position.set(-4.3, .9, 31.8); W.group.add(water);
+  const drain = mover(water, [0, -.87, 0], 12, { sound: false });
+  const puddle = new THREE.Mesh(new THREE.CircleGeometry(.6, 24), new THREE.MeshStandardMaterial({ color: 0x0b1416, roughness: .1, metalness: .3, transparent: true, opacity: .8 }));
+  puddle.rotation.x = -Math.PI / 2; puddle.position.set(-2.6, .006, 31.8); puddle.scale.setScalar(.05); W.group.add(puddle);
+  const deniz = makeDeniz(); deniz.visible = false;
+  every(3, () => { if (!state.choices.power) sfx.rattle({ x: -3.4, y: 1.2, z: 31.8 }); }); // knocking from behind the locked door
   const tape = box([-2.06, .78, 30.25], [-1.94, .8, 30.32], M.dark, { collide: false, tile: .2 });
   const label = new THREE.Mesh(new THREE.PlaneGeometry(.07, .035), new THREE.MeshStandardMaterial({ color: 0xd9cfae })); label.rotation.x = -Math.PI / 2; label.position.y = .0105; tape.add(label);
-  let watched = false;
+  let watched = done;
   addInteract(tape, { prompt: 'Kaseti izle', enabled: () => !watched, interact() {
-    watched = true; addEvidence('tape'); sfx.static(.8, .1);
-    say([['Kayıttaki Ekin', 'Eğer bunu izliyorsan, kapıyı çoktan açtın.', 3200], ['Kayıttaki Ekin', 'Nevşehir\'e gitme. Ne görürsen gör, kaydetme.', 3400], ['Kayıttaki Ekin', '…ya da kaydet. Hangisinde kurtulduğumu hatırlamıyorum.', 3600], ['Ekin', 'Bu benim sesim. Ama ben bunu hiç çekmedim.', 3000]])
-      .then(() => { gate.activate(); objective('Kuzey duvarında bir şey uyandı. Geçide gir.'); });
+    watched = true; addEvidence('denizTape'); sfx.static(.8, .1);
+    say([['Kayıttaki Deniz', 'Ben Deniz Arat. 11 Ekim. Bana da o e-posta geldi…', 3200], ['Kayıttaki Deniz', 'Pompa odasının kapısı kilitlendi; içerideyim. Su yükseliyor.', 3400],
+      ['Kayıttaki Deniz', 'Jeneratör ölmek üzere, panelde iki şalter var. Biri pompayı çalıştırıyor. Öbürü kayıtları bir yere gönderiyor.', 4400], ['Ekin', 'Üç gün önce kaydedilmiş. Ama biri hâlâ vuruyor.', 2800]])
+      .then(() => { if (!state.choices.power) objective('Batı duvarındaki panel: iki şalter, tek devre. Yakıt yalnızca birine yeter.'); });
   } });
-  zone([-3, 0, 27.4], [3, 3, 33], () => { if (!watched) objective('Masada bir kaset var.'); });
+  // the panel: POMPA saves Deniz; AKTARIM sends the camcorder feed to PLM-01 in Paris. The fuel runs one, then the generator dies.
+  box([-3, .9, 27.7], [-2.86, 1.62, 28.9], M.metal, { tile: .5 });
+  decal(textTexture('POMPA', { w: 256, h: 64, fg: '#e8e2d4', font: '44px VT323, monospace', bg: '#1a1210' }), .3, .075, [-2.855, 1.52, 28.0], Math.PI / 2);
+  decal(textTexture('AKTARIM · PLM-01', { w: 512, h: 64, fg: '#e8e2d4', font: '44px VT323, monospace', bg: '#10141a' }), .42, .053, [-2.855, 1.52, 28.55], Math.PI / 2);
+  box([-3, 1.72, 28.3], [-2.8, 2.06, 28.8], M.dark, { tile: .3 });
+  decal(textTexture('PALIMPSESTE · RELAIS PLM-01 · AKTARIM: PARİS', { w: 1024, h: 64, fg: '#d8d2c0', font: '36px VT323, monospace' }), .48, .03, [-2.795, 2.0, 28.55], Math.PI / 2);
+  const led = new THREE.Mesh(new THREE.SphereGeometry(.018, 10, 8), new THREE.MeshStandardMaterial({ color: 0x220000, emissive: 0xff2a1a, emissiveIntensity: 0 })); led.position.set(-2.79, 1.8, 28.4); W.group.add(led);
+  const lever = (z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(.05, .26, .05), M.rust); m.position.set(-2.82, 1.25, z); W.group.add(m); return m; };
+  const levers = { pump: lever(28.0), relay: lever(28.55) };
+  const LEVER_TEXT = { pump: 'Şalteri POMPA\'ya indir · Deniz\'i kurtar', relay: 'Şalteri AKTARIM\'a indir · Görüntüyü Paris\'e gönder' };
+  for (const v of ['pump', 'relay']) addInteract(levers[v], confirmChoice('power', LEVER_TEXT[v], () => { if (choose('power', v)) applyPower(v, false); }, { tag: 'power:' + v, enabled: () => watched }));
+  function applyPower(v, instant) {
+    levers[v].position.y = 1.1;
+    const dies = () => { lamp.set(false); addSeal('sakarya'); if (!instant) raiseEcho(); gate.activate(); objective('Jeneratör sustu. Kuzey duvarında bir şey uyandı. Geçide gir.'); };
+    if (v === 'pump') {
+      const out = () => { pumpDoor.locked = false; pumpDoor.setOpen(true, 1); deniz.visible = true; };
+      if (instant) { water.position.y = .03; out(); deniz.position.set(-1.8, 0, 31.4); return dies(); }
+      sfx.rumble({ x: -4.3, y: .5, z: 31.8 }, 3); drain.go(); objective('Pompa çalışıyor. Su çekiliyor.');
+      deniz.position.set(-4.0, 0, 31.8); deniz.rotation.y = -Math.PI / 2; // faces the door (+X)
+      later(12500, () => {
+        out(); addEvidence('deniz');
+        say([['Deniz', 'Üç gündür buradayım. Sen de mi o e-postayı aldın?', 3200], ['Deniz', 'Yalnız inmeyeceğim. Ben de geliyorum.', 2800]]);
+        later(1500, dies);
+      });
+    } else {
+      led.material.emissiveIntensity = 3;
+      if (instant) { puddle.scale.setScalar(1); return dies(); }
+      sfx.static(.9, .12);
+      say([['Camille (telsiz)', 'Görüntün geliyor, Ekin. Ben Camille Moreau. Kuzeydeki geçide gir; 03.17\'den önce.', 4200], ['Ekin', 'Deniz? …Deniz!', 2200]]);
+      raiseEcho();
+      let t = 0; W.updaters.push((dt) => { if (t < 6) { t += dt; puddle.scale.setScalar(.05 + .95 * Math.min(1, t / 6)); } });
+      later(3000, dies);
+    }
+  }
+  zone([-3, 0, 27.4], [3, 3, 33], () => { if (!watched) objective('Masada bir kaset var. Batı duvarının ardından biri vuruyor.'); });
+  if (state.choices.power) applyPower(state.choices.power, true);
   if (ac) { ambienceHum({ x: 0, y: 2.4, z: 3.5 }, [50, 100.4], .04); ambienceWind(); }
   return { spawn: [0, 1.8, Math.PI], fog: [0x040405, .075], ambient: [0x8a90a0, .035], objective: 'Bodrumu araştır. Çıkış kuzeyde.' };
 }
@@ -1049,8 +1148,15 @@ function buildNevsehir() {
   const relief = new THREE.Mesh(new THREE.CircleGeometry(1.1, 40), new THREE.MeshBasicMaterial({ map: sigilTexture(), color: 0x2a1d12, transparent: true, opacity: .55 })); relief.position.z = -.145; relief.rotation.y = Math.PI; disc.add(relief);
   disc.userData.collider = { min: [-.9, 0, 17], max: [.9, 2.4, 17.2] }; W.colliders.push(disc.userData.collider);
   const discMove = mover(disc, [2.3, 0, 0], 3.2, { spin: ['z', -2.3 / 1.22] });
-  function solved() { addSeal('nevsehir'); raiseEcho(); discMove.go(); objective('Mühür kapısı açıldı. Arşive gir.'); say([['İkinci Ses', 'Ha-tır-la-ma-dık-la-rı-nı… hatırlıyoruz.', 3400]]); }
-  zone([-4, 0, 9], [4, 4, 11.5], () => objective('Üç taş, üç simge. Doğru dizilimi bu gerçeklik göstermiyor. Kamerayla duvara bak.'));
+  function solved() { if (!state.seals.has('nevsehir')) raiseEcho(); addSeal('nevsehir'); discMove.go(); if (deniz) { deniz.position.set(-1.3, 0, 21.9); deniz.rotation.y = Math.PI * .8; } objective('Mühür kapısı açıldı. Arşive gir.'); say([['İkinci Ses', 'Ha-tır-la-ma-dık-la-rı-nı… hatırlıyoruz.', 3400]]); }
+  zone([-4, 0, 9], [4, 4, 11.5], () => {
+    objective('Üç taş, üç simge. Doğru dizilimi bu gerçeklik göstermiyor. Kamerayla duvara bak.');
+    if (state.choices.power === 'relay') say([['Camille (telsiz)', 'Göz, Halka, Sarmal. Vaktin yok.', 3000]]);
+    else if (deniz) say([['Deniz', 'Benim telefonum o simgeleri görmüyor; senin kameran görüyor.', 3400]]);
+  });
+  // Deniz, if the pump saved her, waits in the hall
+  const deniz = state.choices.power === 'pump' ? makeDeniz() : null;
+  if (deniz) { deniz.position.set(-3.6, 0, 9.6); deniz.rotation.y = Math.PI * .75; }
   // Passage + archive of clay tablets; the tablet tells the truth about the First Recorders
   room(-.8, .8, 17.2, 21, 2.4, tuff, { n: false, s: false });
   room(-3.5, 3.5, 21, 29, 3, tuff, { s: [{ c: 0, w: 1.6, h: 2.4 }] });
@@ -1058,13 +1164,40 @@ function buildNevsehir() {
   box([-.35, 0, 24.7], [.35, .95, 25.2], tuff); sconce(-3.5, 2.4, 24.5, 1, 0, 0xffad6b, 2, 7); sconce(3.5, 2.4, 27.5, -1, 0, 0xffad6b, 2, 7);
   const tablet = box([-.25, .95, 24.8], [.25, .99, 25.1], M.slab, { collide: false, tile: .3 });
   const gate = echoGate(0, 1.25, 28.6, 0, () => goChapter(2));
-  note(tablet, 'tablet', () => { gate.activate(); objective('Geçit uyandı. Ama arşivde biri daha var… (Kamerayla bak ya da geçide gir.)'); });
-  // The other Ekin: only the camcorder sees her
-  const other = onlyThroughCamera(makeFigure({ coat: new THREE.MeshStandardMaterial({ color: 0x3b4450, roughness: .9, transparent: true, opacity: .8 }), h: 1.66 }));
-  other.position.set(2.2, 0, 27.6); other.rotation.y = Math.PI * .85; W.group.add(other); W.figures.push({ group: other, role: 'other' });
-  const otherHit = hitPlane(.6, 1.7, [2.2, .85, 27.55], Math.PI);
-  camTarget(otherHit, 2, () => { addEvidence('other'); raiseEcho(); say([['Diğer Ekin', 'Bu sefer de kamerayı açtın, değil mi?', 3000], ['Diğer Ekin', 'Her kayıt onu biraz daha yaklaştırıyor.', 3200], ['Ekin', 'Sen… ben misin?', 2200]]); later(9000, () => { other.userData.revealed = false; other.visible = false; }); });
-  W.updaters.push(() => { if (other.visible) other.position.x = 2.2 + Math.sin(simTime * 23) * .01; });
+  let tabletRead = state.evidence.has('tablet');
+  const tryWake = () => { if (tabletRead && state.choices.elise) { gate.activate(); objective('Geçit uyandı. Geçide gir.'); } };
+  note(tablet, 'tablet', () => { tabletRead = true; if (!state.choices.elise) objective('Arşivde bir çocuk ağlıyor. Çıplak gözle kimse yok… Kamerayla bak.'); tryWake(); });
+  // Élise Moreau's echo: a child only the camcorder shows, and the clay token with her name beside her
+  const elise = onlyThroughCamera(makeElise());
+  elise.position.set(2.2, 0, 27.6); elise.rotation.y = Math.PI * .85;
+  const eliseHit = hitPlane(.5, 1.25, [2.2, .62, 27.55], Math.PI), recHit = hitPlane(.5, 1.25, [2.2, .62, 27.5], Math.PI);
+  const token = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, .025, 20), plainMat('clay', { color: 0x9a6a48, roughness: .95 }));
+  token.position.set(3.15, 1.275, 27.45); token.userData.dynamic = true; W.group.add(token);
+  let met = !!state.choices.elise;
+  every(5, () => { if (!met && state.camRaised === false && Math.hypot(player.x - 2.2, player.z - 27.6) < 6) sfx.whisper({ x: 2.2, y: 1, z: 27.6 }, 1.2, .06); }); // the crying
+  camTarget(eliseHit, .8, () => {
+    met = true;
+    const lines = [['Élise', 'Annem beni buradan çıkarmak istiyor.', 2800], ['Élise', 'Ama adım taşta kaldıkça çıkamam.', 2800], ['Élise', 'Adımı al… ya da beni kaydet; o zaman annem beni hep görebilir.', 4000]];
+    if (deniz) lines.push(['Deniz', 'Kaydetme onu. Kaydettiğimiz her şey ona bir ses daha veriyor.', 3600]);
+    else lines.push(['Camille (telsiz)', 'Onu kaydet, Ekin. Görmem lazım.', 3000]);
+    say(lines); objective('Rafta adının yazılı olduğu kil mühür var (E). Ya da kamerayı onda tut ve kaydet.');
+  }, { when: () => !met });
+  camTarget(recHit, 2, () => {
+    if (!choose('elise', 'recorded')) return;
+    addEvidence('eliseTape'); raiseEcho(2); sfx.static(1.2, .14); say([['İkinci Ses', 'Bir ses daha.', 2400]]);
+    token.visible = false; elise.visible = false; W.hiddenOnly.splice(W.hiddenOnly.indexOf(elise), 1); tryWake();
+  }, { when: () => met && !state.choices.elise });
+  addInteract(token, confirmChoice('elise', 'Kil mührü al · Élise\'in adını yanında taşı', () => {
+    if (!choose('elise', 'carried')) return;
+    addEvidence('eliseName'); token.visible = false; say([['Élise', 'Seninle geliyorum.', 2400]]);
+    elise.position.set(1.7, 0, 28.1); elise.rotation.y = Math.PI; tryWake();
+  }, { enabled: () => met }));
+  if (state.choices.elise) {   // Continue: the decision already happened
+    token.visible = false;
+    if (state.choices.elise === 'carried') { elise.position.set(1.7, 0, 28.1); elise.rotation.y = Math.PI; } else { elise.visible = false; W.hiddenOnly.splice(W.hiddenOnly.indexOf(elise), 1); }
+  }
+  W.updaters.push(() => { if (elise.visible) elise.position.x += Math.sin(simTime * 23) * .0008; });
+  tryWake();
   if (ac) { ambienceWind(220, .05); }
   every(14, () => { if (state.echo >= 2) sfx.whisper({ x: (Math.random() - .5) * 8, y: 2, z: 12 }, 2, .15); });
   return { spawn: [0, 1.2, Math.PI], fog: [0x0b0806, .05], ambient: [0xb08a62, .05], objective: 'Kapadokya\'nın altında bir taş şehir. İlerle.' };
@@ -1084,8 +1217,8 @@ function buildKola() {
   const reds = [5, 11, 17, 22].map((z) => { const b = bulb([.85, 2.4, z], 0xff2a1a, 1.1, 5, { shade: false }); b.kind = 'alarm'; return b; });
   prop('valve', [-1.0, 1.35, 6.8], Math.PI / 2); prop('valve', [1.0, 1.2, 18.6], -Math.PI / 2);
   W.updaters.push(() => { const k = .55 + .45 * Math.sin(simTime * 2.4); for (const b of reds) b.light.intensity = 1.2 * LUX * k; });
-  // Lab: the 1986 log, a monitor only the camcorder reads, and the resonance console
-  room(1.2, 7, 9, 15, 2.8, wallM, { floor: floorM, w: false });
+  // Lab: the 1986 log and the resonance console; a vent in the north wall hides a duct to the reactor hall
+  room(1.2, 7, 9, 15, 2.8, wallM, { floor: floorM, w: false, n: [{ c: 1.75, w: .7, h: 1.2 }] });
   const fl = bulb([4.1, 2.6, 12], 0xe8fff2, 2.4, 9);
   every(3.3, () => { if (Math.random() < .6) { fl.set(false); later(70, () => fl.set(true)); later(160, () => fl.set(false)); later(230, () => fl.set(true)); } });
   box([5.6, 0, 9.4], [6.8, .78, 11.6], M.metal); box([2.2, 0, 14.0], [5.4, .78, 14.8], M.metal);
@@ -1093,10 +1226,7 @@ function buildKola() {
   prop('radio', [4.7, .78, 14.45], Math.PI); prop('chair', [6.3, 0, 12.4], -Math.PI / 2, { collide: true });
   for (const [x, z] of [[6.2, 9.9], [6.2, 10.9]]) { box([x - .25, .78, z - .2], [x + .25, 1.2, z + .2], M.dark, { tile: .4 }); }
   const mon1 = decal(screenTex(['> SIFIR-17 REZONANS', '> DURUM: KAPALI', '> FREKANS BEKLENİYOR']), .44, .28, [5.94, 1.0, 9.9], -Math.PI / 2);
-  const mon2 = decal(screenTex(['> ARŞİV 14.03.1986', '> KAYIT 17/17']), .44, .28, [5.94, 1.0, 10.9], -Math.PI / 2);
-  const hiddenLine = onlyThroughCamera(decal(screenTex(['DENEK 17/17:', 'EKİN YALIN', 'KAYIT DEVAM EDİYOR'], '#ff8a7a'), .44, .28, [5.935, 1.0, 10.9], -Math.PI / 2, { additive: true }));
-  W.updaters.push(() => { mon2.visible = !hiddenLine.visible; }); // the camera's line replaces the screen's, never overlaps it
-  camTarget(hiddenLine, 1.6, () => { addEvidence('subject'); raiseEcho(); hiddenLine.userData.revealed = true; say([['Ekin', 'Benim adım. 1986\'da.', 2600]]); });
+  decal(screenTex(['> ARŞİV 14.03.1986', '> DENEK 17/17: V. VOLKOVA']), .44, .28, [5.94, 1.0, 10.9], -Math.PI / 2);
   note(paper([3.2, .783, 14.4], .2), 'log1986', () => objective('Günlükte bir frekans vardı. Konsolda ayarla.'));
   const FREQS = [174, 285, 396, 417, 528, 639]; let fi = 1;
   const consoleM = box([5.6, .78, 13.2], [6.8, 1.05, 14.6], M.metal, { tile: .5 });
@@ -1106,31 +1236,110 @@ function buildKola() {
   const freqLabel = decal(freqTex(FREQS[fi]), .4, .22, [6.79, 1.3, 13.9], -Math.PI / 2);
   box([6.8, 1.05, 13.6], [6.85, 1.55, 14.2], M.dark, { collide: false });
   const setLabel = () => { freqLabel.material.map.dispose(); freqLabel.material.map = freqTex(FREQS[fi]); freqLabel.material.needsUpdate = true; };
-  addInteract(dial, { get prompt() { return `Frekans: ${FREQS[fi]} Hz · değiştir`; }, enabled: () => !state.flags.resonance, interact() { fi = (fi + 1) % FREQS.length; setLabel(); sfx.tone(FREQS[fi], .9, .06, { x: 5.8, y: 1.1, z: 13.6 }); dial.rotation.y += 1; } });
+  const FREQ_TEXT = { 417: '417 Hz · Rezonansı uygula: reaktör kapısını aç', 528: '528 Hz · Rezonansı uygula: Kopya\'yı dondur' };
+  const freqChoice = { 417: confirmChoice('freq', FREQ_TEXT[417], () => { if (choose('freq', '417')) applyFreq('417', false); }, { tag: 'freq:417' }),
+    528: confirmChoice('freq', FREQ_TEXT[528], () => { if (choose('freq', '528')) applyFreq('528', false); }, { tag: 'freq:528' }) };
+  addInteract(dial, { get prompt() { return `Frekans: ${FREQS[fi]} Hz · değiştir`; }, enabled: () => !state.choices.freq, interact() { fi = (fi + 1) % FREQS.length; setLabel(); sfx.tone(FREQS[fi], .9, .06, { x: 5.8, y: 1.1, z: 13.6 }); dial.rotation.y += 1; } });
+  const already = state.choices.freq;
   const blast = box([-.9, 0, 23.0], [.9, 2.4, 23.4], M.rust, { tile: 1 });
-  const blastMove = mover(blast, [0, 2.35, 0], 3);
-  addInteract(btn, { prompt: 'Rezonansı uygula', enabled: () => !state.flags.resonance, interact() {
-    if (FREQS[fi] !== 417) { sfx.static(.9, .12); toast('<b>Rezonans tutmadı</b>Frekans yanlış.'); return; }
-    state.flags.resonance = true; sfx.tone(417, 3, .07, { x: 5.8, y: 1.1, z: 13.8 }); addSeal('kola'); raiseEcho();
-    mon1.material.map = screenTex(['> SIFIR-17 REZONANS', '> DURUM: AÇIK', '> REAKTÖR KAPISI AÇILIYOR']); mon1.material.needsUpdate = true;
-    later(1200, () => blastMove.go()); objective('Reaktör kapısı açılıyor. Koridorun sonu.');
+  const blastMove = mover(blast, [0, 2.35, 0], already === '417' ? .01 : 3, { sound: already !== '417' });
+  const grate = box([1.4, 0, 15.0], [2.1, 1.2, 15.2], M.metal, { tile: .4 });
+  const grateMove = mover(grate, [0, -1.18, 0], already === '528' ? .01 : .35, { sound: false });
+  addInteract(btn, { get prompt() { return freqChoice[FREQS[fi]] ? freqChoice[FREQS[fi]].prompt : 'Rezonansı uygula'; }, enabled: () => !state.choices.freq && !state.ended, interact() {
+    if (!freqChoice[FREQS[fi]]) { sfx.static(.9, .12); toast('<b>Rezonans tutmadı</b>Frekans yanlış.'); return; }
+    freqChoice[FREQS[fi]].interact();
   } });
+  function applyFreq(v, instant) {
+    if (v === '417') {
+      state.flags.resonance = true; if (!instant) { sfx.tone(417, 3, .07, { x: 5.8, y: 1.1, z: 13.8 }); raiseEcho(); sfx.whisper({ x: enemy.x, y: 1.6, z: enemy.z }, 1.6, .35); }
+      addSeal('kola');
+      mon1.material.map = screenTex(['> SIFIR-17 REZONANS', '> DURUM: AÇIK', '> REAKTÖR KAPISI AÇILIYOR']); mon1.material.needsUpdate = true;
+      if (instant) blastMove.go(); else { later(1200, () => blastMove.go()); objective('Reaktör kapısı açılıyor. Koridorun sonu. Volkova hâlâ orada.'); }
+    } else {
+      enemy.freeze(); grateMove.go();
+      mon1.material.map = screenTex(['> SIFIR-17 REZONANS', '> KOPYA: DONDU', '> KAPI KİLİTLİ · HAVALANDIRMA AÇIK']); mon1.material.needsUpdate = true;
+      if (!instant) { sfx.tone(528, 3, .07, { x: 5.8, y: 1.1, z: 13.8 }); sfx.rattle({ x: 1.75, y: .4, z: 15.1 }); say([['İkinci Ses', 'Uyudu.', 2000]]); objective('Volkova dondu. Kapı kilitli kaldı; havalandırma ızgarası düştü. Çömel ve kanaldan geç.'); }
+    }
+    if (denizFig && state.choices.deniz === 'together') { denizFig.scale.y = 1; denizFig.position.set(-2.6, 0, 24.6); denizFig.rotation.y = Math.PI * .8; }
+  }
+  // the duct (crouch only): lab north wall to the reactor hall
+  room(1.4, 2.1, 15.2, 23.4, 1.2, M.metal, { floor: floorM, n: false, s: false });
+  zone([1.2, 0, 23.4], [2.3, 3, 25], () => { if (state.choices.freq === '528') state.checkpoint = [1.75, 24.2, Math.PI]; });
   zone([1.2, 0, 9], [7, 3, 15], () => { state.checkpoint = [3, 12, Math.PI / 2]; objective('Laboratuvar. Deney günlüğünü bul.'); });
   // Reactor hall + gate
-  room(-4, 4, 23.4, 32, 4.5, wallM, { floor: floorM, s: [{ c: 0, w: 1.8, h: 2.4 }] });
+  room(-4, 4, 23.4, 32, 4.5, wallM, { floor: floorM, s: [{ c: 0, w: 1.8, h: 2.4 }, { c: 1.75, w: .7, h: 1.2 }] });
   const core = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 3.2, 32), M.metal); core.position.set(0, 1.6, 27.4); core.castShadow = true; W.group.add(core); W.occluders.push(core);
   W.colliders.push({ min: [-1.5, 0, 25.9], max: [1.5, 3.2, 28.9] });
   const coreRing = new THREE.Mesh(new THREE.TorusGeometry(1.42, .05, 8, 48), new THREE.MeshBasicMaterial({ color: 0x5fb8ff })); coreRing.rotation.x = Math.PI / 2; coreRing.position.set(0, 2.2, 27.4); W.group.add(coreRing);
   bulb([3.5, 4.1, 30], 0x9fc8ff, 1.6, 9, { shade: false });
   prop('crate', [3.4, 0, 24.1], .3, { collide: true }); prop('crate', [-3.3, 0, 31.2], -.4, { collide: true });
   const gate = echoGate(0, 1.25, 31.6, 0, () => goChapter(3));
-  zone([-4, 0, 23.6], [4, 4, 25.5], () => { gate.activate(); say([['İkinci Ses', 'Biz yaratılmadık, Ekin. Biz yalnızca beklemiştik.', 3400]]); objective('Geçide gir.'); });
+  zone([-4, 0, 23.6], [4, 4, 25.5], () => {
+    gate.activate(); say([['İkinci Ses', 'Biz yaratılmadık, Ekin. Biz yalnızca beklemiştik.', 3400]]); objective('Geçide gir.');
+    if (denizFig && state.choices.deniz === 'together') say([['Deniz', 'Gördün mü onu? Gidelim.', 2400]]);
+  });
   // Volkova, the laboratory assistant who "no longer sleeps"
   enemy = new Copy([[0, 8.2], [0, 20.5]]);
   zone([-1, 0, 3.2], [1, 3, 5.2], () => objective('Koridorda biri dolaşıyor. Fenerini kapat (F), batıdaki karanlık girintilere çömel (C) ve geçmesini bekle. Laboratuvar doğuda. Kamerayla bak: o bir insan değil.'));
+  // (a) Deniz, if the pump saved her: she blocks the corridor until you answer
+  const denizFig = state.choices.power === 'pump' && state.choices.deniz !== 'bait' ? makeDeniz() : null;
+  const denizCam = (z) => { const m = box([-.12, 0, z - .08], [.12, .1, z + .08], M.dark, { collide: false, tile: .2 }); note(m, 'denizCam'); };
+  if (state.choices.deniz === 'bait') denizCam(20.6);
+  if (denizFig && !state.choices.deniz) {
+    denizFig.position.set(0, 0, 3.7); denizFig.rotation.y = 0;
+    const block = { min: [-.6, 0, 3.0], max: [.6, 2.2, 3.25] }; W.colliders.push(block);
+    const unblock = () => { block.min = [99, 0, 99]; block.max = [99, 0, 99]; };
+    zone([-1.5, 0, 0], [1.5, 3, 3], () => { say([['Deniz', 'O bir insan değil. Ben onu koridorun sonuna çekerim; sen laboratuvara geç.', 3800]]); objective('Deniz yolu kapatıyor. Ona bak ve cevap ver (E): sol yanı “oyalasın”, sağ yanı “birlikte saklanacağız”.'); });
+    // her two shoulders, as you face her: left = let her draw it away, right = hide together
+    addInteract(hitPlane(.32, 1.6, [.17, .85, 3.55], 0), confirmChoice('deniz', 'Bırak, onu oyalasın', () => {
+      if (!choose('deniz', 'bait')) return; unblock();
+      say([['Deniz', 'Hey! Buraya! Buradayım!', 2000]]);
+      const decoy = { x: 0, z: 3.7 }; let gone = false;
+      W.updaters.push((dt) => {
+        if (gone) return;
+        decoy.z += 3 * dt; denizFig.position.set(decoy.x, 0, decoy.z); denizFig.rotation.y = Math.PI;
+        enemy.lure(decoy.x, decoy.z, 20);
+        if (decoy.z > 21 || Math.hypot(enemy.x - decoy.x, enemy.z - decoy.z) < .8) {
+          gone = true; denizFig.visible = false; sfx.whisper({ x: decoy.x, y: 1.6, z: decoy.z }, 1.6, .5); sfx.static(.8, .14);
+          denizCam(Math.min(decoy.z, 20.6)); enemy.lure(0, 21.6, 20); objective('Sessizlik. Koridor bir süreliğine boş. Laboratuvara geç.');
+        }
+      });
+    }, { tag: 'deniz:bait' }));
+    addInteract(hitPlane(.32, 1.6, [-.17, .85, 3.55], 0), confirmChoice('deniz', 'Hayır, birlikte saklanacağız', () => {
+      if (!choose('deniz', 'together')) return; unblock();
+      say([['Deniz', 'Sen geç, ben burada beklerim.', 2400]]);
+      denizFig.position.set(-1.95, 0, 8.75); denizFig.rotation.y = -Math.PI / 2; denizFig.scale.y = .6;
+    }, { tag: 'deniz:together' }));
+  } else if (denizFig) {   // Continue after hiding together
+    if (state.choices.freq) { denizFig.position.set(-2.6, 0, 24.6); denizFig.rotation.y = Math.PI * .8; } else { denizFig.position.set(-1.95, 0, 8.75); denizFig.rotation.y = -Math.PI / 2; denizFig.scale.y = .6; }
+  }
+  // (b) the relay: Camille talks over the camcorder, and the Copy calls in Deniz's voice
+  if (state.choices.power === 'relay') {
+    zone([1.2, 0, 9], [7, 3, 15], () => say([['Camille (telsiz)', '417 Hz, Ekin. 528\'i sakın deneme; kapı kilitli kalır.', 3400]]));
+    every(18, () => { if (!enemy.frozen && !state.transit) say([['Deniz?', 'Ekin… buradayım. Su…', 2600]]); });
+  }
+  // (c) Élise's name in your pocket: her echo waits in the second alcove and tells you when to go
+  if (state.choices.elise === 'carried') {
+    const el = onlyThroughCamera(makeElise()); el.position.set(-2.0, 0, 15.75); el.rotation.y = -Math.PI / 2;
+    let cool = 0;
+    W.updaters.push((dt) => {
+      cool -= dt; if (cool > 0 || enemy.frozen || enemy.mode !== 'patrol') return;
+      const inHide = W.hides.some((h) => player.x >= h.min[0] && player.x <= h.max[0] && player.z >= h.min[1] && player.z <= h.max[1]);
+      const dx = player.x - enemy.x, dz = player.z - enemy.z, away = dx * -Math.sin(enemy.heading) + dz * -Math.cos(enemy.heading) < 0;
+      if (inHide && away && Math.hypot(dx, dz) > 7) { cool = 8; say([['Élise', 'Şimdi.', 1200]]); }
+    });
+  }
+  // (d) Élise's tape: played over the intercom it draws the Copy to the far end of the corridor, once
+  if (state.choices.elise === 'recorded') {
+    const ic = box([1.36, 1.2, 1.1], [1.5, 1.55, 1.5], M.metal, { tile: .3 }); let used = false;
+    addInteract(ic, { prompt: 'Élise\'in kaydını interkomdan çal', enabled: () => !used && !enemy.frozen, interact() {
+      used = true; sfx.static(.6, .1); sfx.whisper({ x: 0, y: 1.6, z: 22 }, 3, .3); enemy.lure(0, 22, 12); objective('Kayıt koridorun sonunda çalıyor. On iki saniyen var.');
+    } });
+  }
+  if (already) applyFreq(already, true);
   if (ac) { ambienceHum({ x: 0, y: 2.5, z: 12 }, [60, 120.5], .03); ambienceWind(180, .03); }
   every(22, () => sfx.tone(311, 1.6, .02, { x: 0, y: 2, z: 30 }));
-  return { spawn: [0, 1.5, Math.PI], fog: [0x050606, .06], ambient: [0x9ab0a0, .03], objective: 'Kola Yarımadası, 1986. Ya da 2028.' };
+  return { spawn: [0, 1.5, Math.PI], fog: [0x050606, .06], ambient: [0x9ab0a0, .03], objective: 'SIFIR-17, Kola Yarımadası. 1986\'da terk edildi. Laboratuvar doğu kanadında.' };
 }
 
 /* ================================================================ CHAPTER 4 — FRANSA: SON TANIK */
@@ -1169,31 +1378,56 @@ function buildParis() {
   engrave(['RUE DAREAU', '1781'], .6, .24, [.899, 1.75, 4.6], -Math.PI / 2, 80);
   decal(textTexture('PROJET PALIMPSESTE — ACCÈS RESTREINT', { w: 1024, h: 96, fg: '#3a3428', font: '44px "IBM Plex Sans Condensed", sans-serif' }), 1.7, .16, [0, 2.0, 13.95], Math.PI);
   for (const [x, z] of [[.81, 3.6], [-.81, 7.6], [.81, 11.2]]) { torchLight([x, 1.55, z], 0xffb46a, 1.4, 5); prop('candles', [x, 1.35, z], z); } // on the wall tops
-  // PALIMPSEST archive: tapes, Camille, and a drawing only the camcorder sees
+  // PALIMPSEST archive: tapes, Camille, and Élise's drawing on the wall
   room(-4, 4, 14.2, 22, 3.2, lime, { s: [{ c: 0, w: 1.4, h: 2.2 }], n: [{ c: 0, w: 1.6, h: 2.4 }] });
   for (const x of [-3.9, 3.3]) for (const y of [.4, 1.1, 1.8, 2.5]) { box([x, y, 15], [x + .6, y + .05, 21.2], M.metal, { tile: .5 }); for (let z = 15.1; z < 21.1; z += .16) box([x + .1, y + .05, z], [x + .5, y + .3, z + .12], M.dark, { collide: false, tile: .3 }); }
   box([-1.6, .74, 18.6], [-.2, .78, 19.4], M.wood); bulb([-.9, 2.9, 19], 0xffd9a0, 1.8, 8);
   prop('recorder', [-.9, .78, 19.0], .1); prop('chair', [-.9, 0, 18.15], 0, { collide: true });
   const camille = makeFigure({ coat: M.coat, hair: new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: .9 }), h: 1.68, longHair: true });
   camille.position.set(1.4, 0, 19.6); camille.rotation.y = Math.PI * .1; W.group.add(camille); W.figures.push({ group: camille, role: 'camille' }); // faces the archive entrance
-  W.colliders.push({ min: [1.1, 0, 19.3], max: [1.7, 1.7, 19.9] });
+  const camCol = { min: [1.1, 0, 19.3], max: [1.7, 1.7, 19.9] }; W.colliders.push(camCol);
   const finalDoor = box([-.8, 0, 22.0], [.8, 2.4, 22.2], M.rust, { tile: 1 });
-  const finalMove = mover(finalDoor, [0, 2.4, 0], 3);
+  const finalMove = mover(finalDoor, [0, 2.4, 0], state.choices.camille ? .01 : 3, { sound: !state.choices.camille });
   const camHit = hitPlane(.6, 1.7, [1.4, .85, 19.3], 0);
-  let talked = false;
-  addInteract(camHit, { prompt: 'Dr. Camille Moreau ile konuş', enabled: () => !talked, interact() {
+  // Deniz, if she is alive, came with you and has something to say to the woman who sent her down
+  const deniz = denizAlive() ? makeDeniz() : null;
+  if (deniz) { deniz.position.set(-1.6, 0, 17); deniz.rotation.y = -Math.PI * .7; }
+  let talked = !!state.choices.camille;
+  const allyChoice = confirmChoice('camille', 'Kamerayı Camille\'e ver', () => { if (choose('camille', 'ally')) applyCamille('ally', false); }, { tag: 'camille:ally', enabled: () => talked });
+  addInteract(camHit, { get prompt() { return talked ? allyChoice.prompt : 'Dr. Camille Moreau ile konuş'; }, enabled: () => !talked || allyChoice.enabled(), interact() {
+    if (talked) return allyChoice.interact();
     talked = true; addEvidence('camille'); objective('Dinle.');
-    say([
-      ['Camille', 'Demek sensin. Kayıtlardaki çocuk.', 2800],
-      ['Camille', 'Kızım Élise yedi yıl önce kayboldu. Yankı\'da onu buldum. Başka bir gerçeklikte yaşıyor.', 4200],
-      ['Camille', 'Dört mührü ben açtım. Ama kapıyı aralayan sendin: kamerana kaydettiğin her şey onu biraz daha yaklaştırdı.', 4600],
-      ['Camille', 'E-postayı ben göndermedim. Gönderen adres boştu, değil mi? O adres senin, Ekin. Henüz yazmadığın bir mesaj.', 4800],
-      ['Ekin', 'Ya geri gelen o değilse?', 2400],
-      ['Camille', 'Bunu ancak sen seçebilirsin. Kapı açık.', 3000],
-    ]).then(() => { finalMove.go(); objective('Son oda. Mühürler ve kapı.'); });
+    say(camilleLines(state.choices)).then(() => { finalMove.go(); objective('Kamerayı Camille\'e ver ya da son odaya geç ve kolu çekip kapıyı onun önüne indir.'); });
   } });
-  const drawing = onlyThroughCamera(decal(drawingTexture(), 1.1, .82, [-3.25, 1.5, 18.4], Math.PI / 2, { additive: true, color: 0xcfe9ff }));
-  camTarget(drawing, 1.6, () => { addEvidence('drawing'); raiseEcho(); drawing.userData.revealed = true; say([['Ekin', '“Bekçi kapıyı açmayacak.” Bekçi kim?', 2800]]); });
+  const lever = box([1.1, .9, 22.35], [1.3, 1.4, 22.45], M.rust, { tile: .3 });
+  addInteract(lever, confirmChoice('camille', 'Kolu çek · Kapıyı Camille\'in önüne indir', () => { if (choose('camille', 'shut')) applyCamille('shut', false); }, { tag: 'camille:shut', enabled: () => talked && finalMove.done && player.z > 22.6 }));
+  function applyCamille(v, instant) {
+    if (v === 'ally') {
+      toast('<b>Kayıtlar Camille\'de</b>Kamera artık onda.'); camCol.min = [99, 0, 99]; camCol.max = [99, 0, 99];
+      const route = [[0, 21.2], [0, 23.5], [1.6, 35.2]]; let k = 0;
+      if (instant) { camille.position.set(1.6, 0, 35.2); camille.rotation.y = Math.PI; k = route.length; }
+      W.updaters.push((dt) => {   // she walks to the great gate and turns to face it
+        if (k >= route.length) return;
+        const [tx, tz] = route[k], dx = tx - camille.position.x, dz = tz - camille.position.z, d = Math.hypot(dx, dz), st = 1.2 * dt;
+        camille.rotation.y = Math.atan2(-dx, -dz);
+        if (d <= st) { camille.position.set(tx, 0, tz); if (++k === route.length) camille.rotation.y = Math.PI; } else camille.position.set(camille.position.x + dx / d * st, 0, camille.position.z + dz / d * st);
+      });
+      if (!instant) say([['Camille', 'Seç, Ekin.', 2200]]);
+    } else {
+      if (!instant) mover(finalDoor, [0, -2.4, 0], 1.2).go(); // on Continue the door never went up
+      let t = 0, n = 0;
+      W.updaters.push((dt) => {   // Camille, shut out on the archive side, pounds on the door
+        if (state.ended || (t += dt) < 4) return; t = 0; sfx.rattle({ x: 0, y: 1.2, z: 22.1 });
+        if (n++ % 3 === 0) say([['Camille', '(kapının ardından) Ekin! Élise orada!', 2400]]);
+      });
+    }
+    finalObjective();
+  }
+  // Élise's drawing, plain to the eye now: a document, not a camera find
+  decal(drawingTexture(), 1.1, .82, [-3.25, 1.5, 18.4], Math.PI / 2, { color: 0x3a2f24, opacity: .85 });
+  addInteract(hitPlane(1.1, .82, [-3.24, 1.5, 18.4], Math.PI / 2), { prompt: 'Duvardaki çizime bak', enabled: () => !state.evidence.has('drawing'), interact() {
+    addEvidence('drawing'); say([['Ekin', '“Adımı unutma.” …Élise.', 2600]]);
+  } });
   // Final chamber: four seal pedestals, the great gate, and the choice
   room(-7, 7, 22.2, 38, 7, lime, { s: [{ c: 0, w: 1.6, h: 2.4 }] });
   for (const [x, z] of [[-5.5, 25], [5.5, 25], [-5.5, 35], [5.5, 35]]) { torchLight([x, 1.15, z], 0xffb46a, 1.6, 7); prop('candelabrum', [x, 0, z], 0, { collide: true }); }
@@ -1208,58 +1442,102 @@ function buildParis() {
   }
   W.updaters.push(() => { for (const [id] of PED) { const on = state.seals.has(id), p = pedLights[id]; p.orb.material.emissiveIntensity = on ? 2.2 : 0; p.l.intensity = on ? 2 * LUX : 0; } });
   const gateRing = echoGate(0, 2.5, 36.6, 0, () => {}, { radius: 2.2 });
-  const parisSeal = onlyThroughCamera(decal(sigilTexture(), 1.6, 1.6, [0, 5.6, 37.79], Math.PI, { additive: true, color: 0x9fdcff }));
-  camTarget(parisSeal, 2.2, () => { addSeal('paris'); raiseEcho(); parisSeal.userData.revealed = true; say([['İkinci Ses', 'Dördüncü göz açıldı.', 2600]]); });
-  const hiddenCount = () => [...state.evidence].filter((k) => EVIDENCE[k].hidden).length;
-  const canKeep = () => hiddenCount() === HIDDEN_TOTAL && state.seals.size === 4;
-  const confirmAt = {};
-  const choice = (key, label, fn) => ({ get prompt() { return confirmAt[key] && simTime - confirmAt[key] < 4 ? `${label} · emin misin? Tekrar E` : label; }, enabled: () => !state.ended, interact() {
-    if (confirmAt[key] && simTime - confirmAt[key] < 4) fn(); else { confirmAt[key] = simTime; sfx.click(); }
-  } });
+  // the final decision: each option needs Camille's fate settled first, and is made once
+  const finish = (v) => { if (choose('final', v)) ending(endingFor(state.choices)); };
+  const ready = () => !!state.choices.camille;
   const erase = box([-2.6, 0, 30.6], [-1.8, 1.0, 31.4], M.metal, { tile: .5 });
   decal(textTexture('SİL', { w: 256, h: 96, fg: '#e8e2d4', font: '60px VT323, monospace', bg: '#1a1210' }), .5, .18, [-2.2, .85, 30.59], Math.PI);
-  addInteract(erase, choice('A', 'Bütün Yankı kayıtlarını sil ve merkezleri mühürle', () => ending('A')));
+  addInteract(erase, confirmChoice('final', 'Bütün Yankı kayıtlarını sil ve merkezleri mühürle', () => finish('erase'), { tag: 'final:erase', enabled: ready }));
   const upload = box([1.8, 0, 30.6], [2.6, 1.0, 31.4], M.metal, { tile: .5 });
   decal(textTexture('YAYINLA', { w: 256, h: 96, fg: '#e8e2d4', font: '60px VT323, monospace', bg: '#10141a' }), .5, .18, [2.2, .85, 30.59], Math.PI);
-  addInteract(upload, choice('B', 'Kayıtları dünyaya yayınla', () => ending('B')));
-  const gateHit = hitPlane(3.6, 3.6, [0, 2.5, 36.5], Math.PI);
-  addInteract(gateHit, { get prompt() { return canKeep() ? (confirmAt.C && simTime - confirmAt.C < 4 ? 'Kapının içinde kal · emin misin? Tekrar E' : 'Kapının içinde kal') : `Kapı seni tanımıyor · gizli kanıt ${hiddenCount()}/${HIDDEN_TOTAL} · mühür ${state.seals.size}/4`; },
-    enabled: () => !state.ended, interact() { if (!canKeep()) { sfx.rattle({ x: 0, y: 2, z: 36 }); return; } choice('C', '', () => ending('C')).interact(); } });
+  addInteract(upload, confirmChoice('final', 'Kayıtları dünyaya yayınla', () => finish('broadcast'), { tag: 'final:broadcast', enabled: ready }));
+  const gateOpts = {
+    ally: confirmChoice('final', 'Camille kapıyı açsın · Élise\'i çağır', () => finish('open'), { tag: 'final:open' }),
+    shut: confirmChoice('final', 'Kapının içine gir ve onu içeriden kapat', () => finish('stay'), { tag: 'final:stay' }),
+  };
+  addInteract(hitPlane(3.6, 3.6, [0, 2.5, 36.5], Math.PI), { get prompt() { return gateOpts[state.choices.camille]?.prompt ?? ''; }, enabled: () => !!gateOpts[state.choices.camille]?.enabled(), interact() { gateOpts[state.choices.camille].interact(); } });
+  function finalObjective() {
+    const c = state.choices.camille;
+    objective(!c ? 'Camille ile ne yapacağına karar ver: kamerayı ona ver ya da kolu çekip kapıyı onun önüne indir.'
+      : c === 'ally' ? 'Üç yol var: SİL, YAYINLA ya da Camille kapıyı açsın.' : 'Üç yol var: SİL, YAYINLA ya da kapının içine gir.');
+  }
   zone([-7, 0, 22.4], [7, 7, 26], () => {
-    gateRing.activate(); objective('Üç yol var: SİL, YAYINLA ya da kapının içinde kal (yalnızca bütün gizli kanıtlar ve dört mühürle).');
-    say([['İkinci Ses', 'Biz hiç doğmamış olanlarız. Milyonlarız.', 3200], ['İkinci Ses', 'Bizi kaydet, Ekin. Bizi göster.', 3000], ['Camille', 'Seç, Ekin.', 2200]]);
+    state.checkpoint = [0, 23.2, Math.PI]; gateRing.activate(); finalObjective();
+    say([['İkinci Ses', 'Biz hiç doğmamış olanlarız. Milyonlarız.', 3200], ['İkinci Ses', 'Bizi kaydet, Ekin. Bizi göster.', 3000]]);
   });
+  if (deniz) zone([-7, 0, 22.4], [7, 7, 26], () => { deniz.position.set(-1.2, 0, 23.4); deniz.rotation.y = Math.PI; });
+  // Élise's name in your pocket: her echo waits by the great gate
+  if (state.choices.elise === 'carried') { const el = onlyThroughCamera(makeElise()); el.position.set(-1.6, 0, 35.4); el.rotation.y = 0; }
+  // a stalker among the pedestals: Deniz's copy if she was taken, else Volkova if 417 set her free
+  const STALK = [[-5, 30], [0, 34.6], [5, 30], [0, 25.6]];
+  if (state.choices.deniz === 'bait') enemy = new Copy(STALK, { look: 'deniz', name: 'Deniz\'in kopyası' });
+  else if (state.choices.freq === '417') enemy = new Copy(STALK, { name: 'Volkova' });
+  if (state.choices.camille) { if (state.choices.camille === 'ally') finalMove.go(); applyCamille(state.choices.camille, true); }
   if (ac) { ambienceWind(260, .05); ambienceHum({ x: 0, y: 3, z: 33 }, [41, 61.5], .03); }
-  return { spawn: [0, 1.4, Math.PI], fog: [0x07070a, .055], ambient: [0xa8a090, .04], objective: 'Paris\'in altında. Taşların arasından PALİMPSEST\'e.' };
+  // Continue after shutting Camille out: you are on the chamber side of the door
+  return { spawn: state.choices.camille === 'shut' ? [0, 23.2, Math.PI] : [0, 1.4, Math.PI], fog: [0x07070a, .055], ambient: [0xa8a090, .04], objective: 'Paris\'in altında. Taşların arasından PALİMPSEST\'e.' };
 }
 function drawingTexture() {
   const cv = document.createElement('canvas'); cv.width = 512; cv.height = 384; const g = cv.getContext('2d');
   g.strokeStyle = '#fff'; g.lineWidth = 6; g.lineCap = g.lineJoin = 'round';
   [[70, 220], [190, 200], [320, 200], [440, 220]].forEach(([x, y]) => { g.strokeRect(x - 34, y - 70, 68, 120); g.beginPath(); g.arc(x + 18, y - 4, 4, 0, 7); g.stroke(); });
   g.beginPath(); g.arc(256, 120, 26, 0, 7); g.moveTo(256, 146); g.lineTo(256, 250); g.moveTo(216, 190); g.lineTo(296, 190); g.moveTo(256, 250); g.lineTo(226, 320); g.moveTo(256, 250); g.lineTo(286, 320); g.stroke();
-  g.font = '34px "Comic Sans MS", "Segoe Print", cursive'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText('BEKÇİ KAPIYI AÇMAYACAK', 256, 368);
+  g.font = '34px "Comic Sans MS", "Segoe Print", cursive'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText('ADIMI UNUTMA', 256, 368);
   const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 /* ================================================================ endings */
+/** Camille's confession, assembled from what you did on the way. */
+function camilleLines(c) {
+  const L = [['Camille', c.power === 'relay' ? 'Seni Sakarya\'dan beri izliyorum.' : 'Ekin Yalın. Geleceğini biliyordum.', 2800],
+    ['Camille', 'E-postayı ben gönderdim. PLM-01 benim aktarıcım. Önce Deniz\'e, sonra sana.', 4200],
+    ['Camille', 'Geçitler yalnızca kamerası olan, yaşayan birine açılıyor. Kızım Élise yedi yıl önce bu arşivde Yankı\'ya düştü.', 4800]];
+  if (c.power === 'relay') L.push(['Camille', 'Deniz\'i kurtaramadın; ben de izledim.', 3000]);
+  else if (c.deniz === 'bait') L.push(['Camille', 'Deniz\'i de mi kaybettin? Onu da ben çağırmıştım.', 3400]);
+  else L.push(['Deniz', 'Beni o bodrumda boğulmaya sen gönderdin.', 3200], ['Camille', 'Başka kimse gelmiyordu.', 2400]);
+  if (c.elise === 'carried') L.push(['Camille', 'Bu kil mühür… onun adı. Onu getirdin.', 3400]);
+  else if (c.elise === 'recorded') L.push(['Camille', 'Kayıtta onun sesi var. O kaseti bana ver.', 3400]);
+  L.push(['Ekin', 'Ya geri gelen o değilse?', 2400], ['Camille', 'Kapıyı açarsam görürüz. Kamerayı ver ve birlikte girelim.', 3600]);
+  return L;
+}
+/* ================================================================ endings: seven, all closed; none of them returns to the start */
 const ENDINGS = {
-  A: ['SON A', 'UNUTULAN', 'Bütün Yankı kayıtlarını sildin ve dört merkezi mühürledin. İkinci Ses sustu. Ertesi sabah annen kapıyı açtığında seni tanımadı. Kanalın hiç var olmamıştı; sen de.'],
-  B: ['SON B', 'YENİ DÜNYA', 'Kayıtları dünyaya yayınladın. Milyonlarca kişi izledi. Kaybolanlar geri döndü: Élise de. Ama hiçbiri tam olarak eskisi gibi değil. Dünya artık iki gerçekliğin üst üste binmiş hâli ve İkinci Ses her ekranda biraz daha net.'],
-  C: ['SON C', 'SON BEKÇİ', 'Dört mührü kendinle birlikte kapattın ve merkezlerin içinde kaldın. Yıllar sonra genç bir YouTuber Sakarya\'daki bodrumda gizli bir geçit buluyor. Taşın ardından bir ses: “Bu kez kapıyı açmayacağım.”'],
+  eve: ['SON', 'EVE DÖNÜŞ', 'Camille geçidi açtı; Élise, avucunda adının yazılı kil mühürle eşikten yürüyerek çıktı. Geçit birini geri vermek için başka birini istedi ve Camille, kızının elini bırakıp içeri girdi. Halka söndü ve bir daha hiç yanmadı. Sabaha karşı Élise\'i Paris\'te bir hastanenin kapısına sen bıraktın.'],
+  geri: ['SON', 'GERİ GELEN', 'Geçitten Élise\'in sesiyle konuşan bir şey çıktı; kayıttaki sesten başka hiçbir şeyi yoktu. Camille ona sarıldı ve ikisi birlikte karanlığa yürüdü. Kaseti ezdin ve katakomblardan yalnız çıktın. PALİMPSEST arşivi bir hafta sonra bomboş bulundu.'],
+  tanik: ['SON', 'İKİ TANIK', 'Bütün Yankı kayıtlarını sildin; dört merkez aynı anda sustu. Deniz\'le birlikte sabaha karşı yüzeye çıktınız. Anlattığınız hiçbir şeye kimse inanmadı, ama ikiniz de ne gördüğünüzü biliyordunuz. Mühürler o geceden beri yerinde.'],
+  unutulan: ['SON', 'UNUTULAN', 'Bütün Yankı kayıtlarını sildin ve İkinci Ses sustu. Kayıtlarla birlikte seni hatırlayanların hafızası da silindi. Ertesi sabah annen kapıyı açtığında seni tanımadı; kanalın hiç var olmamıştı. Mühürler kapandı ve bir daha açılmadı.'],
+  yeni: ['SON', 'YENİ DÜNYA', 'Kayıtları dünyaya yayınladın. Üç mühür zaten kırıktı; milyonlarca ekran dördüncüsünü de açtı. O gece kaybolanların bir kısmı geri döndü, ama hiçbiri eskisi gibi değildi. Dünya artık iki gerçekliğin üst üste binmiş hâli ve İkinci Ses her ekranda konuşuyor.'],
+  kanit: ['SON', 'KANIT', 'Kayıtları yayınladın; ama SIFIR-17\'nin mührü sağlamdı ve yayın bir kapıya dönüşmedi, yalnızca kanıt oldu. Donmuş laborantın görüntüsü günlerce bütün kanallarda döndü. PALİMPSEST kapatıldı ve SIFIR-17 askerî yasak bölge ilan edildi. E-postadaki uyarı yanlış çıktı: herkes sana inandı.'],
+  bekci: ['SON', 'SON BEKÇİ', 'Camille\'i kapının öbür yanında bıraktın ve geçidin içine yürüdün. Halkayı içeriden kapattın; İkinci Ses\'le dünya arasında yalnızca sen kaldın. Dört merkezin girişleri o yıl betonla dolduruldu. Kapı bir daha hiç açılmadı.'],
 };
+/** Which ending the decisions lead to. */
+function endingFor(c) {
+  switch (c.final) {
+    case 'open': return c.elise === 'carried' ? 'eve' : 'geri';
+    case 'stay': return 'bekci';
+    case 'broadcast': return c.freq === '417' ? 'yeni' : 'kanit';
+    case 'erase': return c.power === 'pump' && c.deniz === 'together' ? 'tanik' : 'unutulan';
+  }
+  console.error('endingFor: no final decision', c); return 'unutulan';
+}
 function ending(kind) {
   if (state.ended) return;
   state.ended = true; player.enabled = false; if (state.camRaised) toggleCam();
   try { localStorage.removeItem(SAVE_KEY); } catch (_) {} // the decision is final: another ending means a new playthrough
   FX.emit('ending', kind);
-  if (kind === 'C') sfx.whisper({ x: 0, y: 2, z: 36 }, 3, .25); else sfx.rumble(null, 3);
+  if (kind === 'geri' || kind === 'bekci') sfx.whisper({ x: 0, y: 2, z: 36 }, 3, .25); else sfx.rumble(null, 3);
   $('fade').style.opacity = '1'; $('hud').hidden = true; $('touch').hidden = true;
   try { document.exitPointerLock(); } catch (_) {}
-  later(2600, () => {
-    const [eyebrow, title, text] = ENDINGS[kind];
+  // after every ending: an old tape plays on the dark camcorder screen, then a voice from behind the lens (the DERİNLİK 2 hook)
+  const TAPE = ['KAYIT 00 — 03:17', 'Dört merkez deneyin yapıldığı yerler değildi.', 'Dört merkez, bir şeyi içeride tutmak için kurulmuştu.', 'Son sinyal: 78° Güney.', 'ANTARKTİKA — BAĞLANTI KESİLDİ'];
+  TAPE.forEach((line, i) => later(3000 + i * 3400, () => { if (ac) sfx.static(.5, .08); card(`<span class="t">${line}</span>`, 3000); }));
+  later(3000 + TAPE.length * 3400 + 600, () => { $('subs').hidden = false; say([['???', 'Kapıları kapattığını mı sandın?', 3200]]); if (ac) sfx.whisper(null, 2.6, .35); });
+  later(3000 + TAPE.length * 3400 + 5200, () => {
+    const [eyebrow, title, text] = ENDINGS[kind], c = state.choices;
     $('endEyebrow').textContent = eyebrow; $('endTitle').textContent = title; $('endText').textContent = text;
-    const hidden = [...state.evidence].filter((k) => EVIDENCE[k].hidden).length;
-    $('endStats').textContent = `Süre ${Math.floor(state.time / 60)} dk · kanıt ${state.evidence.size}/${Object.keys(EVIDENCE).length} · gizli kanıt ${hidden}/${HIDDEN_TOTAL} · mühür ${state.seals.size}/4 · Yankı ${state.echo}/8` + (kind !== 'C' && hidden < HIDDEN_TOTAL ? ' · Üçüncü bir son var: her bölümde kameranın gördüğü gizli kanıtı kaydet.' : '');
+    $('endStats').textContent = [`Süre ${Math.floor(state.time / 60)} dk`, `Deniz: ${c.power === 'pump' && c.deniz === 'together' ? 'hayatta' : 'kayıp'}`,
+      `Élise: ${c.elise === 'carried' ? 'adı seninle' : 'kayıtta'}`, `Volkova: ${c.freq === '528' ? 'uyutuldu' : 'serbest'}`,
+      `Camille: ${c.camille === 'ally' ? 'yanında' : 'kapının ardında'}`].join(' · ');
     $('end').hidden = false;
   });
 }
@@ -1335,8 +1613,8 @@ function begin(fromSave) {
   state.started = true; $('start').hidden = true; initAudio(); lockPointer();
   if (fromSave) {
     state.evidence = new Set(fromSave.evidence.filter((k) => EVIDENCE[k])); state.seals = new Set(fromSave.seals.filter((k) => SEAL_NAMES[k]));
-    state.echo = clamp(fromSave.echo | 0, 0, 8); state.time = fromSave.time | 0; raiseEcho(0);
-  } else { try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
+    state.echo = clamp(fromSave.echo | 0, 0, 8); state.time = fromSave.time | 0; state.choices = { ...fromSave.choices }; raiseEcho(0);
+  } else { state.choices = {}; try { localStorage.removeItem(SAVE_KEY); } catch (_) {} }
   const chapter = fromSave ? fromSave.chapter : 0;
   buildChapter(chapter);
   $('fade').style.transition = 'none'; $('fade').style.opacity = '1';
@@ -1406,5 +1684,5 @@ const ready = loadModels().catch((e) => console.warn(e)).then(() => { FX.emit('i
 
 // Test hooks for the automated play-through: advance() runs the simulation at 30 Hz without waiting on frames.
 function advance(seconds) { for (let t = 0; t < seconds; t += 1 / 30) step(1 / 30); draw(1 / 30); }
-window.__derinlik = { state, player, W, DEBUG, FX, renderer, scene, camera, torch, MODELS, draw, begin, advance, step, face, toggleCam, toggleCrouch, doInteract, closeReader, toggleArchive, EVIDENCE, HIDDEN_TOTAL, goChapter, buildChapter, get enemy() { return enemy; }, setLook: (yaw, pitch) => { player.yaw = yaw; player.pitch = pitch; } };
+window.__derinlik = { state, player, W, DEBUG, FX, renderer, scene, camera, torch, MODELS, draw, begin, advance, step, face, toggleCam, toggleCrouch, doInteract, closeReader, toggleArchive, EVIDENCE, CHOICES, CHOICE_TEXT, choose, confirmChoice, endingFor, ENDINGS, ending, save, loadSave, SAVE_KEY, get choices() { return state.choices; }, goChapter, buildChapter, get enemy() { return enemy; }, setLook: (yaw, pitch) => { player.yaw = yaw; player.pitch = pitch; } };
 </script>

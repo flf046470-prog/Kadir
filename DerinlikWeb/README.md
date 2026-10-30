@@ -1,15 +1,15 @@
 # DERİNLİK — The Depths: Echoes of the Forgotten (tarayıcı sürümü)
 
-Birinci şahıs psikolojik korku oyunu. Dört bölüm (~25 dakika), üç son. Kurulum gerektirmez: tek bir HTML dosyası, Three.js ile çalışır.
+Birinci şahıs psikolojik korku oyunu. Dört bölüm, her bölümde kalıcı kararlar, yedi son. Kurulum gerektirmez: tek bir HTML dosyası, Three.js ile çalışır.
 
 | Bölüm | Yer | Ne olur |
 |---|---|---|
-| 1 · KAPI | Sakarya, bodrum | E-posta, kameranın gördüğü duvar yazısı, çömelerek geçilen tünel, gizli mühürlü taş, çarpan kapı, çekilmemiş kaset, ilk Yankı Geçidi |
-| 2 · HAFIZA | Nevşehir, yeraltı şehri | Üç taş kadranı, yalnızca kamerada görünen simgelere göre çevir. Kil tablet, “Diğer Ekin” |
-| 3 · SIFIR-17 | Kola Yarımadası, 1986/2028 | Volkova koridorda devriye geziyor (gizlenme), deney günlüğü, 417 Hz rezonans konsolu |
-| 4 · SON TANIK | Paris, PALİMPSEST arşivi | Dr. Camille Moreau, Élise'in çizimi, dört mühür, son karar |
+| 1 · KAPI | Sakarya, bodrum | E-posta (aktarım kodu PLM-01), Deniz Arat'ın duvar kazıması, çömelerek geçilen tünel, paslı çarkla inen taş levha, çarpan kapı, Deniz'in kaseti. **Karar:** jeneratörün son devresi POMPA'ya (Deniz kurtulur) ya da AKTARIM'a (görüntü Paris'e gider, Deniz boğulur) |
+| 2 · HAFIZA | Nevşehir, yeraltı şehri | Üç taş kadranı, yalnızca kamerada görünen simgelere göre çevir. Kil tablet, yalnızca kamerada görünen Élise. **Karar:** adının yazılı kil mührü al ya da onu kaydet |
+| 3 · SIFIR-17 | Kola Yarımadası, 2028 (1986'da terk edilmiş) | Volkova koridorda devriye geziyor (gizlenme), deney günlüğü, rezonans konsolu. **Kararlar:** Deniz hayattaysa onu yem olarak bırak ya da birlikte saklan; 417 Hz (reaktör kapısı açılır, Volkova serbest) ya da 528 Hz (Volkova donar, kapı kilitli kalır, havalandırma kanalından geçilir) |
+| 4 · SON TANIK | Paris, PALİMPSEST arşivi | Dr. Camille Moreau'nun itirafı (önceki kararlara göre değişir), Élise'in çizimi. **Kararlar:** kamerayı Camille'e ver ya da kapıyı onun önüne indir; sonra SİL, YAYINLA ya da kapı |
 
-**Sonlar:** A *Unutulan* (SİL) · B *Yeni Dünya* (YAYINLA) · C *Son Bekçi* (kapının içinde kal). C yalnızca dört gizli kamera kanıtı (Sakarya duvarı, Diğer Ekin, denek kaydı, Élise'in çizimi) ve dört mühürle açılır.
+**Sonlar (yedi, hepsi kesin; hiçbiri başa dönmez):** *Eve Dönüş* (Camille kapıyı açar, Élise'in adı seninle) · *Geri Gelen* (Camille kapıyı açar, Élise kayıtta) · *İki Tanık* (SİL, Deniz hayatta) · *Unutulan* (SİL, Deniz kayıp) · *Yeni Dünya* (YAYINLA, 417 Hz) · *Kanıt* (YAYINLA, 528 Hz) · *Son Bekçi* (Camille kapının ardında, kapının içine gir). Son karar verilince kayıt silinir; başka bir son için baştan oyna.
 
 ## Oynamak
 - **Bilgisayarda:** `dist/index.html` dosyasını Chrome, Edge ya da Firefox ile aç. Three.js `cdn.jsdelivr.net` üzerinden yüklendiği için internet bağlantısı gerekir.
@@ -17,7 +17,7 @@ Birinci şahıs psikolojik korku oyunu. Dört bölüm (~25 dakika), üç son. Ku
 - **Pause menüsünde "Görüntü kalitesi":** Yüksek (tam dokular, bloom, gölgeli lamba, yansımalar) · Orta (512 px dokular, daha hafif efektler) · Düşük (efektsiz).
 - **Kontroller:** W A S D + fare (fare kilitlenemezse sol tıkla sürükleyerek bak) · Shift koş · F el feneri · Q / sağ tık video kamera · C / Ctrl çömel · E etkileşim · Tab kanıt arşivi · Esc duraklat.
 - **Telefon / tablet:** sol altta hareket çubuğu, sağda düğmeler, ekranın sağ yarısında sürükleyerek bak.
-- **Kayıt:** her bölüm başında tarayıcıya kaydedilir; başlangıç ekranında “Devam et” çıkar. Bozuk kayıt sessizce silinir.
+- **Kayıt:** her bölüm başında ve her kararda tarayıcıya kaydedilir (`derinlik.save.v2`); başlangıç ekranında “Devam et” çıkar. Devam edince bölüm verdiğin kararlarla yeniden kurulur ve verilmiş bir karar bir daha sorulmaz. Bozuk kayıt ve eski hikâyenin v1 kaydı sessizce silinir.
 
 ## Derlemek
 ```bash
@@ -54,4 +54,4 @@ Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install
 - Meshy.ai modelleri bu sürümde **yok**: bulut ortamından `api.meshy.ai` adresine erişim engelli (HTTP 403). Kendi bilgisayarında `python Derinlik/Tools/Meshy/meshy_generate.py` ile üretilen `Derinlik/SourceArt/Meshy/<Ad>/model.glb` dosyasını `DerinlikWeb/models/<ad>.glb` olarak kopyala, `models/manifest.json`'a `"<ad>": {"place": "..."}` ekle ve `game.html` içinde `prop('<ad>', [x, y, z], dönüş)` satırıyla yerleştir; `build.py` onu da gömer. Dokulu Meshy modelleri birkaç MB tutabilir; tek dosyalı sayfa için toplam boyutu 16 MB'ın altında tut.
 
 ## Testler
-Oyun, `window.__derinlik` test kancalarıyla (zamanı `advance()` ile ilerletme, `DEBUG.manual`, `DEBUG.enemyOff`) Playwright + Chromium'da otomatik oynatıldı. Senaryolar: dört bölümün baştan sona oynanışı ve üç son; gizlenme, yakalanma ve kayıt noktası; duraklatma; kayıttan devam; bozuk kayıt.
+Oyun, `window.__derinlik` test kancalarıyla (zamanı `advance()` ile ilerletme, `DEBUG.manual`, `DEBUG.enemyOff`) Playwright + Chromium'da otomatik oynatıldı. Senaryolar: her son için kararları gerçek etkileşimlerle veren baştan sona oynanış; her bölümün her karar sonrası “Devam et” ile yeniden kurulması; `endingFor` için bütün geçerli karar bileşimleri; gizlenme, yakalanma ve kayıt noktası; duraklatma; kayıttan devam; bozuk kayıt.

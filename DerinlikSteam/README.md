@@ -46,7 +46,7 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
 - **Dil:** Oyun şu an yalnızca Türkçe. Steam'de "desteklenen diller" kısmına bugün yalnızca Türkçe (arayüz + altyazı)
   işaretlenmeli. İngilizce çeviri satışlar için büyük fark yaratır; 1 yıllık geliştirme planının başına koymanı öneririm.
   Mağaza metni İngilizce de olabilir; bu, oyunun İngilizce olduğu anlamına gelmez ve öyle sunulmamalı.
-- **Oyun süresi:** Şu anki içerik yaklaşık 25 dakika. Mağaza metinlerine süre yazmadım; çıkışta ne kadar olacağına sen
+- **Oyun süresi:** Dallanan hikâyeden sonra yeniden ölçülmedi (eski içerik ~25 dakikaydı). Mağaza metinlerine süre yazmadım; çıkışta ne kadar olacağına sen
   karar verince eklenebilir.
 - **Fiyat ve çıkış tarihi:** Coming Soon için gerekmez. Tarih alanında "Coming soon" ya da yalnızca yıl/çeyrek göstermek
   mümkün.

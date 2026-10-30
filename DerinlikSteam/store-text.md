@@ -11,8 +11,10 @@ Title on Steam: **DERİNLİK** · subtitle in art and text: **The Depths: Echoes
 
 ## English
 
-### Short description (234 / 300 characters)
+### Short description (224 / 300 characters)
 
+```
+2028. A small urban-exploration YouTuber receives an email with no sender: be in a basement in Sakarya before 03.17. Four places, one hidden network, and choices that decide who comes back. First-person psychological horror.
 ```
 2028. A small urban-exploration YouTuber receives an email with no sender: be in a basement in Sakarya before 03.17. Four places, one hidden network — and a camcorder that sees what your eyes cannot. First-person psychological horror.
 ```
@@ -20,35 +22,38 @@ Title on Steam: **DERİNLİK** · subtitle in art and text: **The Depths: Echoes
 ### About This Game
 
 ```
-[h2]Something has already recorded you.[/h2]
-Ekin Yalın films abandoned buildings for a small channel. Then an email arrives with an empty sender field: [i]"GATE 01 — SAKARYA. Be there before 03.17. After this, no one will believe you."[/i]
-In the basement, scratched into the wall, is a name only the camcorder can see. It is yours.
+[h2]Every choice leaves someone behind.[/h2]
+Ekin Yalın films abandoned buildings for a small channel. Then an email arrives with an empty sender field and only a relay code in its header: [i]"GATE 01 — SAKARYA. Be there before 03.17. After this, no one will believe you."[/i]
+In the basement, scratched into the wall, are someone else's initials and a date three days old. Ekin is not the first one who was sent.
 
 [h2]Four places, one network[/h2]
 [list]
-[*][b]Sakarya — The Gate.[/b] A damp basement and a stone that should not move.
-[*][b]Nevşehir — Memory.[/b] A sealed archive in an underground city carved into Cappadocian tuff.
-[*][b]SIFIR-17, Kola Peninsula — 1986 / 2028.[/b] A frozen Soviet research station, a resonance experiment, and a lab assistant who no longer sleeps.
-[*][b]Paris — The Last Witness.[/b] The catacombs, a missing child's drawing, and the woman who opened the seals.
+[*][b]Sakarya — The Gate.[/b] A damp basement, a stone slab, and knocking from behind a locked door.
+[*][b]Nevşehir — Memory.[/b] A sealed archive in an underground city carved into Cappadocian tuff, and a child only the camcorder can see.
+[*][b]SIFIR-17, Kola Peninsula.[/b] A Soviet research station abandoned in 1986, a resonance experiment, and a lab assistant who no longer sleeps.
+[*][b]Paris — The Last Witness.[/b] The catacombs, a missing child's drawing, and the woman who sent the emails.
 [/list]
 
+[h2]Choices that stay made[/h2]
+Every chapter asks you to decide: who you save, what you record, which frequency you set, who comes through the last door. Each choice changes who is alive, who helps or hunts you, and which ways stay open. There is no going back to choose again.
+
 [h2]The camcorder sees what you don't[/h2]
-Raise your old DV camcorder and the night-vision image shows writing, doors and people that are not there to the naked eye. Hold something in frame and it becomes evidence. Every recording brings the Second Voice a little closer.
+Raise your old DV camcorder and the night-vision image shows writing, signs and people that are not there to the naked eye.
 
 [h2]Hide. Don't fight.[/h2]
 You carry no weapon. Switch off your torch, crouch in the dark and let it pass. Something is hunting through these places, and it knows the sound of your footsteps.
 
-[h2]Three endings[/h2]
-Erase every recording, broadcast them to the world, or seal the gates with yourself inside. What you chose to record decides what the world remembers — and whether it remembers you.
+[h2]Seven endings[/h2]
+Erase every recording, broadcast them to the world, or face what waits behind the last gate. Who you saved and who you left behind decide how it ends.
 
 [h2]Features[/h2]
 [list]
 [*]First-person psychological horror built on dread, light and sound — no loud jump scares
 [*]Four real-world settings across Turkey, Russia and France, rebuilt as dark, physically lit spaces: damp concrete, volcanic tuff, rime ice, catacomb limestone
-[*]A camcorder mechanic: hidden evidence exists only on tape
+[*]Choices in every chapter that change who lives, who helps and which ways stay open
+[*]A camcorder that shows what the naked eye cannot
 [*]Stealth without combat: darkness, crouching and patience are your only tools
-[*]An evidence archive of documents, tapes and camera-only finds
-[*]Three endings decided by what you recorded
+[*]Seven closed endings, no do-overs
 [/list]
 ```
 
@@ -62,8 +67,10 @@ Psychological horror with frightening themes, disturbing imagery and menacing pu
 
 ## Türkçe
 
-### Kısa açıklama (235 / 300 karakter)
+### Kısa açıklama (229 / 300 karakter)
 
+```
+2028. Terk edilmiş yapıları çeken küçük bir YouTuber'a göndereni boş bir e-posta gelir: 03.17'den önce Sakarya'daki bodruma git. Dört yer, gizli bir ağ ve kimin geri döneceğini belirleyen kararlar. Birinci şahıs psikolojik korku.
 ```
 2028. Terk edilmiş yapıları çeken küçük bir YouTuber'a göndereni boş bir e-posta gelir: 03.17'den önce Sakarya'daki bodruma git. Dört yer, gizli bir ağ ve çıplak gözün görmediğini gören bir video kamera. Birinci şahıs psikolojik korku.
 ```
@@ -71,35 +78,38 @@ Psychological horror with frightening themes, disturbing imagery and menacing pu
 ### Oyun hakkında
 
 ```
-[h2]Biri seni çoktan kaydetti.[/h2]
-Ekin Yalın, terk edilmiş yapıları çeken küçük bir kanalın sahibi. Bir gün göndereni boş bir e-posta gelir: [i]"KAPI 01 — SAKARYA. 03.17'den önce oraya var. Bundan sonra kimse sana inanmayacak."[/i]
-Bodrumda, duvara kazınmış, yalnızca kameranın gördüğü bir isim vardır. Senin adın.
+[h2]Her seçim birini geride bırakır.[/h2]
+Ekin Yalın, terk edilmiş yapıları çeken küçük bir kanalın sahibi. Bir gün göndereni boş, başlığında yalnızca bir aktarım kodu olan bir e-posta gelir: [i]"KAPI 01 — SAKARYA. 03.17'den önce oraya var. Bundan sonra kimse sana inanmayacak."[/i]
+Bodrumda, duvara kazınmış, başka birinin baş harfleri ve üç günlük bir tarih vardır. Gönderilen ilk kişi Ekin değildir.
 
 [h2]Dört yer, tek bir ağ[/h2]
 [list]
-[*][b]Sakarya — KAPI.[/b] Nem kokan bir bodrum ve yerinden oynamaması gereken bir taş.
-[*][b]Nevşehir — HAFIZA.[/b] Kapadokya tüfüne oyulmuş bir yer altı şehrinde mühürlü bir arşiv.
-[*][b]SIFIR-17, Kola Yarımadası — 1986 / 2028.[/b] Donmuş bir Sovyet araştırma istasyonu, bir rezonans deneyi ve artık hiç uyumayan bir laborant.
-[*][b]Paris — SON TANIK.[/b] Katakomblar, kayıp bir çocuğun çizimi ve mühürleri açan kadın.
+[*][b]Sakarya — KAPI.[/b] Nem kokan bir bodrum, taş bir levha ve kilitli bir kapının ardından gelen vuruşlar.
+[*][b]Nevşehir — HAFIZA.[/b] Kapadokya tüfüne oyulmuş bir yer altı şehrinde mühürlü bir arşiv ve yalnızca kameranın gördüğü bir çocuk.
+[*][b]SIFIR-17, Kola Yarımadası.[/b] 1986'da terk edilmiş bir Sovyet araştırma istasyonu, bir rezonans deneyi ve artık hiç uyumayan bir laborant.
+[*][b]Paris — SON TANIK.[/b] Katakomblar, kayıp bir çocuğun çizimi ve e-postaları gönderen kadın.
 [/list]
 
+[h2]Geri alınmayan kararlar[/h2]
+Her bölüm bir karar ister: kimi kurtaracağın, neyi kaydedeceğin, hangi frekansı ayarlayacağın, son kapıdan kimin geçeceği. Her karar kimin yaşadığını, kimin sana yardım ettiğini ya da seni avladığını ve hangi yolların açık kaldığını değiştirir. Geri dönüp yeniden seçemezsin.
+
 [h2]Kamera senin görmediğini görür[/h2]
-Eski DV kamerayı kaldır: gece görüşü, çıplak gözle orada olmayan yazıları, kapıları ve insanları gösterir. Bir şeyi kadrajda tut, kanıta dönüşsün. Ama her kayıt İkinci Ses'i biraz daha yaklaştırır.
+Eski DV kamerayı kaldır: gece görüşü, çıplak gözle orada olmayan yazıları, işaretleri ve insanları gösterir.
 
 [h2]Saklan. Savaşma.[/h2]
 Silahın yok. Fenerini kapat, karanlıkta çömel ve geçmesini bekle. Bu yerlerde bir şey avlanıyor ve ayak seslerini tanıyor.
 
-[h2]Üç son[/h2]
-Bütün kayıtları sil, dünyaya yayınla ya da kapıları kendinle birlikte mühürle. Neyi kaydettiğin, dünyanın neyi hatırlayacağını belirler. Seni hatırlayıp hatırlamayacağını da.
+[h2]Yedi son[/h2]
+Bütün kayıtları sil, dünyaya yayınla ya da son kapının ardında bekleyenle yüzleş. Kimi kurtardığın ve kimi geride bıraktığın, nasıl biteceğini belirler.
 
 [h2]Özellikler[/h2]
 [list]
 [*]Gerilim, ışık ve sesle kurulan birinci şahıs psikolojik korku; ani yüksek sesli korkutma yok
 [*]Türkiye, Rusya ve Fransa'dan dört gerçek mekân; karanlık, fiziksel ışıkla aydınlatılmış alanlar: nemli beton, volkanik tüf, kırağı, katakomb kireçtaşı
-[*]Video kamera mekaniği: gizli kanıtlar yalnızca kayıtta var
+[*]Her bölümde kimin yaşayacağını, kimin yardım edeceğini ve hangi yolların açık kalacağını değiştiren kararlar
+[*]Çıplak gözün görmediğini gösteren bir video kamera
 [*]Dövüşsüz gizlilik: karanlık, çömelmek ve sabır tek araçların
-[*]Belgeler, kasetler ve yalnızca kameranın bulduğu izlerden oluşan bir kanıt arşivi
-[*]Kaydettiklerine göre şekillenen üç son
+[*]Yedi kesin son; karar geri alınmaz
 [/list]
 ```
 
