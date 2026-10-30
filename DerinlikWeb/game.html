@@ -378,12 +378,12 @@ function sigilTexture() {
 }
 
 /* ================================================================ world: everything a chapter builds lives here and is torn down on exit */
-const W = { group: null, colliders: [], occluders: [], interact: [], targets: [], hiddenOnly: [], zones: [], updaters: [], doors: [], ambience: [], hides: [], lights: [], figures: [] };
+const W = { group: null, colliders: [], occluders: [], interact: [], targets: [], hiddenOnly: [], zones: [], updaters: [], doors: [], ambience: [], hides: [], lights: [], figures: [], shifty: [], oneWorld: [] };
 function resetWorld() {
   FX.emit('reset');
   if (W.group) { scene.remove(W.group); W.group.traverse((o) => { if (o.geometry && !o.userData.shared) o.geometry.dispose(); }); }
   for (const n of W.ambience) { try { n.stop ? n.stop() : n.disconnect(); } catch (_) {} }
-  Object.assign(W, { group: new THREE.Group(), colliders: [], occluders: [], interact: [], targets: [], hiddenOnly: [], zones: [], updaters: [], doors: [], ambience: [], hides: [], lights: [], figures: [] });
+  Object.assign(W, { group: new THREE.Group(), colliders: [], occluders: [], interact: [], targets: [], hiddenOnly: [], zones: [], updaters: [], doors: [], ambience: [], hides: [], lights: [], figures: [], shifty: [], oneWorld: [] });
   scene.add(W.group); timers = []; worldGen++;
 }
 /** Static batching: after a chapter is built, every plain static mesh that shares a cached material is merged into one
@@ -459,13 +459,35 @@ function torchLight(pos, color = 0xff9a4a, intensity = 2.4, dist = 7) { // flick
 function prop(name, pos, rotY = 0, { collide = false } = {}) {
   const src = MODELS[name]; if (!src) return null;
   const o = src.clone(); o.position.set(...pos); o.rotation.y = rotY; W.group.add(o);
-  if (collide) { o.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(o); W.colliders.push({ min: b.min.toArray(), max: b.max.toArray() }); }
+  if (collide) { o.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(o); o.userData.collider = { min: b.min.toArray(), max: b.max.toArray() }; W.colliders.push(o.userData.collider); }
   return o;
 }
 /** Wall sconce and its flame. (x, y, z) is a point on the wall surface, (nx, nz) the wall normal pointing into the room. */
 function sconce(x, y, z, nx, nz, color, intensity, dist) {
   const ox = x + nx * .176, oz = z + nz * .176;
   torchLight([ox, y + .12, oz], color, intensity, dist); prop('sconce', [ox, y, oz], Math.atan2(nx, nz));
+}
+/* The two worlds: what the eye sees and what the camcorder sees disagree, and the player can no longer trust either. */
+/** Rule 1: lower the camcorder and this object, if it is behind you, is no longer quite where it was (once). */
+function shifty(o, dx, dz, dRot) { if (o) W.shifty.push({ o, dx, dz, dRot, done: false }); return o; }
+function shiftBehind() {
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  for (const s of W.shifty) {
+    if (s.done || (s.o.position.x - player.x) * fx + (s.o.position.z - player.z) * fz > -.5) continue;
+    s.done = true; s.o.position.x += s.dx; s.o.position.z += s.dz; s.o.rotation.y += s.dRot;
+    const c = s.o.userData.collider; if (c) { c.min[0] += s.dx; c.max[0] += s.dx; c.min[2] += s.dz; c.max[2] += s.dz; }
+    FX.emit('shift', s.o);
+  }
+}
+/** Rule 2: something only one world has. world 'eye': solid to the naked eye, gone through the camcorder; 'cam': the reverse. */
+function oneWorld(mesh, world) {
+  mesh.userData.dynamic = true; mesh.userData.world = world; W.oneWorld.push(mesh);
+  const c = mesh.userData.collider, c0 = c && { min: [...c.min], max: [...c.max] };
+  mesh.userData.applyWorld = (cam) => {
+    const here = (world === 'cam') === cam; mesh.visible = here;
+    if (c) { c.min = here ? [...c0.min] : [99, 0, 99]; c.max = here ? [...c0.max] : [99, 0, 99]; }
+  };
+  mesh.userData.applyWorld(state.camRaised); return mesh;
 }
 function addInteract(mesh, obj) { mesh.userData.interact = obj; W.interact.push(mesh); return obj; }
 function onlyThroughCamera(obj) { obj.visible = false; obj.userData.camOnly = true; W.hiddenOnly.push(obj); return obj; }
@@ -795,6 +817,8 @@ function toggleCam() {
   state.camRaised = !state.camRaised; state.recT = 0; state.dwell = 0; state.dwellTarget = null;
   $('cam').hidden = !state.camRaised; canvas.classList.toggle('cam', state.camRaised); document.body.classList.toggle('cam-on', state.camRaised); sfx.click();
   for (const o of W.hiddenOnly) o.visible = state.camRaised || !!o.userData.revealed;
+  for (const m of W.oneWorld) m.userData.applyWorld(state.camRaised);
+  if (!state.camRaised) shiftBehind();
   W.updaters.forEach((u) => u.onCam && u.onCam(state.camRaised));
   FX.emit('cam', state.camRaised);
 }
@@ -949,7 +973,13 @@ class Copy {
   }
   reset() { if (this.frozen) return; this.i = 0; this.x = this.path[0][0]; this.z = this.path[0][1]; this.mode = 'patrol'; this.wait = 0; this.lostT = 0; this.heading = Math.atan2(-(this.path[1][0] - this.path[0][0]), -(this.path[1][1] - this.path[0][1])); this.place(); } // starts walking away from where you arrive
   onCam(on) { this.true.visible = on; this.fig.children.forEach((c) => { if (c !== this.true) c.visible = !on; }); }
-  place() { this.fig.position.set(this.x, 0, this.z); this.fig.rotation.y = this.heading; }
+  place() {
+    // Rule 3: the naked eye sees where it was 1.5 s ago; only the camcorder shows where it is now
+    (this.trail ??= []).push([simTime, this.x, this.z, this.heading]);
+    while (this.trail.length > 2 && simTime - this.trail[1][0] > 1.5) this.trail.shift();
+    const [, x, z, h] = state.camRaised || this.frozen ? [0, this.x, this.z, this.heading] : this.trail[0];
+    this.fig.position.set(x, 0, z); this.fig.rotation.y = h;
+  }
   /** 528 Hz: stops where it stands for good, and never sees or hears you again. */
   freeze() { this.frozen = true; if (this.mode === 'chase') FX.emit('chase', false, this); this.mode = 'frozen'; }
   /** Walks to (x, z) for `secs`, ignoring the player, then patrols again. Call again to move the target (a decoy). */
@@ -1014,7 +1044,7 @@ function buildSakarya() {
   bulb([0, 2.5, 3.5], 0xffc58a, 2.2, 7.5);
   note(paper([2.25, 1.103, 6.05], .3), 'email');
   prop('crate', [2.3, 0, 1.45], .2, { collide: true }); prop('crate', [2.35, .58, 1.5], .55, { collide: true }); prop('crate', [2.3, 0, 2.4], -.12, { collide: true });
-  prop('chair', [-1.3, 0, 6.1], 2.2, { collide: true });
+  shifty(prop('chair', [-1.3, 0, 6.1], 2.2, { collide: true }), .35, -.5, .9);
   // Deniz's scratch: visible to the naked eye, the first sign someone came down here before you
   decal(textTexture(['D.A. · 11.10', 'POMPA ODASI →'], { font: '70px "IBM Plex Sans Condensed", sans-serif', fg: '#2b2620' }), 1.0, .5, [-2.985, 1.45, 6.4], Math.PI / 2, { opacity: .8 });
   addInteract(hitPlane(1.0, .5, [-2.97, 1.45, 6.4], Math.PI / 2), { prompt: 'Kazımaya bak', enabled: () => !state.evidence.has('scratch'), interact() {
@@ -1223,7 +1253,7 @@ function buildKola() {
   every(3.3, () => { if (Math.random() < .6) { fl.set(false); later(70, () => fl.set(true)); later(160, () => fl.set(false)); later(230, () => fl.set(true)); } });
   box([5.6, 0, 9.4], [6.8, .78, 11.6], M.metal); box([2.2, 0, 14.0], [5.4, .78, 14.8], M.metal);
   prop('cabinet', [1.68, 0, 9.31], 0, { collide: true }); prop('cabinet', [2.16, 0, 9.31], 0, { collide: true });
-  prop('radio', [4.7, .78, 14.45], Math.PI); prop('chair', [6.3, 0, 12.4], -Math.PI / 2, { collide: true });
+  prop('radio', [4.7, .78, 14.45], Math.PI); shifty(prop('chair', [6.3, 0, 12.4], -Math.PI / 2, { collide: true }), -.4, .3, -1.1);
   for (const [x, z] of [[6.2, 9.9], [6.2, 10.9]]) { box([x - .25, .78, z - .2], [x + .25, 1.2, z + .2], M.dark, { tile: .4 }); }
   const mon1 = decal(screenTex(['> SIFIR-17 REZONANS', '> DURUM: KAPALI', '> FREKANS BEKLENİYOR']), .44, .28, [5.94, 1.0, 9.9], -Math.PI / 2);
   decal(screenTex(['> ARŞİV 14.03.1986', '> DENEK 17/17: V. VOLKOVA']), .44, .28, [5.94, 1.0, 10.9], -Math.PI / 2);
@@ -1244,6 +1274,8 @@ function buildKola() {
   const blast = box([-.9, 0, 23.0], [.9, 2.4, 23.4], M.rust, { tile: 1 });
   const blastMove = mover(blast, [0, 2.35, 0], already === '417' ? .01 : 3, { sound: already !== '417' });
   const grate = box([1.4, 0, 15.0], [2.1, 1.2, 15.2], M.metal, { tile: .4 });
+  const ghostCab = oneWorld(box([1.42, 0, 14.5], [2.08, 1.9, 14.95], M.metal, { tile: .5 }), 'eye');
+  zone([1.2, 0, 13.2], [2.4, 3, 14.5], () => { if (state.choices.freq === '528' && !state.camRaised) objective('Kanalın ağzını bir dolap kapatıyor… az önce orada değildi. Kamerayla bak.'); }, { once: false });
   const grateMove = mover(grate, [0, -1.18, 0], already === '528' ? .01 : .35, { sound: false });
   addInteract(btn, { get prompt() { return freqChoice[FREQS[fi]] ? freqChoice[FREQS[fi]].prompt : 'Rezonansı uygula'; }, enabled: () => !state.choices.freq && !state.ended, interact() {
     if (!freqChoice[FREQS[fi]]) { sfx.static(.9, .12); toast('<b>Rezonans tutmadı</b>Frekans yanlış.'); return; }
