@@ -315,6 +315,90 @@ describe('bots use their role’s weapon', () => {
     }
   });
 
+  /**
+   * A player who stands toe to toe with one bot and holds the punch button looking up — the
+   * cheapest way to throw head shots there is. Returns the share of their hits the bot's guard took,
+   * and the ticks the bot held its guard while its opponent was out of reach.
+   */
+  function headHunter(skill: number, apart = 0): { hits: number; blocked: number; farGuardTicks: number } {
+    let hits = 0;
+    let blocked = 0;
+    let farGuardTicks = 0;
+    for (const seed of [1, 2, 3]) {
+      const sim = new Simulation({ level, modeId: 'boxing', seed });
+      sim.addPlayer({ id: 'p' });
+      sim.addPlayer({ id: 'b' });
+      const bot = new Bot('b', { skill, seed: seed * 7 });
+      const intent = createIntent();
+      for (let tick = 0; tick < 60 * 36; tick++) {
+        const p = sim.players.get('p')!;
+        const b = sim.players.get('b')!;
+        p.health = b.health = 100;
+        p.stamina = b.stamina = 100;
+        // On open ground, where nothing stands between them: the player is held in place, and the
+        // bot is put in front of them as the countdown ends — or every tick, out of reach, for `apart`.
+        p.position.x = 0;
+        p.position.z = 40;
+        p.velocity.x = p.velocity.z = 0;
+        if (tick === 60 * 6 || apart > 0) {
+          b.position.x = 0;
+          b.position.z = 40 + (apart || 1.2);
+        }
+        intent.lookYaw = Math.atan2(b.position.x - p.position.x, b.position.z - p.position.z);
+        intent.lookPitch = 0.5;
+        intent.buttons = Buttons.PunchRight;
+        sim.setIntent('p', intent);
+        const thought = bot.think(b, sim.players.values(), level, 1 / 60, sim.mode.objectiveFor?.(b) ?? null);
+        if (tick >= 60 * 6 && (thought.buttons & Buttons.Guard) !== 0) farGuardTicks++;
+        sim.setIntent('b', thought, false);
+        sim.step();
+        for (const e of sim.events.drain()) {
+          if (e.type !== 'punchHit' || e.playerId !== 'p' || tick < 60 * 6) continue;
+          hits++;
+          if (e.data === 'guard') blocked++;
+        }
+      }
+    }
+    return { hits, blocked, farGuardTicks };
+  }
+
+  it('holds a guard against head shots, more of the time the better it is', () => {
+    // Bots never guarded: a player holding the punch button and looking up out-hit a 0.7 bot
+    // 9.2 to 5.8 a second, and nothing it did could take a hit. Measured here, the share of those
+    // head shots a bot's guard takes: 0.9 skill 51 %, 0.7 41 %, 0.4 25 %, 0.2 15 %.
+    const good = headHunter(0.9);
+    const poor = headHunter(0.2);
+    expect(good.hits).toBeGreaterThan(100);
+    expect(good.blocked / good.hits).toBeGreaterThan(0.4);
+    expect(poor.blocked / poor.hits).toBeLessThan(good.blocked / good.hits - 0.15);
+    // And a poor one is not a wall: most of what is thrown at it lands.
+    expect(poor.blocked / poor.hits).toBeLessThan(0.35);
+  });
+
+  it('does not guard against an opponent who is nowhere near', () => {
+    expect(headHunter(0.9, 6).farGuardTicks).toBe(0);
+  });
+
+  it('covers up when it is out of breath, whatever its skill', () => {
+    const sim = new Simulation({ level, modeId: 'boxing', seed: 1 });
+    sim.addPlayer({ id: 'p' });
+    sim.addPlayer({ id: 'b' });
+    for (let i = 0; i < 60 * 10; i++) sim.step();
+    const p = sim.players.get('p')!;
+    const b = sim.players.get('b')!;
+    expect(b.role).toBe('fighter');
+    b.position.x = p.position.x;
+    b.position.y = p.position.y;
+    b.position.z = p.position.z + 1;
+    b.stamina = 10;
+    const bot = new Bot('b', { skill: 0, seed: 3 });
+    let guarded = 0;
+    for (let i = 0; i < 300; i++) {
+      if ((bot.think(b, sim.players.values(), level, 1 / 60, sim.mode.objectiveFor?.(b) ?? null).buttons & Buttons.Guard) !== 0) guarded++;
+    }
+    expect(guarded).toBe(300);
+  });
+
   it('aims a punch once, not afresh every tick it is out', () => {
     // Drawn every tick, the aim flipped between head and body while the fist was out, and a punch
     // aimed where the eyes are zig-zagged 40 cm up and down on its way.

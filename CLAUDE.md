@@ -3287,7 +3287,7 @@ Doing it found the button punch was not what it looked like:
   punch (`aimHigh`), not every tick, which zig-zagged the fist 40 cm on its way.
 
 Bot Boxing, 4 bots × 16 rounds × 90 s, before → after: 128 → 150 hits a round, 10 % → 0 % on the way
-back, 73 % → 49 % head shots, 1,923 → 1,716 damage. Bots do not guard yet.
+back, 73 % → 49 % head shots, 1,923 → 1,716 damage. Bots guard now: see "Bots hold a guard".
 
 `combat.test.ts` sets gloves up exactly where a rule has to decide (the tie, the guard gate) —
 the cases a whole fight cannot reach on purpose. Thirteen mutations, each failing its own test;
@@ -3744,3 +3744,25 @@ after a pause or a hitch frame, and a hand is never blended from before it was t
   anything else reading it see the frame, not the last tick's blend.
 - Four mutations, each failing its own test: yaw blended the long way round ±π, a hand blended
   from a stale untracked pose, the intent not restored, the tick always at the frame.
+
+## Bots hold a guard
+
+Bots never pressed `Buttons.Guard`, so nothing a bot did could take a hit: a player holding the
+punch button and looking up — the cheapest head shot there is — out-hit a 0.7 bot 9.2 to 5.8 a
+second (`.probe/vsbot.ts`, 8 seeds × 60 s). A punch is out in 0.09 s (`PUNCH_EXTEND`), faster than
+anyone reacts, so the guard is not raised *at* a punch: `Bot.fight` holds it in stretches of
+0.6–1.4 s, up with probability `0.15 + 0.6 × skill`, within 2.5 m of the opponent, and always when
+winded (stamina < 25). The share of those head shots blocked: skill 0.9 51 %, 0.7 41 %, 0.4 25 %,
+0.2 15 %.
+
+- Against a 0.7 bot: head shots 9.2 → 6.1 a second, level body shots 4.9 → 5.0 (a guard covers what
+  is behind it), a VR head jab 3.3 → 1.4. What the bot deals barely moves (5.8 → 5.6), so the guard
+  is a choice for the player — head or body — and not a nerf to the bot.
+- Bot Boxing (4 × 0.7, 8 seeds × 90 s): damage a round 1,445 → 1,467; hits counted 131 → 199,
+  because blocked punches are hits too (`data: 'guard'`).
+- Cage Fight uses the same `fight`, so its bots guard too; its tests pass unchanged.
+- `bot.test.ts`: head-hunter share by skill, no guard out of reach, cover-up when winded. Four
+  mutations (no guard, guard ignoring skill, no range, no winded rule), each failing its own test.
+- **Distance in `fight` is 3-D** (`v3distance`): a test that puts a bot "1 m in front" without
+  matching `y` puts it in a pit 4 m below and out of range.
+
