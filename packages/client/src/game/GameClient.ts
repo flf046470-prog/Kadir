@@ -56,6 +56,7 @@ import { Renderer } from '../render/Renderer.js';
 import { worldNeedsRebuild } from '../render/surfaces.js';
 import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js';
 import { StreamerMask } from '../ui/streamer.js';
+import { TickResampler, tickAlpha } from './tickResample.js';
 
 export interface GameCallbacks {
   onModeState(state: ModeStateView): void;
@@ -230,6 +231,8 @@ export class GameClient {
   private inputSuspended = false;
 
   private accumulator = 0;
+  /** Headset poses read at each tick's own time rather than the frame's (`tickResample.ts`). */
+  private readonly tickPoses = new TickResampler();
   /** Frames since a menu covered the world; see `drawsFrame`. */
   private coveredFrames = 0;
   private lastFrameTime = 0;
@@ -1172,14 +1175,22 @@ export class GameClient {
     }
     this.updateMicrophone(dt);
 
+    // A headset's frames do not line up with the 60 Hz ticks: each tick reads the tracked pose at
+    // its own time, between the last frame's sample and this one's (`TickResampler`).
+    const resample = this.input.kind === 'vr' && !this.inputSuspended && dtMs < 100;
+    if (resample) this.tickPoses.capture(this.intent);
+    else this.tickPoses.reset();
+
     // Fixed-step simulation with a bounded catch-up, so a hitch cannot spiral.
     this.accumulator += dt;
     let steps = 0;
     while (this.accumulator >= TICK_DT && steps < 5) {
       this.accumulator -= TICK_DT;
       steps++;
+      if (resample) this.tickPoses.apply(this.intent, tickAlpha(dt, this.accumulator));
       this.stepSimulation();
     }
+    if (resample) this.tickPoses.endFrame(this.intent);
 
     this.updateAvatars(dt);
     this.updateGadgetEntities();

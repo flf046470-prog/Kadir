@@ -2798,9 +2798,7 @@ which is also where the player sees it. The alternatives were measured or reason
 body round the old anchor is the 22.9 m/s lurch, and keeping an anchor the hand has left lets snap,
 pull, snap, pull walk a player across open air.
 
-**Not met, and why.** The lab's 5 % for 72–144 Hz: the worst phase is 9.7 % at 72 Hz, from the frame
-that straddles the release; interpolating hand poses to the tick time in `GameClient.frame` would
-remove it, and was not done because it changes VR feel in a way nothing here can try on a headset.
+**The lab's 5 % for 72–144 Hz is met now**: see "A headset's frames are not the simulation's ticks".
 **Room-scale head penetration is covered now**: see "A head leaned into a wall saw through it".
 
 **Tracking loss is left as a frozen pose.** `VRInput` sets `tracked` from connect/disconnect only;
@@ -3727,3 +3725,22 @@ opponents the eyes cannot see.
   (36/36). `__kcSelf().eye` reports the eye, its clearance and the cover.
 - Six mutations, each failing its own test: water counted, distance unsigned, full cover at 0.03 m,
   the cover not drawn, the cover eased in, the lean following pitch.
+
+## A headset's frames are not the simulation's ticks
+
+The simulation steps at 60 Hz and a headset draws at 72–144 Hz. Every tick in a frame read the pose
+sampled at the *frame*, so the hand moved unevenly from tick to tick — at 72 Hz most ticks got one
+frame's motion and one in five got two — and a climb's release speed (the mean of the last
+`PULL_WINDOW` ticks) came out wrong by where the release fell. Measured with the real `stepPlayer`
+(`tickResample.test.ts`, `.probe/rate.ts`), worst over frame phase and release moment, against the
+same pull at 60 Hz: **72 Hz 13.9 %, 144 Hz 5.2 %**, 80/90/120 Hz 0 %. `TickResampler` reads the
+head's yaw and height and each tracked hand's position at the tick's own time, between the previous
+frame's sample and this one's (`tickAlpha` from the accumulator): **0 % at every rate**. VR only, off
+after a pause or a hitch frame, and a hand is never blended from before it was tracked.
+
+- **The grip is not resampled.** Blending it survived its mutation — nothing says where between two
+  frames a hand opened — so it was removed rather than kept as an untested claim.
+- The intent is put back to the frame's own sample after the ticks, so the rendered hands and
+  anything else reading it see the frame, not the last tick's blend.
+- Four mutations, each failing its own test: yaw blended the long way round ±π, a hand blended
+  from a stale untracked pose, the intent not restored, the tick always at the frame.
