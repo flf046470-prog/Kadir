@@ -200,7 +200,13 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
      * A panel whose slider moves is worth nothing if the thing it configures cannot be created.
      */
     await page.locator('button', { hasText: 'Create room' }).first().click();
-    await page.waitForTimeout(4500);
+    // Polled, not a fixed sleep: under swiftshader a frame can take seconds, and a fixed 4.5 s
+    // could not tell a slow welcome from none. The time it took is printed with the result.
+    const createdAt = Date.now();
+    await page
+      .waitForFunction(() => /KANG-[A-Z0-9]{4}/.test(document.body.innerText), null, { timeout: 20000, polling: 250 })
+      .catch(() => undefined);
+    houseRules += ` welcomeMs=${Date.now() - createdAt}`;
 
     /**
      * The signal is the room code in the HUD, and nothing weaker.
@@ -262,6 +268,15 @@ for (const [label, vp] of [['desktop',{width:1280,height:720}], ['phone-landscap
   console.log(`${''.padEnd(16)} house rules: ${houseRules} backAtMenu=${atMenu}`);
 
   // Practice with bots exercises the sim, renderer, avatars and the touched GameClient paths.
+  // Not at the menu means the steps above already failed: say so instead of timing out on a
+  // button that is not there, which hid the actual failure behind a click timeout.
+  if (!atMenu) {
+    await browser.close();
+    server.kill();
+    console.log(`console errors: ${errors.length}\n  - ${errors.join('\n  - ')}`);
+    console.log('--- server log ---\n' + serverLog.join(''));
+    process.exit(1);
+  }
   await page.locator('button', { hasText: 'Practice with bots' }).first().click();
   await page.waitForTimeout(4000);
   const played = await page.evaluate(() => document.querySelectorAll('canvas').length > 0);

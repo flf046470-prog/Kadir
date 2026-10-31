@@ -3540,6 +3540,12 @@ the first; the simulation, camera and sound still run every frame. Never in a he
 XR frame is a reprojected one. Measured, Playwright's own clicks: practice 22.5 s → 7.6 s, leave
 match 21.1 s → 4.7 s; `check:smoke` passes locally on all three viewports.
 
+**A fixed sleep turned `check:smoke` red twice after first person landed.** It waited 4.5 s after
+"Create room" for the room code; measured locally the welcome reaches the HUD in 4.1–4.5 s, so the
+slower CI runner missed it every time (`created=false`), and the next click then timed out on a
+menu button that was not there, hiding the cause. It polls for up to 20 s now, prints `welcomeMs`,
+and stops with the collected errors when it is not back at the menu.
+
 **The governor needs 120 frames before it will judge** (`MIN_SAMPLES`, "roughly two seconds at
 60 fps"). At 2 s a frame that is four minutes at a tier the device cannot hold, and at 10 fps it is
 twelve seconds — the devices that most need a lower tier wait longest. Not changed here; noted.
