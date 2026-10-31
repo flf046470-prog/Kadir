@@ -75,6 +75,9 @@ export interface AddPlayerOptions {
  * source of truth; the client runs *the same class* for prediction. Nothing in here touches
  * a renderer, a socket or the DOM.
  */
+/** How close a player's body has to come to a golden boomerang to pick it up, in metres. */
+export const SECRET_REACH = 1.6;
+
 export class Simulation {
   readonly level: LevelDef;
   readonly world: PhysicsWorld;
@@ -105,6 +108,8 @@ export class Simulation {
    * server's own simulation is the only account of what anybody did.
    */
   private travel = new Map<string, { distance: number; climb: number }>();
+  /** Golden boomerangs each player has reached this round, by id. The profile keeps them for good. */
+  private found = new Map<string, Set<string>>();
 
   constructor(options: SimulationOptions) {
     this.level = options.level;
@@ -206,7 +211,10 @@ export class Simulation {
       const beforeY = player.position.y;
       const beforeZ = player.position.z;
       stepPlayer(player, intent, this.locomotion, TICK_DT);
-      if (player.alive) this.measureTravel(player, beforeX, beforeY, beforeZ);
+      if (player.alive) {
+        this.measureTravel(player, beforeX, beforeY, beforeZ);
+        this.findSecrets(player);
+      }
       // After locomotion, so a gadget is aimed with the head pose it was fired from rather than
       // last tick's.
       this.handleGadgetButtons(player, intent);
@@ -328,7 +336,13 @@ export class Simulation {
       ...result,
       players: result.players.map((entry) => {
         const travel = this.travel.get(entry.playerId);
-        return { ...entry, distanceMetres: round(travel?.distance ?? 0), climbMetres: round(travel?.climb ?? 0) };
+        const found = this.found.get(entry.playerId);
+        return {
+          ...entry,
+          distanceMetres: round(travel?.distance ?? 0),
+          climbMetres: round(travel?.climb ?? 0),
+          ...(found && found.size > 0 ? { secrets: [...found] } : {}),
+        };
       }),
     };
   }
@@ -350,6 +364,31 @@ export class Simulation {
     }
     entry.distance += step;
     if (rise > 0 && isGrabbing(player)) entry.climb += rise;
+  }
+
+  /**
+   * A golden boomerang is found by being there: within `SECRET_REACH` of it after `stepPlayer`
+   * moved you, never by a respawn or a kickoff putting you there (those happen outside this
+   * window, as with travel). The server's own simulation is the only witness, so a client cannot
+   * claim one.
+   */
+  private findSecrets(player: PlayerState): void {
+    const secrets = this.level.secrets;
+    if (!secrets || secrets.length === 0) return;
+    for (const secret of secrets) {
+      const dx = player.position.x - secret.position.x;
+      const dy = player.position.y - secret.position.y;
+      const dz = player.position.z - secret.position.z;
+      if (dx * dx + dy * dy + dz * dz > SECRET_REACH * SECRET_REACH) continue;
+      let found = this.found.get(player.id);
+      if (!found) {
+        found = new Set();
+        this.found.set(player.id, found);
+      }
+      if (found.has(secret.id)) continue;
+      found.add(secret.id);
+      this.events.emit('secret', player.id, secret.position, this.tick, 1, { data: secret.id });
+    }
   }
 
   finished(): boolean {

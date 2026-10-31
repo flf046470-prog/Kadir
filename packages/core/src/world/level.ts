@@ -137,6 +137,21 @@ export interface PropInstance {
   tint: number;
 }
 
+/**
+ * An easter egg: a golden boomerang left on top of something a player has to climb. Finding one
+ * is noticed by the simulation (`Simulation.findSecrets`) and kept on the profile by the server,
+ * so it is never a client's say-so.
+ */
+export interface SecretDef {
+  id: string;
+  position: Vec3;
+}
+
+/** How a find is kept on a profile (`PlayerProfile.secretsFound`), so one map's `boomerang-1` is not another's. */
+export function secretKey(levelId: string, id: string): string {
+  return `${levelId}:${id}`;
+}
+
 export interface LevelDef {
   id: string;
   name: string;
@@ -155,6 +170,8 @@ export interface LevelDef {
   portals: PortalDef[];
   /** Fight cages. Every shipped map has one; a map without one plays Cage Fight in a ring. */
   arenas?: ArenaDef[];
+  /** Golden boomerangs, three a map. Absent on a level built before they existed. */
+  secrets?: SecretDef[];
   killPlaneY: number;
   /**
    * How far from the origin the game is *worth playing*, not how far it is possible to walk.

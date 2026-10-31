@@ -321,9 +321,11 @@ async function main(): Promise<void> {
 
     let cosmetics: Record<string, string> = {};
     let animalId = 'kangaroo';
+    let foundSecrets: string[] = [];
     try {
       const bundle = await api.getProfile();
       shell.setProfile(bundle);
+      foundSecrets = bundle.profile.secretsFound;
       animalId = bundle.profile.equipped.animalId;
       cosmetics = bundle.profile.equipped.cosmetics as Record<string, string>;
     } catch {
@@ -436,6 +438,7 @@ async function main(): Promise<void> {
       wristHud.setVisible(true);
     }
 
+    game.setFoundSecrets(foundSecrets);
     game.start();
     void game.audio.resume();
 

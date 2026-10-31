@@ -73,6 +73,12 @@ export interface PlayerProfile {
   friendRequestsIn: string[];
   friendRequestsOut: string[];
 
+  /**
+   * Golden boomerangs this player has found, as `<levelId>:<secret id>`. Written only by
+   * `applyMatchStats` from the server's own round result. `stats.secretsFound` is its length.
+   */
+  secretsFound: string[];
+
   /** Per-event progress, keyed by event id — see `progression/events.ts`. */
   events: Record<string, EventRecord>;
 
@@ -98,6 +104,7 @@ export function emptyStats(): StatBlock {
     playSeconds: 0,
     distanceMetres: 0,
     bestLapSeconds: -1,
+    secretsFound: 0,
   };
 }
 
@@ -134,6 +141,7 @@ export function createProfile(playerId: string, name: string, now = Date.now()):
     friendIds: [],
     friendRequestsIn: [],
     friendRequestsOut: [],
+    secretsFound: [],
     events: {},
   };
 }

@@ -629,6 +629,9 @@ export class Hud {
         this.showToast(`${String(event.data).toUpperCase()} SCORES${mine ? '!' : ''}`, 2000);
         break;
       }
+      case 'secret':
+        if (event.playerId === localId) this.showToast('Golden boomerang found!', 3000);
+        break;
       case 'lapComplete':
         this.showToast(`Finished in ${event.magnitude.toFixed(2)}s`, 3000);
         break;

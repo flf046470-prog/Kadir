@@ -1,3 +1,6 @@
+/** Golden boomerangs on each map (`LevelBuilder.hideSecrets`); `levels.test.ts` holds every map to it. */
+export const SECRETS_PER_MAP = 3;
+
 /** Metrics the achievement engine tracks. Extend the union to add a new kind of goal. */
 export type AchievementMetric =
   | 'tags'
@@ -11,7 +14,9 @@ export type AchievementMetric =
   | 'knockouts'
   | 'playSeconds'
   | 'distanceMetres'
-  | 'bestLapSeconds';
+  | 'bestLapSeconds'
+  /** Golden boomerangs found, every map's together: the length of `PlayerProfile.secretsFound`. */
+  | 'secretsFound';
 
 export interface AchievementDef {
   id: string;
@@ -39,6 +44,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // goal that names Infection, so its description and its progress disagreed on screen.
   { id: 'survivor', name: 'Survivor', description: 'Be the last survivor in Infection 10 times.', metric: 'infectionSurvivals', threshold: 10, rewardCoins: 700 },
   { id: 'marathon', name: 'Marathon Roo', description: 'Play for 10 hours.', metric: 'playSeconds', threshold: 36000, rewardCoins: 2000 },
+  // Easter eggs: hidden until reached, so the challenges screen does not give the hunt away.
+  { id: 'golden_boomerang', name: 'Golden Boomerang', description: 'Find a golden boomerang hidden high on a map.', metric: 'secretsFound', threshold: 1, rewardCoins: 300, hidden: true },
+  { id: 'boomerang_hoarder', name: 'Boomerang Hoarder', description: 'Find all nine golden boomerangs.', metric: 'secretsFound', threshold: SECRETS_PER_MAP * 3, rewardCoins: 2000, hidden: true },
   { id: 'speedrunner', name: 'Speedrunner', description: 'Finish the parkour route in under 90 seconds.', metric: 'bestLapSeconds', threshold: 90, lowerIsBetter: true, rewardCoins: 2000 },
 ];
 

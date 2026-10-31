@@ -37,7 +37,9 @@ export type SimEventType =
    * the yaw it turned them to. A flat-screen client turns its view to it, because its intent
    * carries the view's own yaw and would turn the player straight back on the next tick.
    */
-  | 'placed';
+  | 'placed'
+  /** A player reached a golden boomerang (`LevelDef.secrets`). `data` is its id. Once a round each. */
+  | 'secret';
 // `chat` and `voice` were members here and were never emitted by anything, in either direction:
 // no `.emit()` call site in this package named them, and no consumer existed in any of the three
 // switches that turn an event into something a player perceives. Both already have a working home

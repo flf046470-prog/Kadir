@@ -57,6 +57,8 @@ export function buildGlacierWorld(seed = GLACIER_SEED): LevelDef {
   // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
   const killPlaneY = -40;
   b.enclose(killPlaneY, 'cliffIce');
+  // Wider than the bot leash (40.5 m): every climbable serac stands 33–61 m out.
+  b.hideSecrets(62);
 
   return b.build({
     id: 'glacier-world',

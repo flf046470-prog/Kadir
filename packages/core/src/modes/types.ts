@@ -73,6 +73,8 @@ export interface PlayerResult {
    */
   distanceMetres?: number;
   climbMetres?: number;
+  /** Golden boomerangs this player reached this round, by id (`Simulation.findSecrets`). */
+  secrets?: string[];
 }
 
 export interface MatchResult {

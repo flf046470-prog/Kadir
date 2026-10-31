@@ -75,6 +75,7 @@ export function buildOutbackWorld(seed = OUTBACK_SEED): LevelDef {
   // kill plane with a cliff nobody can jump or climb. See `LevelBuilder.enclose`.
   const killPlaneY = -40;
   b.enclose(killPlaneY, 'cliffRedRock');
+  b.hideSecrets(90 * 0.75); // the bot leash: `playRadius` * 0.75
 
   return b.build({
     id: 'outback-station',

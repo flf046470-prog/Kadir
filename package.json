@@ -67,7 +67,8 @@
     "capture:shots": "node scripts/capture-shots.mjs",
     "pack:preview": "node scripts/pack-preview.mjs",
     "assets:sculpt": "python3 tools/blender/sculpt.py",
-    "assets:portal": "python3 tools/blender/portal.py"
+    "assets:portal": "python3 tools/blender/portal.py",
+    "assets:boomerang": "python3 tools/blender/boomerang.py"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

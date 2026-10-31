@@ -248,6 +248,13 @@ export class AudioSystem {
       case 'lapComplete':
         this.chime(at, 880, 3);
         break;
+      case 'secret':
+        // A golden boomerang: a bright rising run, for the finder only — nobody else should learn
+        // where one is by hearing it.
+        if (!isLocalPlayer) break;
+        this.chime(at, 659, 4);
+        this.chime(at, 988, 2);
+        break;
       case 'emote':
         this.chime(at, 520, 2);
         break;

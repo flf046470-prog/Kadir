@@ -453,6 +453,9 @@ export function recipeFor(event: SimEvent, rand: Rand, lastGround?: SurfaceMater
       // The net lights up in the scoring side's colour, big enough to read from the far goal.
       sparks(offset(at, 1.2), event.data === 'red' ? 0xff5a4f : 0x3d8bff, 64, 6.5, 0.26, 1.3, rand, out.glow);
       break;
+    case 'secret':
+      sparks(offset(at, 0), 0xffc93a, 56, 5.5, 0.22, 1.2, rand, out.glow);
+      break;
     case 'checkpoint':
     case 'lapComplete':
       sparks(offset(at, 1), 0xffd35a, event.type === 'lapComplete' ? 44 : 24, 4.8, 0.2, 0.95, rand, out.glow);

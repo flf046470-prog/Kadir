@@ -3627,3 +3627,26 @@ line that had just been deleted.
 Watch for harness artefacts before believing a result: a probe that reports "no difference" may be
 measuring the wrong event name, running a mode whose countdown freezes the player, or crossing a
 round reset that restores the state you were watching. All three have happened.
+
+## Golden boomerangs (easter eggs), modelled in Blender
+
+Three per map (`SECRETS_PER_MAP`), chosen from the built geometry by `LevelBuilder.hideSecrets`
+after `enclose`: the highest climbable box or trunk tops 3–16 m over the ground beside them, with
+nothing above, spread `0.4 × reach` apart. No colliders and no random draws, so fingerprints and
+map versions do not move. The glacier searches 62 m, not its 40.5 m bot leash: every climbable
+serac stands 33–61 m out, and at the leash it found one perch.
+
+- **Found by the server's simulation only** (`Simulation.findSecrets`, `SECRET_REACH` 1.6 m, inside
+  the `stepPlayer` window like travel, so a respawn cannot land you on one). A `secret` event, and
+  `Room.creditSecret` writes it to the profile **the tick it happens** — the lobby never ends a round
+  and a player who leaves mid-round gets no results. `applyMatchStats` records it again from the
+  result; `recordSecret` is idempotent.
+- `PlayerProfile.secretsFound` (`<levelId>:<id>`) is the record; `stats.secretsFound` is only its
+  length and is recomputed on load, so an edited stat unlocks nothing. Two hidden achievements.
+- The model is `tools/blender/boomerang.py` (`npm run assets:boomerang`, needs `pip install
+  bpy==5.0.1`): an outline offset from a bent centreline, extruded and bevelled, metallic gold with
+  a red band on each arm, 692 triangles. **Import `bmesh` after `bpy`** — bpy puts it on the path.
+  Two materials make two glTF primitives, so `AssetLibrary.loadGeometry` (one mesh, for instancing)
+  refuses it; `render/Secrets.ts` uses `load` and clones. A gold V of two boxes draws until it loads.
+- Only the finder's own client hides one it has found; the sound is the finder's alone, the sparks
+  are everyone's.

@@ -6,7 +6,22 @@ import { SurfaceFlags, makeRaycastResult } from '../physics/types.js';
 import { PhysicsWorld } from '../physics/world.js';
 import { colliderAabb, colliderBottom, colliderReach, colliderTop, makeAabb } from '../physics/geometry.js';
 import { heightfieldHeight, heightfieldMaxX, heightfieldMaxZ } from '../physics/heightfield.js';
-import type { ArenaDef, BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SpawnPoint, ZoneDef } from './level.js';
+import type { ArenaDef, BodyKind, BodySpawn, CheckpointDef, GripDef, GripKind, LevelDef, PortalDef, PropInstance, PropKind, SecretDef, SpawnPoint, ZoneDef } from './level.js';
+
+/** A boomerang is a climb, not a hop: its top at least this far over the ground beside it… */
+const SECRET_MIN_HEIGHT = 3;
+/** …and not so high that only a perfect climb gets there. */
+const SECRET_MAX_HEIGHT = 16;
+/** Two boomerangs on one map are never on neighbouring perches: this share of the search reach apart. */
+const SECRET_SPACING = 0.4;
+/** How far over its perch a boomerang floats — about a kangaroo's chest. */
+export const SECRET_LIFT = 0.9;
+
+function v3setTo(out: Vec3, x: number, y: number, z: number): void {
+  out.x = x;
+  out.y = y;
+  out.z = z;
+}
 
 export interface SurfacePreset {
   friction: number;
@@ -186,6 +201,7 @@ export class LevelBuilder {
   readonly zones: ZoneDef[] = [];
   readonly portals: PortalDef[] = [];
   readonly arenas: ArenaDef[] = [];
+  readonly secrets: SecretDef[] = [];
   private nextId = 0;
   /** Raycasts against what is built so far, rebuilt when something is added. */
   private probe: { world: PhysicsWorld; count: number } | null = null;
@@ -743,6 +759,47 @@ export class LevelBuilder {
    *
    * Call it last: it measures the colliders that exist. Returns how many cliff segments it made.
    */
+  /**
+   * Hide `count` golden boomerangs on the highest climbable tops within `reach` of the middle: a
+   * box or trunk whose top is between `SECRET_MIN_HEIGHT` and `SECRET_MAX_HEIGHT` over the ground
+   * beside it, nothing over it, and `SECRET_SPACING` of `reach` from any other. Chosen from
+   * the built geometry rather than written down, so a map that changes still has its boomerangs
+   * somewhere a hand or a stick climb can reach. Call it after `enclose`. Draws nothing and uses
+   * no random numbers, so it moves nothing else on the map.
+   */
+  hideSecrets(reach: number, count = 3): SecretDef[] {
+    const world = this.probeWorld();
+    const ray = makeRaycastResult();
+    const origin = vec3();
+    const down = vec3(0, -1, 0);
+    const candidates: { x: number; z: number; top: number }[] = [];
+    for (const c of this.colliders) {
+      if (c.kind !== 'box' && c.kind !== 'cylinder') continue;
+      if (!(c.surface.flags & SurfaceFlags.Climbable) || c.zone === 'edge') continue;
+      if (c.kind === 'box' && (c.drawAs === 'cliff' || Math.min(c.half.x, c.half.z) < 0.35)) continue;
+      if (Math.hypot(c.center.x, c.center.z) > reach) continue;
+      const top = colliderTop(c);
+      // Nothing over it: a ray from above lands on this top, not on a branch or a roof.
+      v3setTo(origin, c.center.x, top + 6, c.center.z);
+      world.raycast(ray, origin, down, 6.2);
+      if (!ray.hit || Math.abs(ray.point.y - top) > 0.05) continue;
+      // How high it is over the ground beside it: the climb, not the altitude.
+      const side = c.kind === 'box' ? Math.max(c.half.x, c.half.z) + 0.6 : c.radius + 0.6;
+      v3setTo(origin, c.center.x + side, top - 0.2, c.center.z);
+      world.raycast(ray, origin, down, 40);
+      const climb = ray.hit ? top - ray.point.y : Infinity;
+      if (climb < SECRET_MIN_HEIGHT || climb > SECRET_MAX_HEIGHT) continue;
+      candidates.push({ x: c.center.x, z: c.center.z, top });
+    }
+    candidates.sort((a, b) => b.top - a.top || a.x - b.x || a.z - b.z);
+    for (const c of candidates) {
+      if (this.secrets.length >= count) break;
+      if (this.secrets.some((s) => Math.hypot(s.position.x - c.x, s.position.z - c.z) < SECRET_SPACING * reach)) continue;
+      this.secrets.push({ id: `boomerang-${this.secrets.length + 1}`, position: vec3(c.x, c.top + SECRET_LIFT, c.z) });
+    }
+    return this.secrets;
+  }
+
   enclose(killPlaneY: number, surface: 'cliffRock' | 'cliffIce' | 'cliffRedRock', zone = 'edge'): number {
     if (this.colliders.length === 0) return 0;
     const world = new PhysicsWorld(this.colliders);
@@ -970,6 +1027,7 @@ export class LevelBuilder {
       zones: this.zones,
       portals: this.portals,
       arenas: this.arenas,
+      secrets: this.secrets,
     };
   }
 }

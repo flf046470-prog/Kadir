@@ -3,6 +3,7 @@ import type { AchievementDef, AchievementMetric } from '../content/achievements.
 import type { MatchResult } from '../modes/types.js';
 import { grantContent } from './inventory.js';
 import type { PlayerProfile } from './profile.js';
+import { secretKey } from '../world/level.js';
 
 export interface AchievementUnlock {
   def: AchievementDef;
@@ -23,6 +24,9 @@ export function applyMatchStats(profile: PlayerProfile, result: MatchResult, pla
   // Measured by the simulation (`Simulation.results`); a client never reports either.
   addMetric(profile, 'distanceMetres', entry.distanceMetres ?? 0);
   addMetric(profile, 'climbMetres', entry.climbMetres ?? 0);
+  // Found by the simulation (`Simulation.findSecrets`). The room usually credited each the tick it
+  // happened; this is the round's own record of it, and adding one twice changes nothing.
+  for (const id of entry.secrets ?? []) recordSecret(profile, result.levelId, id);
   if (entry.won) stats.wins += 1;
   if (result.modeId === 'boxing') stats.knockouts += entry.tags;
   if (result.modeId === 'infection') stats.infectionSurvivals += entry.escapes;
@@ -32,6 +36,18 @@ export function applyMatchStats(profile: PlayerProfile, result: MatchResult, pla
     if (stats.bestLapSeconds < 0 || seconds < stats.bestLapSeconds) stats.bestLapSeconds = seconds;
   }
   profile.updatedAt = Date.now();
+}
+
+/**
+ * Keep a golden boomerang on the profile. Returns whether it was new. Only ever called with what
+ * the server's simulation reported (`secret` events, or a round result), never a client's claim.
+ */
+export function recordSecret(profile: PlayerProfile, levelId: string, id: string): boolean {
+  const key = secretKey(levelId, id);
+  const fresh = !profile.secretsFound.includes(key);
+  if (fresh) profile.secretsFound.push(key);
+  profile.stats.secretsFound = profile.secretsFound.length;
+  return fresh;
 }
 
 /** Track continuous metrics the match result cannot express (climbing, distance travelled). */

@@ -11,6 +11,7 @@ import {
   computeMatchAward,
   grantAward,
   applyMatchStats,
+  recordSecret,
   evaluateAchievements,
   getModeDef,
   createModerationState,
@@ -474,6 +475,7 @@ export class Room {
     this.sim.step();
 
     const events = this.sim.events.drain();
+    for (const event of events) if (event.type === 'secret') this.creditSecret(event.playerId, String(event.data ?? ''));
     if (events.length > 0) {
       if (this.sim.mode.conceals) this.sendEventsInSight(events);
       else this.broadcast({ t: 'events', events });
@@ -553,6 +555,19 @@ export class Room {
       client.socket.close(4000, 'timeout');
       this.leave(client.playerId);
     }
+  }
+
+  /**
+   * A golden boomerang goes on the finder's profile the tick it is found, not at the end of the
+   * round: the lobby never ends one, and a player who leaves mid-round never sees the results.
+   */
+  private creditSecret(playerId: string, id: string): void {
+    const client = this.clients.get(playerId);
+    if (!client || !id) return;
+    if (!recordSecret(client.profile, this.level.id, id)) return;
+    evaluateAchievements(client.profile);
+    client.profile.updatedAt = Date.now();
+    void this.accounts.save(client.profile).catch((error: unknown) => console.warn('[room] could not save a found boomerang:', error));
   }
 
   /** Round over: compute rewards from the server's own result and persist everything. */

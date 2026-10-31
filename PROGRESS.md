@@ -423,3 +423,9 @@ harness is untracked, so write a tracked one under `tools/` first), find the dom
 cell, and fix it with a `version` bump + before/after numbers. Fallback: per-grip-kind feel/highlight.
 
 **Last commit:** see `git log -1` on the branch.
+
+## 2026-10-31 — Easter eggs: golden boomerangs (Blender model)
+- 9 hidden boomerangs (3 a map) on the highest climbs, found by the server simulation, kept on the
+  profile, two hidden achievements; Blender-generated model `boomerang.glb`.
+- Tests: `sim/secrets.test.ts` (5), `render/Secrets.test.ts`; two mutations caught. `npm run verify` exit 0.
+- Next: Blender work on the maps (owner: "Blender ile çoğu şeyi geliştir harita dahil").

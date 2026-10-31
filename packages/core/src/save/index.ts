@@ -85,12 +85,16 @@ export function migrateProfile(input: unknown, playerId: string, name = 'Roo'): 
     friendIds: uniqueStrings(raw.friendIds, []),
     friendRequestsIn: uniqueStrings(raw.friendRequestsIn, []),
     friendRequestsOut: uniqueStrings(raw.friendRequestsOut, []),
+    // Absent before easter eggs; an empty list is right for every older save.
+    secretsFound: uniqueStrings(raw.secretsFound, []),
     events: eventRecords(raw.events),
   };
 
   profile.coins = safeNumber(profile.coins, 0);
   profile.xp = safeNumber(profile.xp, 0);
   profile.level = levelForXp(profile.xp);
+  // The list is the record; the stat is only its length, so a hand-edited stat cannot unlock anything.
+  profile.stats.secretsFound = profile.secretsFound.length;
   // Re-granted on every load rather than only on migration: content added after this save was
   // written is free too, and a player should not have to wait for a migration bump to see it.
   for (const animal of listAnimals()) if (!profile.ownedAnimals.includes(animal.id)) profile.ownedAnimals.push(animal.id);

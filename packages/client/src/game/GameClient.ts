@@ -15,6 +15,7 @@ import {
   makeRaycastResult,
   snapshotPlayer,
   zoneAt,
+  secretKey,
 } from '@kc/core';
 import type {
   ReportReason,
@@ -39,6 +40,7 @@ import { Avatar } from '../render/Avatar.js';
 import { GadgetEntityView } from '../render/GadgetEntities.js';
 import { WorldEffects } from '../render/Effects.js';
 import { ModeMarkers } from '../render/ModeMarkers.js';
+import { SecretsView } from '../render/Secrets.js';
 import { BodyView } from '../render/Bodies.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
@@ -208,6 +210,9 @@ export class GameClient {
   /** Loose balls — the simulation's `bodies`, drawn with their roll. */
   private bodyView: BodyView;
   private modeMarkers = new ModeMarkers();
+  /** The map's golden boomerangs, less the ones this player has found (`secretsFound`). */
+  private secrets: SecretsView;
+  private foundSecrets = new Set<string>();
   private interpolation = new InterpolationBuffer();
   private prediction = new PredictionBuffer();
   private intent: InputIntent = createIntent();
@@ -286,6 +291,8 @@ export class GameClient {
     this.bodyView = new BodyView(this.levelRendererProfile.shadows);
     this.renderer.scene.add(this.bodyView.group);
     this.renderer.scene.add(this.modeMarkers.group);
+    this.secrets = new SecretsView(this.level, this.assets, this.foundSecrets);
+    this.renderer.scene.add(this.secrets.group);
 
     this.sim = new Simulation({ level: this.level, modeId: this.modeId });
     this.audio.applySettings(this.settings);
@@ -892,6 +899,7 @@ export class GameClient {
       this.effects.handleEvent(event, this.renderer.camera.getWorldPosition(this.tmpVec2));
       if (isLocal && event.type === 'portal') this.enterPortal(String(event.data ?? ''));
       if (isLocal && event.type === 'land') this.applyLandingKick(event.magnitude);
+      if (isLocal && event.type === 'secret') this.findSecret(String(event.data ?? ''));
       if (isLocal && event.type === 'placed' && typeof event.data === 'number') this.input.setLook?.(event.data, 0);
       if (isLocal || event.otherId === this.localId) {
         this.callbacks.onLocalEvent(event);
@@ -985,6 +993,9 @@ export class GameClient {
         // and the human its `otherId` — and both are about to be swung at.
         if (event.data === 'bout') feedback('tag', 'both', 1);
         break;
+      case 'secret':
+        if (isLocal) feedback('tag', 'both', 0.8);
+        break;
       case 'goal':
         // The scorer feels it. Everyone hears it; a pulse for all sixteen players would say
         // nothing about who did what.
@@ -1029,6 +1040,9 @@ export class GameClient {
     // they were using when the game booted.
     this.rebuildLevelRenderer();
     this.renderer.applyLevel(this.level);
+    this.secrets.dispose();
+    this.secrets = new SecretsView(this.level, this.assets, this.foundSecrets);
+    this.renderer.scene.add(this.secrets.group);
     // Dust hanging where the old map's ground was would hang in mid-air over the new one.
     this.effects.clear();
     // The old map's zone is meaningless in the new one, and `updateZone` only acts on a change.
@@ -1142,6 +1156,7 @@ export class GameClient {
     this.updateMood();
     this.levelRenderer.animate(time / 1000);
     this.modeMarkers.animate(time / 1000);
+    this.secrets.animate(time / 1000);
 
     const local = this.localPlayer;
     if (local) this.renderer.updateShadowFocus(local.position.x, local.position.z);
@@ -1447,6 +1462,23 @@ export class GameClient {
     );
   }
 
+  /**
+   * The golden boomerangs this player has already found, from their profile. Called once the
+   * profile arrives; a find this session is added by `findSecret` without waiting for the server.
+   */
+  setFoundSecrets(keys: readonly string[]): void {
+    for (const key of keys) this.foundSecrets.add(key);
+    for (const key of keys) {
+      const [levelId, id] = key.split(':');
+      if (levelId === this.level.id && id) this.secrets.markFound(id);
+    }
+  }
+
+  private findSecret(id: string): void {
+    this.foundSecrets.add(secretKey(this.level.id, id));
+    this.secrets.markFound(id);
+  }
+
   /** A flat screen in first person: `controls.view`, which a headset ignores. */
   private get firstPerson(): boolean {
     return this.input.kind !== 'vr' && this.settings.controls.view === 'first';
@@ -1534,6 +1566,7 @@ export class GameClient {
     this.effects.dispose();
     this.bodyView.dispose();
     this.modeMarkers.dispose();
+    this.secrets.dispose();
     this.audio.dispose();
     this.voice.dispose();
   }
