@@ -201,6 +201,7 @@ async function main(): Promise<void> {
         onSettingsChanged: (next) => {
           store.saveSettings(next);
           game?.applySettings(next);
+          showCrosshair(next);
         },
         onNameChanged: (name) => void createSession(name),
         onPlayAgain: () => playAgain(),
@@ -285,6 +286,8 @@ async function main(): Promise<void> {
 
   let game: GameClient | null = null;
   let hud: Hud | null = null;
+  /** The first-person dot, on a flat screen only: a headset has no screen to put it on. */
+  const showCrosshair = (current: Settings): void => hud?.setCrosshair(device.kind !== 'vr' && current.controls.view === 'first');
   let vrMenu: VRMenu | null = null;
   let wristHud: VRWristHud | null = null;
   let tuningMenu: VRMenu | null = null;
@@ -426,6 +429,7 @@ async function main(): Promise<void> {
       onChatFocus: (focused) => game?.setInputSuspended(focused),
     });
     if (input instanceof MobileInput) hud.attachTouchControls(input);
+    showCrosshair(settings);
     hud.setVisible(false);
     if (device.kind === 'vr') {
       wristHud ??= new VRWristHud(renderer);
@@ -789,6 +793,15 @@ async function main(): Promise<void> {
     if (event.code === 'Tab' && shell.currentScreen === 'none' && hud && !hud.chatFocused) {
       event.preventDefault();
       hud.toggleLobby();
+      return;
+    }
+    // P switches a flat screen between first and third person, and remembers it.
+    if (event.code === 'KeyP' && shell.currentScreen === 'none' && hud && !hud.chatFocused && device.kind !== 'vr') {
+      settings.controls.view = settings.controls.view === 'first' ? 'third' : 'first';
+      store.saveSettings(settings);
+      game?.applySettings(settings);
+      showCrosshair(settings);
+      hud.showToast(settings.controls.view === 'first' ? 'First-person camera' : 'Third-person camera', 1400);
       return;
     }
     if (event.code !== 'Escape') return;

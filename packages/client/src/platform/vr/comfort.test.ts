@@ -5,6 +5,7 @@ import { DEFAULT_MOVEMENT } from '@kc/core';
 import {
   approach,
   grabThresholdFor,
+  fistStrength,
   handScaleFrom,
   hapticFor,
   pinchStrength,
@@ -275,5 +276,21 @@ describe('VR rig height', () => {
     expect(isTeleport(0.33, 0, 0, 20, DT)).toBe(false);
     // Nor is a very fast launch that genuinely covered the distance.
     expect(isTeleport(1.2, 0, 0, 60, DT)).toBe(false);
+  });
+});
+
+describe('a fist', () => {
+  const at = (y: number) => ({ x: 0, y, z: 0 });
+  const wrist = at(0);
+  it('is closed with every finger tip curled to the wrist, and open with them out', () => {
+    expect(fistStrength(wrist, [at(0.07), at(0.07), at(0.07), at(0.07)])).toBe(1);
+    expect(fistStrength(wrist, [at(0.18), at(0.18), at(0.18), at(0.18)])).toBe(0);
+  });
+  it('is half closed with two fingers in', () => {
+    expect(fistStrength(wrist, [at(0.07), at(0.07), at(0.18), at(0.18)])).toBeCloseTo(0.5);
+  });
+  it('is judged against the size of the hand', () => {
+    // A child's hand at 0.7 of an adult's: its open fingers reach only 0.12 m.
+    expect(fistStrength(wrist, [at(0.12), at(0.12), at(0.12), at(0.12)], 0.7)).toBe(0);
   });
 });

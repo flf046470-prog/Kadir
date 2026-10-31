@@ -85,7 +85,18 @@ export interface ComfortSettings {
   vrLocomotion: VrLocomotion;
 }
 
+/**
+ * Where a flat-screen camera sits: at the eyes, or behind the head.
+ *
+ * First person is the default. It is how a headset player sees the game, so cross-play puts the
+ * two on one footing (a third-person camera sees over walls, and `concealment.ts` has to send the
+ * hunter whoever it can see); it is also what the owner asked for. Third person stays one setting,
+ * or one key (P), away. A headset ignores this: its camera is the player's head.
+ */
+export type CameraView = 'first' | 'third';
+
 export interface ControlSettings {
+  view: CameraView;
   invertY: boolean;
   lookSensitivity: number;
   /** Mobile: on-screen joystick radius in CSS pixels. */
@@ -151,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
     vrLocomotion: 'arms',
   },
   controls: {
+    view: 'first',
     invertY: false,
     lookSensitivity: 1,
     joystickSize: 110,
@@ -205,6 +217,8 @@ export function mergeSettings(stored: unknown): Settings {
   // comfort is merged with Object.assign, so a stored value reaches here unchecked. An
   // unrecognised mode would silently disable hand locomotion, so it falls back to the default.
   if (base.comfort.vrLocomotion !== 'assisted') base.comfort.vrLocomotion = 'arms';
+  // controls is merged with Object.assign too. Anything but 'third' is the default view.
+  if (base.controls.view !== 'third') base.controls.view = 'first';
   base.controls.lookSensitivity = clamp(base.controls.lookSensitivity, 0.1, 4);
   base.controls.joystickSize = clamp(base.controls.joystickSize, 60, 220);
   base.controls.hapticStrength = clamp01(base.controls.hapticStrength);

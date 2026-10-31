@@ -268,6 +268,84 @@ describe('a VR grab', () => {
  * The assisted-mode stick, read whole (`platform/stick.ts`). Per axis, a stick pushed within 6.9°
  * of an axis ran along it, and the first speed past the dead zone was an eighth of full.
  */
+/**
+ * A bare hand as the Quest Browser and IWER report it: an input source *with* a `hand` and a
+ * one-button gamepad (the pinch, on the trigger's index). three.js poses its joints and leaves the
+ * grip space alone, so the grip group is left at the rig's origin here, as it is in a session.
+ */
+function bareHands() {
+  const set = headset(['hand', 'hand']);
+  const pinchPads = [0, 1].map(() => ({ buttons: [{ value: 0, pressed: false }], axes: [] as number[] }));
+  (['left', 'right'] as const).forEach((handedness, i) => {
+    set.hands[i]!.parent?.remove(set.hands[i]!);
+    set.body.add(set.hands[i]!);
+    (set.input as unknown as { hands: { source: unknown }[] }).hands[i]!.source = { handedness, gamepad: pinchPads[i], hand: new Map() };
+  });
+  return { set, pinchPads };
+}
+
+/** Lay a bare hand's joints out around a rig-relative palm point, open or in a fist. */
+function poseHand(set: Headset, i: number, palm: THREE.Vector3, fist: boolean): void {
+  const joint = (x: number, y: number, z: number) => {
+    const o = new THREE.Object3D();
+    o.position.set(palm.x + x, palm.y + y, palm.z + z);
+    set.hands[i]!.add(o);
+    return o;
+  };
+  const reach = fist ? 0.07 : 0.17;
+  set.hands[i]!.clear();
+  Object.assign(set.hands[i]!, {
+    joints: {
+      wrist: joint(0, -0.05, 0),
+      'middle-finger-metacarpal': joint(0, -0.01, 0),
+      'middle-finger-phalanx-proximal': joint(0, 0.01, 0),
+      'thumb-tip': joint(0.06, 0, 0),
+      'index-finger-tip': joint(-0.01, reach - 0.05, 0),
+      'middle-finger-tip': joint(0, reach - 0.05, 0),
+      'ring-finger-tip': joint(0.01, reach - 0.05, 0),
+      'pinky-finger-tip': joint(0.02, reach - 0.05, 0),
+    },
+  });
+}
+
+describe('bare hands', () => {
+  it('are where their palms are, not where the grip space was left', () => {
+    const { set } = bareHands();
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });
+    // Facing +z: body-local [right, up, forward] (0.3, 1.2, 0.4) is rig-relative (-0.3, 1.2, 0.4).
+    poseHand(set, 1, new THREE.Vector3(-0.3, 1.2, 0.4), false);
+    poseHand(set, 0, new THREE.Vector3(0.3, 1.2, 0.4), false);
+    const intent = frame(set, player, 0, [[0, 0, 0], [0, 0, 0]], DEFAULT_SETTINGS);
+    const right = intent.hands![1]!;
+    expect(right.tracked).toBe(true);
+    expect(right.pos.x).toBeCloseTo(0.3, 2);
+    expect(right.pos.y).toBeCloseTo(1.2, 2);
+    expect(right.pos.z).toBeCloseTo(0.4, 2);
+  });
+
+  it('close on a fist as well as on a pinch', () => {
+    const { set } = bareHands();
+    const ctx = rig();
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });
+    poseHand(set, 1, new THREE.Vector3(-0.25, 1.2, 0.3), true);
+    poseHand(set, 0, new THREE.Vector3(0.25, 1.2, 0.3), false);
+    const intent = frame(set, player, 0, [[0, 0, 0], [0, 0, 0]], DEFAULT_SETTINGS);
+    stepPlayer(player, intent, ctx, DT);
+    expect(player.hands[1].gripHeld).toBe(true);
+    expect(player.hands[0].gripHeld).toBe(false);
+  });
+
+  it('do not fire the gadget with the pinch their gamepad reports as a trigger', () => {
+    const { set, pinchPads } = bareHands();
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });
+    for (const pad of pinchPads) pad.buttons[0] = { value: 1, pressed: true };
+    poseHand(set, 1, new THREE.Vector3(-0.25, 1.2, 0.3), true);
+    poseHand(set, 0, new THREE.Vector3(0.25, 1.2, 0.3), true);
+    const intent = frame(set, player, 0, [[0, 0, 0], [0, 0, 0]], DEFAULT_SETTINGS);
+    expect(intent.buttons & (Buttons.UseGadget | Buttons.CycleGadget)).toBe(0);
+  });
+});
+
 describe('the assisted-mode stick', () => {
   const assisted = settingsWith({ vrLocomotion: 'assisted' });
   const pushed = (x: number, y: number, settings: Settings) => {

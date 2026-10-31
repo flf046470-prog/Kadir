@@ -261,6 +261,27 @@ try {
     check('2 + the wheel pushes the right hand forward', Boolean(pushed), pushed ? `${pushed.hands[RIGHT].local.z.toFixed(2)} m forward` : '');
     await page.keyboard.press('KeyX');
 
+    // Bare hands (Y, since T is the game's chat key): IWER swaps the controllers for joint-tracked hands, as a Quest does when the
+    // controllers are put down. three.js leaves the grip space alone for a hand, so a hand read from
+    // it sat at the player's feet; it is read from the palm's joints now.
+    await page.keyboard.press('KeyY');
+    const bare = await holdUntil(page, async () => {}, async () => {}, (s) => s.hands[RIGHT].tracked && s.hands[RIGHT].world.y - s.position.y > 0.9, 8000);
+    const bareNow = bare ?? (await self(page));
+    check('Y switches to bare hands, tracked at chest height rather than at the feet', Boolean(bare), `right hand ${(bareNow.hands[RIGHT].world.y - bareNow.position.y).toFixed(2)} m above the feet`);
+    const bareFrom = bareNow.hands[RIGHT].world;
+    await page.keyboard.down('Digit2');
+    for (let x = mouseX + 20; x <= mouseX + 120; x += 20) await page.mouse.move(x, 360);
+    mouseX += 120;
+    const bareMoved = await holdUntil(page, async () => {}, async () => {}, (s) => Math.hypot(s.hands[RIGHT].world.x - bareFrom.x, s.hands[RIGHT].world.z - bareFrom.z) > 0.12, 6000);
+    await page.keyboard.up('Digit2');
+    check('a bare hand follows the hand, not a grip space left behind', Boolean(bareMoved));
+    const barePinch = await holdUntil(page, () => page.keyboard.down('KeyE'), () => page.keyboard.up('KeyE'), (s) => s.hands[LEFT].gripHeld, 6000);
+    check('a bare hand closes on a pinch', Boolean(barePinch));
+    const bareGadget = await holdUntil(page, () => page.mouse.down({ button: 'right' }), () => page.mouse.up({ button: 'right' }), (s) => (s.buttons & BIT.UseGadget) !== 0, 2500);
+    check('…and a pinch does not fire the gadget', !bareGadget);
+    await page.keyboard.press('KeyY');
+    await page.keyboard.press('KeyX');
+
     // Ducking.
     const ducked = await holdUntil(page, () => page.keyboard.down('KeyC'), () => page.keyboard.up('KeyC'), (s) => s.headHeight < 1.15, 8000);
     const standing = (await self(page)).headHeight;

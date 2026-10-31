@@ -3544,6 +3544,42 @@ match 21.1 s → 4.7 s; `check:smoke` passes locally on all three viewports.
 60 fps"). At 2 s a frame that is four minutes at a tier the device cannot hold, and at 10 fps it is
 twelve seconds — the devices that most need a lower tier wait longest. Not changed here; noted.
 
+## First person, bare hands, and no legs
+
+The owner asked for all three at once (`Fpv olsun ve hand tracking ekle ve kangurunun bacaklarını
+kaldır`).
+
+- **First person is the default on flat screens** (`Settings.controls.view`, `'first' | 'third'`;
+  P switches in a match, a toggle in Settings → Controls). The eyes are `PlayerState.head`, the view
+  is this frame's input (`intent.lookYaw/lookPitch`), neither eased — a camera that trails the mouse
+  is input lag. The body is hidden (`setFirstPerson`), and since an authored model's arms go with it,
+  the simulation's *placed* hands are drawn instead (`game/firstPerson.ts`): the fists come into view
+  when thrown or raised, exactly where `combat.ts` resolves them. A dot marks the middle
+  (`Hud.setCrosshair`). It also puts flat screens on a headset's footing: a third-person camera sees
+  over walls. Store captures pin `view: 'third'` (`scripts/lib/listing.mjs`), because every shot was
+  composed around the kangaroo in frame. Measured in a browser: crosshair on, a punch puts a glove at
+  the bottom of the view, P switches and is saved.
+- **Every avatar is legless, every animal, every platform.** It cannot be the kangaroo alone: a body
+  without legs is a smaller silhouette to spot, which on maps about being seen is an advantage. It
+  uses the VR rule that already existed (`Avatar.setLegless`, leg bones scaled to 0.001). The bound,
+  the footfall thumps and the dust still play. Reverting is the two `setLegless(true)` calls.
+- **Bare-hand tracking never worked, three ways at once** — found by giving the desktop simulator
+  bare hands (`Y`; IWER's `primaryInputMode = 'hand'`) and reading `__kcSelf`:
+  - **The hands sat where the grip space was left.** three.js poses the joints of an input source
+    with a `hand` and never updates its grip group, so a hand read from `grip` sat at the rig's origin
+    (the feet) if it had never been a controller, or froze where the controller was. Read from the
+    palm's joints now (`readPalm`).
+  - **A bare hand could not close.** The Quest's hands, and IWER's, carry a gamepad — one button, the
+    pinch, at index 0 — and `VRInput` read any gamepad's button 1 as the grip: always 0. A bare hand
+    is closed by its fingers now: the larger of a pinch and a fist (`fistStrength`, four tips' curl to
+    the wrist, scaled to the hand).
+  - **Every pinch would have fired the gadget**: that one button sits at the trigger's index, which
+    `VR_BINDINGS` binds to Use / Next gadget. Bare hands take no bindings.
+  `check:xrsim` drives it (33 checks); putting the grip back fails "a bare hand follows the hand".
+  Four unit mutations each fail their own `VRInput.test.ts` case.
+- **T is the game's chat key**, so it cannot be a simulator key: pressing it in a session opened an
+  invisible composer and suspended input, which read as hands that stopped answering.
+
 ## The plan has two tracks, and only one of them waits on the owner
 
 The scheduled sessions spent five runs reporting "nothing safe and useful is left to do" while most

@@ -34,6 +34,8 @@ const PC_CONTROL_HINTS = [
   { action: 'Next gadget', hint: 'Q' },
   { action: 'Shop / board', hint: 'B' },
   { action: 'Push to talk', hint: 'V' },
+  // Read by `main.ts`, not here: the view is how the game is drawn, not something the player does.
+  { action: 'Camera: first / third person', hint: 'P' },
 ];
 
 export class PCInput implements PlatformInput {

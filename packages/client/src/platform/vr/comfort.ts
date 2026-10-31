@@ -46,6 +46,29 @@ export function pinchStrength(thumbTip: JointPos, indexTip: JointPos, handScale 
   return (PINCH_OPEN_M - d) / (PINCH_OPEN_M - PINCH_CLOSED_M);
 }
 
+/** A finger tip this far from the wrist (adult hand) is curled into a fist… */
+const FIST_CLOSED_M = 0.09;
+/** …and this far is held open. */
+const FIST_OPEN_M = 0.16;
+
+/**
+ * Grip strength from a bare hand closing into a fist, 0..1: the mean curl of the four fingers,
+ * each read from its tip's distance to the wrist, scaled for hand size like `pinchStrength`.
+ *
+ * A pinch alone is the Quest's menu gesture, and nobody holds a branch between thumb and finger: a
+ * player reaching for a ledge makes a fist. Either one closes the hand (`VRInput` takes the larger).
+ */
+export function fistStrength(wrist: JointPos, tips: readonly JointPos[], handScale = 1): number {
+  if (tips.length === 0) return 0;
+  const scale = handScale > 0.2 ? handScale : 1;
+  let curl = 0;
+  for (const tip of tips) {
+    const d = distance(wrist, tip) / scale;
+    curl += d <= FIST_CLOSED_M ? 1 : d >= FIST_OPEN_M ? 0 : (FIST_OPEN_M - d) / (FIST_OPEN_M - FIST_CLOSED_M);
+  }
+  return curl / tips.length;
+}
+
 /**
  * The squeeze that closes a hand at the default `grabSensitivity` of 1: the simulation's own
  * `gripThreshold`, which every tracked hand is held to and which the server runs.

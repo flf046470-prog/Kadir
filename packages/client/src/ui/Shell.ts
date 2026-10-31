@@ -1379,6 +1379,9 @@ export class Shell {
       }),
 
       el('h3', {}, 'Controls'),
+      toggle('First-person camera (P switches in a match; VR is always first person)', s.controls.view === 'first', (v) => {
+        s.controls.view = v ? 'first' : 'third';
+      }),
       slider('Look sensitivity', s.controls.lookSensitivity, 0.1, 4, 0.1, (v) => {
         s.controls.lookSensitivity = v;
       }),

@@ -3,6 +3,18 @@
 Session log for the scheduled routine. Newest first. `TODO.md` / `ROADMAP.md` remain the
 status of record; this file is the hand-off between sessions.
 
+## 2026-10-31 — First person, bare hands, legless avatars
+
+**Done:** first-person camera as the flat-screen default (P / Settings), placed fists drawn in first
+person, crosshair; every avatar legless; bare-hand tracking fixed (palm position, pinch-or-fist grip,
+no gadget on a pinch); the desktop simulator has bare hands (Y). CLAUDE.md → "First person, bare
+hands, and no legs".
+
+**Measured:** `check:xrsim` 33/33 (32/33 with the grip read back); 4 VRInput mutations caught;
+FPV checked in a browser (screenshots in the session scratchpad).
+
+**Next:** easter eggs.
+
 ## 2026-10-25 (evening) — CI red on 60c8f31: the world behind a menu
 
 **Done:** `check:smoke` timed out in CI on the practice click (30 s, after "click action done").

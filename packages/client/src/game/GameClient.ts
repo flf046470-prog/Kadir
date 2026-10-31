@@ -47,6 +47,7 @@ import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { practiceLevelFor } from './practice.js';
 import { drawsFrame } from './backdrop.js';
+import { placedHands } from './firstPerson.js';
 import { captureFocusOf, captureViewOf } from './captureView.js';
 import type { CaptureView } from './captureView.js';
 import { Renderer } from '../render/Renderer.js';
@@ -1038,9 +1039,12 @@ export class GameClient {
   private ensureLocalAvatar(): void {
     this.localAvatar?.dispose();
     const avatar = new Avatar(this.options.profile.animalId, this.options.profileForQuality.shadows);
-    // A headset tracks a head and two hands. Legs would be a guess, and the local player's own are
-    // the ones they see by looking down.
-    avatar.setLegless(this.options.platform === 'vr');
+    // Every body ends at the waist, on every platform: the owner asked for the kangaroo's legs off,
+    // and it cannot be the kangaroo alone — a silhouette without legs is a smaller one to spot, on
+    // maps about being seen, so one animal (or one platform) without them would be an advantage.
+    // A headset's legs were already a guess (it tracks a head and two hands), and in first person
+    // nobody sees their own. The bound and the footfalls still play, so a run still thumps.
+    avatar.setLegless(true);
     avatar.setCosmetics(this.options.profile.cosmetics);
     // The local player's own nameplate is hidden; remote players keep theirs.
     avatar.setName(this.options.profile.name, '#ffd166', false);
@@ -1052,10 +1056,8 @@ export class GameClient {
   private addRemote(entry: RosterEntry): void {
     if (entry.id === this.localId || this.remotes.has(entry.id)) return;
     const avatar = new Avatar(entry.animalId, this.options.profileForQuality.shadows);
-    // Decided by the platform *that player* is on, not the one watching: a VR player has no
-    // tracked legs whoever is looking at them, and the roster carries the platform for exactly
-    // this kind of question.
-    avatar.setLegless(entry.platform === 'vr');
+    // The same for everyone, whatever their platform; see `ensureLocalAvatar`.
+    avatar.setLegless(true);
     avatar.setCosmetics(entry.cosmetics);
     avatar.setName(entry.name);
     this.renderer.scene.add(avatar.group);
@@ -1214,6 +1216,10 @@ export class GameClient {
 
     if (local && this.localAvatar) {
       const snapshot = snapshotPlayer(local);
+      // In first person the body is hidden, and an authored model's own arms go with it. The
+      // simulation's placed hands are what a punch and a guard move (`HandState.world`), so they
+      // are drawn instead: two fists that come into view when they are thrown or raised.
+      if (this.firstPerson && !snapshot.hands) snapshot.hands = placedHands(local);
       snapshot.x += this.prediction.smoothingOffset.x;
       snapshot.y += this.prediction.smoothingOffset.y;
       snapshot.z += this.prediction.smoothingOffset.z;
@@ -1226,7 +1232,7 @@ export class GameClient {
       // In VR the player *is* the avatar, so the body is hidden — but only the body. Hiding the
       // whole group took the tracked hands and the role ring with it, and in a headset those are
       // the only two things about yourself you can see at all.
-      this.localAvatar.setFirstPerson(this.input.kind === 'vr');
+      this.localAvatar.setFirstPerson(this.input.kind === 'vr' || this.firstPerson);
     }
 
     const voicePositions = new Map<string, { x: number; y: number; z: number }>();
@@ -1385,6 +1391,13 @@ export class GameClient {
       return;
     }
 
+    const speed = Math.hypot(local.velocity.x, local.velocity.z);
+    this.cameraSpeed += (speed - this.cameraSpeed) * Math.min(1, dt * 3);
+    if (this.firstPerson) {
+      this.updateFirstPersonCamera(px, py + (local.head.y - local.position.y), pz);
+      return;
+    }
+
     this.cameraYaw = local.yaw;
     // A teleport cuts. Eased, the camera flew from the old place to the new one through whatever
     // stood between them, about ten frames of it.
@@ -1418,8 +1431,6 @@ export class GameClient {
     this.renderer.camera.position.lerp(this.tmpVec, follow);
     // Look ahead of the kangaroo along its facing, further at speed, and follow the player's own
     // pitch so looking up still looks up.
-    const speed = Math.hypot(local.velocity.x, local.velocity.z);
-    this.cameraSpeed += (speed - this.cameraSpeed) * Math.min(1, dt * 3);
     const ahead = CAMERA_LOOK_AHEAD + Math.min(1.5, this.cameraSpeed * CAMERA_SPEED_LOOK_AHEAD);
     const aimCos = Math.cos(this.cameraPitch);
     this.renderer.camera.lookAt(
@@ -1427,17 +1438,50 @@ export class GameClient {
       headY + 0.1 + Math.sin(this.cameraPitch) * ahead,
       pz + Math.cos(this.cameraYaw) * aimCos * ahead,
     );
-    const fov = CAMERA_BASE_FOV + CAMERA_SPEED_FOV * Math.min(1, Math.max(0, (this.cameraSpeed - 4) / 8));
-    if (Math.abs(this.renderer.camera.fov - fov) > 0.05) {
-      this.renderer.camera.fov = fov;
-      this.renderer.camera.updateProjectionMatrix();
-    }
+    this.updateSpeedFov();
     this.renderer.rig.position.set(0, 0, 0);
 
     this.audio.updateListener(
       { x: this.renderer.camera.position.x, y: this.renderer.camera.position.y, z: this.renderer.camera.position.z },
       { x: dirX, y: dirY, z: dirZ },
     );
+  }
+
+  /** A flat screen in first person: `controls.view`, which a headset ignores. */
+  private get firstPerson(): boolean {
+    return this.input.kind !== 'vr' && this.settings.controls.view === 'first';
+  }
+
+  /**
+   * The eyes are the head the simulation keeps (`PlayerState.head`, which crouching lowers), and
+   * the view is this frame's input rather than the simulated player's yaw. Neither is eased: a
+   * camera that trails the mouse is input lag, and in first person nothing stands between the
+   * camera and the eyes for easing to smooth over. The landing dip still applies.
+   */
+  private updateFirstPersonCamera(x: number, eyeY: number, z: number): void {
+    const yaw = this.intent.lookYaw;
+    const pitch = this.intent.lookPitch;
+    this.cameraYaw = yaw;
+    this.cameraPitch = pitch;
+    const camera = this.renderer.camera;
+    camera.position.set(x, eyeY - this.landingKick * LANDING_DIP_HEIGHT, z);
+    const cos = Math.cos(pitch);
+    const dirX = Math.sin(yaw) * cos;
+    const dirY = Math.sin(pitch);
+    const dirZ = Math.cos(yaw) * cos;
+    camera.lookAt(camera.position.x + dirX, camera.position.y + dirY, camera.position.z + dirZ);
+    this.updateSpeedFov();
+    this.renderer.rig.position.set(0, 0, 0);
+    this.audio.updateListener({ x: camera.position.x, y: camera.position.y, z: camera.position.z }, { x: dirX, y: dirY, z: dirZ });
+  }
+
+  /** Widen the view with speed, so a sprint reads as one. Flat screens only. */
+  private updateSpeedFov(): void {
+    const fov = CAMERA_BASE_FOV + CAMERA_SPEED_FOV * Math.min(1, Math.max(0, (this.cameraSpeed - 4) / 8));
+    if (Math.abs(this.renderer.camera.fov - fov) > 0.05) {
+      this.renderer.camera.fov = fov;
+      this.renderer.camera.updateProjectionMatrix();
+    }
   }
 
   /** Change the local player's animal without a round trip; the server validates ownership. */

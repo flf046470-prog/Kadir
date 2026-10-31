@@ -158,7 +158,8 @@ export async function pinStoreQuality(context) {
   await context.addInitScript(() => {
     localStorage.setItem(
       'kc.settings.v1',
-      JSON.stringify({ graphics: { quality: 'high', shadows: true, postProcessing: true, renderScale: 1, sceneryDetail: 1 } }),
+      // Third person: every shot, cover and trailer is composed around the kangaroo in frame.
+      JSON.stringify({ graphics: { quality: 'high', shadows: true, postProcessing: true, renderScale: 1, sceneryDetail: 1 }, controls: { view: 'third' } }),
     );
   });
 }

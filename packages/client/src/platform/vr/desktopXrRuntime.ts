@@ -1,4 +1,4 @@
-import { DesktopXr, SIM_HANDS, simControls } from './desktopXr.js';
+import { DesktopXr, SIM_HANDS, SQUEEZE, simControls } from './desktopXr.js';
 import type { SimState } from './desktopXr.js';
 
 /**
@@ -46,7 +46,15 @@ interface IwerController {
   updateAxes(id: string, x: number, y: number): void;
 }
 
+interface IwerHand {
+  position: { set(x: number, y: number, z: number): unknown };
+  quaternion: { set(x: number, y: number, z: number, w: number): unknown };
+  updatePinchValue(value: number): void;
+}
+
 interface IwerDevice {
+  primaryInputMode: 'controller' | 'hand';
+  hands: Partial<Record<'left' | 'right', IwerHand>>;
   position: { set(x: number, y: number, z: number): unknown };
   quaternion: { set(x: number, y: number, z: number, w: number): unknown };
   controllers: Partial<Record<'left' | 'right', IwerController>>;
@@ -171,6 +179,19 @@ function apply(device: IwerDevice, state: SimState): void {
   const { head } = state;
   device.position.set(...head.position);
   device.quaternion.set(...head.quaternion);
+  const mode = state.handTracking ? 'hand' : 'controller';
+  if (device.primaryInputMode !== mode) device.primaryInputMode = mode;
+  if (state.handTracking) {
+    for (const hand of SIM_HANDS) {
+      const bare = device.hands[hand];
+      if (!bare) continue;
+      const pose = state.controllers[hand];
+      bare.position.set(...pose.position);
+      bare.quaternion.set(...pose.quaternion);
+      bare.updatePinchValue(pose.buttons[SQUEEZE] ?? 0);
+    }
+    return;
+  }
   for (const hand of SIM_HANDS) {
     const controller = device.controllers[hand];
     if (!controller) continue;

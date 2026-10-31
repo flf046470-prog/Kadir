@@ -65,6 +65,8 @@ export class Hud {
   private micPill: HTMLElement;
   private chat: ChatPanel;
   private toast: HTMLElement;
+  /** A dot in the middle of a first-person view: where a gadget fires and a throw goes. */
+  private crosshair: HTMLElement;
   private chargeFill: HTMLElement;
   /**
    * The gadget strip: round cash, the three slots, and any status effect running.
@@ -130,6 +132,7 @@ export class Hud {
       onFocusChange: (focused) => options.onChatFocus?.(focused),
     });
     this.toast = el('div', { class: 'kc-toast kc-hidden' }, '');
+    this.crosshair = el('div', { class: 'kc-crosshair', hidden: true });
     this.chargeFill = el('i');
     this.gadgetBar = el('div', { class: 'kc-gadgets kc-hidden' });
     // `data-ui` on the panel, not just on its rows: a thumb landing on the padding or the header
@@ -170,6 +173,7 @@ export class Hud {
         this.bout,
         this.toast,
       ),
+      this.crosshair,
       this.scores,
       this.status,
       this.chat.element,
@@ -533,6 +537,11 @@ export class Hud {
 
   clearChat(): void {
     this.chat.clear();
+  }
+
+  /** Shown in a first-person view on a flat screen; a third-person view aims past the kangaroo. */
+  setCrosshair(visible: boolean): void {
+    this.crosshair.hidden = !visible;
   }
 
   showToast(text: string, ms = 2200): void {

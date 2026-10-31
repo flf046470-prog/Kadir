@@ -75,6 +75,9 @@ export const UI_CSS = `
 
 /* The in-match indicator. Only the live state pulses: a muted badge is a reassurance and a live
    badge is a warning, and they should not compete for attention. */
+.kc-crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 3px;
+  background: rgba(255,255,255,.9); box-shadow: 0 0 0 1.5px rgba(0,0,0,.45); pointer-events: none; }
+.kc-crosshair[hidden] { display: none; }
 .kc-mic-pill { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 17px; font-size: 15px; background: rgba(12,16,22,.55); border: 1px solid rgba(255,255,255,.14); opacity: .5; }
 .kc-mic-pill.is-live { opacity: 1; border-color: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.55); animation: kc-mic-pulse 1.4s ease-in-out infinite; }
 .kc-mic-pill.is-muted { opacity: 1; border-color: #f87171; }

@@ -3,7 +3,7 @@ import { Buttons, createHandIntent } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import type { PlatformInput } from '../Platform.js';
 import type { Renderer } from '../../render/Renderer.js';
-import { grabThresholdFor, handScaleFrom, hapticFor, pinchStrength, shapeGrip } from './comfort.js';
+import { fistStrength, grabThresholdFor, handScaleFrom, hapticFor, pinchStrength, shapeGrip } from './comfort.js';
 import { FrameRateMeter, displayRateOf } from './displayRate.js';
 import { shapeStick } from '../stick.js';
 import type { StickValue } from '../stick.js';
@@ -18,8 +18,10 @@ interface HandTracker {
   lastWorld: THREE.Vector3;
   velocity: THREE.Vector3;
   tracked: boolean;
-  /** How far the hand is closed, 0..1: a controller's grip (squeeze) axis, or a bare hand's pinch. */
+  /** How far the hand is closed, 0..1: a controller's grip (squeeze) axis, or a bare hand's pinch or fist. */
   gripValue: number;
+  /** Where a bare, joint-tracked hand is, in the world: its palm. Null for a controller. */
+  palm: THREE.Vector3 | null;
 }
 
 const HAND_LOCAL = new THREE.Vector3();
@@ -155,6 +157,7 @@ export class VRInput implements PlatformInput {
       velocity: new THREE.Vector3(),
       tracked: false,
       gripValue: 0,
+      palm: null,
     };
 
     controller.addEventListener('connected', (event) => {
@@ -239,23 +242,25 @@ export class VRInput implements PlatformInput {
 
     for (const hand of this.hands) {
       if (!hand.tracked) continue;
-      hand.grip.getWorldPosition(WORLD);
+      hand.palm = hand.source?.hand ? readPalm(hand.hand, hand.palm ?? new THREE.Vector3()) : null;
+      handWorld(hand, WORLD);
       if (dt > 0) {
         hand.velocity.subVectors(WORLD, hand.lastWorld).divideScalar(dt);
       }
       hand.lastWorld.copy(WORLD);
 
       const gamepad = hand.source?.gamepad;
-      if (gamepad) {
+      if (gamepad && !hand.source?.hand) {
         // The grip alone. The trigger is the gadget (`VR_BINDINGS`), and this used to be the
         // larger of the two: firing the freeze gun closed the right hand on whatever it was near,
         // measured as a hand anchored to a wall on 60 ticks of 60 while the trigger was held.
         hand.gripValue = gamepad.buttons[1]?.value ?? 0;
       } else {
-        // Hand tracking: an XRInputSource in this mode has no gamepad at all, so reading
-        // button values leaves bare hands connected but unable to grab anything. Pinch is
-        // the equivalent gesture, and it is what the Quest's own UI trains players to use.
-        hand.gripValue = readPinch(hand.hand);
+        // Hand tracking. A bare hand is closed by its fingers, never by a button: the Quest's
+        // hands (and IWER's, which model them) do carry a gamepad, with the pinch on button 0 and
+        // nothing on the grip's button 1 — read as a controller, a bare hand could never grab. A
+        // pinch is what the Quest trains players to use; a fist is what holding a branch is.
+        hand.gripValue = Math.max(readPinch(hand.hand), readFist(hand.hand));
       }
     }
 
@@ -289,7 +294,9 @@ export class VRInput implements PlatformInput {
     let buttons = 0;
     for (const hand of this.hands) {
       const gamepad = hand.source?.gamepad;
-      if (!gamepad) continue;
+      // A bare hand's gamepad has one button, the pinch, at the trigger's index: bound as the
+      // trigger, every pinch to grab would also fire the gadget.
+      if (!gamepad || hand.source?.hand) continue;
       const side = hand.source?.handedness === 'right' ? 'right' : 'left';
       for (const binding of VR_BINDINGS) {
         if (binding.hand !== 'both' && binding.hand !== side) continue;
@@ -365,7 +372,7 @@ export class VRInput implements PlatformInput {
       intentHand.grip = shapeGrip(hand.gripValue, threshold);
       if (!hand.tracked) continue;
 
-      hand.grip.getWorldPosition(WORLD);
+      handWorld(hand, WORLD);
       toBodyLocal(HAND_LOCAL, WORLD, this.renderer.rig.position, bodyYaw);
       // Position only. Hand *velocity* is never sent: both the server and this client's own
       // prediction derive it from consecutive positions in `locomotion.ts`, which is exactly what
@@ -454,6 +461,43 @@ function readPinch(hand: THREE.XRHandSpace): number {
   const metacarpal = joints['middle-finger-metacarpal'];
   const scale = wrist && metacarpal ? handScaleFrom(wrist.position, metacarpal.position) : 1;
   return pinchStrength(thumb.position, index.position, scale);
+}
+
+/**
+ * How closed a bare hand's fist is, from its finger tips' distance to the wrist (`fistStrength`).
+ */
+function readFist(hand: THREE.XRHandSpace): number {
+  const joints = hand.joints as Record<string, THREE.XRJointSpace | undefined>;
+  const wrist = joints['wrist'];
+  const metacarpal = joints['middle-finger-metacarpal'];
+  if (!wrist) return 0;
+  const tips = FIST_TIPS.map((name) => joints[name]?.position).filter((p): p is THREE.Vector3 => Boolean(p));
+  if (tips.length < FIST_TIPS.length) return 0;
+  return fistStrength(wrist.position, tips, metacarpal ? handScaleFrom(wrist.position, metacarpal.position) : 1);
+}
+const FIST_TIPS = ['index-finger-tip', 'middle-finger-tip', 'ring-finger-tip', 'pinky-finger-tip'];
+
+/**
+ * The middle of a bare hand's palm, in the world: between the middle finger's metacarpal and its
+ * first knuckle, about where a controller's grip space puts a held handle.
+ *
+ * three.js updates the grip space only for an input source without a hand: with a hand it poses
+ * the joints and leaves the grip group where it was, at the rig's origin if it was never a
+ * controller. So a hand-tracked hand read from the grip sat at the player's feet.
+ */
+function readPalm(hand: THREE.XRHandSpace, out: THREE.Vector3): THREE.Vector3 | null {
+  const joints = hand.joints as Record<string, THREE.XRJointSpace | undefined>;
+  const base = joints['middle-finger-metacarpal'];
+  const knuckle = joints['middle-finger-phalanx-proximal'];
+  if (!base || !knuckle) return null;
+  base.getWorldPosition(out);
+  return out.add(knuckle.getWorldPosition(PALM_TMP)).multiplyScalar(0.5);
+}
+const PALM_TMP = new THREE.Vector3();
+
+/** Where a hand is in the world: a bare hand's palm, else its controller's grip space. */
+function handWorld(hand: HandTracker, out: THREE.Vector3): THREE.Vector3 {
+  return hand.palm ? out.copy(hand.palm) : hand.grip.getWorldPosition(out);
 }
 
 function wrapAngle(a: number): number {

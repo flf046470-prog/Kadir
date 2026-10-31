@@ -58,6 +58,8 @@ const MOVE_HAND: Record<string, SimHand> = { Digit1: 'left', Digit2: 'right' };
 const JAB: Record<string, SimHand> = { KeyJ: 'left', KeyK: 'right' };
 const DUCK = 'KeyC';
 const RESET = 'KeyX';
+/** Swaps the controllers for bare, joint-tracked hands, which the grip keys close (a pinch). */
+const HAND_TRACKING = 'KeyY';
 
 /** Every key the simulator answers to, so the runtime can keep them from the page. */
 export const SIM_KEY_CODES: ReadonlySet<string> = new Set([
@@ -68,6 +70,7 @@ export const SIM_KEY_CODES: ReadonlySet<string> = new Set([
   ...Object.keys(JAB),
   DUCK,
   RESET,
+  HAND_TRACKING,
 ]);
 
 /** Standing eye height, the IWER default and a Quest's guardian default alike. */
@@ -111,12 +114,15 @@ export interface SimController extends SimPose {
 export interface SimState {
   head: SimPose;
   controllers: Record<SimHand, SimController>;
+  /** Bare hands instead of controllers: the poses above are the hands', the grip their pinch. */
+  handTracking: boolean;
 }
 
 export class DesktopXr {
   /** Head yaw and pitch, radians: positive yaw turns left, positive pitch looks up. */
   yaw = 0;
   pitch = 0;
+  handTracking = false;
   private readonly held = new Set<string>();
   private readonly offsets: Record<SimHand, [number, number, number]> = {
     left: [...HAND_REST.left],
@@ -132,6 +138,7 @@ export class DesktopXr {
     if (!SIM_KEY_CODES.has(code)) return false;
     if (code in JAB && !this.held.has(code)) this.jab[JAB[code] as SimHand] = 0;
     if (code === RESET) this.reset();
+    if (code === HAND_TRACKING && !this.held.has(code)) this.handTracking = !this.handTracking;
     this.held.add(code);
     return true;
   }
@@ -212,7 +219,7 @@ export class DesktopXr {
         stick: this.stickOf(hand),
       };
     }
-    this.last = { head, controllers };
+    this.last = { head, controllers, handTracking: this.handTracking };
     return this.last;
   }
 
@@ -295,6 +302,7 @@ export function simControls(): SimControlLine[] {
     { keys: 'J / K', does: 'Jab with the left / right hand (a real 8 m/s hand movement)' },
     { keys: 'Hold C', does: 'Duck your head (crouch in VR)' },
     { keys: 'X', does: 'Put both hands back and look level' },
+    { keys: 'Y', does: 'Switch between controllers and bare hands (hand tracking; the grip keys pinch)' },
     { keys: 'H', does: 'Show or hide this help' },
   );
   return lines;
