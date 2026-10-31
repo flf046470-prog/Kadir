@@ -63,6 +63,7 @@ button.go:hover { filter: brightness(1.1); }
 #toast.show { opacity: 1; }
 #toast b { display: block; font-weight: 600; letter-spacing: .04em; margin-bottom: .15rem; }
 #subs { position: fixed; inset: auto 16px calc(8vh + env(safe-area-inset-bottom, 0px)) 16px; display: grid; justify-items: center; }
+body.streamer #subs { right: 30%; bottom: calc(14vh + env(safe-area-inset-bottom, 0px)); } /* leaves the lower right for a facecam */
 #subs p { margin: 0; max-width: 46rem; padding: .45rem .8rem; background: rgba(0,0,0,.55); font-size: clamp(1rem, 2.4vw, 1.2rem); line-height: 1.45; text-align: center; }
 #subs p span { color: var(--sodium); font-weight: 600; margin-right: .4rem; }
 #subs p.ekin span { color: var(--sigil); }
@@ -189,6 +190,7 @@ body.cam-on #objective { opacity: 0; }
     <div class="settings">
       <label for="sens">Fare hassasiyeti <input id="sens" type="range" min="0.4" max="2.5" step="0.1" value="1"></label>
       <label for="bobToggle"><input id="bobToggle" type="checkbox" checked> Kamera sallanması</label>
+      <label for="streamerToggle"><input id="streamerToggle" type="checkbox"> Yayıncı modu</label>
       <label>🌐 <select class="langSel" aria-label="Language"></select></label>
       <label for="quality">Görüntü kalitesi <select id="quality"><option value="high" data-tr="Yüksek">Yüksek</option><option value="medium" data-tr="Orta">Orta</option><option value="low" data-tr="Düşük">Düşük</option></select></label>
     </div>
@@ -517,11 +519,11 @@ function decal(tex, w, h, pos, rotY, { color = 0xffffff, additive = false, opaci
 }
 
 /* ================================================================ audio (all synthesised: no third-party files) */
-let ac = null, master = null, verb = null;
+let ac = null, master = null, verb = null, comp = null;
 function initAudio() {
   if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
   ac = new (window.AudioContext || window.webkitAudioContext)();
-  master = ac.createGain(); master.gain.value = .9; master.connect(ac.destination);
+  master = ac.createGain(); master.gain.value = .9; comp = ac.createDynamicsCompressor(); master.connect(comp).connect(ac.destination); applyStreamer();
   verb = ac.createConvolver();
   const len = ac.sampleRate * 2.6, ir = ac.createBuffer(2, len, ac.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
@@ -737,7 +739,12 @@ function card(html, ms = 3600) { $('cardText').innerHTML = tHTML(html); $('card'
 
 /* ================================================================ player + collision */
 const player = { x: 0, z: 1.8, yaw: Math.PI, pitch: -.04, crouched: false, eye: 1.64, r: .3, bob: 0, stride: 0, enabled: false, sprinting: false, noise: 0 };
-const settings = { sens: 1, bob: true };
+const settings = { sens: 1, bob: true, streamer: (() => { try { return localStorage.getItem('derinlik.streamer') === '1'; } catch (_) { return false; } })() };
+// Streamer mode: a limiter so slams and stingers don't clip a stream's audio, and subtitles kept clear of a facecam corner.
+function applyStreamer() {
+  document.body.classList.toggle('streamer', settings.streamer);
+  if (comp) { comp.threshold.value = settings.streamer ? -24 : 0; comp.ratio.value = settings.streamer ? 12 : 1; comp.knee.value = 6; comp.attack.value = .002; comp.release.value = .3; }
+}
 const keys = new Set();
 const touch = { mx: 0, mz: 0, sprint: false };
 const STAND = 1.76, CROUCH = 1.04;
@@ -947,6 +954,7 @@ function buildChapter(i, { persist = true } = {}) {
 }
 function goChapter(i) {
   if (state.transit) return;
+  if (DEMO && i >= 1) { demoEnd(); return; }
   state.transit = true; player.enabled = false; FX.emit('transit', i);
   $('fade').style.opacity = '1'; sfx.whisper(null, 2.4, .3); sfx.rumble(null, 2);
   later(1800, () => {
@@ -1127,6 +1135,26 @@ function buildSakarya() {
   zone([-.6, 0, 8.4], [.6, 3, 9.6], () => { if (!torch.visible) objective('Zifiri karanlık. El fenerini aç (F).'); });
   zone([-.6, 0, 10.5], [.6, 3, 11.8], () => objective('Tavan alçalıyor: çömel (C / Ctrl).'));
   zone([-.6, 0, 15.5], [.6, 3, 17.8], () => { if (turns < TURNS) objective('Taş bir levha yolu kapatıyor. Yanındaki paslı çarkı çevir.'); });
+  // Out of the crawl, a whisper right at your back. Turn round with the camcorder down and it is standing at the tunnel's
+  // mouth, an arm's length away, for half a second before the torch dies. Through the raised camcorder the corridor is empty.
+  zone([-.6, 0, 15.25], [.6, 3, 16.6], () => {
+    const yaw0 = player.yaw, t0 = simTime; let done = false;
+    sfx.whisper({ x: player.x, y: 1.6, z: player.z - 1.3 }, 1.6, .32);
+    W.updaters.push(() => {
+      if (done || simTime - t0 > 6) { done = true; return; }
+      if (state.camRaised || Math.abs(Math.atan2(Math.sin(player.yaw - yaw0), Math.cos(player.yaw - yaw0))) < 2.3) return;
+      done = true; FX.emit('behind');
+      const black = new THREE.MeshBasicMaterial({ color: 0x030303 }), f = makeFigure({ coat: black, hair: black, skin: new THREE.MeshBasicMaterial({ color: 0x070707 }), legs: black, h: 1.8, eyes: false });
+      const eyeM = new THREE.MeshBasicMaterial({ color: 0xff2a1a, fog: false });
+      for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(MODELS.figure ? .013 : .02, 8, 6), eyeM); if (MODELS.figure) e.position.set(s * .031, 1.593, -.088); else e.position.set(s * .045, 1.83, -.12); f.add(e); }
+      f.position.set(clamp(player.x, -.3, .3), 0, Math.max(15.15, player.z - 1.2)); f.rotation.y = Math.PI; W.group.add(f);
+      sfx.static(.5, .14);
+      later(480, () => {
+        W.group.remove(f); sfx.slam({ x: f.position.x, y: 1, z: f.position.z });
+        if (torch.visible) { torch.visible = false; FX.emit('torch', false); later(900, () => { torch.visible = true; FX.emit('torch', true); }); }
+      });
+    });
+  });
   every(2.7, () => sfx.drip({ x: .45, y: .2, z: 16.4 }));
 
   // 03 Corridor B: an open door that slams and locks behind you; the bulb dies; steps ahead
@@ -1674,6 +1702,22 @@ FX.on('draw', (dt) => {
   o.rotation.set(-.38 + k * .38, -.06 + k * .06, .1 * (1 - k) + Math.sin(b * .5) * .015 * sway);
 });
 
+/* ================================================================ Steam demo (build.py --demo) */
+// The demo is Sakarya only. Leaving the basement ends it on the end screen with the player's tape and the wishlist line.
+const DEMO = /*DEMO*/false;
+function demoEnd() {
+  state.ended = true; player.enabled = false; if (state.camRaised) toggleCam();
+  try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
+  $('fade').style.opacity = '1'; $('hud').hidden = true; $('touch').hidden = true; try { document.exitPointerLock(); } catch (_) {}
+  sfx.whisper(null, 2.4, .3);
+  later(2400, () => {
+    $('endEyebrow').textContent = t('DEMO SONU'); $('endTitle').textContent = 'DERİNLİK';
+    $('endText').textContent = t("Sakarya'daki kapı yalnızca ilkiydi. Nevşehir'in yeraltı şehri, Kola Yarımadası'ndaki SIFIR-17 ve Paris'in altındaki son tanık tam sürümde seni bekliyor. Seçimlerin kimin geri döneceğini belirleyecek.");
+    $('endStats').textContent = t("Steam'de istek listene ekle.");
+    showTape(); $('end').hidden = false;
+  });
+}
+
 /* ================================================================ the tape: what Ekin's camcorder caught */
 // Only the raised camcorder records. The strongest moments (evidence filmed, the Copy in frame, a chase, a gate waking)
 // are kept as stills and shown on the end screen as the player's own tape, which can be saved as one image to share.
@@ -1767,6 +1811,8 @@ $('reader').addEventListener('click', closeReader);
 $('archive').addEventListener('click', () => toggleArchive(false));
 $('sens').addEventListener('input', (e) => { settings.sens = +e.target.value; });
 $('bobToggle').addEventListener('change', (e) => { settings.bob = e.target.checked; });
+$('streamerToggle').checked = settings.streamer; applyStreamer();
+$('streamerToggle').addEventListener('change', (e) => { settings.streamer = e.target.checked; try { localStorage.setItem('derinlik.streamer', settings.streamer ? '1' : '0'); } catch (_) {} applyStreamer(); });
 $('quality').value = FX.quality;
 $('quality').addEventListener('change', (e) => { FX.quality = e.target.value; try { localStorage.setItem('derinlik.quality', FX.quality); } catch (_) {} FX.emit('quality', FX.quality); });
 $('resumeBtn').addEventListener('click', () => { setPaused(false); lockPointer(); initAudio(); });

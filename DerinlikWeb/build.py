@@ -7,9 +7,10 @@
 - Inlines the realism modules src/fx-*.js at the /*FX_MODULES*/ marker, each wrapped in its own block scope,
   and hoists their `import ... from '...'` lines to the top of the module script (deduplicated).
 
-Usage: python3 build.py [--only post,lighting] [--none] [--offline] [--out dist/test.html]
+Usage: python3 build.py [--only post,lighting] [--none] [--offline] [--demo] [--out dist/test.html]
   --only     include just these modules (names are the part after "fx-"), for testing one module in isolation
   --none     include no modules (the plain game)
+  --demo     Steam demo build: chapter 1 (Sakarya) only, ending on the demo end screen with the wishlist line.
   --offline  no network at all: bundle three.js (esbuild) and the OFL fonts into the page (desktop / Steam build;
              run `npm install` in DerinlikWeb first)
 """
@@ -20,10 +21,14 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--only", default=None)
 ap.add_argument("--none", action="store_true")
 ap.add_argument("--offline", action="store_true")
+ap.add_argument("--demo", action="store_true")
 ap.add_argument("--out", default=str(root / "dist" / "index.html"))
 args = ap.parse_args()
 
 src = (root / "game.html").read_text(encoding="utf-8")
+if args.demo:  # Steam demo: Sakarya only, then the demo end screen (game.html DEMO); before bundling strips comments
+    assert "/*DEMO*/false" in src
+    src = src.replace("/*DEMO*/false", "true")
 
 # --- models
 models = {}

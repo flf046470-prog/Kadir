@@ -39,6 +39,7 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
 - [x] Mağaza ve kütüphane görselleri, Steam'in istediği ölçülerde → `art/` (başlık, küçük, ana, dikey kapsül, sayfa
       arka planı, kütüphane kapsülü/başlığı/hero, saydam logo, topluluk simgesi)
 - [x] 9 ekran görüntüsü, 1920×1080 → `screenshots/` (Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek)
+- [x] Steam Next Fest demosu: yalnızca Sakarya bölümü, sonunda istek listesi çağrısı ve oyuncunun kaseti → `DerinlikWeb/build.py --offline --demo --out dist/demo/index.html`. Steamworks'te ayrı bir "Demo" uygulaması olarak yüklenir (ana oyunun sayfasına bağlanır, ayrı ücret yok).
 - [ ] Fragman (zorunlu değil, Steam "ideal olarak" istiyor) → `tools/trailer.mjs` + `tools/soundtrack.py` (hazırlanıyor)
 
 ## Karar vermen gerekenler
@@ -64,6 +65,7 @@ Hepsi oyunun kendisinden üretilir; elle boyanmış ya da dışarıdan alınmı�
 
 ```sh
 python3 DerinlikWeb/build.py --offline --out dist/offline/index.html     # DerinlikWeb/dist/offline/index.html
+python3 DerinlikWeb/build.py --offline --demo --out dist/demo/index.html # Steam demosu: Sakarya, sonra demo sonu ekranı
 cd DerinlikSteam/tools && npm install && cd ../..
 node DerinlikSteam/tools/capture.mjs DerinlikWeb/dist/offline/index.html DerinlikSteam   # ekran görüntüleri + 4K plakalar
 node DerinlikSteam/tools/compose.mjs                                                       # kapsüller, logo, simgeler
