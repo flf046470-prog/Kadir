@@ -148,6 +148,8 @@ export class LevelRenderer {
   private rockSpheres: { mesh: THREE.InstancedMesh; colliders: Collider[]; seeds: number[] }[] = [];
   /** Fallen logs (`BoxCollider.drawAs`), drawn as plain wooden cylinders until the log model arrives. */
   private logs: { mesh: THREE.InstancedMesh; colliders: BoxCollider[] } | null = null;
+  /** The glacier's ice towers (`drawAs: 'serac'`): drawn as their boxes until the models arrive. */
+  private seracs: { meshes: THREE.InstancedMesh[]; colliders: BoxCollider[] } | null = null;
   private disposed = false;
 
   constructor(
@@ -166,6 +168,7 @@ export class LevelRenderer {
       void this.upgradeProps(this.assets);
       void this.upgradeRockSpheres(this.assets);
       void this.upgradeLogs(this.assets);
+      void this.upgradeSeracs(this.assets);
     }
   }
 
@@ -391,6 +394,7 @@ export class LevelRenderer {
     const logs: BoxCollider[] = [];
     const branches: BoxCollider[] = [];
     const fence: BoxCollider[] = [];
+    const seracs: BoxCollider[] = [];
     const cliffs = new Map<SurfaceMaterial, BoxCollider[]>();
     this.level.colliders.forEach((collider, index) => {
       if (collider.kind === 'heightfield') {
@@ -403,6 +407,10 @@ export class LevelRenderer {
       }
       if (collider.kind === 'box' && collider.drawAs === 'branch') {
         branches.push(collider);
+        return;
+      }
+      if (collider.kind === 'box' && collider.drawAs === 'serac') {
+        seracs.push(collider);
         return;
       }
       if (collider.kind === 'box' && collider.drawAs === 'cage') {
@@ -457,6 +465,7 @@ export class LevelRenderer {
       }
     }
     if (logs.length > 0) this.buildLogs(logs);
+    if (seracs.length > 0) this.buildSeracs(seracs);
     if (branches.length > 0) this.buildBranches(branches);
     for (const [material, walls] of cliffs) this.buildCliffs(material, walls);
     if (fence.length > 0) {
@@ -537,6 +546,56 @@ export class LevelRenderer {
       mesh.setMatrixAt(i, matrix.compose(position, quaternion, scale));
     });
     mesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Ice towers, first as the boxes they are: they are solid, so they are always drawn. */
+  private buildSeracs(colliders: BoxCollider[]): void {
+    const geometry = new THREE.BoxGeometry(2, 2, 2);
+    this.disposables.push(geometry);
+    const material = this.material(colliders[0]?.surface.material ?? 'ice');
+    const mesh = new THREE.InstancedMesh(geometry, material, colliders.length);
+    mesh.castShadow = this.profile.shadows;
+    mesh.receiveShadow = true;
+    mesh.userData.kind = 'serac';
+    this.placeLogs(mesh, colliders);
+    this.group.add(mesh);
+    this.instanced.push(mesh);
+    this.seracs = { meshes: [mesh], colliders };
+  }
+
+  /**
+   * The Blender ice towers, each stretched to fill its box (`fitSerac`). Alternate towers take
+   * alternate models. The box's own ice material, triplanar in world space, so the stretch does not
+   * stretch the ice with it.
+   */
+  private async upgradeSeracs(assets: AssetLibrary): Promise<void> {
+    if (!this.seracs) return;
+    const sources = await Promise.all(
+      Array.from({ length: SERAC_VARIANTS }, (_, i) => assets.loadGeometry(`/models/props/${SERAC_MODEL}-${i + 1}.glb`)),
+    );
+    const usable = sources.filter((g): g is THREE.BufferGeometry => g !== null).map(fitSerac);
+    if (usable.length === 0 || this.disposed || !this.seracs) return;
+    this.disposables.push(...usable);
+    const { meshes: old, colliders } = this.seracs;
+    const material = this.material(colliders[0]?.surface.material ?? 'ice');
+    const meshes = usable.map((geometry, v) => {
+      const mine = colliders.filter((_, i) => i % usable.length === v);
+      const mesh = new THREE.InstancedMesh(geometry, material, mine.length);
+      mesh.castShadow = this.profile.shadows;
+      mesh.receiveShadow = true;
+      mesh.userData.kind = 'serac';
+      this.placeLogs(mesh, mine);
+      this.group.add(mesh);
+      this.instanced.push(mesh);
+      return mesh;
+    });
+    // The boxes go only once the towers are in, so a slow download never blinks them out.
+    for (const mesh of old) {
+      mesh.removeFromParent();
+      mesh.dispose();
+    }
+    this.instanced = this.instanced.filter((m) => !old.includes(m));
+    this.seracs = { meshes, colliders };
   }
 
   /**
@@ -999,6 +1058,24 @@ function rockSphereSites(level: LevelDef): Set<string> {
  */
 /** The model a fallen log is drawn with. Its siblings have root flares and stubs a box cannot follow. */
 export const LOG_MODEL = 'log-1';
+/** The ice tower models, `serac-1` to `serac-3`, made by `tools/blender/serac.py`. */
+export const SERAC_MODEL = 'serac';
+export const SERAC_VARIANTS = 3;
+
+/**
+ * An ice tower model fitted to the unit box (±1 on every axis, the shape `placeLogs` scales to a
+ * collider's half extents), then split so every triangle has its own normal: glacial ice breaks
+ * along planes, and the shared normals `fillUnitCube` computes made the facets melt into wax.
+ */
+export function fitSerac(source: THREE.BufferGeometry): THREE.BufferGeometry {
+  const filled = fillUnitCube(source);
+  const faceted = filled.index ? filled.toNonIndexed() : filled;
+  if (faceted !== filled) filled.dispose();
+  faceted.computeVertexNormals();
+  faceted.computeBoundingBox();
+  faceted.computeBoundingSphere();
+  return faceted;
+}
 
 /**
  * A log model normalised so its **body** spans ±1 on every axis: its length along X, the ground

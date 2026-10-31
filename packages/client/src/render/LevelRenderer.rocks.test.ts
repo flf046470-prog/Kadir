@@ -91,6 +91,8 @@ describe('rock sphere colliders', () => {
     const matrix = new THREE.Matrix4();
     renderer.group.traverse((obj) => {
       if (!(obj instanceof THREE.InstancedMesh) || !obj.geometry.boundingBox) return;
+      // The glacier's ice towers are fitted to the unit box too; they are not rocks.
+      if (obj.userData.kind === 'serac') return;
       const box = obj.geometry.boundingBox;
       if (Math.abs(box.max.y - 1) > 1e-5 || Math.abs(box.min.y + 1) > 1e-5) return;
       for (let i = 0; i < obj.count; i++) {

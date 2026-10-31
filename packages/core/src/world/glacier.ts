@@ -243,7 +243,9 @@ function buildSeracField(b: LevelBuilder, rand: Rand): void {
      */
     if (Math.hypot(x - SERAC_SPAWN.x, z - SERAC_SPAWN.z) < 5) continue;
     towers.push({ x, z, height });
-    b.box(vec3(x, height / 2, z), footprint, 'glazedIce', yaw, 'seracs');
+    const tower = b.box(vec3(x, height / 2, z), footprint, 'glazedIce', yaw, 'seracs');
+    // Drawn as a faceted ice column fitted to the box (`tools/blender/serac.py`), not as the box.
+    if (tower.kind === 'box') tower.drawAs = 'serac';
     // A grip at the top of each: the towers are climbable at the lip only, so the route is a
     // sequence of committed jumps rather than a wall you can shimmy up anywhere.
     b.grip(vec3(x, height, z), vec3(0, 1, 0), 'ledge');

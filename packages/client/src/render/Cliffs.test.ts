@@ -115,7 +115,9 @@ describe('the cliffs round every map', () => {
         if (obj instanceof THREE.InstancedMesh && obj.geometry instanceof THREE.BoxGeometry) boxes += obj.count;
         if (obj instanceof THREE.Mesh && obj.userData.kind === 'cliff') rock += (obj.geometry.getAttribute('position').count / 3);
       });
-      expect(boxes, level.id).toBe(level.colliders.filter((c) => c.kind === 'box' && !c.drawAs).length);
+      // Plain boxes, plus the glacier's ice towers, which are drawn as their boxes until the serac
+      // models load (there is no `AssetLibrary` here). No cliff is among them.
+      expect(boxes, level.id).toBe(level.colliders.filter((c) => c.kind === 'box' && (!c.drawAs || c.drawAs === 'serac')).length);
       expect(rock, `${level.id} cliff triangles`).toBeGreaterThan(0);
       expect(rock, `${level.id} cliff triangles`).toBeLessThan(40_000);
       renderer.dispose();

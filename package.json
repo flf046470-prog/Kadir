@@ -68,7 +68,8 @@
     "pack:preview": "node scripts/pack-preview.mjs",
     "assets:sculpt": "python3 tools/blender/sculpt.py",
     "assets:portal": "python3 tools/blender/portal.py",
-    "assets:boomerang": "python3 tools/blender/boomerang.py"
+    "assets:boomerang": "python3 tools/blender/boomerang.py",
+    "assets:serac": "python3 tools/blender/serac.py"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

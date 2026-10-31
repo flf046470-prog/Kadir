@@ -3673,3 +3673,19 @@ Measured, six bots × 48 seeds × 90 s, jungle: stuck 2.6 % → 2.8 %, falls 0, 
 2.5 m of clearance still worse. A thing nobody can hop, scattered at random, makes traps.
 `navigation.test.ts`'s roam bound went 15 → 6 m for a reason written beside it: a racer now reaches
 a checkpoint 13 m up a tree no bot can climb before the measurement starts, and circles under it.
+
+## The glacier's ice towers are Blender models fitted to their boxes
+
+The serac field's 16 towers were drawn as the yawed boxes they collide as. `glacier.ts` marks them
+`drawAs: 'serac'` and `LevelRenderer` draws each as `serac-1..3.glb` (`tools/blender/serac.py`,
+`npm run assets:serac`, 524 triangles / 7 KB each) stretched to fill its box — the box first, until
+the models load. The same rule as logs and cliffs: **the collider is what is drawn.**
+
+- **Carved inwards only**, and every sixth column of the ring is left at full width so each side
+  keeps a ridge: the model's bounding box is the whole box. `serac.py` refuses a build whose box is
+  not exactly −1..1 × 0..1, because `fillUnitCube` would stretch a short model *out* of its collider.
+- **The top is the box's top**, chamfered only at the lip; `LevelRenderer.seracs.test.ts` holds the
+  flat cap to two thirds of the footprint (mutation: a 0.3 lip chamfer fails it at 1.85 of 2.64).
+- **Faceted by splitting the geometry** (`fitSerac`: `toNonIndexed` then normals). `fillUnitCube`'s
+  shared normals melted the facets into wax; removing the split fails the same test.
+- Collision is unchanged, so no map version moved. Checked in a Cycles render, not yet in the game.

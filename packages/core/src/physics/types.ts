@@ -105,8 +105,12 @@ export interface BoxCollider extends ColliderBase {
    *
    * `cage` is a fight cage's fence panel (`LevelBuilder.cage`): drawn as chain-link you can see
    * through, which is the point of a cage — the fight is for the people round it.
+   *
+   * `serac` is one of the glacier's ice towers: drawn as a faceted ice column (`serac-N.glb`, made
+   * by `tools/blender/serac.py`) stretched to fill the box, carved only inwards, so the ice a
+   * player sees never stands outside what they collide with and its top is the box's top.
    */
-  drawAs?: 'log' | 'cliff' | 'branch' | 'cage';
+  drawAs?: 'log' | 'cliff' | 'branch' | 'cage' | 'serac';
 }
 
 export interface SphereCollider extends ColliderBase {
