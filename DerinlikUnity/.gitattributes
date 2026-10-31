@@ -1,0 +1,5 @@
+*.cs text eol=lf
+*.unity text eol=lf merge=unityyamlmerge
+*.prefab text eol=lf merge=unityyamlmerge
+*.mat text eol=lf
+*.meta text eol=lf

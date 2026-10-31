@@ -1,0 +1,62 @@
+{
+  "name": "derinlik",
+  "productName": "DERINLIK",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DERİNLİK — The Depths: Echoes of the Forgotten. Desktop (Windows/Linux) shell for the Steam build.",
+  "main": "main.js",
+  "scripts": {
+    "prepare-game": "node prepare-game.js",
+    "start": "npm run prepare-game && electron .",
+    "dist:win": "npm run prepare-game && electron-builder --win --x64",
+    "dist:linux": "npm run prepare-game && electron-builder --linux --x64"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.derinlik.game",
+    "productName": "DERINLIK",
+    "executableName": "Derinlik",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "electronLanguages": [
+      "tr",
+      "en-US"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "category": "Game"
+    },
+    "publish": null
+  },
+  "author": "Derinlik",
+  "license": "UNLICENSED"
+}
