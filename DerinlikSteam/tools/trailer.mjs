@@ -32,7 +32,7 @@ const SHOTS = [
   { card: 'KOLA', sub: '1986', dur: 1.8 },
   { ch: 2, dur: 4.2, k: [[0, 1.6, 0, 20, 1.5], [0, 4.2, 0, 20, 1.45]] },
   { ch: 2, dur: 4.0, enemy: true, warm: 4.0, k: [[3.2, 12.0, null], [3.2, 11.6, null]] },
-  { card: 'PARİS', dur: 1.8 },
+  { card: 'PARIS', dur: 1.8 },
   { ch: 3, dur: 5.2, k: [[0, .9, 0, 13, 1.35], [0, 4.4, 0, 13, 1.3]] },
   { ch: 3, dur: 4.0, warm: 3.0, warmAt: [0, 24.0, 0, 36.6, 2.6], k: [[0, 25.6, 0, 36.6, 2.6], [0, 27.4, 0, 36.6, 2.7]] },
   { ch: 3, dur: .7, pulse: true, warm: 3.0, warmAt: [0, 24.0, 0, 36.6, 2.6], k: [[0, 29.0, 0, 36.6, 2.6], [0, 29.2, 0, 36.6, 2.6]] },
@@ -49,7 +49,7 @@ const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 await page.route('**/*', (r) => (r.request().url().startsWith(url) || /^(data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
-await page.addInitScript(() => { try { localStorage.setItem('derinlik.quality', 'high'); } catch (_) {} });
+await page.addInitScript((LANG) => { try { localStorage.setItem('derinlik.quality', 'high'); localStorage.setItem('derinlik.lang', LANG); } catch (_) {} }, process.env.LANG_UI || 'en'); // on-screen text language: LANG_UI=tr node capture.mjs
 // pictures only (the soundtrack is made separately); without a sound device the headless browser's Web Audio grows by gigabytes
 await page.addInitScript(() => { delete window.AudioContext; delete window.webkitAudioContext; });
 await page.goto(url);

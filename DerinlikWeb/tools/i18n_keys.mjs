@@ -10,7 +10,7 @@ const keys = new Set();
 const re = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
 const CODE = /^[#.\[>]|px\b|rgba?\(|VT323|Plex|Georgia|sans-serif|monospace|=>|\bfunction\b|\.(js|png|glb|json)\b|^(bad save|bad choice|evidence saved|no longer sleeps|opacity .*|endingFor.*|\(pointer.*)$|^(Key|Arrow|Shift|Control)|^(Tab|Escape|Space|pt-BR|zh-CN)$|^[a-z]+[:.\[]|\)\.[a-zA-Z_]|^button\.|^(FX|YXZ|HRTF)$/;
 // local signage stays in its own language (Russian, French); Turkish labels the player acts on are translated, and so do the language names
-const KEEP = new Set(['AKTARIM · PLM-01', 'PALIMPSESTE · RELAIS PLM-01 · AKTARIM: PARİS', 'NEVŞEHİR', 'SIFIR-17 · KOLA', 'PARİS', 'SAKARYA',
+const KEEP = new Set(['AKTARIM · PLM-01', 'PALIMPSESTE · RELAIS PLM-01 · AKTARIM: PARİS', 'NEVŞEHİR', 'SIFIR-17 · KOLA', 'SAKARYA',
   'ARRÊTE ! C\'EST ICI', 'L\'EMPIRE DE LA MORT', 'OSSEMENTS', 'DU CIMETIÈRE', 'DES INNOCENTS', 'RUE DAREAU', 'PROJET PALIMPSESTE — ACCÈS RESTREINT', 'ОБЪЕКТ НОЛЬ-17',
   'Türkçe', 'English', 'Deutsch', 'Français', 'Español', 'Português (Brasil)', 'Русский', '简体中文', '日本語', '한국어', 'YANKI', 'SIFIR-17']);
 const SIGN = /^[0-9]+ Hz$/;
@@ -28,7 +28,7 @@ for (const m of js.matchAll(/tf\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/
 for (const m of body.matchAll(/>([^<>]+)</g)) { const p = m[1].trim(); if (/[a-zçğıöşüA-ZÇĞİÖŞÜ]{2}/.test(p)) keys.add(p); }
 // strings built at run time that the scan cannot see
 for (const k of [...js.matchAll(/'(> [^'>]+)'/g)].map((m) => m[1])) keys.add(k); // monitor lines
-for (const k of ['Çarkı çevir', 'AKTARIM', 'AKTARIM: PARİS', 'kilitli', 'Aç', 'emin misin? Tekrar E', 'KANIT ARŞİVİ', 'Kararlar', 'Kırık mühürler', 'Kanıt eklendi', 'Mühür kırıldı', 'hayatta', 'kayıp', 'adı seninle', 'kayıtta', 'uyutuldu', 'serbest', 'yanında', 'kapının ardında', 'SON']) keys.add(k);
+for (const k of ['PARİS', 'Çarkı çevir', 'AKTARIM', 'AKTARIM: PARİS', 'kilitli', 'Aç', 'emin misin? Tekrar E', 'KANIT ARŞİVİ', 'Kararlar', 'Kırık mühürler', 'Kanıt eklendi', 'Mühür kırıldı', 'hayatta', 'kayıp', 'adı seninle', 'kayıtta', 'uyutuldu', 'serbest', 'yanında', 'kapının ardında', 'SON']) keys.add(k);
 // short labels that need no translation: names, places, code words on in-world signs
 for (const k of ['Ekin', 'Camille', 'Deniz', 'Élise', 'Volkova', 'Deniz?', 'Sakarya', 'Nevşehir', 'Paris', 'Dr. Camille Moreau', 'Deniz Arat', 'DERİNLİK', 'THE DEPTHS: ECHOES OF THE FORGOTTEN', 'AUTO · NIGHTSHOT', 'REC 00:00:00', '02:51:00', 'SAKARYA · 2028', 'W A S D · Fare'].filter((k) => k !== 'W A S D · Fare')) keys.delete(k);
 console.log(JSON.stringify([...keys], null, 1));

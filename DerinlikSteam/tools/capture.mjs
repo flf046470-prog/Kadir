@@ -44,7 +44,7 @@ async function open(plate) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route('**/*', (r) => (r.request().url().startsWith(url) || /^(data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
-  await page.addInitScript(() => { try { localStorage.setItem('derinlik.quality', 'high'); } catch (_) {} });
+  await page.addInitScript((LANG) => { try { localStorage.setItem('derinlik.quality', 'high'); localStorage.setItem('derinlik.lang', LANG); } catch (_) {} }, process.env.LANG_UI || 'en'); // on-screen text language: LANG_UI=tr node capture.mjs
   // pictures only: without a sound device the headless browser's Web Audio grows by gigabytes over a long capture
   await page.addInitScript(() => { delete window.AudioContext; delete window.webkitAudioContext; });
   await page.goto(url);

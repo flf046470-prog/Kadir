@@ -711,7 +711,7 @@ let toastTimer = 0;
 function toast(html, ms = 4200) { const t = $('toast'); t.innerHTML = tHTML(html); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
 let objSrc = '';
 function objective(text) { objSrc = text; $('objText').textContent = t(text); }
-FX.on('lang', () => { if (!objSrc) return; $('objText').textContent = t(objSrc); const i = state.chapter; $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, CHAPTERS[i].place); });
+FX.on('lang', () => { if (!objSrc) return; $('objText').textContent = t(objSrc); const i = state.chapter; $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, t(CHAPTERS[i].place)); });
 let subQueue = Promise.resolve();
 /** Subtitled lines, one after another. Speaker 'Ekin' is the player. */
 function say(lines) {
@@ -932,8 +932,8 @@ function buildChapter(i, { persist = true } = {}) {
   ambient.color.set(spec.ambient[0]); ambient.intensity = spec.ambient[1] * 2.2;
   player.x = spec.spawn[0]; player.z = spec.spawn[1]; player.yaw = spec.spawn[2]; player.pitch = -.04; player.crouched = false;
   state.checkpoint = [...spec.spawn];
-  $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, CHAPTERS[i].place); objective(spec.objective);
-  $('camPlace').textContent = `${CHAPTERS[i].place} · ${CHAPTERS[i].year}`;
+  $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, t(CHAPTERS[i].place)); objective(spec.objective);
+  $('camPlace').textContent = `${t(CHAPTERS[i].place)} · ${CHAPTERS[i].year}`;
   FX.emit('build', i, spec); // last chance to restyle or add static meshes before they are batched
   batchStatic();
   FX.emit('chapter', i, spec);
@@ -945,7 +945,7 @@ function goChapter(i) {
   $('fade').style.opacity = '1'; sfx.whisper(null, 2.4, .3); sfx.rumble(null, 2);
   later(1800, () => {
     buildChapter(i);
-    card(`${tf('BÖLÜM {0}', i + 1)}<span class="t">${CHAPTERS[i].place.split(' ·')[0]} — ${t(CHAPTERS[i].title)}</span>`, 3200);
+    card(`${tf('BÖLÜM {0}', i + 1)}<span class="t">${t(CHAPTERS[i].place.split(' ·')[0])} — ${t(CHAPTERS[i].title)}</span>`, 3200);
     later(1400, () => { $('fade').style.opacity = '0'; player.enabled = true; state.transit = false; });
   });
 }
@@ -1705,7 +1705,7 @@ function begin(fromSave) {
   buildChapter(chapter);
   $('fade').style.transition = 'none'; $('fade').style.opacity = '1';
   if (chapter === 0) card('03.17\'den önce oraya var.<br>Bundan sonra kimse sana inanmayacak.', 4200);
-  else card(`${tf('BÖLÜM {0}', chapter + 1)}<span class="t">${CHAPTERS[chapter].place.split(' ·')[0]} — ${t(CHAPTERS[chapter].title)}</span>`, 3200);
+  else card(`${tf('BÖLÜM {0}', chapter + 1)}<span class="t">${t(CHAPTERS[chapter].place.split(' ·')[0])} — ${t(CHAPTERS[chapter].title)}</span>`, 3200);
   later(chapter === 0 ? 4800 : 3400, () => { $('fade').style.transition = ''; $('fade').style.opacity = '0'; $('hud').hidden = false; if (isTouch) $('touch').hidden = false; player.enabled = true; });
 }
 for (const sel of document.querySelectorAll('.langSel')) {
