@@ -698,7 +698,9 @@ function setLang(l) { if (!LANGS[l]) return; lang = l; try { localStorage.setIte
 
 let toastTimer = 0;
 function toast(html, ms = 4200) { const t = $('toast'); t.innerHTML = tHTML(html); t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
-function objective(text) { $('objText').textContent = t(text); }
+let objSrc = '';
+function objective(text) { objSrc = text; $('objText').textContent = t(text); }
+FX.on('lang', () => { if (!objSrc) return; $('objText').textContent = t(objSrc); const i = state.chapter; $('objChapter').textContent = tf('Bölüm {0} · {1}', i + 1, CHAPTERS[i].place); });
 let subQueue = Promise.resolve();
 /** Subtitled lines, one after another. Speaker 'Ekin' is the player. */
 function say(lines) {
