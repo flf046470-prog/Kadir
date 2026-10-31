@@ -8,7 +8,7 @@ const js = src.match(/<script type="module">([\s\S]*?)<\/script>/)[1]
 const body = src.slice(src.indexOf('<canvas id="view"'), src.indexOf('<script type="importmap">'));
 const keys = new Set();
 const re = /'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"|`((?:[^`\\]|\\.)*)`/g;
-const CODE = /^[#.\[>]|px\b|rgba?\(|VT323|Plex|Georgia|sans-serif|monospace|=>|\bfunction\b|\.(js|png|glb|json)\b|^(bad save|bad choice|evidence saved|no longer sleeps|opacity .*|endingFor.*|\(pointer.*)$|^(Key|Arrow|Shift|Control)|^(Tab|Escape|Space|pt-BR|zh-CN)$|^[a-z]+[:.\[]|\)\.[a-zA-Z_]|^button\.|^(FX|YXZ|HRTF)$/;
+const CODE = /^[#.\[>]|px\b|rgba?\(|VT323|Plex|Georgia|sans-serif|monospace|=>|\bfunction\b|\.(js|png|glb|json)\b|^(bad save|bad choice|evidence saved|no longer sleeps|opacity .*|endingFor.*|\(pointer.*)$|^(Key|Arrow|Shift|Control)|^(Tab|Escape|Space|pt-BR|zh-CN)$|^image\/|^[a-z]+[:.\[]|\)\.[a-zA-Z_]|^button\.|^(FX|YXZ|HRTF)$/;
 // local signage stays in its own language (Russian, French); Turkish labels the player acts on are translated, and so do the language names
 const KEEP = new Set(['AKTARIM · PLM-01', 'PALIMPSESTE · RELAIS PLM-01 · AKTARIM: PARİS', 'NEVŞEHİR', 'SIFIR-17 · KOLA', 'SAKARYA',
   'ARRÊTE ! C\'EST ICI', 'L\'EMPIRE DE LA MORT', 'OSSEMENTS', 'DU CIMETIÈRE', 'DES INNOCENTS', 'RUE DAREAU', 'PROJET PALIMPSESTE — ACCÈS RESTREINT', 'ОБЪЕКТ НОЛЬ-17',

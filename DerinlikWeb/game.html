@@ -38,6 +38,11 @@ h2 { margin: 0; font-weight: 300; font-size: clamp(1.8rem, 7vw, 3.2rem); letter-
 .keys dd { margin: 0; }
 .note { margin: 0; font-size: .82rem; color: var(--ash); line-height: 1.5; }
 .row { display: flex; flex-wrap: wrap; gap: .7rem; }
+#tape { display: grid; gap: .6rem; }
+#tapeGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .35rem; }
+#tapeGrid figure { margin: 0; position: relative; aspect-ratio: 16 / 9; background: #000; overflow: hidden; }
+#tapeGrid img { width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.05) saturate(.8); }
+#tapeGrid figcaption { position: absolute; left: .3rem; bottom: .2rem; font: .62rem/1.2 var(--osd); color: #f2efe6; text-shadow: 0 0 2px #000, 0 0 4px #000; }
 button.go { font: 600 .95rem/1 var(--ui); letter-spacing: .18em; text-transform: uppercase; color: var(--void); background: var(--bone); border: 0; padding: .95rem 1.3rem; cursor: pointer; display: inline-flex; align-items: center; gap: .7rem; }
 button.go.ghost { background: transparent; color: var(--bone); box-shadow: inset 0 0 0 1px rgba(228,222,210,.45); }
 button.go .dot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--rec); }
@@ -201,6 +206,7 @@ body.cam-on #objective { opacity: 0; }
     <h2 id="endTitle"></h2>
     <p class="lede" id="endText"></p>
     <p class="note" id="endStats"></p>
+    <div id="tape" hidden><div class="eyebrow">KASETİN</div><div id="tapeGrid"></div><div class="row"><button class="go ghost" id="tapeSave" type="button">Kaseti kaydet</button></div></div>
     <div class="row"><button class="go" id="againBtn" type="button"><span class="dot"></span>Baştan oyna</button><button class="go ghost quit" type="button" hidden>Masaüstüne çık</button></div>
   </div>
 </section>
@@ -1624,7 +1630,7 @@ function ending(kind) {
     $('endStats').textContent = [tf('Süre {0} dk', Math.floor(state.time / 60)), `Deniz: ${t(c.power === 'pump' && c.deniz === 'together' ? 'hayatta' : 'kayıp')}`,
       `Élise: ${t(c.elise === 'carried' ? 'adı seninle' : 'kayıtta')}`, `Volkova: ${t(c.freq === '528' ? 'uyutuldu' : 'serbest')}`,
       `Camille: ${t(c.camille === 'ally' ? 'yanında' : 'kapının ardında')}`].join(' · ');
-    $('end').hidden = false;
+    showTape(); $('end').hidden = false;
   });
 }
 
@@ -1646,6 +1652,80 @@ async function loadModels() {
   }
 }
 const MODELS = {};
+
+/* ================================================================ the camcorder in Ekin's hand (Blender view model) */
+// Lowered, it hangs low on the right and sways with the walk; raised, it lifts to the eye and the camcorder screen takes over.
+const handCam = { obj: null, k: 0 }; // k: 0 lowered .. 1 at the eye
+FX.on('init', () => {
+  if (!MODELS.camcorder) return;
+  const o = MODELS.camcorder.clone();
+  o.traverse((m) => { // the torch sits right beside it: no shadows from it, and darker plastic so the beam doesn't blow it out
+    if (!m.isMesh) return; m.castShadow = m.receiveShadow = false;
+    m.material = m.material.clone(); if (!m.material.emissiveIntensity || m.material.emissive.getHex() === 0) m.material.color.multiplyScalar(.35);
+  });
+  o.scale.setScalar(.75); o.visible = false; camera.add(o); handCam.obj = o;
+});
+FX.on('draw', (dt) => {
+  const o = handCam.obj; if (!o) return;
+  handCam.k += ((state.camRaised ? 1 : 0) - handCam.k) * Math.min(1, dt * 10);
+  const k = handCam.k, sway = settings.bob ? 1 : 0, b = player.bob;
+  o.visible = state.started && !state.ended && player.enabled && !state.camRaised; // the camcorder never films itself; lowering it brings it back down from the eye
+  o.position.set(.17 - k * .13 + Math.sin(b * .5) * .006 * sway, -.205 + k * .16 - Math.abs(Math.cos(b * .5)) * .008 * sway, -.28 + k * .12);
+  o.rotation.set(-.38 + k * .38, -.06 + k * .06, .1 * (1 - k) + Math.sin(b * .5) * .015 * sway);
+});
+
+/* ================================================================ the tape: what Ekin's camcorder caught */
+// Only the raised camcorder records. The strongest moments (evidence filmed, the Copy in frame, a chase, a gate waking)
+// are kept as stills and shown on the end screen as the player's own tape, which can be saved as one image to share.
+const tape = { shots: [], want: null, cool: 0 };
+function tapeWant(tag) { if (state.camRaised && !state.ended && tape.cool <= 0 && tape.shots.length < 24) tape.want = tag; }
+function tapeGrab() {
+  const c = document.createElement('canvas'); c.width = 480; c.height = 270;
+  const src = renderer.domElement, r = Math.max(c.width / src.width, c.height / src.height), w = src.width * r, h = src.height * r;
+  c.getContext('2d').drawImage(src, (c.width - w) / 2, (c.height - h) / 2, w, h);
+  tape.shots.push({ img: c, t: state.time, ch: state.chapter, tag: tape.want }); tape.want = null; tape.cool = 7;
+}
+FX.on('capture', () => tapeWant('KANIT'));
+FX.on('chase', (on) => { if (on) later(450, () => tapeWant('TAKİP')); });
+FX.on('gate', () => later(700, () => tapeWant('GEÇİT')));
+FX.on('draw', (dt) => {
+  tape.cool -= dt;
+  if (!state.camRaised || !enemy || tape.cool > 0) return; // the Copy in frame, close enough to fill it
+  const dx = enemy.x - player.x, dz = enemy.z - player.z, d = Math.hypot(dx, dz);
+  const ahead = (-Math.sin(player.yaw) * dx - Math.cos(player.yaw) * dz) / (d || 1);
+  if (d < 6 && ahead > .9) tapeWant('???');
+});
+const stamp = (s) => { const t2 = Math.floor(s); return `${String(Math.floor(t2 / 3600)).padStart(2, '0')}:${String(Math.floor(t2 / 60) % 60).padStart(2, '0')}:${String(t2 % 60).padStart(2, '0')}`; };
+function tapePick(n = 9) { const s = tape.shots; if (s.length <= n) return s; return Array.from({ length: n }, (_, i) => s[Math.round(i * (s.length - 1) / (n - 1))]); }
+function showTape() {
+  const shots = tapePick(); $('tape').hidden = !shots.length; if (!shots.length) return;
+  $('tapeGrid').innerHTML = '';
+  for (const sh of shots) {
+    const f = document.createElement('figure'), img = new Image(), cap = document.createElement('figcaption');
+    img.src = sh.img.toDataURL('image/jpeg', .85); img.alt = '';
+    cap.textContent = `REC ${stamp(sh.t)} · ${tf('BÖLÜM {0}', sh.ch + 1)} · ${t(sh.tag)}`;
+    f.append(img, cap); $('tapeGrid').append(f);
+  }
+}
+function tapeSheet() { // one image to post: the ending's name, then the stills with their timestamps
+  const shots = tapePick(), cols = Math.min(3, shots.length), rows = Math.ceil(shots.length / cols), W = 480, H = 270, pad = 14, head = 104, foot = 40;
+  const c = document.createElement('canvas'); c.width = cols * W + (cols + 1) * pad; c.height = head + rows * (H + pad) + foot;
+  const g = c.getContext('2d'); g.fillStyle = '#070707'; g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#e4ded2'; g.font = '600 38px "IBM Plex Sans Condensed", sans-serif'; g.fillText('DERİNLİK', pad, 50);
+  g.fillStyle = '#d2382c'; g.beginPath(); g.arc(pad + 214, 37, 8, 0, Math.PI * 2); g.fill();
+  g.fillStyle = '#a49d90'; g.font = '22px VT323, monospace'; g.fillText(`${$('endEyebrow').textContent} · ${$('endTitle').textContent}`, pad, 84);
+  shots.forEach((sh, i) => {
+    const x = pad + (i % cols) * (W + pad), y = head + Math.floor(i / cols) * (H + pad);
+    g.drawImage(sh.img, x, y, W, H);
+    g.font = '24px VT323, monospace'; g.fillStyle = '#000'; const txt = `REC ${stamp(sh.t)} · ${tf('BÖLÜM {0}', sh.ch + 1)} · ${t(sh.tag)}`;
+    g.fillText(txt, x + 11, y + H - 11); g.fillStyle = '#f2efe6'; g.fillText(txt, x + 10, y + H - 12);
+  });
+  g.fillStyle = '#6f695f'; g.font = '18px VT323, monospace'; g.fillText('THE DEPTHS: ECHOES OF THE FORGOTTEN', pad, c.height - 14);
+  return c;
+}
+$('tapeSave').addEventListener('click', () => {
+  const a = document.createElement('a'); a.href = tapeSheet().toDataURL('image/png'); a.download = 'derinlik-tape.png'; document.body.append(a); a.click(); a.remove();
+});
 
 /* ================================================================ input + menus */
 let paused = false, unlockedAt = -1e9;
@@ -1770,7 +1850,7 @@ function frame(now) {
   draw(dt);
   requestAnimationFrame(frame);
 }
-function draw(realDt) { FX.emit('draw', realDt); if (FX.render) FX.render(realDt); else renderer.render(scene, camera); }
+function draw(realDt) { FX.emit('draw', realDt); if (FX.render) FX.render(realDt); else renderer.render(scene, camera); if (tape.want) tapeGrab(); }
 const ready = loadModels().catch((e) => console.warn(e)).then(() => { FX.emit('init'); buildChapter(0, { persist: false }); requestAnimationFrame(frame); }); // the basement is the living backdrop behind the start screen
 
 // Test hooks for the automated play-through: advance() runs the simulation at 30 Hz without waiting on frames.
