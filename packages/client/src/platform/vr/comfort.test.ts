@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MOVEMENT } from '@kc/core';
 
 import {
+  EYE_COVER_FULL,
+  EYE_COVER_START,
+  eyeCoverFor,
   approach,
   grabThresholdFor,
   fistStrength,
@@ -292,5 +295,23 @@ describe('a fist', () => {
   it('is judged against the size of the hand', () => {
     // A child's hand at 0.7 of an adult's: its open fingers reach only 0.12 m.
     expect(fistStrength(wrist, [at(0.12), at(0.12), at(0.12), at(0.12)], 0.7)).toBe(0);
+  });
+});
+
+describe('eye in a wall', () => {
+  it('is clear well away from a wall, total before the near plane can open it, and rises in between', () => {
+    expect(eyeCoverFor(Infinity)).toBe(0);
+    expect(eyeCoverFor(EYE_COVER_START)).toBe(0);
+    // The near plane is 0.05 m and its corners reach ~0.09 m: black by then.
+    expect(EYE_COVER_FULL).toBeGreaterThanOrEqual(0.08);
+    expect(eyeCoverFor(0.09)).toBeGreaterThan(0.95);
+    expect(eyeCoverFor(EYE_COVER_FULL)).toBe(1);
+    expect(eyeCoverFor(-0.3)).toBe(1);
+    let last = 0;
+    for (let d = EYE_COVER_START; d >= EYE_COVER_FULL; d -= 0.01) {
+      const c = eyeCoverFor(d);
+      expect(c).toBeGreaterThanOrEqual(last);
+      last = c;
+    }
   });
 });

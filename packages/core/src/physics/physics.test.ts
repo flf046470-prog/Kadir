@@ -237,3 +237,23 @@ describe('moveCapsule', () => {
     expect(pos.y).toBeLessThan(2.5 - SHAPE.height + 0.1);
   });
 });
+
+describe('solidClearance (a headset eye against walls)', () => {
+  it('is the distance to the nearest wall, negative inside one, Infinity past the search', () => {
+    const world = makeWorld();
+    // The wall's face is at x = 9.5.
+    expect(world.solidClearance(vec3(9.3, 1.6, 0), 0.5)).toBeCloseTo(0.2, 5);
+    expect(world.solidClearance(vec3(9.7, 1.6, 0), 0.5)).toBeLessThan(0);
+    expect(world.solidClearance(vec3(0, 1.6, 0), 0.5)).toBe(Infinity);
+  });
+
+  it('does not count water or a one-way ledge as a wall', () => {
+    const water = box(0, 0.5, 0, 2, 0.5, 2, 0);
+    water.surface = { ...DEFAULT_SURFACE, flags: SurfaceFlags.Water };
+    const ledge = box(5, 1.5, 0, 1, 0.1, 1, 1);
+    ledge.surface = { ...DEFAULT_SURFACE, flags: SurfaceFlags.OneWay };
+    const world = new PhysicsWorld([water, ledge]);
+    expect(world.solidClearance(vec3(0, 0.5, 0), 0.5)).toBe(Infinity);
+    expect(world.solidClearance(vec3(5, 1.5, 0), 0.5)).toBe(Infinity);
+  });
+});

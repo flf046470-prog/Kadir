@@ -44,7 +44,7 @@ import { SecretsView } from '../render/Secrets.js';
 import { BodyView } from '../render/Bodies.js';
 import { AssetLibrary } from '../render/AssetLibrary.js';
 import { Vignette } from '../render/Vignette.js';
-import { easeRigHeight, isTeleport } from '../platform/vr/comfort.js';
+import { EYE_COVER_START, easeRigHeight, eyeCoverFor, isTeleport } from '../platform/vr/comfort.js';
 import type { RigHeightState } from '../platform/vr/comfort.js';
 import { LevelRenderer } from '../render/LevelRenderer.js';
 import { practiceLevelFor } from './practice.js';
@@ -200,6 +200,9 @@ export class GameClient {
   private assets = new AssetLibrary();
   /** VR comfort vignette. Only constructed in VR; null elsewhere. */
   private vignette: Vignette | null = null;
+  /** The headset eye in world space, and how far it is from the nearest wall (`eyeCoverFor`). */
+  private readonly eyeWorld = new THREE.Vector3();
+  private eyeClearance = Infinity;
   /** VR rig height, eased over vertical snaps; and where the body was last frame, for teleports. */
   private rigHeight: RigHeightState = { y: 0, ready: false };
   private rigLast = new THREE.Vector3();
@@ -423,6 +426,8 @@ export class GameClient {
     /** The screen's right in the world: the drawn camera's own x axis, flattened. */
     screenRight: { x: number; z: number };
     buttons: number;
+    /** VR only: the eye in the world, its distance to the nearest wall, and how dark that made the view. */
+    eye: { x: number; y: number; z: number; clearance: number; cover: number };
     hands: {
       tracked: boolean;
       gripHeld: boolean;
@@ -445,6 +450,13 @@ export class GameClient {
       position: { ...self.position },
       screenRight: { x: right.x / flat, z: right.z / flat },
       buttons: this.intent.buttons,
+      eye: {
+        x: this.eyeWorld.x,
+        y: this.eyeWorld.y,
+        z: this.eyeWorld.z,
+        clearance: Number.isFinite(this.eyeClearance) ? this.eyeClearance : 99,
+        cover: this.vignette?.eyeCover ?? 0,
+      },
       hands: self.hands.map((hand) => ({
         tracked: hand.tracked,
         gripHeld: hand.gripHeld,
@@ -1424,6 +1436,13 @@ export class GameClient {
         airborne: !local.grounded,
         strength: this.settings.comfort.vignette,
       });
+      // A real head leans wherever the player leans it, past where the capsule stops: the view goes
+      // dark as the eye nears a wall instead of drawing what is behind it. See `eyeCoverFor`.
+      this.renderer.rig.updateMatrixWorld();
+      this.eyeWorld.copy(this.renderer.renderer.xr.getCamera().position);
+      this.renderer.rig.localToWorld(this.eyeWorld);
+      this.eyeClearance = this.sim.world.solidClearance(this.eyeWorld, EYE_COVER_START);
+      this.vignette.setEyeCover(eyeCoverFor(this.eyeClearance), dt);
       return;
     }
 

@@ -204,6 +204,31 @@ export class PhysicsWorld {
     return out;
   }
 
+  /**
+   * Signed distance from `point` to the nearest wall it could see through: negative inside one,
+   * `Infinity` when nothing is within `maxDist`. For a headset's eye, which a real head can carry
+   * into geometry the body cannot follow (`platform/vr/comfort.ts` → `eyeCoverFor`).
+   *
+   * Water and one-way platforms are not walls: a head under a river shows a river bed, and a
+   * one-way ledge is meant to be passed through from below.
+   */
+  solidClearance(point: Vec3, maxDist: number): number {
+    let best = Infinity;
+    const b = this.scratchAabb;
+    b.minX = point.x - maxDist;
+    b.maxX = point.x + maxDist;
+    b.minY = point.y - maxDist;
+    b.maxY = point.y + maxDist;
+    b.minZ = point.z - maxDist;
+    b.maxZ = point.z + maxDist;
+    this.queryAabb(b, (_index, collider) => {
+      if ((collider.surface.flags & (SurfaceFlags.Water | SurfaceFlags.OneWay)) !== 0) return;
+      const res = closestPointSegmentCollider(_qSeg, _qPoint, _qNormal, point, point, collider);
+      if (res.distance < best) best = res.distance;
+    });
+    return best <= maxDist ? best : Infinity;
+  }
+
   /** Convenience: is this point inside solid geometry? Used by spawn validation. */
   isPointInsideSolid(point: Vec3): boolean {
     let inside = false;

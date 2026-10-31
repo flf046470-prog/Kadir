@@ -57,6 +57,7 @@ const TURN_STICK = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right:
 const MOVE_HAND: Record<string, SimHand> = { Digit1: 'left', Digit2: 'right' };
 const JAB: Record<string, SimHand> = { KeyJ: 'left', KeyK: 'right' };
 const DUCK = 'KeyC';
+const LEAN = 'KeyL';
 const RESET = 'KeyX';
 /** Swaps the controllers for bare, joint-tracked hands, which the grip keys close (a pinch). */
 const HAND_TRACKING = 'KeyY';
@@ -69,6 +70,7 @@ export const SIM_KEY_CODES: ReadonlySet<string> = new Set([
   ...Object.keys(MOVE_HAND),
   ...Object.keys(JAB),
   DUCK,
+  LEAN,
   RESET,
   HAND_TRACKING,
 ]);
@@ -80,6 +82,11 @@ export const STAND_HEIGHT = 1.6;
  * a tracked player whose head drops below 1.15 m), so this is the only way to test it.
  */
 export const DUCK_DROP = 0.6;
+/**
+ * Holding L leans the head this far forward, level, the way a player leans in a room: the headset
+ * moves and the body's capsule does not. It is how an eye reaches into a wall (`eyeCoverFor`).
+ */
+export const LEAN_REACH = 0.7;
 /** Radians of look per pixel of mouse travel. */
 export const LOOK_PER_PIXEL = 0.0025;
 /** Metres a held hand moves per pixel of mouse travel, and per unit of wheel delta. */
@@ -201,7 +208,8 @@ export class DesktopXr {
 
   step(dt: number): SimState {
     const headY = STAND_HEIGHT - (this.held.has(DUCK) ? DUCK_DROP : 0);
-    const head: SimPose = { position: [0, headY, 0], quaternion: lookQuaternion(this.yaw, this.pitch) };
+    const [leanX, , leanZ] = this.held.has(LEAN) ? rotateByLook([0, 0, -LEAN_REACH], this.yaw, 0) : [0, 0, 0];
+    const head: SimPose = { position: [leanX, headY, leanZ], quaternion: lookQuaternion(this.yaw, this.pitch) };
     const controllers = {} as Record<SimHand, SimController>;
     for (const hand of SIM_HANDS) {
       if (this.jab[hand] >= 0) {
@@ -212,7 +220,7 @@ export class DesktopXr {
       const local: [number, number, number] = [ox, oy, oz - JAB_REACH * jabExtension(this.jab[hand])];
       const turned = rotateByLook(local, this.yaw, this.pitch);
       controllers[hand] = {
-        position: [turned[0], headY + turned[1], turned[2]],
+        position: [leanX + turned[0], headY + turned[1], leanZ + turned[2]],
         // The controllers point where the head looks, so the menu ray goes where the mouse aims.
         quaternion: head.quaternion,
         buttons: this.buttonsOf(hand),
@@ -301,6 +309,7 @@ export function simControls(): SimControlLine[] {
     { keys: 'Hold 1 / 2 + mouse', does: 'Move the left / right hand instead of the head; wheel moves it in and out' },
     { keys: 'J / K', does: 'Jab with the left / right hand (a real 8 m/s hand movement)' },
     { keys: 'Hold C', does: 'Duck your head (crouch in VR)' },
+    { keys: 'Hold L', does: 'Lean your head forward (room-scale), e.g. into a wall' },
     { keys: 'X', does: 'Put both hands back and look level' },
     { keys: 'Y', does: 'Switch between controllers and bare hands (hand tracking; the grip keys pinch)' },
     { keys: 'H', does: 'Show or hide this help' },

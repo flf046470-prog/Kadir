@@ -5,6 +5,7 @@ import {
   DUCK_DROP,
   HAND_REST,
   JAB_REACH,
+  LEAN_REACH,
   SIM_BUTTON_KEYS,
   SQUEEZE,
   STAND_HEIGHT,
@@ -149,6 +150,19 @@ describe('the desktop VR simulator controls', () => {
     const y = sim.step(1 / 60).head.position[1];
     expect(y).toBeCloseTo(STAND_HEIGHT - DUCK_DROP, 6);
     expect(y).toBeLessThan(1.15);
+  });
+
+  it('leans the head forward, level, where it looks, and carries the hands with it', () => {
+    const sim = new DesktopXr();
+    sim.yaw = Math.PI / 2; // looking along -x
+    sim.pitch = -0.4; // looking down: the lean stays level
+    const before = sim.step(1 / 60);
+    sim.keyDown('KeyL');
+    const after = sim.step(1 / 60);
+    expect(after.head.position[0]).toBeCloseTo(-LEAN_REACH, 6);
+    expect(after.head.position[1]).toBeCloseTo(before.head.position[1], 6);
+    expect(after.head.position[2]).toBeCloseTo(0, 6);
+    expect(after.controllers.right.position[0] - before.controllers.right.position[0]).toBeCloseTo(-LEAN_REACH, 6);
   });
 
   it('reads the sticks the WebXR way round, and never past the rim', () => {

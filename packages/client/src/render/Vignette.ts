@@ -20,6 +20,8 @@ import type { VignetteInput } from '../platform/vr/comfort.js';
  */
 /** How long a teleport blink takes to fade back in. */
 const BLINK_FADE_SECONDS = 0.25;
+/** How long the eye cover takes to clear once the head is out of the wall. */
+const EYE_RELEASE_SECONDS = 0.15;
 
 export class Vignette {
   private readonly mesh: THREE.Mesh;
@@ -27,6 +29,8 @@ export class Vignette {
   private amount = 0;
   /** Blink cover, 1 = fully black, fading back to 0. */
   private blinkAmount = 0;
+  /** Eye-in-wall cover, 0..1: applied at once, released over `EYE_RELEASE_SECONDS`. */
+  private eyeAmount = 0;
 
   constructor(camera: THREE.Camera) {
     this.material = new THREE.ShaderMaterial({
@@ -82,11 +86,31 @@ export class Vignette {
     this.amount = approach(this.amount, target, dt);
     this.blinkAmount = Math.max(0, this.blinkAmount - dt / BLINK_FADE_SECONDS);
 
-    const visible = this.amount > 0.01 || this.blinkAmount > 0.01;
+    this.apply();
+  }
+
+  /**
+   * Darken for an eye this close to a wall (`eyeCoverFor`). Rising is immediate — one frame of
+   * the far side of a wall is the frame a peeker wanted — and falling is a short fade.
+   */
+  setEyeCover(target: number, dt: number): void {
+    const t = Math.max(0, Math.min(1, target));
+    this.eyeAmount = t >= this.eyeAmount ? t : Math.max(t, this.eyeAmount - dt / EYE_RELEASE_SECONDS);
+    this.apply();
+  }
+
+  /** Current eye cover, 0..1. */
+  get eyeCover(): number {
+    return this.eyeAmount;
+  }
+
+  private apply(): void {
+    const cover = Math.max(this.blinkAmount, this.eyeAmount);
+    const visible = this.amount > 0.01 || cover > 0.01;
     this.mesh.visible = visible;
     if (visible) {
       this.material.uniforms.uAmount!.value = this.amount;
-      this.material.uniforms.uBlink!.value = this.blinkAmount;
+      this.material.uniforms.uBlink!.value = cover;
     }
   }
 

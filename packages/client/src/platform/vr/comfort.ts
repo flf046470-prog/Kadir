@@ -212,6 +212,28 @@ export function isTeleport(dx: number, dy: number, dz: number, speed: number, dt
   return Math.hypot(dx, dy, dz) > Math.max(TELEPORT_DISTANCE, speed * dt * 3);
 }
 
+/**
+ * How close an eye may come to a wall before the view starts to go dark. A real head goes wherever
+ * the player leans it, and the body's capsule stays outside the wall, so leaning into one used to
+ * put the eyes through it: a see-through wall, in a game whose Hunt is about not being seen.
+ *
+ * The camera's near plane is 0.05 m and, at a headset's ~90° field of view, its corners reach
+ * about 0.09 m out — so geometry starts to be clipped open at that clearance. Darkening begins well
+ * before it (`EYE_COVER_START`) and is total by `EYE_COVER_FULL`, so nothing behind a wall is ever
+ * drawn to an eye pressed against it. Black rather than pushing the body away: moving the world
+ * against a still head is exactly what the comfort rules forbid.
+ */
+export const EYE_COVER_START = 0.2;
+export const EYE_COVER_FULL = 0.08;
+
+/** Cover for an eye this far from the nearest wall (negative inside one): 0 clear, 1 black. */
+export function eyeCoverFor(clearance: number): number {
+  if (clearance <= EYE_COVER_FULL) return 1;
+  if (clearance >= EYE_COVER_START) return 0;
+  const t = (EYE_COVER_START - clearance) / (EYE_COVER_START - EYE_COVER_FULL);
+  return t * t * (3 - 2 * t);
+}
+
 /** Smooth the vignette so it fades rather than snapping, which is itself uncomfortable. */
 export function approach(current: number, target: number, dt: number, perSecond = 6): number {
   if (dt <= 0) return current;

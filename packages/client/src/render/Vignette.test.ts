@@ -30,3 +30,25 @@ describe('teleport blink', () => {
     expect((camera.children[0] as THREE.Mesh).visible).toBe(true);
   });
 });
+
+describe('eye cover', () => {
+  it('goes black the frame the eye enters a wall, even with the vignette off, and clears quickly after', () => {
+    const camera = new THREE.PerspectiveCamera();
+    const vignette = new Vignette(camera);
+    const mesh = camera.children[0] as THREE.Mesh;
+    vignette.update(1 / 72, STILL);
+    vignette.setEyeCover(1, 1 / 72);
+    expect(vignette.eyeCover).toBe(1);
+    expect(mesh.visible).toBe(true);
+    expect((mesh.material as THREE.ShaderMaterial).uniforms.uBlink!.value).toBe(1);
+    // The vignette's own per-frame update must not wipe it out.
+    vignette.update(1 / 72, STILL);
+    expect(mesh.visible).toBe(true);
+    for (let i = 0; i < 12; i++) {
+      vignette.update(1 / 72, STILL);
+      vignette.setEyeCover(0, 1 / 72);
+    }
+    expect(vignette.eyeCover).toBe(0);
+    expect(mesh.visible).toBe(false);
+  });
+});

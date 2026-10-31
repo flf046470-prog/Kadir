@@ -2801,10 +2801,7 @@ pull, snap, pull walk a player across open air.
 **Not met, and why.** The lab's 5 % for 72–144 Hz: the worst phase is 9.7 % at 72 Hz, from the frame
 that straddles the release; interpolating hand poses to the tick time in `GameClient.frame` would
 remove it, and was not done because it changes VR feel in a way nothing here can try on a headset.
-**Room-scale head penetration is not covered at all**: the camera is the rig plus the headset's
-physical offset, with no collision, so leaning into a wall puts the eyes inside it (a see-through
-wall in the Hunt). The sim's head is at the capsule, so the replay tool's head check only covers
-that. Needs a design (fade on head-in-geometry) and a device.
+**Room-scale head penetration is covered now**: see "A head leaned into a wall saw through it".
 
 **Tracking loss is left as a frozen pose.** `VRInput` sets `tracked` from connect/disconnect only;
 three.js keeps a lost controller's last `grip.matrix` (and sets `visible = false`). Holding through
@@ -3711,3 +3708,22 @@ nothing reaches the simulation or the server.
   Bounce, Joey, Hopper, Digger` with it off (`.probe/streamer*.mjs`, untracked).
 - The unit suite covers the mask (5 mutations, each failing it); the wiring has no DOM test — the
   client tests run in node with no DOM library — so the browser probe is its evidence.
+
+## A head leaned into a wall saw through it
+
+The headset camera is the rig plus the head's real offset, and nothing stopped it: leaning into a
+wall put the eyes inside it — a see-through wall in the Hunt. `PhysicsWorld.solidClearance(eye)` is
+the signed distance to the nearest wall (water and one-way ledges are not walls), and
+`eyeCoverFor` (`platform/vr/comfort.ts`) turns it into darkness: none past 0.2 m, total by 0.08 m —
+the near plane is 0.05 m and its corners reach ~0.09 m at a headset's field of view, so nothing
+behind a wall is ever drawn. `Vignette.setEyeCover` rises the same frame (one frame of the far side
+is what a peeker wants) and clears over 0.15 s. Black rather than pushing the body back: moving the
+world against a still head is what the comfort rules forbid. VR only; client-side, so a modified
+client could skip it — the server-side answer is `concealment.ts`, which already withholds
+opponents the eyes cannot see.
+
+- The simulator has **L** (`LEAN_REACH` 0.7 m, level, where the head looks), and `check:xrsim`
+  walks into a wall and leans: measured eye −0.28 m, cover 1.00, cleared on standing straight
+  (36/36). `__kcSelf().eye` reports the eye, its clearance and the cover.
+- Six mutations, each failing its own test: water counted, distance unsigned, full cover at 0.03 m,
+  the cover not drawn, the cover eased in, the lean following pitch.

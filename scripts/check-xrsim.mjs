@@ -282,6 +282,34 @@ try {
     await page.keyboard.press('KeyY');
     await page.keyboard.press('KeyX');
 
+    // Leaning into a wall: a real head goes past where the body stops, and the eye must not be
+    // shown what is behind the wall (`eyeCoverFor`). Walk forward until something stops the body,
+    // then lean the head into it.
+    const open = await self(page);
+    check('in the open the view is not darkened', open.eye.cover === 0, `eye ${open.eye.clearance.toFixed(2)} m from the nearest wall`);
+    await page.keyboard.down('KeyW');
+    let lastPos = open.position;
+    let still = 0;
+    const walkEnd = Date.now() + 120_000;
+    while (Date.now() < walkEnd && still < 5) {
+      await wait(500);
+      const s = await self(page);
+      still = Math.hypot(s.position.x - lastPos.x, s.position.z - lastPos.z) < 0.03 ? still + 1 : 0;
+      lastPos = s.position;
+    }
+    await page.keyboard.up('KeyW');
+    const atWall = await self(page);
+    const leaned = await holdUntil(page, () => page.keyboard.down('KeyL'), () => page.keyboard.up('KeyL'), (s) => s.eye.cover >= 0.99, 15000);
+    check(
+      'leaning the head into the wall it walked to blacks the view out',
+      Boolean(leaned),
+      leaned
+        ? `eye ${leaned.eye.clearance.toFixed(2)} m (inside is negative), cover ${leaned.eye.cover.toFixed(2)}`
+        : `stopped=${still >= 5}, eye ${atWall.eye.clearance.toFixed(2)} m before leaning`,
+    );
+    const cleared = await holdUntil(page, async () => {}, async () => {}, (s) => s.eye.cover === 0, 10000);
+    check('…and straightening up clears it', Boolean(cleared));
+
     // Ducking.
     const ducked = await holdUntil(page, () => page.keyboard.down('KeyC'), () => page.keyboard.up('KeyC'), (s) => s.headHeight < 1.15, 8000);
     const standing = (await self(page)).headHeight;
