@@ -1,0 +1,381 @@
+import type { Vec3 } from '../math/vec3.js';
+import { vec3 } from '../math/vec3.js';
+import type { SurfaceMaterial } from '../physics/types.js';
+import type { MovementConfig } from './config.js';
+import { DEFAULT_MOVEMENT, cloneMovementConfig } from './config.js';
+import { createGadgetState } from '../gadgets/state.js';
+import type { PlayerGadgetState } from '../gadgets/types.js';
+
+export type PlayerRole =
+  | 'runner'
+  | 'chaser'
+  | 'infected'
+  | 'racer'
+  | 'fighter'
+  | 'spectator'
+  | 'idle'
+  /** Hunt: the armed kangaroo. */
+  | 'hunter'
+  /** Hunt: a human trying to last the clock. */
+  | 'survivor'
+  /** Roo Ball: the two teams. Symmetric, so neither is a threat or prey to the bots. */
+  | 'red'
+  | 'blue';
+
+export type HandSide = 0 | 1;
+export const LEFT: HandSide = 0;
+export const RIGHT: HandSide = 1;
+
+/**
+ * Hand-driven ticks whose mean velocity a release keeps (100 ms at 60 Hz). Six ticks hold a whole
+ * number of frames at 60, 80, 90 and 120 Hz, so the mean of a steady pull is exact there; at 72
+ * and 144 Hz it is within one frame in seven.
+ */
+export const PULL_WINDOW = 6;
+
+export interface HandState {
+  /** Hand pose in world space (VR: tracked; PC/Mobile: procedurally placed for the avatar). */
+  world: Vec3;
+  prevWorld: Vec3;
+  velocity: Vec3;
+  tracked: boolean;
+  gripHeld: boolean;
+  /** Anchored to a surface (grabbing). */
+  anchored: boolean;
+  anchor: Vec3;
+  anchorCollider: number;
+  /**
+   * False exactly once: on the tick this hand's pose is first ever computed, and again on the
+   * tick right after a respawn. `updateHandPoses` uses it to snap `prevWorld` to the freshly
+   * computed `world` instead of leaving it at a stale or default position — without this, that
+   * tick's velocity is `(world - prevWorld) / dt` across a teleport (spawn from the origin, or a
+   * respawn to a new point), hundreds of m/s, easily clearing `resolvePunches`' 3.4 m/s threshold
+   * and `applyPalmPush`'s launch-off-a-wall trigger. A phantom full-power punch or launch on
+   * every single respawn — which, per this game's own falling-and-respawning design, is routine.
+   */
+  posed: boolean;
+  /**
+   * True on a tick this tracked hand moved relative to the body faster than a hand can
+   * (`MovementConfig.maxHandSpeed`): a pose jump, not a movement. A controller that lost tracking
+   * reports its last pose until it comes back, then the real one in a single frame; a recenter
+   * and a snap turn move every held hand at once. Read as effort, each was a launch — measured, a
+   * 0.5 m jump while holding a wall threw the player 19 m up. `updateHandPoses` reads such a tick
+   * as stationary and `updateHandGrips` re-grips the hand where it now is, or lets go.
+   */
+  jumped: boolean;
+  /**
+   * The hand's pose in the body's own frame — x right, y up, z forward, from the feet — and its
+   * velocity in that frame. `velocity` above is the world's view: it includes everything the body
+   * does to the hand, and turning is one of those things. A mouse flick or a VR snap turn swings a
+   * hand held still through an arc, and read as world speed that arc is a punch: measured, a PC
+   * player flicking ±90° beside an opponent landed 58 hits in 20 s without touching the punch
+   * button. A punch has to be fast in *both* frames (`combat.ts`), so turning alone never is one.
+   */
+  local: Vec3;
+  prevLocal: Vec3;
+  localVelocity: Vec3;
+  /**
+   * Whether this hand can land a punch this tick. A tracked hand always can: its owner's arm is
+   * the punch. A hand the game places can only while a throw is on its way out, because the game
+   * moves it for other reasons too, and `combat.ts` used to read each of them as a punch: measured
+   * toe to toe, 72 of 74 button punches landed on the glove's way *back*, and toggling grab (which
+   * pulls the hands out to climbing reach in one tick) landed 40.9 damage a second without the
+   * punch button — more than twice what the punch button does.
+   */
+  striking: boolean;
+  /** Seconds until this hand may register another punch. */
+  punchCooldown: number;
+  /**
+   * Seconds left in a synthesised punch throw, counting down through the extension and back.
+   *
+   * Non-VR only. A VR punch *is* the tracked hand's motion and needs nothing here; on PC and
+   * mobile the punch button has to be turned into an arm that actually moves, because the
+   * combat resolver only ever looks at hand velocity.
+   */
+  punchThrow: number;
+}
+
+export function createHandState(): HandState {
+  return {
+    world: vec3(),
+    prevWorld: vec3(),
+    velocity: vec3(),
+    tracked: false,
+    gripHeld: false,
+    anchored: false,
+    anchor: vec3(),
+    anchorCollider: -1,
+    posed: false,
+    jumped: false,
+    local: vec3(),
+    prevLocal: vec3(),
+    localVelocity: vec3(),
+    striking: false,
+    punchCooldown: 0,
+    punchThrow: 0,
+  };
+}
+
+export interface PlayerState {
+  id: string;
+  name: string;
+  animalId: string;
+  /** Resolved movement config (base + animal feel profile). */
+  config: MovementConfig;
+
+  position: Vec3;
+  velocity: Vec3;
+  yaw: number;
+  pitch: number;
+  /** Current capsule height (shrinks while crouching). */
+  height: number;
+  /** World-space head position — VR avatar, camera, and boxing head hits all read this. */
+  head: Vec3;
+
+  grounded: boolean;
+  wasGrounded: boolean;
+  groundNormal: Vec3;
+  groundMaterial: SurfaceMaterial;
+  /**
+   * Grip of the surface underfoot, copied from the collider the player is standing on.
+   *
+   * Kept beside `groundMaterial` rather than looked up on demand because locomotion runs after the
+   * move has resolved and no longer holds the collider it hit.
+   *
+   * Not on the wire, and must not be: the client predicts with the same `Simulation` against a
+   * level it built from the same seed, so it resolves the same collider and reads the same number.
+   * Sending it would add a field that can disagree with the geometry both sides already share.
+   */
+  groundFriction: number;
+  touchingWall: boolean;
+  wallNormal: Vec3;
+
+  crouching: boolean;
+  sprinting: boolean;
+  /**
+   * Out of breath: stamina reached the floor while sprinting, and sprinting waits until it is back
+   * to `SPRINT_RECOVERY`. Without the gap a held sprint key chattered at the floor — it drains
+   * 14/s and refills 9/s, so it sprinted on 39 % of ticks, and the acceleration of those ticks
+   * outran the braking of the rest: 9.5 m/s held for ever on an empty bar. On the wire as
+   * `SnapFlags.Winded`, because it is history, not a function of stamina.
+   */
+  winded: boolean;
+  /** 0..1 hop charge. */
+  charge: number;
+  chargeHeld: boolean;
+
+  coyoteTimer: number;
+  jumpBufferTimer: number;
+  staggerTimer: number;
+  /** Seconds of tag immunity (after being tagged or respawning). */
+  invulnTimer: number;
+  tagCooldown: number;
+  /**
+   * Set by `respawnPlayer`: the simulation put this player somewhere this tick. `Simulation.step`
+   * reports it once as a `placed` event carrying the facing the placement gave, and clears it.
+   */
+  placed: boolean;
+
+  climbing: boolean;
+  climbAnchor: Vec3;
+  climbNormal: Vec3;
+  climbCollider: number;
+
+  hands: [HandState, HandState];
+  /**
+   * Holding the guard button (PC, mobile): the hands the game places are raised in front of the
+   * face, and only then do they stop a punch (`combat.ts`). A tracked hand needs no button; it
+   * guards wherever its owner holds it. Taken from this tick's intent, never carried over.
+   */
+  guarding: boolean;
+  /**
+   * The body's velocity over the last `PULL_WINDOW` hand-driven ticks, as a ring, and how many
+   * are filled. Letting go keeps their mean rather than the last tick's: a headset samples hands
+   * at 72–144 Hz into 60 Hz ticks, so one tick holds one frame of motion or two, and the last tick
+   * alone read a 2 m/s pull as anything from 0.93 to 2.27 m/s at 90 Hz. The published Gorilla Tag
+   * locomotion launches from a filtered history for the same reason.
+   */
+  pull: Vec3[];
+  pullCount: number;
+
+  /** Equipment, charges and status effects. Owned here so a reset clears it with the player. */
+  gadgets: PlayerGadgetState;
+  /** 0..1 mouth openness, driven by the speaker's own voice level. Purely cosmetic. */
+  voiceLevel: number;
+
+  role: PlayerRole;
+  alive: boolean;
+  health: number;
+  stamina: number;
+  score: number;
+  /** Ticks survived / chased — the mode decides what it means. */
+  roleTicks: number;
+  lastTaggedBy: string | null;
+
+  emoteId: number;
+  /**
+   * Animation id of the equipped emote cosmetic, or 0 for none. Set by the server from the
+   * player's validated inventory; with nothing equipped the emote button walks the animal's own
+   * four gestures instead.
+   */
+  equippedEmote: number;
+  /**
+   * The last emote played, kept after `emoteId` is cleared so the button can walk through the
+   * animal's four gestures. Local to the simulation and never serialised: a viewer only needs to
+   * know what is playing now, which is `emoteId`.
+   */
+  lastEmote: number;
+  emoteTimer: number;
+
+  // Parkour
+  checkpointIndex: number;
+  lapStartTick: number;
+  bestLapTicks: number;
+
+  /** Set by the platform layer: VR players report a real head height. */
+  headHeight: number;
+  /** Last tick an intent was applied — used to detect stalled/disconnected clients. */
+  lastIntentTick: number;
+  /** True while the player is being simulated by the server (false for spectators/loading). */
+  active: boolean;
+  spawnPointIndex: number;
+}
+
+export interface CreatePlayerOptions {
+  id: string;
+  name?: string;
+  animalId?: string;
+  config?: MovementConfig;
+  position?: Vec3;
+  role?: PlayerRole;
+}
+
+export function createPlayerState(options: CreatePlayerOptions): PlayerState {
+  // Cloned, never aliased. Without this every player created without an explicit config shares
+  // the module-level DEFAULT_MOVEMENT object, so a single in-place write to `player.config`
+  // would rewrite the defaults for every player in the process — on the server, for every room,
+  // until restart. Runtime tuning writes configs, which turns that from latent into likely.
+  const config = cloneMovementConfig(options.config ?? DEFAULT_MOVEMENT);
+  const position = options.position ? { ...options.position } : vec3();
+  return {
+    id: options.id,
+    name: options.name ?? 'Roo',
+    animalId: options.animalId ?? 'kangaroo',
+    config,
+
+    position,
+    velocity: vec3(),
+    yaw: 0,
+    pitch: 0,
+    height: config.standHeight,
+    head: vec3(position.x, position.y + config.standHeight * config.headHeightRatio, position.z),
+
+    grounded: false,
+    wasGrounded: false,
+    groundNormal: vec3(0, 1, 0),
+    groundMaterial: 'dirt',
+    groundFriction: 1,
+    touchingWall: false,
+    wallNormal: vec3(),
+
+    crouching: false,
+    sprinting: false,
+    winded: false,
+    charge: 0,
+    chargeHeld: false,
+
+    coyoteTimer: 0,
+    jumpBufferTimer: 0,
+    staggerTimer: 0,
+    invulnTimer: 0,
+    tagCooldown: 0,
+    placed: false,
+
+    climbing: false,
+    climbAnchor: vec3(),
+    climbNormal: vec3(0, 0, 1),
+    climbCollider: -1,
+
+    hands: [createHandState(), createHandState()],
+    guarding: false,
+    pull: Array.from({ length: PULL_WINDOW }, () => vec3()),
+    pullCount: 0,
+
+    gadgets: createGadgetState(),
+    voiceLevel: 0,
+
+    role: options.role ?? 'idle',
+    alive: true,
+    health: 100,
+    stamina: 100,
+    score: 0,
+    roleTicks: 0,
+    lastTaggedBy: null,
+
+    emoteId: 0,
+    equippedEmote: 0,
+    lastEmote: 0,
+    emoteTimer: 0,
+
+    checkpointIndex: -1,
+    lapStartTick: -1,
+    bestLapTicks: -1,
+
+    headHeight: 1.6,
+    lastIntentTick: -1,
+    active: true,
+    spawnPointIndex: 0,
+  };
+}
+
+/** Reset per-round state without losing identity, cosmetics or session score. */
+export function respawnPlayer(player: PlayerState, position: Vec3, tick: number): void {
+  player.position.x = position.x;
+  player.position.y = position.y;
+  player.position.z = position.z;
+  player.velocity.x = 0;
+  player.velocity.y = 0;
+  player.velocity.z = 0;
+  player.grounded = false;
+  player.wasGrounded = false;
+  player.climbing = false;
+  player.climbCollider = -1;
+  player.staggerTimer = 0;
+  player.charge = 0;
+  player.chargeHeld = false;
+  player.alive = true;
+  player.health = 100;
+  player.stamina = 100;
+  player.winded = false;
+  player.invulnTimer = 1.5;
+  player.placed = true;
+  player.tagCooldown = 0;
+  player.lastIntentTick = tick;
+  // Status effects die with the life; charges and cash do not, because they are round-scoped
+  // and a player who respawns having spent their smoke has still spent it.
+  player.gadgets.frozen = 0;
+  player.gadgets.snared = 0;
+  player.gadgets.snareSlow = 0;
+  player.gadgets.smoked = 0;
+  player.gadgets.revealed = 0;
+  player.voiceLevel = 0;
+  player.pullCount = 0;
+  for (const hand of player.hands) {
+    hand.anchored = false;
+    hand.anchorCollider = -1;
+    hand.punchCooldown = 0;
+    // The body just teleported to `position`; without this, the next tick's hand pose jumps
+    // there too while `prevWorld` is still back at the old position, and the resulting velocity
+    // is a phantom punch or wall-launch waiting to happen. See HandState.posed.
+    hand.posed = false;
+  }
+}
+
+export function isGrabbing(player: PlayerState): boolean {
+  return player.climbing || player.hands[0].anchored || player.hands[1].anchored;
+}
+
+/** Horizontal speed — used by HUD, animation blending and anti-cheat. */
+export function horizontalSpeed(player: PlayerState): number {
+  return Math.hypot(player.velocity.x, player.velocity.z);
+}
