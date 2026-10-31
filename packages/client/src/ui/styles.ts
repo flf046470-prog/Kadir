@@ -81,6 +81,8 @@ export const UI_CSS = `
 .kc-mic-pill { display: grid; flex: none; place-items: center; width: 34px; height: 34px; border-radius: 17px; font-size: 15px; background: rgba(12,16,22,.55); border: 1px solid rgba(255,255,255,.14); opacity: .5; }
 .kc-mic-pill.is-live { opacity: 1; border-color: #4ade80; box-shadow: 0 0 10px rgba(74,222,128,.55); animation: kc-mic-pulse 1.4s ease-in-out infinite; }
 .kc-mic-pill.is-muted { opacity: 1; border-color: #f87171; }
+.kc-streamer-badge { flex: none; align-self: center; padding: 6px 10px; border-radius: 14px; background: rgba(147,51,234,.75); color: #fff; opacity: 1; font-weight: 700; }
+.kc-streamer-badge[hidden] { display: none; }
 @keyframes kc-mic-pulse { 0%, 100% { box-shadow: 0 0 6px rgba(74,222,128,.35); } 50% { box-shadow: 0 0 14px rgba(74,222,128,.75); } }
 @media (prefers-reduced-motion: reduce) { .kc-mic-pill.is-live { animation: none; } }
 .kc-credit { border-bottom: 1px solid rgba(255,255,255,.07); padding-bottom: 8px; font-size: 13px; line-height: 1.5; }

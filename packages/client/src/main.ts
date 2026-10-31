@@ -24,6 +24,7 @@ import { VRWristHud } from './ui/VRWristHud.js';
 import { buildHudModel } from './ui/hudModel.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
+import { StreamerMask } from './ui/streamer.js';
 import { crashNotice, installCrashSurface, configuredRelease, setRoundContext, startErrorReporting } from './telemetry/errors.js';
 
 /**
@@ -174,6 +175,10 @@ async function main(): Promise<void> {
   // Created here rather than inside GameClient: tuning is a persisted user preference shared
   // with the menus, and the menus exist before the first match does.
   const tuning = new TuningStore();
+  // Streamer mode's aliases, shared by the menus, the HUD and the nameplates so "Player 3" is the
+  // same person everywhere (`ui/streamer.ts`). The game client keeps it in step with the setting.
+  const streamer = new StreamerMask(session?.playerId ?? '');
+  streamer.enabled = settings.streamerMode;
 
   const shell = new Shell(
     {
@@ -185,6 +190,7 @@ async function main(): Promise<void> {
       tuning,
       canTune: () => game?.canTune ?? false,
       onTuningChanged: () => game?.applyTuning(),
+      streamer,
       callbacks: {
         onQuickPlay: (modeId) => void startMatch({ modeId }),
         onPractice: (modeId, levelId) => startPractice(modeId, levelId),
@@ -201,6 +207,8 @@ async function main(): Promise<void> {
         onSettingsChanged: (next) => {
           store.saveSettings(next);
           game?.applySettings(next);
+          streamer.enabled = next.streamerMode;
+          hud?.refreshStreamer();
           showCrosshair(next);
         },
         onNameChanged: (name) => void createSession(name),
@@ -258,7 +266,7 @@ async function main(): Promise<void> {
       if (friendsMenu?.isVisible) drawFriends();
     },
     onFollow: (roomCode, leaderName) => {
-      announce(`Following ${leaderName} into ${roomCode}`);
+      announce(`Following ${streamer.enabled ? 'your party leader' : leaderName} into ${roomCode}`);
       void switchRoom(roomCode);
     },
     onNews: (text) => announce(text),
@@ -267,7 +275,7 @@ async function main(): Promise<void> {
   /** A line for the player wherever they are looking: the HUD during play, the menu otherwise. */
   function announce(text: string): void {
     if (inMatch && shell.currentScreen === 'none' && hud) hud.showToast(text, 4000);
-    else shell.setNotice(text);
+    else shell.setNotice(streamer.text(text));
   }
 
   /** Into a room by code, leaving whatever round is running first — never two sockets at once. */
@@ -350,6 +358,7 @@ async function main(): Promise<void> {
       profile: { playerId: session.playerId, name, animalId, cosmetics, ...(session.token ? { token: session.token } : {}) },
       profileForQuality: profile,
       tuning,
+      streamer,
       callbacks: {
         // Every screen is a near-opaque `.kc-screen` over the canvas; see `BACKDROP_EVERY`.
         worldCovered: () => shell.currentScreen !== 'none',
@@ -372,7 +381,7 @@ async function main(): Promise<void> {
         onMicState: (enabled, open, muted) => hud?.setMicState(enabled, open, muted),
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
         onChat: (from, text, channel, own) => hud?.pushChat(from, text, channel, own),
-        onNotice: (text) => shell.setNotice(text),
+        onNotice: (text) => shell.setNotice(streamer.text(text)),
         onRoomState: (code, isPrivate, lobby) => {
           hud?.setStatus(`${code}${isPrivate ? ' (private)' : ''} · ${lobby.length} players`);
           hud?.setLobby(code, isPrivate, lobby);
@@ -410,6 +419,7 @@ async function main(): Promise<void> {
       platform: device.kind,
       localId: session.playerId,
       nameOf: (id) => game?.nameOf(id),
+      streamer,
       onMenu: () => openMenu(),
       onEmote: () => undefined,
       onReady: (ready) => game?.setReady(ready),

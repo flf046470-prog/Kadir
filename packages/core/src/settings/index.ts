@@ -128,6 +128,12 @@ export interface Settings {
    * sends anything whatever this says.
    */
   errorReports: boolean;
+  /**
+   * Streamer mode: while the screen is being broadcast, hide room codes, other players' names
+   * (each becomes a stable "Player N") and other players' chat text. Presentation only — it
+   * changes nothing anyone else sees, and nothing the server is told. See `client/ui/streamer.ts`.
+   */
+  streamerMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -175,6 +181,7 @@ export const DEFAULT_SETTINGS: Settings = {
   reduceMotion: false,
   colorblindSafe: false,
   errorReports: true,
+  streamerMode: false,
 };
 
 /** Deep-merge stored settings over the defaults, clamping anything out of range. */
@@ -192,6 +199,7 @@ export function mergeSettings(stored: unknown): Settings {
   if (typeof raw.reduceMotion === 'boolean') base.reduceMotion = raw.reduceMotion;
   if (typeof raw.colorblindSafe === 'boolean') base.colorblindSafe = raw.colorblindSafe;
   if (typeof raw.errorReports === 'boolean') base.errorReports = raw.errorReports;
+  if (typeof raw.streamerMode === 'boolean') base.streamerMode = raw.streamerMode;
 
   base.graphics.renderScale = clamp(base.graphics.renderScale, 0.5, 1.5);
   base.graphics.maxDetailedPlayers = Math.round(clamp(base.graphics.maxDetailedPlayers, 2, 16));

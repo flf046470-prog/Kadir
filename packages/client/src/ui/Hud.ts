@@ -5,6 +5,7 @@ import { ChatPanel } from './ChatPanel.js';
 import { buildHudModel } from './hudModel.js';
 import type { HudBout, HudModel, HudTallyItem } from './hudModel.js';
 import { roleBadge } from './roles.js';
+import { StreamerMask } from './streamer.js';
 
 export interface HudOptions {
   root: HTMLElement;
@@ -38,6 +39,11 @@ export interface HudOptions {
    * single most common way in-game chat is broken.
    */
   onChatFocus?(focused: boolean): void;
+  /**
+   * Streamer mode (`ui/streamer.ts`). Shared with the game client, so a player is "Player 3" on
+   * the scoreboard, the headline and over their head alike. Absent, nothing is masked.
+   */
+  streamer?: StreamerMask;
 }
 
 /**
@@ -112,9 +118,15 @@ export class Hud {
   /** The mode being played, so the badge and the toast use its names for roles (`MODE_ROLE_NAMES`). */
   private modeId = '';
   private options: HudOptions;
+  private readonly mask: StreamerMask;
+  /** Says streamer mode is on, so the streamer is never unsure whether a code is about to show. */
+  private readonly streamerBadge: HTMLElement;
 
   constructor(options: HudOptions) {
     this.options = options;
+    this.mask = options.streamer ?? new StreamerMask(options.localId);
+    this.streamerBadge = el('div', { class: 'kc-tag kc-streamer-badge', title: 'Streamer mode: room codes, names and chat are hidden' }, 'STREAMER');
+    this.streamerBadge.hidden = !this.mask.enabled;
     this.headline = el('div', { class: 'kc-headline' }, '');
     // Hidden until a mode publishes one. `el` sets no display, so `hidden` is what keeps these out
     // of the layout in every mode that is not a duel.
@@ -189,6 +201,7 @@ export class Hud {
         // show a button that opens an empty panel.
         this.lobbyButton,
         this.micPill,
+        this.streamerBadge,
       ),
     );
     options.root.append(this.element);
@@ -288,7 +301,8 @@ export class Hud {
       nameOf: this.options.nameOf,
       scoreLimit: globalThis.innerHeight < 480 ? 4 : 6,
     });
-    this.headline.textContent = model.headline;
+    this.headline.textContent = this.mask.text(model.headline);
+    this.streamerBadge.hidden = !this.mask.enabled;
     this.timer.textContent = model.timer;
     this.drawTally(model.tally);
     this.drawBout(model.bout);
@@ -423,7 +437,7 @@ export class Hud {
       el(
         'div',
         { class: 'kc-lobby-head' },
-        el('strong', {}, this.lobbyCode || 'Room'),
+        el('strong', {}, this.mask.code(this.lobbyCode) || 'Room'),
         el('span', { class: 'kc-pill' }, this.lobbyPrivate ? 'private' : 'public'),
         el('span', { class: 'kc-lobby-count' }, `${readyCount}/${this.lobbyPlayers.length} ready`),
         el(
@@ -441,7 +455,7 @@ export class Hud {
           'div',
           { class: `kc-lobby-row${player.ready ? ' kc-lobby-row--ready' : ''}` },
           el('span', { class: 'kc-lobby-tick' }, player.ready ? '✓' : '·'),
-          el('span', { class: 'kc-lobby-name' }, you ? `${player.name} (you)` : player.name),
+          el('span', { class: 'kc-lobby-name' }, you ? `${player.name} (you)` : this.mask.name(player.id, player.name)),
           el('span', { class: 'kc-lobby-animal' }, player.animalId),
         ),
       );
@@ -502,8 +516,15 @@ export class Hud {
     }
   }
 
+  /** Streamer mode was switched: redraw what already carries a name or a code. */
+  refreshStreamer(): void {
+    this.streamerBadge.hidden = !this.mask.enabled;
+    this.status.textContent = this.mask.text(this.status.textContent ?? '');
+    if (this.lobbyOpen) this.renderLobby();
+  }
+
   setStatus(text: string): void {
-    this.status.textContent = text;
+    this.status.textContent = this.mask.text(text);
   }
 
   /**
@@ -523,7 +544,7 @@ export class Hud {
   }
 
   pushChat(name: string, text: string, channel: 'room' | 'team' | 'system' = 'room', own = false): void {
-    this.chat.push({ name, text, channel, own });
+    this.chat.push({ name, text: this.mask.chat(text, own, channel === 'system'), channel, own });
   }
 
   /** Open or close the composer. Bound to Enter on PC and to a button on touch. */
@@ -545,7 +566,7 @@ export class Hud {
   }
 
   showToast(text: string, ms = 2200): void {
-    this.toast.textContent = text;
+    this.toast.textContent = this.mask.text(text);
     this.toast.classList.remove('kc-hidden');
     if (this.toastTimer) clearTimeout(this.toastTimer);
     this.toastTimer = setTimeout(() => this.toast.classList.add('kc-hidden'), ms);
@@ -590,7 +611,7 @@ export class Hud {
     }
     this.bout.hidden = false;
     clear(this.bout);
-    this.bout.append(el('span', { class: 'kc-bout-label' }, bout.label), el('span', { class: 'kc-bout-clock' }, bout.clock));
+    this.bout.append(el('span', { class: 'kc-bout-label' }, this.mask.text(bout.label)), el('span', { class: 'kc-bout-clock' }, bout.clock));
   }
 
   /** Translate a gameplay event the local player is involved in into feedback. */

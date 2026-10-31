@@ -3689,3 +3689,25 @@ the models load. The same rule as logs and cliffs: **the collider is what is dra
 - **Faceted by splitting the geometry** (`fitSerac`: `toNonIndexed` then normals). `fillUnitCube`'s
   shared normals melted the facets into wax; removing the split fails the same test.
 - Collision is unchanged, so no map version moved. Checked in a Cycles render, not yet in the game.
+
+## Streamer mode
+
+`Settings.streamerMode` (Settings → Match). `ui/streamer.ts`'s `StreamerMask` is one object, made in
+`main.ts` and shared by `Shell`, `Hud` and `GameClient`, so a player is the same "Player N" on the
+nameplate, the scoreboard, the lobby, the results, the safety and friends screens. Room codes print
+as `KANG-••••`, other players' chat lines as "message hidden (streamer mode)" (own lines and system
+notices stay), and a purple STREAMER badge sits in the top bar while it is on. Presentation only:
+nothing reaches the simulation or the server.
+
+- **Text built elsewhere with names inside it** (the headline, toasts, notices) is masked by
+  whole-word replacement from the names the mask has been asked about. A name it has never seen
+  passes through, so anything that prints a name nobody routed through `name()` must say something
+  neutral instead — the party-follow toast says "your party leader", a moderator's report queue
+  "a player".
+- Names that are game words (`Roo`, the default name) are not replaced: "Roo Ball" would become
+  "Player 1 Ball".
+- Measured in a real browser: with it on, a private room's status read `KANG-•••• (private)` and
+  no `KANG-XXXX` appeared anywhere in the page; practice scores read `Player 1…5`, and `Skippy,
+  Bounce, Joey, Hopper, Digger` with it off (`.probe/streamer*.mjs`, untracked).
+- The unit suite covers the mask (5 mutations, each failing it); the wiring has no DOM test — the
+  client tests run in node with no DOM library — so the browser probe is its evidence.

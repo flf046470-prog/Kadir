@@ -19,6 +19,7 @@ import type { TuningStore } from '../game/TuningStore.js';
 import type { SafetyAction, SafetyPlayer } from '../game/GameClient.js';
 import type { FriendView, ModActionKind, ModReportView, RoundRewards, SocialView } from '@kc/net';
 import type { Api, ContentBundle, ProfileBundle, SocialActionPath } from '../net/Api.js';
+import type { StreamerMask } from './streamer.js';
 
 export type ScreenId =
   | 'name'
@@ -93,6 +94,8 @@ export interface ShellOptions {
   canTune(): boolean;
   /** Push the current values into the running simulation. */
   onTuningChanged(): void;
+  /** Streamer mode's names (`ui/streamer.ts`). Absent, every name is shown as it is. */
+  streamer?: StreamerMask;
 }
 
 /**
@@ -290,6 +293,11 @@ export class Shell {
     this.settings = settings;
     this.element = el('div', { class: 'kc-root' });
     options.root.append(this.element);
+  }
+
+  /** Another player's name as the screen should show it — an alias in streamer mode. */
+  private who(id: string, name: string): string {
+    return this.options.streamer?.name(id, name) ?? name;
   }
 
   setContent(content: ContentBundle): void {
@@ -1411,6 +1419,11 @@ export class Shell {
       toggle('Send crash reports (no personal data)', s.errorReports, (v) => {
         s.errorReports = v;
       }),
+      // For anybody whose screen is being broadcast: a room code on a stream fills a private room
+      // with viewers, and other players never agreed to have their names and chat on it.
+      toggle("Streamer mode (hide room codes, other players' names and chat)", s.streamerMode, (v) => {
+        s.streamerMode = v;
+      }),
     );
 
     return el(
@@ -1488,13 +1501,13 @@ export class Shell {
     for (const player of players) {
       const reason = el(
         'select',
-        { class: 'kc-select', ariaLabel: `Why report ${player.name}` },
+        { class: 'kc-select', ariaLabel: `Why report ${this.who(player.id, player.name)}` },
         ...REPORT_REASONS.map(([value, label]) => el('option', { value }, label)),
       ) as HTMLSelectElement;
       const row = el(
         'div',
         { class: 'kc-safety-row' },
-        el('strong', {}, player.name),
+        el('strong', {}, this.who(player.id, player.name)),
         player.moderator ? el('span', { class: 'kc-tag kc-tag--mod' }, 'MOD') : null,
         el('span', { class: 'kc-note' }, ` ${player.animalId}`),
         el(
@@ -1526,7 +1539,7 @@ export class Shell {
             el(
               'span',
               { class: 'kc-note' },
-              ` ${report.reason} — by ${report.reporterName}, ${when}, room ${report.roomCode || '?'} · ${report.reporters} reporter${report.reporters === 1 ? '' : 's'}${report.autoMuted ? ' · auto-muted' : ''}`,
+              ` ${report.reason} — by ${this.options.streamer?.enabled ? 'a player' : report.reporterName}, ${when}, room ${this.options.streamer?.code(report.roomCode || '?') ?? (report.roomCode || '?')} · ${report.reporters} reporter${report.reporters === 1 ? '' : 's'}${report.autoMuted ? ' · auto-muted' : ''}`,
             ),
             this.moderatorButtons(report.targetId, act),
           ),
@@ -1585,7 +1598,7 @@ export class Shell {
             el(
               'div',
               { class: 'kc-safety-row' },
-              el('strong', {}, member.id === me ? `${member.name} (you)` : member.name),
+              el('strong', {}, member.id === me ? `${member.name} (you)` : this.who(member.id, member.name)),
               member.leader ? el('span', { class: 'kc-tag kc-tag--mod' }, 'LEADER') : null,
               el('span', { class: 'kc-note' }, ` ${presenceLabel(member.presence)}`),
               leading && member.id !== me
@@ -1595,7 +1608,7 @@ export class Shell {
           );
         }
         if (party.invited.length > 0) {
-          panel.append(el('p', { class: 'kc-note' }, `Waiting for ${party.invited.map((i) => i.name).join(', ')} to answer.`));
+          panel.append(el('p', { class: 'kc-note' }, `Waiting for ${party.invited.map((i) => this.who(i.id, i.name)).join(', ')} to answer.`));
         }
         panel.append(
           el(
@@ -1638,7 +1651,7 @@ export class Shell {
             el(
               'div',
               { class: 'kc-safety-row' },
-              el('strong', {}, request.name),
+              el('strong', {}, this.who(request.id, request.name)),
               el('span', { class: 'kc-note' }, ' wants to be friends'),
               el(
                 'div',
@@ -1654,7 +1667,7 @@ export class Shell {
             el(
               'div',
               { class: 'kc-safety-row' },
-              el('strong', {}, request.name),
+              el('strong', {}, this.who(request.id, request.name)),
               el('span', { class: 'kc-note' }, ' — waiting for an answer'),
               el('div', { class: 'kc-row' }, button('Cancel', () => void this.socialAct('friends/remove', { playerId: request.id }))),
             ),
@@ -1706,7 +1719,7 @@ export class Shell {
     return el(
       'div',
       { class: 'kc-safety-row' },
-      el('strong', {}, friend.name),
+      el('strong', {}, this.who(friend.id, friend.name)),
       friend.inParty ? el('span', { class: 'kc-tag kc-tag--mod' }, 'PARTY') : null,
       el('span', { class: 'kc-note' }, ` ${where}`),
       el('div', { class: 'kc-row' }, ...actions),
@@ -1848,7 +1861,7 @@ export class Shell {
         'tr',
         { class: player.playerId === localId ? 'me' : '' },
         el('td', {}, String(player.placement)),
-        el('td', {}, player.name),
+        el('td', {}, this.who(player.playerId, player.name)),
         el('td', {}, String(player.score)),
         el('td', {}, String(player.tags)),
       );

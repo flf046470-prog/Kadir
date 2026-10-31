@@ -55,6 +55,7 @@ import type { CaptureView } from './captureView.js';
 import { Renderer } from '../render/Renderer.js';
 import { worldNeedsRebuild } from '../render/surfaces.js';
 import type { PerformanceProfile, PlatformInput } from '../platform/Platform.js';
+import { StreamerMask } from '../ui/streamer.js';
 
 export interface GameCallbacks {
   onModeState(state: ModeStateView): void;
@@ -106,6 +107,11 @@ export interface GameClientOptions {
   profileForQuality: PerformanceProfile;
   /** Shared with the menus: tuning is a persisted user preference, not per-match state. */
   tuning: TuningStore;
+  /**
+   * Streamer mode's names, shared with the HUD and the menus so a player is the same alias in
+   * every place. Kept in step with `settings.streamerMode` by `applySettings`.
+   */
+  streamer?: StreamerMask;
 }
 
 interface RemotePlayer {
@@ -182,6 +188,7 @@ export class GameClient {
   private options: GameClientOptions;
 
   private localId: string;
+  readonly streamer: StreamerMask;
   private localAvatar: Avatar | null = null;
   private selfVisible = true;
   /**
@@ -273,6 +280,9 @@ export class GameClient {
     this.settings = options.settings;
     this.callbacks = options.callbacks;
     this.localId = options.profile.playerId;
+    this.streamer = options.streamer ?? new StreamerMask();
+    this.streamer.setLocalId(this.localId);
+    this.streamer.enabled = options.settings.streamerMode;
     this.tuning = options.tuning;
 
     this.level = buildJungleWorld();
@@ -322,7 +332,7 @@ export class GameClient {
       },
       onResults: (result, rewards) => this.callbacks.onResults(result, rewards),
       onChat: (playerId, name, text, channel) =>
-        this.callbacks.onChat(name, text, channel, playerId === this.localId),
+        this.callbacks.onChat(this.streamer.name(playerId, name), text, channel, playerId === this.localId),
       onChatRejected: (message) => this.callbacks.onChat('', message, 'system', true),
       onVoiceSignal: (fromId, payload, kind) => void this.voice.handleSignal(fromId, payload, kind),
       onRoomState: (state) => {
@@ -386,7 +396,13 @@ export class GameClient {
 
   /** Another player's name, from the roster that also labels their avatar. Bots included. */
   nameOf(id: string): string | undefined {
-    return this.remotes.get(id)?.entry.name;
+    const entry = this.remotes.get(id)?.entry;
+    return entry ? this.streamer.name(id, entry.name) : undefined;
+  }
+
+  /** Streamer mode was switched: every nameplate over another player's head is drawn again. */
+  refreshNames(): void {
+    for (const [id, remote] of this.remotes) remote.avatar.setName(this.streamer.name(id, remote.entry.name));
   }
 
   /** Everyone else as the camera sees them — for the store-capture scripts only (`captureView.ts`). */
@@ -679,6 +695,10 @@ export class GameClient {
 
   applySettings(settings: Settings): void {
     this.settings = settings;
+    if (this.streamer.enabled !== settings.streamerMode) {
+      this.streamer.enabled = settings.streamerMode;
+      this.refreshNames();
+    }
     this.audio.applySettings(settings);
     this.voice.setSpatial(settings.audio.spatialVoice);
     this.renderer.applySettings(settings);
@@ -837,6 +857,7 @@ export class GameClient {
     if (this.moderator) this.net.sendJson({ t: 'mod-reports' });
     this.soloResultsSent = false;
     this.localId = message.playerId;
+    this.streamer.setLocalId(message.playerId);
     this.modeId = message.modeId;
     this.roomCode = message.roomCode;
     this.bots = [];
@@ -1073,7 +1094,7 @@ export class GameClient {
     // The same for everyone, whatever their platform; see `ensureLocalAvatar`.
     avatar.setLegless(true);
     avatar.setCosmetics(entry.cosmetics);
-    avatar.setName(entry.name);
+    avatar.setName(this.streamer.name(entry.id, entry.name));
     this.renderer.scene.add(avatar.group);
     this.remotes.set(entry.id, { avatar, entry });
     this.upgradeToModel(avatar);
