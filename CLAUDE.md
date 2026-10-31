@@ -3656,3 +3656,20 @@ serac stands 33–61 m out, and at the leash it found one perch.
   refuses it; `render/Secrets.ts` uses `load` and clones. A gold V of two boxes draws until it loads.
 - Only the finder's own client hides one it has found; the sound is the finder's alone, the sparks
   are everyone's.
+
+## Rocks are solid (A32), and a pillar is the wrong thing to scatter
+
+The jungle's scatter laid 243 `rock` and 83 `boulder` props with no collider. `scatter` now sends
+both to `LevelBuilder.solidRock`: a rock sphere with its rock prop on it, the `rocks()` convention,
+so the renderer draws the sphere as a fitted Meshy rock and skips the prop. **The collider is what is
+drawn, never a prop:** props are thinned per kind by `foliageBudget`, and a solid prop the renderer
+skipped would be an invisible wall. Refused (same random draws, nothing after it moves) over water or
+a drop, more than 0.5 m off the ground meant for it, on a site's pad, and within `SOLID_ROCK_GAP`
+(1 m) of another solid. Jungle `version` 10; 190 rock props, each on its own sphere
+(`rocks.test.ts`, mutation-tested both ways).
+
+Measured, six bots × 48 seeds × 90 s, jungle: stuck 2.6 % → 2.8 %, falls 0, tags 562 → 445 (cover).
+**Solid 3 m boulder pillars were tried and dropped**: 4.3 % stuck; as round cylinders 3.4 %; with
+2.5 m of clearance still worse. A thing nobody can hop, scattered at random, makes traps.
+`navigation.test.ts`'s roam bound went 15 → 6 m for a reason written beside it: a racer now reaches
+a checkpoint 13 m up a tree no bot can climb before the measurement starts, and circles under it.

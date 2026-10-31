@@ -77,7 +77,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
     //    It had closed the gap round the north end of the canyon's west wall to 0.5 m.
     // 9: a fight cage beside the lobby, and a tenth door (Cage Fight) in the ring.
-    version: 9,
+    version: 10,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -281,6 +281,13 @@ function scatter(
     if (kind === 'log') {
       // Solid, so it may still be refused here: by ground too uneven to lie on, or by what is in its way.
       if (!b.fallenLog(x, at, z, yaw, LOG_HALF_LENGTH * size, LOG_RADIUS * size, options.zone)) continue;
+    } else if (kind === 'rock' || kind === 'boulder') {
+      // Solid too: a rock you could walk through, and the camera end up inside, was A32. Refused
+      // the same way, and at the same cost in random draws, so nothing placed after it moves.
+      // A `boulder` is a solid rock as well, not the 3 m pillar model: measured over 48 seeds,
+      // solid pillars nobody can hop took bots from 2.6 % of the round stuck to 4.3 % (a round
+      // collider, 3.4 %; 2.5 m of clearance, still worse), and solid rocks to 2.8 %.
+      if (!b.solidRock(x, at, z, yaw, size, options.zone)) continue;
     } else {
       b.prop(kind, vec3(x, at, z), yaw, size, options.tint ?? i % 4);
     }
@@ -415,7 +422,9 @@ function buildCanyonDistrict(b: LevelBuilder, rand: Rand): void {
 
   // Waterfall + plunge pool at the canyon head.
   b.box(vec3(cx, -4.4, 40), vec3(12, 0.6, 8), 'water', 0, 'canyon');
-  b.prop('rock', vec3(cx, 0, 44), 0, 4, 1);
+  // The rock the falls come over, solid like every other: drawn as the rock sphere it stands on.
+  b.sphere(vec3(cx, 3.6 * 0.55, 44), 3.6, 'rock', 'canyon');
+  b.prop('rock', vec3(cx, 0, 44), 0, 3.6, 1);
 
   // Ruined arch: a landmark that doubles as a climb.
   b.box(vec3(cx - 2, 2, -34), vec3(1.2, 6, 1.2), 'rock', 0.2, 'canyon');

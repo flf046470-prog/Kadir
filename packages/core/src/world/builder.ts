@@ -14,6 +14,13 @@ const SECRET_MIN_HEIGHT = 3;
 const SECRET_MAX_HEIGHT = 16;
 /** Two boomerangs on one map are never on neighbouring perches: this share of the search reach apart. */
 const SECRET_SPACING = 0.4;
+/** A scattered rock's sphere radius per unit of prop scale (the model is ~2 m across at scale 1). */
+const ROCK_RADIUS = 0.9;
+/**
+ * The least clear ground a solid rock leaves round itself, so two never make a slot just wider
+ * than a kangaroo for a bot to hop into and wedge.
+ */
+const SOLID_ROCK_GAP = 1;
 /** How far over its perch a boomerang floats — about a kangaroo's chest. */
 export const SECRET_LIFT = 0.9;
 
@@ -454,6 +461,15 @@ export class LevelBuilder {
 
   /** Whether a log resting on `ground` would run into a solid or onto a site's pad. */
   private logBlocked(x: number, z: number, yaw: number, halfLength: number, radius: number, ground: number): boolean {
+    return this.footprintBlocked(x, z, yaw, halfLength, radius, ground, ground + radius * LOG_MAX_SINK, ground + radius * 2, 0.05);
+  }
+
+  /**
+   * Whether a solid with this yawed rectangle footprint, standing from `floor` to `top`, would run
+   * into another solid or onto a site's pad. Anything whose top is at or below `clear` is ground it
+   * stands on, not in its way.
+   */
+  private footprintBlocked(x: number, z: number, yaw: number, halfLength: number, radius: number, ground: number, clear: number, top: number, margin: number): boolean {
     const cos = Math.cos(yaw);
     const sin = Math.sin(yaw);
     // A world point in the log's own frame: local +X is (cos, 0, −sin), local +Z is (sin, 0, cos).
@@ -466,12 +482,10 @@ export class LevelBuilder {
       const [lx, lz] = local(px, pz);
       return Math.hypot(Math.max(Math.abs(lx) - halfLength, 0), Math.max(Math.abs(lz) - radius, 0));
     };
-    const top = ground + radius * 2;
-    const margin = 0.05;
     for (const c of this.colliders) {
       if (c.kind === 'heightfield') continue;
       // Ground it rests on, or sinks into no deeper than the terrain may, is not in the way.
-      if (colliderTop(c) <= ground + radius * LOG_MAX_SINK || colliderBottom(c) >= top) continue;
+      if (colliderTop(c) <= clear || colliderBottom(c) >= top) continue;
       if (c.kind === 'sphere' || c.kind === 'cylinder') {
         if (distance(c.center.x, c.center.z) < c.radius + margin) return true;
         continue;
@@ -494,6 +508,33 @@ export class LevelBuilder {
       if (distance(site.position.x, site.position.z) < site.pad) return true;
     }
     return false;
+  }
+
+  /**
+   * A scattered rock that is solid, rather than a prop a player walks through (A32).
+   *
+   * A rock sphere with its rock prop on it, the convention `rocks` already uses: the renderer draws
+   * the sphere as a Meshy rock fitted to it and skips the prop, so what is drawn is what collides,
+   * and a collider is never thinned out by `foliageBudget` the way a prop is — a solid prop the
+   * renderer skipped would be an invisible wall. At scale 1 the rock model is about 2 m across and
+   * 1.4 m tall (`props.py` `SIZES`), so the sphere's radius is `ROCK_RADIUS` × scale.
+   *
+   * It stands on the ground under it, found by a ray, and is refused — nothing is placed, and it
+   * returns false — over water or a drop, on ground more than half a metre from `y`, within
+   * `SOLID_ROCK_GAP` of another solid, and on a site's pad.
+   */
+  solidRock(x: number, y: number, z: number, yaw: number, scale: number, zone = 'jungle'): boolean {
+    const world = this.probeWorld();
+    const ray = makeRaycastResult();
+    // From just above the ground meant for it: a cave has a ceiling a few metres up.
+    world.raycast(ray, vec3(x, y + 1, z), vec3(0, -1, 0), 3);
+    if (!ray.hit || ray.surface.flags & SurfaceFlags.Water || Math.abs(ray.point.y - y) > 0.5) return false;
+    const ground = ray.point.y;
+    const r = ROCK_RADIUS * scale;
+    if (this.footprintBlocked(x, z, yaw, r, r, ground, ground + 0.1, ground + r * 1.55, SOLID_ROCK_GAP)) return false;
+    this.sphere(vec3(x, ground + r * 0.55, z), r, 'rock', zone);
+    this.prop('rock', vec3(x, ground, z), yaw, r, 1);
+    return true;
   }
 
   prop(kind: PropKind, position: Vec3, yaw = 0, scale = 1, tint = 0): void {

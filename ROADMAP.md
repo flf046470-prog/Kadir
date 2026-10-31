@@ -201,7 +201,7 @@ passes. Writing the code does not tick it.
   card that climbs 1v1 → the smaller team (at most 4v4), knockouts and ring-outs, the bench rotated.
   Bots, 8 players, 2 rounds a map: 30–35 fights, 28 of 31 by knockout on the jungle, no friendly hits,
   nobody outside the fence. CLAUDE.md → "Cage Fight".
-- [ ] **A32. Undergrowth rocks you walk through.** The jungle's scattered `boulder` and `rock` props
+- [x] **A32. Undergrowth rocks you walk through.** Done 2026-10-31: every scattered rock and boulder on the jungle is a solid rock sphere (`LevelBuilder.solidRock`); see CLAUDE.md. The jungle's scattered `boulder` and `rock` props
   have no collider (83 boulders, up to 1.39 scale): a rock a player passes through and the camera ends
   up inside. Found from a Cage Fight screenshot. Exit: each is solid or is small enough to be
   ground cover, decided per size and measured on the bots like the fallen logs.
