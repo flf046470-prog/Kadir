@@ -16,8 +16,6 @@ Title on Steam: **DERİNLİK** · subtitle in art and text: **The Depths: Echoes
 ```
 2028. A small urban-exploration YouTuber receives an email with no sender: be in a basement in Sakarya before 03.17. Four places, one hidden network, and choices that decide who comes back. First-person psychological horror.
 ```
-2028. A small urban-exploration YouTuber receives an email with no sender: be in a basement in Sakarya before 03.17. Four places, one hidden network — and a camcorder that sees what your eyes cannot. First-person psychological horror.
-```
 
 ### About This Game
 
@@ -72,8 +70,6 @@ Psychological horror with frightening themes, disturbing imagery and menacing pu
 ```
 2028. Terk edilmiş yapıları çeken küçük bir YouTuber'a göndereni boş bir e-posta gelir: 03.17'den önce Sakarya'daki bodruma git. Dört yer, gizli bir ağ ve kimin geri döneceğini belirleyen kararlar. Birinci şahıs psikolojik korku.
 ```
-2028. Terk edilmiş yapıları çeken küçük bir YouTuber'a göndereni boş bir e-posta gelir: 03.17'den önce Sakarya'daki bodruma git. Dört yer, gizli bir ağ ve çıplak gözün görmediğini gören bir video kamera. Birinci şahıs psikolojik korku.
-```
 
 ### Oyun hakkında
 
@@ -127,7 +123,7 @@ Korkutucu temalar, rahatsız edici görüntüler ve tehditkâr takipçiler içer
 | --- | --- |
 | Genre | Adventure, Indie |
 | Tags (in this order; the first ones weigh most) | Psychological Horror, Horror, First-Person, Atmospheric, Story Rich, Mystery, Exploration, Stealth, Multiple Endings, Singleplayer, Supernatural, Thriller, Investigation, Dark, Survival Horror, Realistic, 3D, Indie, Walking Simulator |
-| Supported languages **today** | Turkish — interface and subtitles. Tick English only once the game has an English translation (see README). |
+| Supported languages | Interface + subtitles (no full audio): Turkish, English, German, French, Spanish (Spain), Portuguese (Brazil), Russian, Simplified Chinese, Japanese, Korean. Tick a language only after a native speaker has read its translation. |
 | Platforms | Windows (the Linux build exists too; enable only after testing it on a real Linux / Steam Deck machine) |
 | Controller | Not supported yet (keyboard + mouse) |
 | Release date display | "Coming soon" or a year / quarter, not an exact date until the build is final |

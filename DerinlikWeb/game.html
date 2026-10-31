@@ -337,12 +337,15 @@ const M = new Proxy({}, { get: (_, k) => ({
 }[k] ?? (() => surface(k)))() });
 
 function textTexture(lines, { w = 512, h = 256, fg = '#ffffff', bg = null, font = '64px VT323, monospace', align = 'center', glow = 0 } = {}) {
+  lines = [].concat(lines).map((l) => t(l)); // signs with a translation follow the player's language; local signage has none and stays as written
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const g = cv.getContext('2d');
   if (bg) { g.fillStyle = bg; g.fillRect(0, 0, w, h); }
   g.fillStyle = fg; g.font = font; g.textAlign = align; g.textBaseline = 'middle'; if (glow) { g.shadowColor = fg; g.shadowBlur = glow; }
   const arr = Array.isArray(lines) ? lines : [lines], lh = h / (arr.length + 1);
+  const room = w - (align === 'center' ? 16 : 32), widest = Math.max(...arr.map((l) => g.measureText(l).width));
+  if (widest > room) g.font = font.replace(/(\d+(?:\.\d+)?)px/, (_, n) => `${Math.floor(n * room / widest)}px`); // a longer translation shrinks to fit its plate
   arr.forEach((l, i) => g.fillText(l, align === 'center' ? w / 2 : 24, lh * (i + 1)));
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
 }
 const glyphCache = {};
 function glyphTexture(index, color = '#f4e6c8') { // four First Recorders' glyphs: circle, triangle, eye, spiral
@@ -675,7 +678,15 @@ function t(s) {
   if (lang === 'tr' || !s || typeof s !== 'string') return s;
   const d = I18N_DATA[lang] || {};
   if (d[s] != null) return d[s];
-  return s.includes(' · ') ? s.split(' · ').map((p) => d[p] ?? p).join(' · ') : s;
+  if (!s.includes(' · ')) return s;
+  // a label built from known pieces ("<choice label> · emin misin? Tekrar E"): translate the longest known run at each point
+  const parts = s.split(' · '), out = [];
+  for (let i = 0; i < parts.length;) {
+    let j = parts.length;
+    while (j > i + 1 && d[parts.slice(i, j).join(' · ')] == null) j--;
+    const k = parts.slice(i, j).join(' · '); out.push(d[k] ?? k); i = j;
+  }
+  return out.join(' · ');
 }
 function tf(key, ...a) { return (lang === 'tr' ? key : (I18N_DATA[lang] || {})[key] ?? key).replace(/\{(\d)\}/g, (_, i) => a[i]); }
 const tHTML = (html) => (lang === 'tr' ? html : String(html).split(/(<[^>]+>)/).map((p) => (p.startsWith('<') || !p.trim() ? p : p.replace(p.trim(), t(p.trim())))).join(''));
@@ -1557,8 +1568,8 @@ function drawingTexture() {
   g.strokeStyle = '#fff'; g.lineWidth = 6; g.lineCap = g.lineJoin = 'round';
   [[70, 220], [190, 200], [320, 200], [440, 220]].forEach(([x, y]) => { g.strokeRect(x - 34, y - 70, 68, 120); g.beginPath(); g.arc(x + 18, y - 4, 4, 0, 7); g.stroke(); });
   g.beginPath(); g.arc(256, 120, 26, 0, 7); g.moveTo(256, 146); g.lineTo(256, 250); g.moveTo(216, 190); g.lineTo(296, 190); g.moveTo(256, 250); g.lineTo(226, 320); g.moveTo(256, 250); g.lineTo(286, 320); g.stroke();
-  g.font = '34px "Comic Sans MS", "Segoe Print", cursive'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText('ADIMI UNUTMA', 256, 368);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; return t;
+  g.font = '34px "Comic Sans MS", "Segoe Print", cursive'; g.fillStyle = '#fff'; g.textAlign = 'center'; g.fillText(t('ADIMI UNUTMA'), 256, 368);
+  const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; return tex;
 }
 
 /* ================================================================ endings */

@@ -4,7 +4,7 @@ Bu klasör Steam mağaza sayfası için gereken her şeyi tek yerde toplar:
 
 | Dosya / klasör | İçerik |
 | --- | --- |
-| `store-text.md` | EN + TR kısa açıklama, "Oyun hakkında" metni (Steam BBCode), etiketler, tür, dil, sistem gereksinimleri |
+| `store-text.md` · `store-text-intl.md` | EN + TR (ve DE, FR, ES, PT-BR, RU, ZH, JA, KO) kısa açıklama, "Oyun hakkında" metni (Steam BBCode), etiketler, tür, dil, sistem gereksinimleri |
 | `art/` | Mağaza ve kütüphane görselleri (Steam'in istediği ölçülerde) |
 | `screenshots/` | 1920×1080 oyun içi ekran görüntüleri |
 | `tools/` | Görselleri ve ekran görüntülerini yeniden üreten betikler |
@@ -43,9 +43,11 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
 
 ## Karar vermen gerekenler
 
-- **Dil:** Oyun şu an yalnızca Türkçe. Steam'de "desteklenen diller" kısmına bugün yalnızca Türkçe (arayüz + altyazı)
-  işaretlenmeli. İngilizce çeviri satışlar için büyük fark yaratır; 1 yıllık geliştirme planının başına koymanı öneririm.
-  Mağaza metni İngilizce de olabilir; bu, oyunun İngilizce olduğu anlamına gelmez ve öyle sunulmamalı.
+- **Dil:** Oyunun arayüzü, altyazıları ve oyuncunun kullandığı tabelalar 10 dilde: Türkçe, İngilizce, Almanca, Fransızca,
+  İspanyolca, Brezilya Portekizcesi, Rusça, Basitleştirilmiş Çince, Japonca, Korece. Oyun ilk açılışta sistem dilini seçer;
+  başlangıç ve duraklatma ekranından değiştirilebilir. Çeviriler makine kalitesinde taslak: Steam'de bir dili "desteklenen"
+  diye işaretlemeden önce o dili anadili olan biri okumalı. Sesli diyalog yok, bu yüzden yalnızca "Arayüz" ve "Altyazılar"
+  sütunları işaretlenir. Mağaza metinleri: `store-text.md` (EN/TR) ve `store-text-intl.md` (diğer 8 dil).
 - **Oyun süresi:** Dallanan hikâyeden sonra yeniden ölçülmedi (eski içerik ~25 dakikaydı). Mağaza metinlerine süre yazmadım; çıkışta ne kadar olacağına sen
   karar verince eklenebilir.
 - **Fiyat ve çıkış tarihi:** Coming Soon için gerekmez. Tarih alanında "Coming soon" ya da yalnızca yıl/çeyrek göstermek
