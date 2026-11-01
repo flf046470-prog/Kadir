@@ -11,6 +11,8 @@ import fs from 'fs'; import http from 'http'; import path from 'path';
 const [,, htmlPath, outDir, ...rest] = process.argv;
 // --stride N: a quick look at the cut, keeping only every Nth frame (game time still advances frame by frame)
 const STRIDE = rest.includes('--stride') ? +rest[rest.indexOf('--stride') + 1] : 1;
+// --only 3,17: render just these shots (indices into SHOTS), to look at one shot without the whole cut
+const ONLY = rest.includes('--only') ? new Set(rest[rest.indexOf('--only') + 1].split(',').map(Number)) : null;
 const FPS = 30;
 fs.mkdirSync(outDir, { recursive: true });
 const logo = 'data:image/png;base64,' + fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'art', 'library_logo_1280.png')).toString('base64');
@@ -38,6 +40,9 @@ const SHOTS = [
   { ch: 3, dur: .7, pulse: true, warm: 3.0, warmAt: [0, 24.0, 0, 36.6, 2.6], k: [[0, 29.0, 0, 36.6, 2.6], [0, 29.2, 0, 36.6, 2.6]] },
   { ch: 2, dur: .6, pulse: true, k: [[0, 3.0, 0, 20, 1.5], [0, 3.3, 0, 20, 1.5]] },
   { ch: 0, dur: .6, pulse: true, choices: { power: 'relay' }, warm: 3.0, k: [[0, 30.6, 0, 32.55, 1.2], [0, 30.8, 0, 32.55, 1.2]] },
+  // the music drops out; out of the crawl, a whisper at your back; turn round and it is standing there (game.html
+  // buildSakarya: the game's own trigger spawns it, then kills the torch). turn: [start, length] as fractions of the shot.
+  { ch: 0, dur: 2.5, torch: true, behind: true, turn: [.36, .14], k: [[0, 15.35, 0, 18, 1.5], [0, 15.65, 0, 18, 1.5]] },
   { end: true, dur: 4.6 },
 ];
 
@@ -81,11 +86,14 @@ const place = (p, rebuild, ch, choices = {}) => page.evaluate(([[x, z, lx, lz, l
   if (rebuild) { for (const k of Object.keys(d.choices)) delete d.choices[k]; Object.assign(d.choices, choices); d.buildChapter(ch); }
   d.player.enabled = true; d.player.crouched = false; d.player.x = x; d.player.z = z; d.player.eye = 1.64;
   if (lx === null && d.enemy) d.face(d.enemy.x, d.enemy.z, 1.5); else d.face(lx, lz, ly);
+  return [d.player.yaw, d.player.pitch];
 }, [p, rebuild, ch, choices]);
 
-for (const s of SHOTS) {
+await page.evaluate(() => { const d = window.__derinlik; d.FX.on('behind', () => { window.__behindSeen = true; }); });
+for (const [si, s] of SHOTS.entries()) {
+  if (ONLY && !ONLY.has(si)) continue;
   const n = Math.round(s.dur * FPS);
-  timeline.push({ start: frame / FPS, dur: n / FPS, kind: s.card ? 'card' : s.end ? 'end' : s.pulse ? 'pulse' : s.cam ? 'cam' : s.enemy ? 'enemy' : 'shot', label: s.card ?? null, camAt: s.camAt != null ? (frame + Math.round(s.camAt * n)) / FPS : null, ch: s.ch ?? null });
+  timeline.push({ start: frame / FPS, dur: n / FPS, kind: s.card ? 'card' : s.end ? 'end' : s.pulse ? 'pulse' : s.behind ? 'behind' : s.cam ? 'cam' : s.enemy ? 'enemy' : 'shot', label: s.card ?? null, camAt: s.camAt != null ? (frame + Math.round(s.camAt * n)) / FPS : null, ch: s.ch ?? null });
   if (s.card || s.end) {
     await page.evaluate((s) => {
       const tl = document.getElementById('tl');
@@ -116,13 +124,18 @@ for (const s of SHOTS) {
   await place(s.k[0], false, s.ch);
   if (s.cam && s.camAt == null) await page.evaluate(() => { const d = window.__derinlik; if (!d.state.camRaised) { d.toggleCam(); d.advance(.4); } });
   if (s.pulse) await page.evaluate(() => window.__derinlik.FX.emit('say', 'İkinci Ses', '', 1000));
+  const [yaw0, pitch0] = await place(s.k[0], false, s.ch);
+  await page.evaluate(() => { window.__behindSeen = false; });
   for (let i = 0; i < n; i++) {
     const t = ease(n > 1 ? i / (n - 1) : 0), a = s.k[0], b = s.k[s.k.length - 1];
     const p = a[2] === null ? [lerp(a[0], b[0], t), lerp(a[1], b[1], t), null] : a.map((v, j) => lerp(v, b[j], t));
     await place(p, false, s.ch);
+    // a whip-pan straight round (a look target cannot cross the player, so the yaw is turned directly)
+    if (s.turn) { const u = Math.min(1, Math.max(0, (i / n - s.turn[0]) / s.turn[1])); await page.evaluate(([y, p]) => window.__derinlik.setLook(y, p), [yaw0 + Math.PI * ease(u), pitch0]); }
     if (s.camAt != null && i === Math.round(s.camAt * n)) await page.evaluate(() => { const d = window.__derinlik; if (!d.state.camRaised) d.toggleCam(); });
     await stepGame(1 / FPS);
-    const fade = s.pulse ? 0 : Math.max(0, 1 - Math.min(i / 8, (n - 1 - i) / 8));   // dip to black at cuts, not on the fast cuts
+    if (s.behind && !timeline.at(-1).revealAt && await page.evaluate(() => window.__behindSeen)) timeline.at(-1).revealAt = frame / FPS;
+    const fade = s.behind ? (i < 4 ? 1 - i / 4 : 0) : s.pulse ? 0 : Math.max(0, 1 - Math.min(i / 8, (n - 1 - i) / 8));   // dip to black at cuts, not on the fast cuts
     await page.evaluate((f) => { document.getElementById('fadeT').style.opacity = String(f); }, fade);
     await snap();
   }

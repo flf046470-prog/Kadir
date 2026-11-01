@@ -146,9 +146,11 @@ def main(timeline_path, out_path):
     t = np.arange(n) / SR
     shots = tl['shots']
     end_at = next(s['start'] for s in shots if s['kind'] == 'end')
-    # intensity: rises over the cut, peaks on the fast cuts, gone at the end card
-    rise = np.clip(t / end_at, 0, 1) ** 1.6
-    rise[t >= end_at] = 0
+    # the music drops out for the 'behind you' shot (silence before the scare), else at the end card
+    hush_at = next((s['start'] for s in shots if s['kind'] == 'behind'), end_at)
+    # intensity: rises over the cut, peaks on the fast cuts, gone at the hush
+    rise = np.clip(t / hush_at, 0, 1) ** 1.6
+    rise[t >= hush_at] = 0
 
     bed = np.zeros((2, n))
     # 1. drone: the gate hum, its fifth and a slow beating pair, swelling with the cut
@@ -156,13 +158,13 @@ def main(timeline_path, out_path):
              + .35 * np.sin(2 * np.pi * 110.4 * t) * (.5 + .5 * np.sin(2 * np.pi * .13 * t))
              + .25 * np.sin(2 * np.pi * 36.7 * t))
     drone_env = np.clip(t / 3, 0, 1) * (.35 + .65 * rise)
-    drone_env[t >= end_at] = 0
+    drone_env[t >= hush_at] = 0
     put(bed, 0, drone * drone_env, .16)
     # 2. wind: band-passed noise breathing at .07 Hz (ambienceWind)
     wind = band(rng.standard_normal(n), lo=200, hi=520) * (.6 + .4 * np.sin(2 * np.pi * .07 * t))
     wind_r = band(rng.standard_normal(n), lo=200, hi=520) * (.6 + .4 * np.cos(2 * np.pi * .07 * t))
     w_env = np.clip(t / 2, 0, 1) * (1 - .5 * rise)
-    w_env[t >= end_at] = 0
+    w_env[t >= hush_at] = 0
     bed[0] += wind * w_env * .05
     bed[1] += wind_r * w_env * .05
     # 3. a high, thin string-like tone that creeps in (two detuned saws, low-passed)
@@ -171,6 +173,8 @@ def main(timeline_path, out_path):
     put(bed, 0, strings * rise ** 2.2, .035)
 
     hits = np.zeros((2, n))
+    close = np.zeros((2, n))   # dry, after the reverb and the hush: right at the listener's ear
+    reveal_at = None
     for i, s in enumerate(shots):
         a = s['start']
         if s['kind'] == 'card':
@@ -191,6 +195,14 @@ def main(timeline_path, out_path):
             for k in range(5):
                 put(hits, a + .4 + k * .74, thump(72, .3, .5), .32, pan=.45)
             put(hits, a + 1.2, whisper(2.6), .1, pan=.4)
+        elif s['kind'] == 'behind':
+            # in the silence, a whisper right behind the listener; on the frame it appears: tape tear and a hit;
+            # half a second later the slam that kills the torch, then nothing until the end card
+            put(close, a + .15, whisper(1.3), .12)
+            r = reveal_at = s.get('revealAt') or a + 1.2
+            put(hits, r, static(.45), .16)
+            put(hits, r, boom(2.2), .75)
+            put(hits, r + .48, thump(58, .45, .8), .7)
         elif s['kind'] == 'end':
             put(hits, a, boom(6.0), .9)
             put(hits, a, static(.8), .05)
@@ -198,7 +210,7 @@ def main(timeline_path, out_path):
     kola = next(s['start'] for s in shots if s.get('label') == 'KOLA')
     pulse_start = next(s['start'] for s in shots if s['kind'] == 'pulse')
     beat_t = kola
-    while beat_t < end_at - .4:
+    while beat_t < hush_at - .4:
         k = np.clip((beat_t - kola) / max(pulse_start - kola, 1), 0, 1)
         put(hits, beat_t, heartbeat(), .45 + .25 * k)
         beat_t += 1.05 - .45 * k
@@ -212,6 +224,14 @@ def main(timeline_path, out_path):
             put(hits, d, np.sin(2 * np.pi * np.cumsum(f) / SR) * env(m, .003, .08, .003), .06, pan=-.4)
 
     mix = reverb(bed + hits, wet=.32)
+    if reveal_at is not None:
+        # the hush: everything before it (fast-cut booms, their reverb tails) is pulled down to near silence in .15 s
+        # and held there until the thing appears
+        duck = np.ones(n)
+        inside = (t >= hush_at) & (t < reveal_at)
+        duck[inside] = np.maximum(.06, 1 - (t[inside] - hush_at) / .15)
+        mix *= duck
+    mix += close
     # end card: let the reverb tail ring, then fade out with the last frames
     tail = np.clip((total - t) / .8, 0, 1)
     mix *= tail
