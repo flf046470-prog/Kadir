@@ -1,0 +1,1037 @@
+import { angleDelta, clamp, clamp01 } from '../math/scalar.js';
+import type { Vec3 } from '../math/vec3.js';
+import { v3copy, v3dot, v3length, v3normalize, v3set, vec3 } from '../math/vec3.js';
+import type { MoveResult } from '../physics/character.js';
+import { DEFAULT_MOVE_PARAMS, makeMoveResult, moveCapsule } from '../physics/character.js';
+import type { PhysicsWorld } from '../physics/world.js';
+import { SurfaceFlags, hasFlag, makeSurfaceQueryResult } from '../physics/types.js';
+import type { SurfaceQueryResult } from '../physics/types.js';
+import type { InputIntent } from '../input/intent.js';
+import { Buttons, hasButton } from '../input/intent.js';
+import type { SimEventQueue } from '../sim/events.js';
+import type { HandState, PlayerState } from './state.js';
+import { LEFT, PULL_WINDOW, RIGHT } from './state.js';
+
+export interface LocomotionContext {
+  world: PhysicsWorld;
+  events: SimEventQueue;
+  tick: number;
+  /** Y below which a player is considered to have fallen out of the level. */
+  killPlaneY: number;
+}
+
+/** Below this speed a grounded player is treated as stationary. */
+const REST_SPEED = 0.05;
+/** Stamina at which a sprint runs out, and the stamina it must recover to before the next one. */
+const SPRINT_FLOOR = 5;
+const SPRINT_RECOVERY = 25;
+
+const _moveResult: MoveResult = makeMoveResult();
+const _surface: SurfaceQueryResult = makeSurfaceQueryResult();
+const _tmp = vec3();
+const _tmp2 = vec3();
+const _correction = vec3();
+const _handWorld = vec3();
+const _forward = vec3();
+const _right = vec3();
+
+/**
+ * One fixed-step of player movement.
+ *
+ * The order matters and is deliberate:
+ *   timers → look → hands (VR) → climb → locomotion → collide → post-effects.
+ * Hands run before locomotion so that a hand anchor can veto gravity for the tick; climb runs
+ * after hands so a VR player's hands win over the assisted climb used on flat platforms.
+ */
+export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: LocomotionContext, dt: number): void {
+  const cfg = player.config;
+
+  advanceTimers(player, dt);
+
+  const prevYaw = player.yaw;
+  player.yaw = intent.lookYaw;
+  player.pitch = intent.lookPitch;
+  player.headHeight = intent.headHeight || player.headHeight;
+
+  directionsFromYaw(player.yaw);
+
+  // Freezing takes away every way of moving under your own power, and there are three of them:
+  // the assisted climb (gated here), the VR hand grip (gated in `updateHandPoses`, where both
+  // input paths meet), and ground/air locomotion (gated in `applyGroundAndAir`). Missing any one
+  // leaves a platform on which being frozen is merely inconvenient.
+  const frozen = player.gadgets.frozen > 0;
+  const grabLeft = hasButton(intent.buttons, Buttons.GrabLeft);
+  const grabRight = hasButton(intent.buttons, Buttons.GrabRight);
+
+  player.guarding = !frozen && hasButton(intent.buttons, Buttons.Guard);
+
+  startPunchThrows(player, intent, frozen, ctx);
+  updateHandPoses(player, intent, dt, grabLeft, grabRight, prevYaw);
+
+  const handsAnchored = updateHandGrips(player, ctx);
+  const handDriven = handsAnchored > 0;
+
+  if (handDriven) {
+    applyHandCorrection(player, handsAnchored, dt);
+    // A pose jump moved nobody this tick, so it says nothing about how fast the arms were going.
+    if (!player.hands[0].jumped && !player.hands[1].jumped) recordPull(player);
+  } else {
+    releasePull(player);
+    applyPalmPush(player, ctx, dt);
+  }
+
+  const climbing = updateClimb(player, intent, ctx, dt, !frozen && (grabLeft || grabRight), handDriven);
+
+  const wantsJump = hasButton(intent.buttons, Buttons.Jump);
+  if (wantsJump) player.jumpBufferTimer = cfg.jumpBufferTime;
+
+  if (!handDriven && !climbing) {
+    applyGroundAndAir(player, intent, ctx, dt, wantsJump);
+  } else if (wantsJump && (climbing || handDriven)) {
+    launchFromGrab(player, ctx, climbing);
+  }
+
+  clampVelocity(player);
+
+  const wasGrounded = player.grounded;
+  player.wasGrounded = wasGrounded;
+  moveCapsule(
+    ctx.world,
+    player.position,
+    player.velocity,
+    { radius: cfg.radius, height: player.height },
+    dt,
+    DEFAULT_MOVE_PARAMS,
+    _moveResult,
+    wasGrounded,
+  );
+
+  applyCollisionResults(player, ctx, _moveResult, wasGrounded);
+  updateDerived(player, ctx);
+}
+
+function advanceTimers(player: PlayerState, dt: number): void {
+  player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
+  player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
+  player.staggerTimer = Math.max(0, player.staggerTimer - dt);
+  player.invulnTimer = Math.max(0, player.invulnTimer - dt);
+  player.tagCooldown = Math.max(0, player.tagCooldown - dt);
+  player.emoteTimer = Math.max(0, player.emoteTimer - dt);
+  if (player.emoteTimer === 0) player.emoteId = 0;
+  for (const hand of player.hands) {
+    hand.punchCooldown = Math.max(0, hand.punchCooldown - dt);
+    hand.punchThrow = Math.max(0, hand.punchThrow - dt);
+  }
+}
+
+/**
+ * The body's axes. Right is `forward × up` in this right-handed, y-up world: a camera looking along
+ * `forward` has it as its screen's +x. It was `(cos, 0, -sin)` — the character's *left* — and since
+ * everything built on it agreed with everything else, D walked left, the stick climb slid left and
+ * the right fist came off the left shoulder without one test inside the simulation noticing
+ * (`handedness.test.ts` judges by a three.js camera instead).
+ */
+function directionsFromYaw(yaw: number): void {
+  v3set(_forward, Math.sin(yaw), 0, Math.cos(yaw));
+  v3set(_right, -Math.cos(yaw), 0, Math.sin(yaw));
+}
+
+/** How long a synthesised punch takes to reach full extension, and to come back. */
+const PUNCH_EXTEND = 0.09;
+const PUNCH_RETRACT = 0.13;
+/** How far in front of the chest a thrown punch reaches, in metres. */
+const PUNCH_REACH = 0.92;
+/** Resting reach of an idle hand; a held grab pulls it out to `GRAB_REACH`. */
+const IDLE_REACH = 0.25;
+const GRAB_REACH = 0.55;
+/** A raised guard: gloves this far in front of the face, either side of the nose, below the eyes. */
+const GUARD_REACH = 0.24;
+const GUARD_LATERAL = 0.1;
+const GUARD_DROP = 0.06;
+
+/**
+ * Turn the punch buttons into an arm that actually moves.
+ *
+ * `combat.ts` resolves a punch purely from hand velocity — it has to, because in VR the tracked
+ * hand *is* the punch and there is no button to read. The comment there promised that "on
+ * PC/Mobile the platform layer synthesises a hand thrust when the punch button is pressed", and
+ * nothing anywhere did: `Buttons.PunchLeft` and `Buttons.PunchRight` were set by the PC and mobile
+ * input layers and then read by no one.
+ *
+ * Measured before this existed: two players toe to toe for five seconds, one of them holding the
+ * punch button — the victim finished on 100.0 of 100 health. Holding *grab* instead took them to
+ * 84.3, and alternating it to 57.8, because grab is what extends the arm. So melee on two of the
+ * three platforms was impossible on the button meant for it and an accident on the climbing
+ * button. VR Boxing and the Conversion Duel bouts are built entirely on punching.
+ */
+function startPunchThrows(
+  player: PlayerState,
+  intent: InputIntent,
+  frozen: boolean,
+  ctx: LocomotionContext,
+): void {
+  // A VR player's hands are tracked, and their real motion already carries the punch; adding a
+  // synthetic thrust on top would let a headset player punch with a button *and* their arm.
+  if (intent.hands !== null || frozen) return;
+  const wants = [
+    hasButton(intent.buttons, Buttons.PunchLeft),
+    hasButton(intent.buttons, Buttons.PunchRight),
+  ];
+  // Held rather than tapped is deliberate: the throw runs to completion and can only restart once
+  // the combat cooldown has also expired, so holding the button throws at the weapon's own cadence
+  // instead of once per press. Mashing cannot beat it, which is the point.
+  const ready = (hand: HandState): boolean => hand.punchThrow <= 0 && hand.punchCooldown <= 0;
+  /**
+   * Start a throw — and say that one started.
+   *
+   * `punchHit` only fires when a punch *connects*, so before this every swing that missed was
+   * silent in every channel: no sound, no pulse, nothing on the HUD. On a button platform that
+   * makes a whiff indistinguishable from an unbound button, which is the same "reads as the game
+   * having stopped responding" failure as the dropped gadget events.
+   *
+   * It is emitted here rather than from `combat.ts` because this is the only place in the game
+   * where a punch is *deliberately started*. The obvious alternative — the moment hand speed
+   * crosses `punchSpeed` in `resolvePunches` — is not a punch at all: measured over 60 s of
+   * boxing, a player's procedurally-placed hands cross that threshold **1056 times** with the
+   * punch buttons masked off entirely, i.e. from ordinary hopping. A cue there would be a
+   * seventeen-a-second buzz. `ready()` already rate-limits this one to a throw's own cadence.
+   *
+   * `hand.world` is last tick's pose (hands are posed later in `stepPlayer`), which is correct
+   * here: at the start of a throw the fist is still at the chest, and that is where the swing
+   * should be heard from.
+   */
+  const throwWith = (hand: HandState, side: number): void => {
+    hand.punchThrow = PUNCH_EXTEND + PUNCH_RETRACT;
+    ctx.events.emit('punch', player.id, hand.world, ctx.tick, 0, {
+      data: side === LEFT ? 'left' : 'right',
+    });
+  };
+  for (let i = 0; i < 2; i++) {
+    if (!wants[i]) continue;
+    const own = player.hands[i] as HandState;
+    if (ready(own)) {
+      throwWith(own, i);
+      continue;
+    }
+    /**
+     * The named hand is still recovering, so the punch goes to the other fist.
+     *
+     * PC and mobile have one punch button and it says `PunchRight`, so without this a player on
+     * those platforms fights one-handed and spends every cooldown doing nothing, while a headset
+     * player throws with both tracked hands and a bot alternates its own at random. Measured toe
+     * to toe over eight seconds: one hand lands 13 punches, two land 20. That is a cross-play
+     * matchup decided by which device someone owns, in the two modes built entirely on punching.
+     *
+     * Only once that hand has finished its throw and is merely cooling down, which is what makes
+     * this a jab rather than a windmill. Falling back while it is still extending measured as
+     * both fists leaving the body one tick apart and staying out for as long as the button was
+     * held — the same two-fisted lockstep as pressing both bits, and nothing like a boxer.
+     *
+     * Skipped when the other bit is set too: that hand's own turn of this loop will claim it.
+     */
+    if (own.punchThrow > 0) continue;
+    const other = player.hands[1 - i] as HandState;
+    if (!wants[1 - i] && ready(other)) throwWith(other, 1 - i);
+  }
+}
+
+/**
+ * How far out a synthesised punch has travelled, 0 at rest and 1 at full extension.
+ *
+ * Out fast and back slower, so the outward half clears the speed threshold that makes it a punch
+ * and the return does not land a second free hit on the way home.
+ */
+function punchExtension(remaining: number): number {
+  if (remaining <= 0) return 0;
+  const elapsed = PUNCH_EXTEND + PUNCH_RETRACT - remaining;
+  if (elapsed < PUNCH_EXTEND) return elapsed / PUNCH_EXTEND;
+  return Math.max(0, 1 - (elapsed - PUNCH_EXTEND) / PUNCH_RETRACT);
+}
+
+/**
+ * Convert body-local tracked hand poses into world space and derive world velocity.
+ * Non-VR players get procedural hands so that avatars, punches and grabs still animate.
+ */
+function updateHandPoses(
+  player: PlayerState,
+  intent: InputIntent,
+  dt: number,
+  grabLeft: boolean,
+  grabRight: boolean,
+  prevYaw: number,
+): void {
+  const cfg = player.config;
+  // Freezing has to reach the hands, and it has to reach them *here*: arms-first VR movement is
+  // driven by the analogue grip rather than the grab button, so gating the buttons alone would
+  // leave a frozen VR player free to pull themselves along — the one platform the effect matters
+  // most on. This is the single place both input paths decide whether a hand is holding on.
+  const frozen = player.gadgets.frozen > 0;
+  // Faster than a head turns: a snap turn (or a recenter). A 15° snap swings a held hand 0.17 m,
+  // under a pose jump, and pivoted the body round it at 11.6 m/s; the turn itself says what it was.
+  const snapped = Math.abs(angleDelta(prevYaw, player.yaw)) > HEAD_TURN_LIMIT * dt;
+  for (let i = 0; i < 2; i++) {
+    const hand = player.hands[i] as HandState;
+    const source = intent.hands ? intent.hands[i] : null;
+    v3copy(hand.prevWorld, hand.world);
+    v3copy(hand.prevLocal, hand.local);
+    const wasTracked = hand.tracked;
+
+    if (source && source.tracked) {
+      hand.tracked = true;
+      v3copy(hand.local, source.pos);
+      localToWorld(_handWorld, player.position, source.pos);
+      v3copy(hand.world, _handWorld);
+      hand.gripHeld = source.grip >= cfg.gripThreshold;
+      hand.striking = true;
+    } else {
+      hand.tracked = false;
+      const side = i === LEFT ? -1 : 1;
+      const grabbing = i === LEFT ? grabLeft : grabRight;
+      const thrust = punchExtension(hand.punchThrow);
+      // A punch overrides the grab pose rather than adding to it, so a player climbing with one
+      // hand and punching with it does not end up with a 1.5 m arm.
+      const reach = Math.max(grabbing ? GRAB_REACH : IDLE_REACH, IDLE_REACH + thrust * (PUNCH_REACH - IDLE_REACH));
+      // Punches land where the player is looking. PC and mobile aim with pitch, and without this
+      // every non-VR punch would be a body shot — handing VR the 1.6× head multiplier as a
+      // permanent platform advantage in the two modes built on fighting.
+      // Positive pitch is up — the camera builds its forward vector as `sin(pitch)` on Y — so an
+      // uppercut is a punch thrown while looking up.
+      // It grows with the throw, so the fist goes in a straight line. Switched on whole as a throw
+      // started (`thrust > 0 ? sin(pitch) * reach : 0`), it moved the fist 13 cm in the first tick
+      // looking up — 10.8 m/s against the throw's own 7.6, extra damage from a step in this code —
+      // and switched off as the throw ended, a 9 cm drop that read as a punch thrown downwards.
+      const aim = Math.sin(player.pitch) * PUNCH_REACH * thrust;
+      // Both shoulders swing inwards on a thrust: the fist travels to the centre line rather than
+      // out past the opponent's shoulder, which is what a punch thrown at someone looks like.
+      const lateral = 0.32 * (1 - thrust * 0.55);
+      v3set(hand.local, side * lateral, player.height * 0.62 + aim, reach);
+      if (player.guarding && !grabbing) {
+        // Held up in front of the face, and a punch goes straight out from there to the same full
+        // extension and comes back to it, so the other glove stays up while one is out. Blended
+        // with the pose above instead, the fist dipped to the chest first and arrived at a third of
+        // the damage. Climbing takes the hands, so a grab wins.
+        const guardY = player.height * cfg.headHeightRatio - GUARD_DROP;
+        v3set(
+          hand.local,
+          side * (GUARD_LATERAL + thrust * (0.32 * 0.45 - GUARD_LATERAL)),
+          guardY + thrust * (player.height * 0.62 + Math.sin(player.pitch) * PUNCH_REACH - guardY),
+          GUARD_REACH + thrust * (PUNCH_REACH - GUARD_REACH),
+        );
+      }
+      localToWorld(hand.world, player.position, hand.local);
+      hand.gripHeld = i === LEFT ? grabLeft : grabRight;
+      // On the way out, not back: the return is slower but still past `punchSpeed`, and it is not
+      // a punch. Nor the tick a throw starts, when the hand has not left yet: the last throw's aim
+      // snaps off as it ends (a 9 cm drop looking up), and that read as a punch thrown downwards.
+      hand.striking = hand.punchThrow > PUNCH_RETRACT && hand.punchThrow < PUNCH_EXTEND + PUNCH_RETRACT;
+    }
+
+    if (frozen) hand.gripHeld = false;
+
+    // First pose ever, the first one after a respawn, or a hand that just gained or lost
+    // tracking: the pose jumped (from the origin default, across a teleport to a new spawn point,
+    // or from a controller to the procedural pose) while the previous one is still wherever it
+    // was. Snapping it here makes this tick's velocity exactly zero instead of a
+    // multi-hundred-m/s spike that would clear resolvePunches' punch threshold and trigger
+    // applyPalmPush from nothing but the jump itself.
+    hand.jumped = false;
+    if (!hand.posed || hand.tracked !== wasTracked) {
+      v3copy(hand.prevWorld, hand.world);
+      v3copy(hand.prevLocal, hand.local);
+      hand.posed = true;
+    } else if (hand.tracked && dt > 0 && isPoseJump(stepAgainstBody(hand, prevYaw, player.yaw), snapped, cfg.maxHandSpeed * dt)) {
+      // Faster than a hand moves: the pose jumped (see HandState.jumped). Same treatment as a
+      // tracking change — this tick's velocity is zero — and the grip is re-taken in
+      // `updateHandGrips`, so neither a punch, a palm push nor a pull can come of it.
+      v3copy(hand.prevWorld, hand.world);
+      v3copy(hand.prevLocal, hand.local);
+      hand.jumped = true;
+    }
+
+    if (dt > 0) {
+      v3set(
+        hand.velocity,
+        (hand.world.x - hand.prevWorld.x) / dt,
+        (hand.world.y - hand.prevWorld.y) / dt,
+        (hand.world.z - hand.prevWorld.z) / dt,
+      );
+      v3set(
+        hand.localVelocity,
+        (hand.local.x - hand.prevLocal.x) / dt,
+        (hand.local.y - hand.prevLocal.y) / dt,
+        (hand.local.z - hand.prevLocal.z) / dt,
+      );
+    }
+  }
+}
+
+/**
+ * The fastest a head turns, in rad/s (720°/s; a fast human turn peaks around 600). Body yaw is the
+ * headset's yaw plus the comfort turn, so a tick that turns faster than this was a snap turn or a
+ * recenter — something the player's body did not do.
+ */
+const HEAD_TURN_LIMIT = (720 * Math.PI) / 180;
+
+/** A hand faster than a hand, or one a snap turn carried more than a centimetre. */
+function isPoseJump(step: number, snapped: boolean, limit: number): boolean {
+  return step > limit || (snapped && step > 0.01);
+}
+
+/**
+ * How far a hand moved relative to the body this tick, in world axes. Not `localVelocity`: that is
+ * in the body's own frame, which turns with it, so a snap turn swinging a held hand 0.4 m through
+ * the world reads there as no motion at all. Body yaw is the headset's yaw plus the comfort turn,
+ * and a hand is sent relative to it, so turning your head moves no hand here; only the snap does.
+ */
+function stepAgainstBody(hand: HandState, prevYaw: number, yaw: number): number {
+  const c0 = Math.cos(prevYaw);
+  const s0 = Math.sin(prevYaw);
+  const c1 = Math.cos(yaw);
+  const s1 = Math.sin(yaw);
+  const l0 = hand.prevLocal;
+  const l1 = hand.local;
+  // `localToWorld`'s axes at each yaw: right (-cos, 0, sin), forward (sin, 0, cos).
+  return Math.hypot(
+    -c1 * l1.x + s1 * l1.z - (-c0 * l0.x + s0 * l0.z),
+    l1.y - l0.y,
+    s1 * l1.x + c1 * l1.z - (s0 * l0.x + c0 * l0.z),
+  );
+}
+
+function localToWorld(out: Vec3, origin: Vec3, local: Vec3): Vec3 {
+  return v3set(
+    out,
+    origin.x + _right.x * local.x + _forward.x * local.z,
+    origin.y + local.y,
+    origin.z + _right.z * local.x + _forward.z * local.z,
+  );
+}
+
+/**
+ * The nearest thing a tracked hand at `point` can hold, into `_surface`; false if there is none.
+ *
+ * Anything climbable holds, anywhere. Anything else holds only as the floor under the player's own
+ * feet — a walkable face within a step of them, while standing — because arms-first VR has no stick
+ * and no hop: a floor no hand can push along is a floor the player cannot leave. Water was one.
+ * Measured in the jungle river, an arms-first player knuckle-walking at 8 m/s strokes moved 0.00 m
+ * in 15 s, and one walking in from the bank stopped 8 m out and stayed there, where PC walks across
+ * at full speed. NoGrip still means no climbing: a smooth stone wall or a glazed serac's side holds
+ * nothing, and a serac's top only once you are standing on it — the committed jump is still a jump.
+ *
+ * The climbable query runs first and alone wherever it finds something, so every hold that existed
+ * before is the same hold now.
+ */
+function closestHold(player: PlayerState, ctx: LocomotionContext, point: Vec3, radius: number): boolean {
+  ctx.world.closestSurface(_surface, point, radius, true);
+  if (_surface.hit) return true;
+  if (!player.grounded) return false;
+  ctx.world.closestSurface(_surface, point, radius, false);
+  return (
+    _surface.hit &&
+    _surface.normal.y >= DEFAULT_MOVE_PARAMS.minGroundNormalY &&
+    Math.abs(_surface.point.y - player.position.y) <= DEFAULT_MOVE_PARAMS.stepOffset
+  );
+}
+
+/** Acquire / release hand anchors. Returns how many hands are anchored. */
+function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
+  const cfg = player.config;
+  let anchored = 0;
+  for (let i = 0; i < 2; i++) {
+    const hand = player.hands[i] as HandState;
+    if (!hand.tracked) {
+      // Non-VR hands never anchor here; the assisted climb system handles those platforms.
+      hand.anchored = false;
+      continue;
+    }
+
+    if (!hand.gripHeld && hand.anchored) {
+      hand.anchored = false;
+      hand.anchorCollider = -1;
+      ctx.events.emit('release', player.id, hand.world, ctx.tick, v3length(hand.velocity), {
+        data: i === LEFT ? 'left' : 'right',
+      });
+      continue;
+    }
+
+    if (hand.jumped && hand.anchored) {
+      // The pose jumped while holding on. Keep holding only if the hand landed somewhere it could
+      // have grabbed, and hold it *there*: correcting back to the old anchor is what threw players.
+      if (closestHold(player, ctx, hand.world, cfg.handGrabRadius)) {
+        v3copy(hand.anchor, hand.world);
+        hand.anchorCollider = _surface.colliderIndex;
+      } else {
+        hand.anchored = false;
+        hand.anchorCollider = -1;
+        ctx.events.emit('release', player.id, hand.world, ctx.tick, 0, { data: i === LEFT ? 'left' : 'right' });
+        continue;
+      }
+    }
+
+    if (hand.gripHeld && !hand.anchored) {
+      if (closestHold(player, ctx, hand.world, cfg.handGrabRadius)) {
+        hand.anchored = true;
+        // The anchor is where the hand closed, not the nearest point of the surface. A hand closes
+        // up to `handGrabRadius` short of a wall (or inside it — hands are not collided), and
+        // anchoring on the surface yanked the body that far in one tick: 0.2 m short was a 12 m/s
+        // lurch of the camera on every such grab. The surface only decides whether a grab counts.
+        v3copy(hand.anchor, hand.world);
+        hand.anchorCollider = _surface.colliderIndex;
+        ctx.events.emit('grab', player.id, _surface.point, ctx.tick, 1, {
+          material: _surface.surface.material,
+          data: i === LEFT ? 'left' : 'right',
+        });
+      }
+    }
+
+    if (hand.anchored) {
+      // Break the grip if the player's body has been dragged out of arm's reach.
+      const dx = hand.anchor.x - player.position.x;
+      const dy = hand.anchor.y - (player.position.y + player.height * 0.6);
+      const dz = hand.anchor.z - player.position.z;
+      if (dx * dx + dy * dy + dz * dz > 2.4 * 2.4) {
+        hand.anchored = false;
+        hand.anchorCollider = -1;
+        ctx.events.emit('release', player.id, hand.world, ctx.tick, 0, { data: 'stretch' });
+      } else {
+        anchored++;
+      }
+    }
+  }
+  return anchored;
+}
+
+/**
+ * The heart of VR locomotion.
+ *
+ * An anchored hand is fixed in world space, so any motion of the hand *relative to the body*
+ * must be compensated by moving the body the other way. That single rule produces pushing off
+ * walls, hauling yourself up a branch, and swinging — and the per-tick body displacement is
+ * exactly the momentum the player keeps when they let go.
+ */
+function applyHandCorrection(player: PlayerState, anchoredCount: number, dt: number): void {
+  const cfg = player.config;
+  v3set(_correction, 0, 0, 0);
+
+  for (const hand of player.hands) {
+    if (!hand.anchored) continue;
+    _correction.x += hand.anchor.x - hand.world.x;
+    _correction.y += hand.anchor.y - hand.world.y;
+    _correction.z += hand.anchor.z - hand.world.z;
+  }
+
+  const inv = 1 / anchoredCount;
+  _correction.x *= inv;
+  _correction.y *= inv;
+  _correction.z *= inv;
+
+  const strength = cfg.pushForce * (anchoredCount === 2 ? cfg.handTwoHandMultiplier : 1);
+  _correction.x *= strength;
+  _correction.y *= strength;
+  _correction.z *= strength;
+
+  // No faster than a hand: a body held up against a wall builds an error it can then release all at
+  // once, and a spoofed hand moving just under `maxHandSpeed` every tick must buy no more than a
+  // real one moving that fast.
+  const len = v3length(_correction);
+  const limit = cfg.maxHandSpeed * dt;
+  if (len > limit) {
+    const s = limit / len;
+    _correction.x *= s;
+    _correction.y *= s;
+    _correction.z *= s;
+  }
+
+  // Express the correction as velocity rather than teleporting the body: the collide-and-slide
+  // pass then applies it, so a hand pull can never drag the player through geometry — and the
+  // resulting velocity *is* the momentum the player keeps when they let go.
+  if (dt > 0) {
+    v3set(player.velocity, _correction.x / dt, _correction.y / dt, _correction.z / dt);
+  }
+  clampVelocity(player);
+
+  // Anchored players still fall slightly if they hang without pulling: a little gravity keeps
+  // hanging from feeling weightless, but not enough to rip the grip off.
+  player.velocity.y -= cfg.gravity * 0.08 * dt;
+  player.grounded = false;
+  player.coyoteTimer = cfg.coyoteTime;
+}
+
+/** Remember this hand-driven tick's body velocity for the release (see `PlayerState.pull`). */
+function recordPull(player: PlayerState): void {
+  v3copy(player.pull[player.pullCount % PULL_WINDOW] as Vec3, player.velocity);
+  player.pullCount++;
+}
+
+/** Letting go: keep the mean of the recent pull, not the last tick of it. */
+function releasePull(player: PlayerState): void {
+  const n = Math.min(player.pullCount, PULL_WINDOW);
+  if (n === 0) return;
+  let x = 0;
+  let y = 0;
+  let z = 0;
+  for (let i = 0; i < n; i++) {
+    const v = player.pull[i] as Vec3;
+    x += v.x;
+    y += v.y;
+    z += v.z;
+  }
+  v3set(player.velocity, x / n, y / n, z / n);
+  player.pullCount = 0;
+}
+
+/** Palm push: shoving a surface with an open hand still moves you (no grip required). */
+function applyPalmPush(player: PlayerState, ctx: LocomotionContext, dt: number): void {
+  const cfg = player.config;
+  for (const hand of player.hands) {
+    if (!hand.tracked) continue;
+    ctx.world.closestSurface(_surface, hand.world, cfg.handGrabRadius * 0.8, false);
+    if (!_surface.hit) continue;
+    const into = -v3dot(hand.velocity, _surface.normal);
+    if (into < 1.2) continue;
+    const scale = cfg.handPushForce * clamp01(into / 6) * (hasFlag(_surface.surface, SurfaceFlags.Slippery) ? 0.4 : 1);
+    player.velocity.x += _surface.normal.x * into * scale * dt * 4;
+    player.velocity.y += _surface.normal.y * into * scale * dt * 4;
+    player.velocity.z += _surface.normal.z * into * scale * dt * 4;
+  }
+}
+
+/**
+ * Assisted climbing for PC/Mobile (and as a fallback in VR when hands are untracked).
+ * It ends in the same anchored state VR hands produce, so animation and networking are shared.
+ */
+function updateClimb(
+  player: PlayerState,
+  intent: InputIntent,
+  ctx: LocomotionContext,
+  dt: number,
+  grabHeld: boolean,
+  handDriven: boolean,
+): boolean {
+  const cfg = player.config;
+
+  if (handDriven || !grabHeld) {
+    if (player.climbing) {
+      player.climbing = false;
+      player.climbCollider = -1;
+      ctx.events.emit('release', player.id, player.position, ctx.tick, 0, { data: 'climb' });
+    }
+    return false;
+  }
+
+  const chestY = player.position.y + player.height * 0.62;
+  if (!player.climbing) {
+    v3set(
+      _tmp,
+      player.position.x + _forward.x * cfg.gripReach * 0.55,
+      chestY,
+      player.position.z + _forward.z * cfg.gripReach * 0.55,
+    );
+    ctx.world.closestSurface(_surface, _tmp, cfg.gripReach, true);
+    if (!_surface.hit) return false;
+    player.climbing = true;
+    v3copy(player.climbAnchor, _surface.point);
+    v3copy(player.climbNormal, _surface.normal);
+    player.climbCollider = _surface.colliderIndex;
+    ctx.events.emit('grab', player.id, player.climbAnchor, ctx.tick, 1, {
+      material: _surface.surface.material,
+      data: 'climb',
+    });
+  }
+
+  // Slide the anchor across the surface with the movement stick, then re-project it so the
+  // anchor always stays exactly on geometry (this is what lets you climb around a tree trunk).
+  const tangentUpY = 1 - Math.abs(player.climbNormal.y);
+  // The normal points out of the wall, at the climber, so they face -normal and their right is
+  // (-normal) × up. Sliding along (-nz, 0, nx) moved a held right to the left.
+  v3set(
+    _tmp2,
+    player.climbNormal.z,
+    0,
+    -player.climbNormal.x,
+  );
+  v3normalize(_tmp2, _tmp2);
+
+  const climbStep = cfg.climbSpeed * dt;
+  v3set(
+    _tmp,
+    player.climbAnchor.x + _tmp2.x * intent.moveX * climbStep,
+    player.climbAnchor.y + intent.moveZ * climbStep * Math.max(0.35, tangentUpY),
+    player.climbAnchor.z + _tmp2.z * intent.moveX * climbStep,
+  );
+
+  ctx.world.closestSurface(_surface, _tmp, cfg.gripReach, true);
+  if (_surface.hit) {
+    v3copy(player.climbAnchor, _surface.point);
+    v3copy(player.climbNormal, _surface.normal);
+    player.climbCollider = _surface.colliderIndex;
+  } else {
+    // Climbed off the top edge: convert into a mantle.
+    player.climbing = false;
+    player.climbCollider = -1;
+    player.velocity.y = Math.max(player.velocity.y, cfg.jumpForce * 0.55);
+    player.velocity.x += _forward.x * 2.4;
+    player.velocity.z += _forward.z * 2.4;
+    ctx.events.emit('climbLaunch', player.id, player.position, ctx.tick, 0.5, { data: 'mantle' });
+    return false;
+  }
+
+  // Hold the body just below and off the anchor.
+  const targetX = player.climbAnchor.x + player.climbNormal.x * (cfg.radius + 0.05);
+  const targetY = player.climbAnchor.y - player.height * 0.58;
+  const targetZ = player.climbAnchor.z + player.climbNormal.z * (cfg.radius + 0.05);
+
+  const maxPull = cfg.climbSpeed * 2.5;
+  v3set(
+    player.velocity,
+    clamp((targetX - player.position.x) / dt, -maxPull, maxPull),
+    clamp((targetY - player.position.y) / dt, -maxPull, maxPull),
+    clamp((targetZ - player.position.z) / dt, -maxPull, maxPull),
+  );
+  player.grounded = false;
+  player.coyoteTimer = cfg.coyoteTime;
+  return true;
+}
+
+/** Jumping off a grip (hand anchor or assisted climb) — the swing-and-launch trick. */
+function launchFromGrab(player: PlayerState, ctx: LocomotionContext, climbing: boolean): void {
+  const cfg = player.config;
+  player.jumpBufferTimer = 0;
+
+  let dirX = _forward.x;
+  let dirZ = _forward.z;
+  if (climbing) {
+    dirX = player.climbNormal.x !== 0 || player.climbNormal.z !== 0 ? player.climbNormal.x : _forward.x;
+    dirZ = player.climbNormal.z !== 0 || player.climbNormal.x !== 0 ? player.climbNormal.z : _forward.z;
+    player.climbing = false;
+    player.climbCollider = -1;
+  }
+  for (const hand of player.hands) {
+    hand.anchored = false;
+    hand.anchorCollider = -1;
+  }
+  releasePull(player);
+
+  // Existing velocity (from swinging) is preserved and added to, not replaced.
+  player.velocity.x += dirX * cfg.climbLaunchForce * 0.55;
+  player.velocity.z += dirZ * cfg.climbLaunchForce * 0.55;
+  player.velocity.y = Math.max(player.velocity.y + cfg.climbLaunchForce * 0.55, cfg.jumpForce * 0.85);
+  clampVelocity(player);
+  ctx.events.emit('climbLaunch', player.id, player.position, ctx.tick, v3length(player.velocity), {
+    data: climbing ? 'climb' : 'hands',
+  });
+}
+
+/** How hard the ground brakes a player's feet, in m/s² — the same whether the stick is held or not. */
+function groundGrip(player: PlayerState): number {
+  const cfg = player.config;
+  return cfg.friction * cfg.surfaceFriction * frictionOfGround(player);
+}
+
+/**
+ * On the ground, brake the velocity the stick is not asking for — across the wished direction, and
+ * along it above `cap` — by `drop`, which is the friction a released stick would get.
+ *
+ * Holding the stick used to switch friction off altogether, so nothing ever took speed away from a
+ * player who kept steering. A 90° turn kept the old direction and added the new one (sprinting:
+ * 9.7 → 13.8 m/s, for ever); swinging the view ±60° ran a player up to 14.4 m/s without sprinting;
+ * letting go of sprint, running out of stamina, crouching and stepping in a snare all lowered a cap
+ * that only ever limited acceleration. Six bots averaged 10.2 m/s and touched the 26 m/s ceiling on
+ * every map. Speed you are moving *towards* — below the cap, or backwards — is left to
+ * acceleration exactly as before, so starting, stopping and reversing feel the same, and so does
+ * charging a hop: its slow-down is applied to acceleration only, as it always was.
+ */
+function brakeUnwanted(player: PlayerState, nx: number, nz: number, cap: number, drop: number): void {
+  const along = player.velocity.x * nx + player.velocity.z * nz;
+  const kept = Math.min(along, cap);
+  const ex = player.velocity.x - nx * kept;
+  const ez = player.velocity.z - nz * kept;
+  const excess = Math.hypot(ex, ez);
+  if (excess <= drop) {
+    player.velocity.x = nx * kept;
+    player.velocity.z = nz * kept;
+    return;
+  }
+  const s = (excess - drop) / excess;
+  player.velocity.x = nx * kept + ex * s;
+  player.velocity.z = nz * kept + ez * s;
+}
+
+/**
+ * Push `add` along the wished direction (`nx`, `nz`) without taking the speed past `limit`. Steering
+ * turns the speed a player has; it never adds to it, on the ground or off it.
+ *
+ * Acceleration pushed along the wished direction and only friction took away the rest, so a turn
+ * added the two: the new direction growing at the acceleration's rate while the old one died at the
+ * ground's. In the air nothing took the old one away at all. That was free speed, and a hop keeps
+ * whatever the ground gave it. Measured with PC input, hopping on every landing at a sprint:
+ * straight ahead 9.6 m/s of progress, weaving the view ±45° 11.5 (13.6 before the ground braked),
+ * sweeping A/D with the mouse 17.3 — nearly twice a sprint, open to a keyboard and not to a
+ * headset. Bots turn mid-hop all the time, which is how a chaser came to orbit a target it had
+ * reached at 14.9 m/s.
+ *
+ * On the ground the old direction is the ground's to take away (`brakeUnwanted`), at the ground's
+ * own rate — that rate is what ice *is* — so the push is cut short instead of the speed being
+ * scaled down. Scaling it down was tried first and killed the old direction with it: a 90° turn on
+ * ice stopped sliding after 0.57 s instead of 1.38. In the air there is no ground, so the push turns
+ * the speed round. A launch above the cap (a long jump, a wall bounce) keeps its speed either way.
+ */
+function steerWithoutGaining(player: PlayerState, nx: number, nz: number, add: number, limit: number): void {
+  const v = player.velocity;
+  if (player.grounded) {
+    const along = v.x * nx + v.z * nz;
+    const room = along * along + limit * limit - (v.x * v.x + v.z * v.z);
+    add = Math.min(add, Math.sqrt(Math.max(0, room)) - along);
+    if (add <= 0) return;
+    v.x += nx * add;
+    v.z += nz * add;
+    return;
+  }
+  v.x += nx * add;
+  v.z += nz * add;
+  const speed = Math.hypot(v.x, v.z);
+  if (speed > limit) {
+    v.x *= limit / speed;
+    v.z *= limit / speed;
+  }
+}
+
+/** Grounded acceleration, hop charging, air control, wall jumps. */
+function applyGroundAndAir(
+  player: PlayerState,
+  intent: InputIntent,
+  ctx: LocomotionContext,
+  dt: number,
+  wantsJump: boolean,
+): void {
+  const cfg = player.config;
+  const staggered = player.staggerTimer > 0;
+  // Freeze removes control outright; a snare only halves it. Both are gadget effects and both
+  // scale the *same* control factor a stagger uses, so they compose instead of fighting: being
+  // snared while staggered is worse than either alone, which is what a player would expect.
+  const status = player.gadgets;
+  const frozen = status.frozen > 0;
+  const snareControl = status.snared > 0 ? 1 - status.snareSlow : 1;
+  const control = frozen ? 0 : (staggered ? cfg.staggerControl : 1) * snareControl;
+
+  if (frozen) {
+    // Not just "no input": a frozen player keeps falling but stops moving horizontally, so
+    // freezing someone mid-jump drops them where they were rather than launching them onward.
+    player.velocity.x = 0;
+    player.velocity.z = 0;
+    player.sprinting = false;
+    return;
+  }
+
+  player.crouching = hasButton(intent.buttons, Buttons.Crouch) || (intent.hands !== null && intent.headHeight < 1.15);
+  if (player.stamina <= SPRINT_FLOOR) player.winded = true;
+  else if (player.stamina >= SPRINT_RECOVERY) player.winded = false;
+  player.sprinting =
+    hasButton(intent.buttons, Buttons.Sprint) && !player.winded && !player.crouching && player.grounded;
+
+  const targetHeight = player.crouching ? cfg.crouchHeight : cfg.standHeight;
+  player.height += (targetHeight - player.height) * Math.min(1, dt * 12);
+
+  if (player.sprinting) player.stamina = Math.max(0, player.stamina - 14 * dt);
+  else player.stamina = Math.min(100, player.stamina + 9 * dt);
+
+  // Desired horizontal direction in world space.
+  const wishX = _right.x * intent.moveX + _forward.x * intent.moveZ;
+  const wishZ = _right.z * intent.moveX + _forward.z * intent.moveZ;
+  const wishLen = Math.hypot(wishX, wishZ);
+  const nx = wishLen > 1e-4 ? wishX / wishLen : 0;
+  const nz = wishLen > 1e-4 ? wishZ / wishLen : 0;
+  const throttle = Math.min(1, wishLen);
+
+  // A snare halves the speed itself, which is what the trap says it does; scaling only `control`
+  // halved how fast a player could *reach* a speed, and a runner who stepped in one kept running.
+  const speedCap =
+    cfg.maxSpeed * (player.sprinting ? cfg.sprintMultiplier : 1) * (player.crouching ? 0.55 : 1) * snareControl;
+
+  // Hop charging: holding jump on the ground compresses the kangaroo and slows it down.
+  if (player.grounded && wantsJump) {
+    player.chargeHeld = true;
+    player.charge = clamp01(player.charge + dt / cfg.maxChargeTime);
+  }
+
+  const accel = (player.grounded ? cfg.acceleration : cfg.acceleration * cfg.airControl) * control;
+  const chargeSlow = player.grounded && player.chargeHeld ? 1 - player.charge * 0.65 : 1;
+
+  if (throttle > 0.02) {
+    if (player.grounded) brakeUnwanted(player, nx, nz, speedCap * throttle, groundGrip(player) * dt);
+    const currentAlong = player.velocity.x * nx + player.velocity.z * nz;
+    const cap = speedCap * throttle * chargeSlow;
+    if (currentAlong < cap) {
+      const limit = Math.max(Math.hypot(player.velocity.x, player.velocity.z), cap);
+      steerWithoutGaining(player, nx, nz, Math.min(accel * dt * throttle, cap - currentAlong), limit);
+    }
+  } else if (player.grounded) {
+    const friction = groundGrip(player) * dt;
+    const speed = Math.hypot(player.velocity.x, player.velocity.z);
+    if (speed > REST_SPEED) {
+      const drop = Math.min(speed, friction);
+      const s = (speed - drop) / speed;
+      player.velocity.x *= s;
+      player.velocity.z *= s;
+    } else {
+      // Snap to rest. A standing player that never quite stops costs network bandwidth every
+      // snapshot and makes idle animations twitch.
+      player.velocity.x = 0;
+      player.velocity.z = 0;
+    }
+  }
+
+  // Gravity.
+  player.velocity.y -= cfg.gravity * dt;
+
+  const canJump = player.grounded || player.coyoteTimer > 0;
+  const releasedJump = player.chargeHeld && !wantsJump;
+
+  if (canJump && (releasedJump || (player.jumpBufferTimer > 0 && !wantsJump))) {
+    doJump(player, ctx, nx, nz);
+  } else if (canJump && wantsJump && player.charge >= 1) {
+    doJump(player, ctx, nx, nz); // full charge auto-releases
+  } else if (!player.grounded && player.touchingWall && wantsJump && player.jumpBufferTimer > 0) {
+    doWallJump(player, ctx);
+  }
+
+  if (!wantsJump) {
+    player.chargeHeld = false;
+    if (player.grounded) player.charge = Math.max(0, player.charge - dt * 3);
+  }
+}
+
+/**
+ * How much grip the ground gives, as a multiplier on the player's own friction.
+ *
+ * This used to read `groundMaterial === 'water' ? 0.4 : 1`, which meant every solid surface in the
+ * game decelerated identically. Surfaces have declared a `friction` since the level builder existed
+ * — ice 0.35, glazed ice 0.28, snow 1.05, sand 1.15 — and `MovementConfig.friction` has always been
+ * documented as "scaled by the surface's friction". Nothing scaled it. Measured as a coast from
+ * full speed, ice and dirt both stopped in 1.7916666666666679 m — identical to the last digit — so
+ * Glacier World, a map whose entire premise is that you cannot stop on ice, played exactly like
+ * the jungle.
+ *
+ * The water special case is gone rather than kept beside it: the `water` preset declares 0.3, which
+ * is what the hard-coded 0.4 was approximating, so reading the data covers that case too and one
+ * rule now explains every surface in the game.
+ */
+function frictionOfGround(player: PlayerState): number {
+  const friction = player.groundFriction;
+  // A malformed collider must not divide a player's braking by zero or reverse it into
+  // acceleration; an unknown surface behaves like ordinary ground.
+  return Number.isFinite(friction) && friction > 0 ? friction : 1;
+}
+
+function doJump(player: PlayerState, ctx: LocomotionContext, dirX: number, dirZ: number): void {
+  const cfg = player.config;
+  const charge = player.charge;
+  const vertical = cfg.jumpForce * (1 + charge * cfg.chargeJumpBoost) * (player.crouching ? 1.08 : 1);
+  player.velocity.y = vertical;
+
+  // Long jump: charge converts existing momentum into distance rather than height.
+  const speed = Math.hypot(player.velocity.x, player.velocity.z);
+  const forwardBoost = cfg.longJumpBoost * charge * (2 + speed * 0.35);
+  player.velocity.x += dirX * forwardBoost;
+  player.velocity.z += dirZ * forwardBoost;
+
+  player.grounded = false;
+  player.coyoteTimer = 0;
+  player.jumpBufferTimer = 0;
+  player.charge = 0;
+  player.chargeHeld = false;
+  clampVelocity(player);
+  ctx.events.emit('jump', player.id, player.position, ctx.tick, charge, { material: player.groundMaterial });
+}
+
+function doWallJump(player: PlayerState, ctx: LocomotionContext): void {
+  const cfg = player.config;
+  player.velocity.x += player.wallNormal.x * cfg.wallJumpHorizontal;
+  player.velocity.z += player.wallNormal.z * cfg.wallJumpHorizontal;
+  player.velocity.y = Math.max(player.velocity.y, cfg.wallJumpForce);
+  player.jumpBufferTimer = 0;
+  player.touchingWall = false;
+  clampVelocity(player);
+  ctx.events.emit('jump', player.id, player.position, ctx.tick, 1, { data: 'wall' });
+}
+
+function applyCollisionResults(
+  player: PlayerState,
+  ctx: LocomotionContext,
+  result: MoveResult,
+  wasGrounded: boolean,
+): void {
+  const cfg = player.config;
+  player.grounded = result.grounded;
+  player.touchingWall = result.touchedWall;
+  if (result.grounded) {
+    v3copy(player.groundNormal, result.groundNormal);
+    player.groundMaterial = result.groundSurface.material;
+    player.groundFriction = result.groundSurface.friction;
+    player.coyoteTimer = cfg.coyoteTime;
+  } else if (wasGrounded) {
+    player.coyoteTimer = cfg.coyoteTime;
+  }
+
+  if (result.touchedWall) {
+    v3copy(player.wallNormal, result.wallNormal);
+    // Wall bounce: fast horizontal impacts throw you back off the surface instead of stopping.
+    const restitution = Math.max(cfg.wallBounceRestitution, result.wallSurface.bounciness);
+    if (result.wallImpactSpeed >= cfg.wallBounceMinSpeed && !player.grounded) {
+      const bounce = result.wallImpactSpeed * restitution;
+      player.velocity.x += result.wallNormal.x * bounce;
+      player.velocity.z += result.wallNormal.z * bounce;
+      player.velocity.y = Math.max(player.velocity.y, bounce * 0.35);
+      clampVelocity(player);
+      ctx.events.emit('wallBounce', player.id, player.position, ctx.tick, result.wallImpactSpeed, {
+        material: result.wallSurface.material,
+      });
+    }
+  }
+
+  if (result.grounded && !wasGrounded) {
+    const impact = result.landImpactSpeed;
+    ctx.events.emit('land', player.id, player.position, ctx.tick, impact, {
+      material: result.groundSurface.material,
+    });
+    if (impact > cfg.staggerLandingSpeed) {
+      // Tail balance turns a crash landing into a quick recovery.
+      const severity = (impact - cfg.staggerLandingSpeed) / cfg.staggerLandingSpeed;
+      player.staggerTimer = cfg.staggerDuration * severity * (1 - cfg.tailBalance * 0.8);
+      if (player.staggerTimer > 0.02) {
+        ctx.events.emit('stagger', player.id, player.position, ctx.tick, severity);
+      }
+    }
+    if (hasFlag(result.groundSurface, SurfaceFlags.Bouncy)) {
+      player.velocity.y = Math.max(cfg.jumpForce * 1.35, impact * 0.9);
+      player.grounded = false;
+      ctx.events.emit('jump', player.id, player.position, ctx.tick, 1, { data: 'bouncy' });
+    }
+  }
+}
+
+function updateDerived(player: PlayerState, ctx: LocomotionContext): void {
+  const cfg = player.config;
+  if (player.grounded && player.velocity.y < 0 && player.velocity.y > -REST_SPEED) player.velocity.y = 0;
+  const headY = player.hands[0].tracked || player.hands[1].tracked ? player.headHeight : player.height * cfg.headHeightRatio;
+  v3set(player.head, player.position.x, player.position.y + headY, player.position.z);
+  if (player.position.y < ctx.killPlaneY) {
+    player.alive = false;
+  }
+}
+
+export function clampVelocity(player: PlayerState): void {
+  const cfg = player.config;
+  const horiz = Math.hypot(player.velocity.x, player.velocity.z);
+  if (horiz > cfg.maxHorizontalSpeed) {
+    const s = cfg.maxHorizontalSpeed / horiz;
+    player.velocity.x *= s;
+    player.velocity.z *= s;
+  }
+  player.velocity.y = clamp(player.velocity.y, -cfg.terminalVelocity, cfg.terminalVelocity);
+  if (!Number.isFinite(player.velocity.x)) player.velocity.x = 0;
+  if (!Number.isFinite(player.velocity.y)) player.velocity.y = 0;
+  if (!Number.isFinite(player.velocity.z)) player.velocity.z = 0;
+}
+
+export { LEFT, RIGHT };

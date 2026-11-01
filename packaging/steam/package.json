@@ -1,0 +1,11 @@
+{
+  "name": "kangaroo-chase",
+  "productName": "Kangaroo Chase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kangaroo Chase — a physical-movement social tag game for PC and VR.",
+  "main": "main.cjs",
+  "type": "module",
+  "author": "Kangaroo Chase",
+  "license": "UNLICENSED"
+}

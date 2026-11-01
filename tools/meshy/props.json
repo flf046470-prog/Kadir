@@ -1,0 +1,135 @@
+{
+  "$comment": [
+    "Prompt manifest for the environment props. This file is the source; the .glb files it",
+    "produces are cached in assets/meshy/ and committed, because they cost real credits and could",
+    "not be regenerated identically — Meshy is not deterministic. Re-running the generator skips",
+    "anything already cached, so a rebuild is free.",
+    "",
+    "Meshy is used in PREVIEW mode only: it returns geometry with no materials and no textures,",
+    "which is exactly what is wanted. Refine would add a 1-2 MB texture per prop, blowing the web",
+    "download budget and clashing with the flat-shaded look. Colour is assigned afterwards in",
+    "tools/blender/props.py from the game's own palette, so the whole world stays coherent and a",
+    "finished prop lands at 30-50 KB instead of megabytes.",
+    "",
+    "The subjects are the props the jungle world actually places (packages/core/src/world",
+    "/jungle.ts), not a generic set. Variant counts are where they are because repetition is what",
+    "makes a world look cheap — four mediocre rocks beat one excellent rock placed two hundred",
+    "times."
+  ],
+  "style": "stylized low-poly game asset, flat shaded, chunky simplified forms, soft rounded edges, minimal surface detail, no text, no logos, single centered object, neutral even lighting, no baked shadows, no ground plane, no base, no pedestal",
+  "negative": "photorealistic, hyperrealistic, high detail, noisy displacement, baked shadows, ambient occlusion, ground plane, base, pedestal, text, watermark, multiple objects, scene, diorama, character, creature, human",
+  "props": [
+    {
+      "id": "rock",
+      "variants": 4,
+      "polycount": 1200,
+      "palette": "rock",
+      "prompt": "a single weathered boulder, irregular angular faces, mossy patches on top, grey-brown stone"
+    },
+    {
+      "id": "boulder-tall",
+      "variants": 2,
+      "polycount": 1400,
+      "palette": "rock",
+      "prompt": "a tall standing stone, narrow at the base and wide at the top, cracked angular faces, flat landable top"
+    },
+    {
+      "id": "log",
+      "variants": 3,
+      "polycount": 1200,
+      "palette": "wood",
+      "prompt": "a fallen hollow tree log lying horizontally, rough bark, cracked open end showing pale inner wood"
+    },
+    {
+      "id": "stump",
+      "variants": 2,
+      "polycount": 900,
+      "palette": "wood",
+      "prompt": "a wide tree stump cut flat on top, thick roots spreading at the bottom, rough bark sides"
+    },
+    {
+      "id": "bush",
+      "variants": 4,
+      "polycount": 1000,
+      "palette": "foliage",
+      "prompt": "a round leafy jungle bush, dense broad tropical leaves, layered foliage"
+    },
+    {
+      "id": "fern",
+      "variants": 3,
+      "polycount": 900,
+      "palette": "foliage",
+      "prompt": "a tropical fern, long arching fronds spreading from a low center, broad segmented leaves"
+    },
+    {
+      "id": "flower",
+      "variants": 3,
+      "polycount": 700,
+      "palette": "flower",
+      "prompt": "a cluster of tropical flowers on short stems, wide petals, a few large leaves at the base"
+    },
+    {
+      "id": "mushroom",
+      "variants": 3,
+      "polycount": 700,
+      "palette": "mushroom",
+      "prompt": "a cluster of three chunky jungle mushrooms of different heights, round domed caps, thick short stems"
+    },
+    {
+      "id": "tree",
+      "variants": 4,
+      "polycount": 2000,
+      "palette": "tree",
+      "prompt": "a tall tropical jungle tree, thick straight trunk, broad canopy of large flat leaves"
+    },
+    {
+      "id": "vine",
+      "variants": 3,
+      "polycount": 800,
+      "palette": "foliage",
+      "prompt": "a hanging jungle vine, long vertical rope-like stem with broad leaves along its length"
+    },
+    {
+      "id": "stalagmite",
+      "variants": 3,
+      "polycount": 900,
+      "palette": "cave",
+      "prompt": "a pointed cave stalagmite rising from the floor, tapering ribbed cone, damp limestone"
+    },
+    {
+      "id": "crystal",
+      "variants": 3,
+      "polycount": 900,
+      "palette": "crystal",
+      "prompt": "a cluster of angular crystal shards growing at different angles from a rocky base, faceted gems"
+    },
+    {
+      "id": "canyon-spire",
+      "variants": 3,
+      "polycount": 1600,
+      "palette": "canyon",
+      "prompt": "a tall layered sandstone canyon spire, horizontal strata bands, flat wide landable top"
+    },
+    {
+      "id": "ledge",
+      "variants": 2,
+      "polycount": 1000,
+      "palette": "canyon",
+      "prompt": "a rectangular rock ledge slab with a flat top surface and rough broken sides, layered sandstone"
+    },
+    {
+      "id": "platform",
+      "variants": 2,
+      "polycount": 900,
+      "palette": "wood",
+      "prompt": "a simple square wooden plank platform, four thick planks side by side with visible grain"
+    },
+    {
+      "id": "banner",
+      "variants": 2,
+      "polycount": 800,
+      "palette": "banner",
+      "prompt": "a tall festival banner on a wooden pole, plain rectangular cloth hanging vertically, no writing, rope ties"
+    }
+  ]
+}

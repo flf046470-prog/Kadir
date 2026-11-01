@@ -1,0 +1,21 @@
+// Depot contents for the Windows build.
+//
+// FileExclusion entries keep development leftovers out of the shipped depot: a stray .map or a
+// data/ directory from a local run would otherwise be published to every customer.
+"DepotBuild"
+{
+	"DepotID"	"__DEPOTID__"
+	"ContentRoot"	"../../../dist/steam/"
+
+	"FileMapping"
+	{
+		"LocalPath"	"*"
+		"DepotPath"	"."
+		"recursive"	"1"
+	}
+
+	"FileExclusion"	"*.pdb"
+	"FileExclusion"	"*.map"
+	"FileExclusion"	"data/*"
+	"FileExclusion"	"**/*.log"
+}

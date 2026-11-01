@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Template for the Microsoft Store (MSIX) package.
+
+  `npm run pack:msstore` renders this into AppxManifest.xml (gitignored), because the identity
+  below is issued by Partner Center per app and per account and must not be guessed or committed.
+  Run the script with no arguments to see the flags it needs; they cannot be written here,
+  because XML forbids a double dash inside a comment and every one of them starts with two.
+
+  This is the same web build as the Quest and Google Play packages. Windows runs a Progressive
+  Web App from the Store as a hosted app: the package contains the manifest and the tile art,
+  and `StartPage` points at the deployed origin, exactly the way a Trusted Web Activity points
+  at one origin on Android. One codebase, one deployment, three stores.
+
+  Things here that are not free choices:
+
+    Identity Name / Publisher   Issued by Partner Center when the app name is reserved. They
+                                must match the reservation character for character or the
+                                upload is rejected. The Publisher is the `CN=...` string from
+                                Partner Center, NOT a company name.
+
+    Version                     Four parts, and the Store requires the fourth (revision) to be
+                                0 — it reserves that field. Every submission must also increase
+                                the version, so this is rendered from package.json.
+
+    ApplicationContentUriRules  Without a rule covering the origin, the app's own pages are
+                                treated as untrusted web content: WinRT access is refused and
+                                permission prompts behave differently. The rule is what makes
+                                the microphone capability below actually usable for voice chat.
+
+    microphone                  Voice chat needs it. Declaring a capability you do not use is a
+                                review risk, and failing to declare one you do use means the
+                                feature silently never works for anyone.
+
+    TargetDeviceFamily          Windows.Desktop from 10.0.17763 (1809), the oldest build where
+                                the hosted-PWA path is dependable.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  IgnorableNamespaces="uap">
+
+  <Identity
+    Name="__IDENTITY_NAME__"
+    Publisher="__PUBLISHER__"
+    Version="__VERSION__"
+    ProcessorArchitecture="neutral" />
+
+  <Properties>
+    <DisplayName>__DISPLAY_NAME__</DisplayName>
+    <PublisherDisplayName>__PUBLISHER_DISPLAY_NAME__</PublisherDisplayName>
+    <Logo>images\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22621.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Applications>
+    <Application Id="App" StartPage="https://__DOMAIN__/">
+      <uap:VisualElements
+        DisplayName="__DISPLAY_NAME__"
+        Description="__DESCRIPTION__"
+        BackgroundColor="__BACKGROUND__"
+        Square150x150Logo="images\Square150x150Logo.png"
+        Square44x44Logo="images\Square44x44Logo.png">
+        <uap:DefaultTile
+          ShortName="__SHORT_NAME__"
+          Wide310x150Logo="images\Wide310x150Logo.png"
+          Square310x310Logo="images\Square310x310Logo.png"
+          Square71x71Logo="images\Square71x71Logo.png">
+          <uap:ShowNameOnTiles>
+            <uap:ShowOn Tile="square150x150Logo" />
+            <uap:ShowOn Tile="wide310x150Logo" />
+          </uap:ShowNameOnTiles>
+        </uap:DefaultTile>
+        <uap:SplashScreen Image="images\SplashScreen.png" BackgroundColor="__BACKGROUND__" />
+      </uap:VisualElements>
+
+      <uap:ApplicationContentUriRules>
+        <uap:Rule Type="include" Match="https://__DOMAIN__/" WindowsRuntimeAccess="all" />
+      </uap:ApplicationContentUriRules>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <DeviceCapability Name="microphone" />
+  </Capabilities>
+</Package>
