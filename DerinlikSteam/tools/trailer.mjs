@@ -33,7 +33,7 @@ const SHOTS = [
   { ch: 1, dur: 3.2, cam: true, k: [[.6, 24.0, 2.2, 27.55, .8], [.9, 24.6, 2.2, 27.55, .8]] },
   { card: 'KOLA', sub: '1986', dur: 1.8 },
   { ch: 2, dur: 4.2, k: [[0, 1.6, 0, 20, 1.5], [0, 4.2, 0, 20, 1.45]] },
-  { ch: 2, dur: 4.0, enemy: true, warm: 4.0, k: [[3.2, 12.0, null], [3.2, 11.6, null]] },
+  { ch: 2, dur: 4.0, enemy: true, warm: 1.0, enemyAt: [0, 12.0, .5], k: [[3.2, 12.0, null], [3.2, 11.6, null]] },
   { card: 'PARIS', dur: 1.8 },
   { ch: 3, dur: 5.2, k: [[0, .9, 0, 13, 1.35], [0, 4.4, 0, 13, 1.3]] },
   { ch: 3, dur: 4.0, warm: 3.0, warmAt: [0, 24.0, 0, 36.6, 2.6], k: [[0, 25.6, 0, 36.6, 2.6], [0, 27.4, 0, 36.6, 2.7]] },
@@ -114,8 +114,17 @@ for (const [si, s] of SHOTS.entries()) {
   await place(s.k[0], true, s.ch, s.choices);
   if (s.warmAt) { await place(s.warmAt, false, s.ch); for (let t = 0; t < s.warm; t += .5) await stepGame(.5); }
   else if (s.warm) for (let t = 0; t < s.warm; t += .5) await stepGame(.5);
-  // the Copy walks into its doorway during the warm-up, then holds there, facing the lens, for the whole shot
-  if (s.enemy) await page.evaluate(([x, z]) => { const d = window.__derinlik, e = d.enemy; d.DEBUG.enemyOff = true; e.heading = Math.atan2(-(x - e.x), -(z - e.z)); e.place(); }, s.k[0]);
+  // the Copy patrols its corridor: wait (up to 40 s of game time) until the body the eye sees (where it was 1.5 s ago,
+  // game.html Copy.place) is in the doorway, then hold it there, facing the lens, for the whole shot
+  if (s.enemyAt) for (let t = 0; t < 40; t += .25) {
+    if (await page.evaluate(([x, z, r]) => { const f = window.__derinlik.enemy?.fig?.position; return !!f && Math.hypot(f.x - x, f.z - z) < r; }, s.enemyAt)) break;
+    await stepGame(.25);
+  }
+  if (s.enemy) await page.evaluate(([x, z]) => {
+    const d = window.__derinlik, e = d.enemy; d.DEBUG.enemyOff = true;
+    if (e.fig) { e.x = e.fig.position.x; e.z = e.fig.position.z; e.trail = null; } // where it is = where it is seen
+    e.heading = Math.atan2(-(x - e.x), -(z - e.z)); e.place();
+  }, s.k[0]);
   await page.evaluate((s) => {
     const d = window.__derinlik;
     const on = !!s.torch; if (d.torch.visible !== on) { d.torch.visible = on; d.FX.emit('torch', on); }

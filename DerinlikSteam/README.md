@@ -43,7 +43,9 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
       `s02_sakarya_sigil_camcorder.jpg` ve `s05_nevsehir_other_camcorder.jpg` eski sürümden kaldı (o sahneler değişti): silinmesi senin onayınla.
       Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek.
 - [x] Steam Next Fest demosu: yalnızca Sakarya bölümü, sonunda istek listesi çağrısı ve oyuncunun kaseti → `DerinlikWeb/build.py --offline --demo --out dist/demo/index.html`. Steamworks'te ayrı bir "Demo" uygulaması olarak yüklenir (ana oyunun sayfasına bağlanır, ayrı ücret yok).
-- [ ] Fragman (zorunlu değil, Steam "ideal olarak" istiyor) → `tools/trailer.mjs` + `tools/soundtrack.py` (hazırlanıyor)
+- [x] Fragman: 57,6 s, 1920×1080, 30 fps, H.264 ~18 Mbps, AAC 48 kHz stereo → `tools/trailer.mjs` + `tools/soundtrack.py` +
+      aşağıdaki ffmpeg satırı. Sakarya → Nevşehir → Kola → Paris, hızlı kesmeler, sonra müzik susar ve "arkanda" anı, logo.
+      Video ~130 MB olduğu için repoya konmadı (GitHub'ın dosya sınırı 100 MB); aynı komutlarla birebir yeniden üretilir.
 
 ## Karar vermen gerekenler
 
@@ -87,4 +89,4 @@ ffmpeg -framerate 30 -i frames/%05d.jpg -i frames/soundtrack.wav -c:v libx264 -p
 Bu ayarlar Steam'in fragman önerileriyle aynı: 1920×1080, 30 fps, H.264 yaklaşık 20 Mbps, AAC stereo 192 kbps, 48 kHz.
 Müzik `soundtrack.py` içinde osilatör ve gürültüden sentezlenir (oyunun kendi ses motifleri: kapı uğultusu, İkinci Ses
 fısıltısı, kamera bip'i); örnek (sample) kullanılmadığı için lisans sorunu yoktur. `--stride 15` ile her 15 karede bir
-kare alınarak kurgu hızlıca önizlenebilir. Yazılım GPU'sunda tam fragman yaklaşık bir saat sürer.
+kare alınarak kurgu hızlıca önizlenebilir; `--only 10,17` yalnızca o çekimleri işler (tek çekimi düzeltip karelerini yerine koymak için). Yazılım GPU'sunda tam fragman yaklaşık bir saat sürer.
