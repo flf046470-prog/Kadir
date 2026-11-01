@@ -16,17 +16,19 @@ const only = rest.includes('--only') ? new Set(rest[rest.indexOf('--only') + 1].
 const SHOTS = [
   { name: 's01_sakarya_basement', at: [0, -.6, 1.4, .4, 8, 1.25], run: .6 },
   { name: 's02_sakarya_wheel', at: [0, -.2, 15.9, .35, 17.8, 1.1], torch: true, run: .6 },
-  { name: 's03_sakarya_gate', at: [0, 0, 30.0, 0, 32.55, 1.2], choices: { power: 'pump' }, run: 3 },
+  { name: 's03_sakarya_gate', at: [0, 0, 30.0, 0, 32.55, 1.2], choices: { power: 'relay' }, run: 3 },
   { name: 's04_nevsehir_hall', at: [1, 0, 8.0, 0, 17, 1.6], run: .6 },
   { name: 's05_nevsehir_elise_camcorder', at: [1, 1.0, 24.6, 2.2, 27.55, .8], cam: true, run: .6 },
   { name: 's06_kola_corridor', at: [2, 0, 2.0, 0, 20, 1.5], run: .6 },
-  { name: 's07_kola_copy', at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 5.0 },
+  { name: 's07_kola_copy', at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 1.0, enemyAt: [0, 12.0, .5] },
   { name: 's08_paris_catacombs', at: [3, 0, 1.0, 0, 13, 1.3], run: .6 },
   { name: 's09_paris_final_chamber', at: [3, 0, 26.0, 0, 36.6, 2.6], warm: [0, 24.0, 0, 36.6, 2.6], run: .4 },
+  // out of the crawl, the whisper at your back: turn round with the camcorder down (game.html buildSakarya)
+  { name: 's10_sakarya_behind_you', at: [0, 0, 15.9, 0, 18, 1.5], torch: true, run: .4, behind: [0, 11, 1.55] },
   // key-art plates: same places, no HUD, 4K
   { name: 'k_gate', plate: true, at: [0, 0, 29.2, 0, 32.55, 1.25], choices: { power: 'relay' }, run: 3 },
   { name: 'k_kola', plate: true, at: [2, 0, 2.0, 0, 20, 1.5], run: .6 },
-  { name: 'k_copy', plate: true, at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 5.0 },
+  { name: 'k_copy', plate: true, at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 1.0, enemyAt: [0, 12.0, .5] },
   { name: 'k_paris', plate: true, at: [3, 0, 1.0, 0, 13, 1.3], run: .6 },
 ].filter((s) => !only || only.has(s.name));
 
@@ -67,15 +69,22 @@ for (const s of SHOTS) {
     if (rebuild) { for (const k of Object.keys(d.choices)) delete d.choices[k]; Object.assign(d.choices, choices); d.buildChapter(ch); }
     d.player.enabled = true; d.player.crouched = false; d.player.x = x; d.player.z = z; d.player.eye = 1.64; d.face(lx, lz, ly); d.advance(1 / 30);
   }, [at, rebuild, s.choices || {}]);
-  await page.evaluate((s) => { const d = window.__derinlik; if (d.state.camRaised) d.toggleCam(); d.DEBUG.enemyOff = !s.enemy; }, s);
+  await page.evaluate((s) => { const d = window.__derinlik; if (d.state.camRaised) d.toggleCam(); d.DEBUG.enemyOff = !s.enemy; d.DEBUG.noViewModel = !!s.plate; }, s); // key art: no camcorder in hand
   await place(s.at, true);
   if (s.warm) { await place([s.at[0], ...s.warm], false); await step(3); await place(s.at, false); }
   await page.evaluate((s) => { const d = window.__derinlik; if (d.torch.visible !== !!s.torch) { d.torch.visible = !!s.torch; d.FX.emit('torch', d.torch.visible); } }, s);
   await step(s.run);
+  // enemyAt [x, z, r]: the Copy patrols, so wait (up to 40 s of game time) until its visible body stands there
+  if (s.enemyAt) for (let t = 0; t < 40; t += .25) {
+    const near = await page.evaluate(([x, z, r]) => { const f = window.__derinlik.enemy?.fig?.position; return !!f && Math.hypot(f.x - x, f.z - z) < r; }, s.enemyAt);
+    if (near) break; await step(.25);
+  }
   await page.evaluate((s) => {
     const d = window.__derinlik;
     if (s.cam && !d.state.camRaised) { d.toggleCam(); d.advance(.4); }
-    if (s.enemy && d.enemy) d.face(d.enemy.x, d.enemy.z, 1.5);
+    // the naked eye sees where the Copy was 1.5 s ago (game.html Copy.place): aim at the body that is drawn
+    if (s.enemy && d.enemy) { const f = d.enemy.fig ? d.enemy.fig.position : d.enemy; d.face(f.x, f.z, 1.5); }
+    if (s.behind) { d.face(...s.behind); d.advance(1 / 30); d.advance(.12); } // the figure stands for 480 ms
     // transient pop-ups never; the HUD, the camcorder OSD and subtitles only on screenshots, never on plates
     for (const id of ['toast', 'prompt']) document.getElementById(id).style.visibility = 'hidden';
     for (const id of ['hud', 'cam', 'subs']) document.getElementById(id).style.visibility = s.plate ? 'hidden' : '';

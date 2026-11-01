@@ -38,7 +38,10 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
 - [x] Masaüstü kabuğu (Electron) ve Windows paketi (`release/win-unpacked/Derinlik.exe`) → `DerinlikDesktop/`
 - [x] Mağaza ve kütüphane görselleri, Steam'in istediği ölçülerde → `art/` (başlık, küçük, ana, dikey kapsül, sayfa
       arka planı, kütüphane kapsülü/başlığı/hero, saydam logo, topluluk simgesi)
-- [x] 9 ekran görüntüsü, 1920×1080 → `screenshots/` (Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek)
+- [x] 10 ekran görüntüsü, 1920×1080, oyunun güncel hâlinden (elde kamera, dallanan hikâye, İngilizce arayüz) → `screenshots/s01…s10`;
+      yeniden üretmek için `node tools/capture.mjs DerinlikWeb/dist/offline/index.html DerinlikSteam` (PNG yazar; JPG'ye çevirip koy).
+      `s02_sakarya_sigil_camcorder.jpg` ve `s05_nevsehir_other_camcorder.jpg` eski sürümden kaldı (o sahneler değişti): silinmesi senin onayınla.
+      Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek.
 - [x] Steam Next Fest demosu: yalnızca Sakarya bölümü, sonunda istek listesi çağrısı ve oyuncunun kaseti → `DerinlikWeb/build.py --offline --demo --out dist/demo/index.html`. Steamworks'te ayrı bir "Demo" uygulaması olarak yüklenir (ana oyunun sayfasına bağlanır, ayrı ücret yok).
 - [ ] Fragman (zorunlu değil, Steam "ideal olarak" istiyor) → `tools/trailer.mjs` + `tools/soundtrack.py` (hazırlanıyor)
 

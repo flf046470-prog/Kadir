@@ -1664,7 +1664,8 @@ function ending(kind) {
 
 /* ================================================================ flashlight */
 const torch = new THREE.SpotLight(0xfff1dc, 9, 22, .52, .6, 1); // linear falloff: close walls don't blow out, far ones still read
-torch.position.set(.16, -.12, .05); torch.castShadow = true; torch.shadow.mapSize.set(1024, 1024); torch.shadow.bias = -.0004; torch.shadow.camera.near = .1;
+// in the left hand: the right one holds the camcorder, and a bulb beside it would blow it out
+torch.position.set(-.16, -.12, .05); torch.castShadow = true; torch.shadow.mapSize.set(1024, 1024); torch.shadow.bias = -.0004; torch.shadow.camera.near = .1;
 camera.add(torch); camera.add(torch.target); torch.target.position.set(0, -.05, -1); torch.visible = false;
 
 /* ================================================================ Blender props (optional) */
@@ -1687,9 +1688,12 @@ const handCam = { obj: null, k: 0 }; // k: 0 lowered .. 1 at the eye
 FX.on('init', () => {
   if (!MODELS.camcorder) return;
   const o = MODELS.camcorder.clone();
-  o.traverse((m) => { // the torch sits right beside it: no shadows from it, and darker plastic so the beam doesn't blow it out
+  o.traverse((m) => { // a view model: casts and takes no shadows, darker plastic so close lights don't blow it out
     if (!m.isMesh) return; m.castShadow = m.receiveShadow = false;
-    m.material = m.material.clone(); if (!m.material.emissiveIntensity || m.material.emissive.getHex() === 0) m.material.color.multiplyScalar(.35);
+    if (m.material.emissiveIntensity && m.material.emissive.getHex() !== 0) { m.material = m.material.clone(); return; } // the REC lamp
+    // a fixed, faint sheen instead of PBR's: the torch's bounce point can sit a hand's width away, and PBR mirrors 4% (more
+    // at a grazing angle) of a light that close whatever the colour, which turned the whole body pale grey near a wall
+    m.material = new THREE.MeshPhongMaterial({ color: m.material.color.clone().multiplyScalar(.35), map: m.material.map || null, specular: 0x161616, shininess: 24 });
   });
   o.scale.setScalar(.75); o.visible = false; camera.add(o); handCam.obj = o;
 });
@@ -1697,7 +1701,7 @@ FX.on('draw', (dt) => {
   const o = handCam.obj; if (!o) return;
   handCam.k += ((state.camRaised ? 1 : 0) - handCam.k) * Math.min(1, dt * 10);
   const k = handCam.k, sway = settings.bob ? 1 : 0, b = player.bob;
-  o.visible = state.started && !state.ended && player.enabled && !state.camRaised; // the camcorder never films itself; lowering it brings it back down from the eye
+  o.visible = state.started && !state.ended && player.enabled && !state.camRaised && !DEBUG.noViewModel; // the camcorder never films itself; lowering it brings it back down from the eye
   o.position.set(.17 - k * .13 + Math.sin(b * .5) * .006 * sway, -.205 + k * .16 - Math.abs(Math.cos(b * .5)) * .008 * sway, -.28 + k * .12);
   o.rotation.set(-.38 + k * .38, -.06 + k * .06, .1 * (1 - k) + Math.sin(b * .5) * .015 * sway);
 });
