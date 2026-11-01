@@ -22,7 +22,7 @@ const BUTTON_H = 68;
 const BUTTON_TOP = 132;
 /** Below this a row is too small to hit reliably with a controller ray at arm's length. */
 const MIN_BUTTON_H = 42;
-const MAX_BUTTONS = Math.floor((CANVAS_H - BUTTON_TOP - 16) / MIN_BUTTON_H);
+export const MAX_BUTTONS = Math.floor((CANVAS_H - BUTTON_TOP - 16) / MIN_BUTTON_H);
 
 /**
  * World-space VR menu.
@@ -103,6 +103,11 @@ export class VRMenu {
 
   get isVisible(): boolean {
     return this.visible;
+  }
+
+  /** The row a controller is pointing at, or null. Read by `check:xrsim` to aim the trigger. */
+  get hoveredId(): string | null {
+    return this.visible ? (this.buttons[this.hovered]?.id ?? null) : null;
   }
 
   /** Called every XR frame: updates hover from whichever controller is pointing at the panel. */

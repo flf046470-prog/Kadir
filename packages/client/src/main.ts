@@ -20,6 +20,7 @@ import { Shell } from './ui/Shell.js';
 import { TuningStore } from './game/TuningStore.js';
 import { SocialClient, parseSocialRow, vrSocialRows } from './social/SocialClient.js';
 import { VRMenu } from './ui/VRPanels.js';
+import { vrResultsContent } from './ui/vrResults.js';
 import { VRWristHud } from './ui/VRWristHud.js';
 import { buildHudModel } from './ui/hudModel.js';
 import { button, el } from './ui/dom.js';
@@ -285,6 +286,7 @@ async function main(): Promise<void> {
     // in front of the player in the new room.
     vrMenu?.hide();
     friendsMenu?.hide();
+    resultsMenu?.hide();
     if (inMatch) {
       game.leaveMatch();
       setInMatch(false);
@@ -300,6 +302,8 @@ async function main(): Promise<void> {
   let wristHud: VRWristHud | null = null;
   let tuningMenu: VRMenu | null = null;
   let friendsMenu: VRMenu | null = null;
+  /** The end of a round in a headset: the flat results screen is DOM, which a headset never draws. */
+  let resultsMenu: VRMenu | null = null;
   /** Which way a tap on a tuning row moves the value. Flipped from a row in the panel. */
   let tuningStep = 1;
 
@@ -377,6 +381,12 @@ async function main(): Promise<void> {
           // the results screen owns what happens next, and "Resume" would resume nothing.
           setInMatch(false);
           shell.showResults(result, rewards, session?.playerId ?? '');
+          if (resultsMenu) {
+            const content = vrResultsContent(result, rewards, session?.playerId ?? '', (id, real) => streamer.name(id, real));
+            resultsMenu.setContent(content.title, content.subtitle, content.buttons);
+            vrMenu?.hide();
+            resultsMenu.show();
+          }
         },
         onMicState: (enabled, open, muted) => hud?.setMicState(enabled, open, muted),
         onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
@@ -408,10 +418,21 @@ async function main(): Promise<void> {
         __kcView?: () => unknown;
         __kcHideSelf?: (hidden: boolean) => void;
         __kcSelf?: () => unknown;
+        __kcVr?: () => unknown;
+        __kcEndRound?: () => void;
       };
       hooks.__kcView = () => game?.captureView() ?? null;
       hooks.__kcHideSelf = (hidden) => game?.setSelfVisible(!hidden);
       hooks.__kcSelf = () => game?.selfView() ?? null;
+      // The headset's panels and wrist, and a round ended on demand, for `check:xrsim`'s end-of-round
+      // check. The first only reads; the second ends a practice round, as its clock would.
+      hooks.__kcVr = () => ({
+        wrist: wristHud?.state ?? null,
+        menu: vrMenu?.isVisible ?? false,
+        results: resultsMenu?.isVisible ?? false,
+        hovered: resultsMenu?.hoveredId ?? vrMenu?.hoveredId ?? null,
+      });
+      hooks.__kcEndRound = () => game?.endSoloRound();
     }
 
     hud = new Hud({
@@ -445,7 +466,8 @@ async function main(): Promise<void> {
     hud.setVisible(false);
     if (device.kind === 'vr') {
       wristHud ??= new VRWristHud(renderer);
-      wristHud.setVisible(true);
+      // Shown in a round and hidden out of one, with the DOM HUD's own switch (`setInMatch`).
+      wristHud.setVisible(inMatch);
     }
 
     game.setFoundSecrets(foundSecrets);
@@ -587,6 +609,22 @@ async function main(): Promise<void> {
       },
     });
 
+    resultsMenu = new VRMenu({
+      renderer,
+      onSelect: (id) => {
+        if (id === 'again') {
+          resultsMenu?.hide();
+          playAgain();
+        } else if (id === 'menu') {
+          resultsMenu?.hide();
+          game?.leaveMatch();
+          setInMatch(false);
+          openMenu();
+          vrMenu?.show();
+        }
+      },
+    });
+
     // Tuning is a separate panel rather than a sub-list of the main one, so leaving it does not
     // dump you back at the top of the menu after every single adjustment.
     tuningMenu = new VRMenu({
@@ -685,6 +723,10 @@ async function main(): Promise<void> {
   let backToVr: HTMLButtonElement | null = null;
   function setInMatch(value: boolean): void {
     inMatch = value;
+    // The wrist is the headset's HUD. It was shown once at boot and hidden by the first results,
+    // and nothing showed it again: every round after the first was played with no HUD at all.
+    wristHud?.setVisible(value);
+    if (value) resultsMenu?.hide();
     if (backToVr) backToVr.style.display = value ? 'none' : '';
     shell.setInMatch(value);
   }
@@ -763,8 +805,9 @@ async function main(): Promise<void> {
         const dt = Math.min(0.1, (time - lastTime) / 1000);
         lastTime = time;
         vrInput.updateTracking(dt, settings);
-        vrMenu?.update();
-        tuningMenu?.update();
+        // Every panel, or the one left out has no hover and its trigger selects nothing: the
+        // friends panel was left out, and no row on it could be chosen.
+        for (const menu of [vrMenu, tuningMenu, friendsMenu, resultsMenu]) menu?.update();
         loop?.(time, frame);
       });
     };

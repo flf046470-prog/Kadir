@@ -753,6 +753,14 @@ export class GameClient {
    * `levelId` is the map picker's value (`''` is "Surprise me"); leaving it out keeps the map
    * that is loaded, which is what a restart of the same round wants.
    */
+  /**
+   * Ends a practice round now, as its clock would. Only `check:xrsim` calls it (through a
+   * webdriver-only hook), because a round lasts minutes and the end of one is what it checks.
+   */
+  endSoloRound(): void {
+    if (this.isSoloPractice) this.sim.endRound('test');
+  }
+
   startSoloPractice(modeId = this.modeId, botCount = 5, levelId?: string): void {
     if (levelId !== undefined) {
       this.useLevel(practiceLevelFor(levelId, listLevels().map((l) => l.id), this.level.id));

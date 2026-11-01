@@ -315,6 +315,50 @@ try {
     const standing = (await self(page)).headHeight;
     check('holding C ducks the head below the crouch line', Boolean(ducked), ducked ? `${ducked.headHeight.toFixed(2)} m` : `still ${standing.toFixed(2)} m`);
 
+    // The end of a round. The flat results screen is DOM, which a headset never draws: the round
+    // used to end on nothing, with the wrist HUD hidden for good. The round is ended on demand
+    // (`__kcEndRound`), because a practice round lasts minutes and this runs at a frame or two a
+    // second; what follows is the headset's own way on.
+    const vr = () => page.evaluate(() => window.__kcVr?.() ?? null);
+    const inRound = await vr();
+    check('the wrist HUD is strapped on and shown during a round', Boolean(inRound?.wrist?.visible && inRound.wrist.attached), JSON.stringify(inRound?.wrist));
+    await page.evaluate(() => window.__kcEndRound?.());
+    await page.waitForFunction(() => window.__kcVr?.()?.results === true, null, { timeout: 30000 }).catch(() => undefined);
+    const ended = await vr();
+    check('a round that ends shows a results panel in the headset', Boolean(ended?.results), JSON.stringify(ended));
+    check('…and the wrist HUD steps aside for it', ended?.wrist?.visible === false);
+    // Aim at "Play again" as a player would: face the panel, then tilt down the rows.
+    let aimed = false;
+    for (let i = 0; i < 6; i++) {
+      const yaw = await page.evaluate(() => window.__kcXrSim.yaw);
+      if (Math.abs(yaw) < 0.02) break;
+      const dx = Math.round(yaw / 0.0025);
+      for (let k = 1; k <= 10; k++) await page.mouse.move(mouseX + (dx * k) / 10, 360);
+      mouseX += dx;
+      await wait(200);
+    }
+    let mouseY = 360;
+    for (let step = 0; step < 90 && !aimed; step++) {
+      const pitch = await page.evaluate(() => window.__kcXrSim.pitch);
+      // Start a little above level and walk down a row at a time.
+      const dy = step === 0 ? Math.round((pitch - 0.35) / 0.0025) : 6;
+      mouseY += dy;
+      await page.mouse.move(mouseX, mouseY);
+      await wait(150);
+      const now = await vr();
+      aimed = now?.hovered === 'again';
+    }
+    check('the controller ray can point at "Play again"', aimed, aimed ? '' : JSON.stringify(await vr()));
+    if (aimed) {
+      await page.mouse.down();
+      await wait(250);
+      await page.mouse.up();
+      await page.waitForFunction(() => window.__kcVr?.()?.results === false, null, { timeout: 30000 }).catch(() => undefined);
+      const again = await vr();
+      check('pulling the trigger on it starts the next round, with the wrist HUD back', again?.results === false && again?.wrist?.visible === true, JSON.stringify(again));
+    }
+    await page.evaluate(() => window.__kcXrSim.reset());
+
     // Out again. A captured mouse sends every click to the view, so let it go first, as a tester
     // presses Esc (which the browser keeps for itself and a page cannot press).
     await page.evaluate(() => document.exitPointerLock?.());

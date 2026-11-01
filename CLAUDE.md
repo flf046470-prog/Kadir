@@ -3766,3 +3766,30 @@ winded (stamina < 25). The share of those head shots blocked: skill 0.9 51 %, 0.
 - **Distance in `fight` is 3-D** (`v3distance`): a test that puts a bot "1 m in front" without
   matching `y` puts it in a pit 4 m below and out of range.
 
+
+## A headset's round ended on nothing
+
+Found driving the end of a round through the desktop simulator. Three defects in `main.ts`, none of
+which any unit test could see, because each is the wiring between panels rather than a panel:
+
+- **The results screen is DOM, and a headset never draws DOM.** `onResults` called
+  `shell.showResults` and nothing else, so a headset player whose round ended stood in a finished
+  world with nothing in front of them and no way on but to take the headset off. `resultsMenu` is a
+  `VRMenu` filled by `ui/vrResults.ts` (`vrResultsContent`, pure, tested): win or not, placement,
+  coins and XP, the top six of the scoreboard, what the round unlocked, then **Play again** (the
+  flat screen's own `playAgain`) and **Menu**. The two buttons are kept however long the list is —
+  `VRMenu` drops rows past `MAX_BUTTONS` (12), and a 32-player scoreboard would have dropped them.
+- **The wrist HUD was shown once, at boot, and hidden by the first results.** Nothing showed it
+  again, so every round after the first was played with no HUD in a headset — and it had been on
+  the wrist in the menu, with a stale round on it. It follows `setInMatch` now, with the DOM HUD.
+- **The friends panel had no hover.** The XR loop called `update()` on the main and tuning panels
+  only, so the friends panel never knew where a controller pointed and its trigger chose nothing.
+  Every panel is updated now, from one list. (Not driven in the simulator: friends need a server
+  session; the fix is the list itself.)
+
+`check:xrsim` (41/41): wrist strapped on and shown in a round; `__kcEndRound` (webdriver only, a
+practice round ends as its clock would — a round lasts minutes and the check runs at 1–2 frames a
+second) → the results panel is up and the wrist hidden → the head is turned to the panel and tilted
+down the rows until the ray hovers **Play again** (`__kcVr().hovered`) → the left mouse (right
+trigger) starts the next round with the wrist back. Mutation: taking the wrist out of `setInMatch`
+fails two checks (39/41): no wrist in the round, none after Play again.

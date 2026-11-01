@@ -53,6 +53,11 @@ export class VRWristHud {
     }
   }
 
+  /** Whether it is shown and strapped to a hand, for `check:xrsim`. */
+  get state(): { visible: boolean; attached: boolean } {
+    return { visible: this.mesh.visible, attached: this.mesh.parent !== null };
+  }
+
   setVisible(visible: boolean): void {
     this.mesh.visible = visible;
   }
