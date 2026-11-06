@@ -1328,6 +1328,12 @@ function buildKola() {
   room(-1.5, 1.5, 0, 3, 2.6, wallM, { floor: floorM, n: [{ c: 0, w: 1.2, h: 2.2 }] });
   decal(textTexture('ОБЪЕКТ НОЛЬ-17', { w: 512, h: 96, fg: '#d8d2c0', font: '52px "IBM Plex Sans Condensed", sans-serif' }), 1.4, .26, [0, 2.2, 2.97], Math.PI);
   bulb([0, 2.45, 1.5], 0xd8f0e0, 1.4, 6);
+  // enamel plates, Soviet style (local signage: they stay in Russian in every language)
+  const plate = (lines, w, h, [x, y, z], fg = '#b3271c') => { // on the corridor's west wall (x = -1), facing +x
+    box([x - .02, y - h / 2 - .02, z - w / 2 - .02], [x + .005, y + h / 2 + .02, z + w / 2 + .02], M.dark, { collide: false, tile: .2 });
+    decal(textTexture(lines, { w: 512, h: Math.round(512 * h / w), bg: '#e6e0cf', fg, font: 'bold 64px "IBM Plex Sans Condensed", sans-serif' }), w, h, [x + .01, y, z], Math.PI / 2); };
+  plate(['ЗОНА', 'СТРОГОГО РЕЖИМА'], .62, .3, [-.98, 1.75, 4.2]);
+  plate(['НЕ ОТКРЫВАТЬ!'], .44, .14, [-.98, 1.72, 6.8], '#151515');
   // Main corridor with two hiding alcoves (west) and the lab door (east)
   room(-1, 1, 3.2, 23, 2.8, wallM, { floor: floorM, s: false, n: false, w: [{ c: 8.75, w: 1.4, h: 2.2 }, { c: 15.75, w: 1.4, h: 2.2 }], e: [{ c: 12, w: 1.4, h: 2.2 }] });
   for (const c of [8.75, 15.75]) { room(-2.6, -1.2, c - .7, c + .7, 2.4, wallM, { floor: floorM, e: false }); W.hides.push({ min: [-2.6, c - .7], max: [-1.25, c + .7] }); }
@@ -1338,6 +1344,8 @@ function buildKola() {
   // Lab: the 1986 log and the resonance console; a vent in the north wall hides a duct to the reactor hall
   room(1.2, 7, 9, 15, 2.8, wallM, { floor: floorM, w: false, n: [{ c: 1.75, w: .7, h: 1.2 }] });
   const fl = bulb([4.1, 2.6, 12], 0xe8fff2, 2.4, 9);
+  // the depth board: the hole the facility was built over
+  decal(textTexture(['СГ-3 · СВЕРХГЛУБОКАЯ', 'ГЛУБИНА 12 262 м', '1970 —'], { w: 512, h: 300, bg: '#ddd6c2', fg: '#1d1d1d', font: '44px "IBM Plex Sans Condensed", sans-serif' }), .8, .47, [4.2, 1.7, 9.02], 0);
   every(3.3, () => { if (Math.random() < .6) { fl.set(false); later(70, () => fl.set(true)); later(160, () => fl.set(false)); later(230, () => fl.set(true)); } });
   box([5.6, 0, 9.4], [6.8, .78, 11.6], M.metal); box([2.2, 0, 14.0], [5.4, .78, 14.8], M.metal);
   prop('cabinet', [1.68, 0, 9.31], 0, { collide: true }); prop('cabinet', [2.16, 0, 9.31], 0, { collide: true });
@@ -1388,9 +1396,22 @@ function buildKola() {
   zone([1.2, 0, 9], [7, 3, 15], () => { state.checkpoint = [3, 12, Math.PI / 2]; objective('Laboratuvar. Deney günlüğünü bul.'); });
   // Reactor hall + gate
   room(-4, 4, 23.4, 32, 4.5, wallM, { floor: floorM, s: [{ c: 0, w: 1.8, h: 2.4 }, { c: 1.75, w: .7, h: 1.2 }] });
-  const core = new THREE.Mesh(new THREE.CylinderGeometry(1.3, 1.5, 3.2, 32), M.metal); core.position.set(0, 1.6, 27.4); core.castShadow = true; W.group.add(core); W.occluders.push(core);
+  decal(textTexture(['ПОСТОРОННИМ ВХОД', 'ВОСПРЕЩЁН'], { w: 512, h: 160, bg: '#e6e0cf', fg: '#b3271c', font: 'bold 56px "IBM Plex Sans Condensed", sans-serif' }), .8, .25, [0, 2.6, 22.98], Math.PI);
+  // the wellhead, after the real SG-3 cap at Pechenga: a welded steel flange ringed with nuts on a concrete plinth,
+  // the depth stamped into it (12 262 m, the deepest hole ever drilled). The ring of light hugs the flange.
+  box([-1.4, 0, 26.0], [1.4, .42, 28.8], M.concrete, { tile: 1.2 });
+  const flange = new THREE.Mesh(new THREE.CylinderGeometry(.86, .9, .24, 40), M.rust); flange.position.set(0, .54, 27.4); flange.castShadow = flange.receiveShadow = true; W.group.add(flange); W.occluders.push(flange);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2, nut = new THREE.Mesh(new THREE.CylinderGeometry(.055, .055, .09, 6), M.metal); nut.position.set(Math.cos(a) * .73, .7, 27.4 + Math.sin(a) * .73); nut.rotation.y = a; W.group.add(nut); }
+  const stamp = new THREE.Mesh(new THREE.PlaneGeometry(.9, .32), new THREE.MeshStandardMaterial({ map: textTexture('12262', { w: 512, h: 180, fg: '#cfc6b2', font: '150px "IBM Plex Sans Condensed", sans-serif' }), transparent: true, roughness: .8 }));
+  stamp.rotation.x = -Math.PI / 2; stamp.position.set(0, .665, 27.4); W.group.add(stamp);
   W.colliders.push({ min: [-1.5, 0, 25.9], max: [1.5, 3.2, 28.9] });
-  const coreRing = new THREE.Mesh(new THREE.TorusGeometry(1.42, .05, 8, 48), new THREE.MeshBasicMaterial({ color: 0x5fb8ff })); coreRing.rotation.x = Math.PI / 2; coreRing.position.set(0, 2.2, 27.4); W.group.add(coreRing);
+  const coreRing = new THREE.Mesh(new THREE.TorusGeometry(.98, .04, 8, 48), new THREE.MeshBasicMaterial({ color: 0x5fb8ff })); coreRing.rotation.x = Math.PI / 2; coreRing.position.set(0, .6, 27.4); W.group.add(coreRing);
+  // radiation sign (yellow, black trefoil) after the PRB AS-89 era plates
+  const rad = document.createElement('canvas'); rad.width = 256; rad.height = 320; { const g = rad.getContext('2d'); g.fillStyle = '#d9b21f'; g.fillRect(0, 0, 256, 320); g.fillStyle = '#111';
+    for (let k = 0; k < 3; k++) { g.beginPath(); g.moveTo(128, 120); g.arc(128, 120, 92, (k * 120 - 120) * Math.PI / 180, (k * 120 - 60) * Math.PI / 180); g.closePath(); g.fill(); }
+    g.fillStyle = '#d9b21f'; g.beginPath(); g.arc(128, 120, 22, 0, Math.PI * 2); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(128, 120, 15, 0, Math.PI * 2); g.fill();
+    g.font = 'bold 30px "IBM Plex Sans Condensed", sans-serif'; g.textAlign = 'center'; g.fillText('РАДИАЦИОННАЯ', 128, 258); g.fillText('ОПАСНОСТЬ', 128, 292); }
+  const radTex = new THREE.CanvasTexture(rad); radTex.colorSpace = THREE.SRGBColorSpace; decal(radTex, .48, .6, [-3.97, 1.8, 26.4], Math.PI / 2);
   bulb([3.5, 4.1, 30], 0x9fc8ff, 1.6, 9, { shade: false });
   prop('crate', [3.4, 0, 24.1], .3, { collide: true }); prop('crate', [-3.3, 0, 31.2], -.4, { collide: true });
   const gate = echoGate(0, 1.25, 31.6, 0, () => goChapter(3));
