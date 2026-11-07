@@ -25,8 +25,37 @@
 #mobileActions button.ready{background:#d9a35ee8;color:#081a24;box-shadow:0 0 18px #ffc98a88;animation:ePulse 1s ease-in-out infinite}
 @keyframes ePulse{50%{transform:scale(1.06)}}
 @media (max-height:500px){#mobileActions{grid-template-columns:repeat(4,50px)}#mobileActions button{min-height:42px}}
-body.touch-device #mobileActions button{padding:0 1px;font-size:10px;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap}`;
+body.touch-device #mobileActions button{padding:0 1px;font-size:10px;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap}
+/* landscape phones: compact conditions box; the cargo and scanner panels are stacked under it
+   by layoutSide() below, so they never cover it or the action buttons */
+@media (max-height:500px){
+body.touch-device #topRight{top:max(8px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));min-width:135px;padding:9px 11px}
+body.touch-device #topRight .row{font-size:9px;margin:5px 0 4px}
+body.touch-device #cargoPanel,body.touch-device #fieldScanner{bottom:auto;right:max(10px,env(safe-area-inset-right));max-width:210px;min-width:0;padding:6px 9px;font-size:9px;line-height:1.35}
+body.touch-device #fieldScanner .scannerBottom{display:none}
+body.touch-device #fieldScanner .scannerTitle{margin-bottom:3px}
+body.touch-device #helpButton{right:var(--helpRight,170px);top:max(8px,env(safe-area-inset-top));padding:6px 11px}
+}`;
   document.head.appendChild(css);
+
+  // Stack the cargo and scanner panels under the conditions box on short (landscape phone) screens.
+  const sideEls = ['topRight', 'cargoPanel', 'fieldScanner'];
+  function layoutSide() {
+    const [tr, cargo, scan] = sideEls.map((id) => document.getElementById(id));
+    const help = document.getElementById('helpButton'), short = innerHeight <= 500;
+    if (help) { const t = short ? '?' : '? KONTROLLER'; if (help.textContent !== t) help.textContent = t; }
+    if (!tr || !short) { for (const el of [cargo, scan]) if (el) el.style.top = ''; return; }
+    const rr = tr.getBoundingClientRect();
+    document.body.style.setProperty('--helpRight', (innerWidth - rr.left + 8) + 'px');
+    let y = rr.bottom + 6;
+    for (const el of [cargo, scan]) {
+      if (!el) continue;
+      el.style.top = y + 'px';
+      if (el.classList.contains('active')) y += el.getBoundingClientRect().height + 6;
+    }
+  }
+  addEventListener('resize', layoutSide);
+  setInterval(layoutSide, 400);
 
   const chamber = () => !!window.ICEWALK_CHAMBER?.active;
   const key = (k, on) => document.dispatchEvent(new KeyboardEvent(on ? 'keydown' : 'keyup', { key: k, bubbles: true }));
