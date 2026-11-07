@@ -14,15 +14,25 @@ const STRIDE = rest.includes('--stride') ? +rest[rest.indexOf('--stride') + 1] :
 // --only 3,17: render just these shots (indices into SHOTS), to look at one shot without the whole cut
 const ONLY = rest.includes('--only') ? new Set(rest[rest.indexOf('--only') + 1].split(',').map(Number)) : null;
 const FPS = 30;
+// --prologue path.json: open on the live-action prologue (tools/prologue_path.py). Its photoreal frames come from
+// Blender and tools/prologue_post.py; this script reserves their frame numbers and renders the game's half of the turn.
+const PROLOGUE = rest.includes('--prologue') ? JSON.parse(fs.readFileSync(rest[rest.indexOf('--prologue') + 1], 'utf8')) : null;
 fs.mkdirSync(outDir, { recursive: true });
 const logo = 'data:image/png;base64,' + fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'art', 'library_logo_1280.png')).toString('base64');
 
 // k: [x, z, lookX, lookZ, lookY] keyframes spread evenly over the shot (lookX null: look at the Copy); setup runs before
 // the first frame (not filmed). cam: camcorder up, from the start or at camAt (a fraction of the shot). choices: decisions
 // already made, so the chapter is built in that state (DerinlikWeb/game.html CHOICES).
-const SHOTS = [
+const OPENING = PROLOGUE ? [
+  // the camcorder footage of a real basement (frames written by prologue_post.py), turning into the game on the same path
+  { real: true, dur: PROLOGUE.real / FPS },
+  { path: true, from: PROLOGUE.real, ch: 0, torch: true, dur: (PROLOGUE.frames.length - PROLOGUE.real) / FPS },
+] : [
   { card: 'SAKARYA', sub: '2028', dur: 2.2 },
   { ch: 0, dur: 4.2, torch: true, k: [[-.6, 1.2, .4, 8, 1.25], [-.25, 3.0, .2, 8, 1.3]] },
+];
+const SHOTS = [
+  ...OPENING,
   // the locked pump-room door: someone is knocking from the other side
   { ch: 0, dur: 4.2, torch: true, k: [[-.4, 30.4, -3.1, 31.8, 1.1], [-1.2, 30.9, -3.1, 31.8, 1.1]] },
   { ch: 0, dur: 3.6, choices: { power: 'relay' }, warm: 3.0, k: [[0, 28.9, 0, 32.55, 1.15], [0, 30.0, 0, 32.55, 1.2]] },
@@ -93,7 +103,28 @@ await page.evaluate(() => { const d = window.__derinlik; d.FX.on('behind', () =>
 for (const [si, s] of SHOTS.entries()) {
   if (ONLY && !ONLY.has(si)) continue;
   const n = Math.round(s.dur * FPS);
-  timeline.push({ start: frame / FPS, dur: n / FPS, kind: s.card ? 'card' : s.end ? 'end' : s.pulse ? 'pulse' : s.behind ? 'behind' : s.cam ? 'cam' : s.enemy ? 'enemy' : 'shot', label: s.card ?? null, camAt: s.camAt != null ? (frame + Math.round(s.camAt * n)) / FPS : null, ch: s.ch ?? null });
+  timeline.push({ start: frame / FPS, dur: n / FPS, kind: s.real ? 'real' : s.path ? 'path' : s.card ? 'card' : s.end ? 'end' : s.pulse ? 'pulse' : s.behind ? 'behind' : s.cam ? 'cam' : s.enemy ? 'enemy' : 'shot', label: s.card ?? null, camAt: s.camAt != null ? (frame + Math.round(s.camAt * n)) / FPS : null, ch: s.ch ?? null, ...(s.path ? { turn: PROLOGUE.turn / FPS } : {}) });
+  if (s.real) { frame += n; continue; } // frame numbers kept for prologue_post.py
+  if (s.path) {
+    // the prologue's camera, pose for pose (position, yaw, pitch and the hand's roll), applied just before each draw
+    await page.evaluate(() => { const d = window.__derinlik; if (d.state.camRaised) d.toggleCam(); d.DEBUG.enemyOff = true; d.buildChapter(0); });
+    for (let t = 0; t < 2; t += .5) await stepGame(.5);
+    await page.evaluate(() => {
+      const d = window.__derinlik; if (!d.torch.visible) { d.torch.visible = true; d.FX.emit('torch', true); }
+      d.player.enabled = true;
+      if (!window.__camHook) { window.__camHook = true; d.FX.on('draw', () => { const o = window.__camOv; if (o) { d.camera.position.set(o[0], o[1], o[2]); d.camera.rotation.set(o[4], o[3], o[5]); d.camera.updateMatrixWorld(); } }); }
+      for (const id of ['toast', 'prompt', 'subs']) document.getElementById(id).style.visibility = 'hidden';
+    });
+    for (let i = 0; i < n; i++) {
+      const p = PROLOGUE.frames[s.from + i];
+      await page.evaluate((p) => { const d = window.__derinlik; window.__camOv = p; d.player.x = p[0]; d.player.z = p[2]; d.setLook(p[3], p[4]); }, p);
+      await stepGame(1 / FPS);
+      await snap();
+    }
+    await page.evaluate(() => { window.__camOv = null; });
+    console.log(`shot ${timeline.length}/${SHOTS.length}: ${frame} frames (prologue, game side)`);
+    continue;
+  }
   if (s.card || s.end) {
     await page.evaluate((s) => {
       const tl = document.getElementById('tl');

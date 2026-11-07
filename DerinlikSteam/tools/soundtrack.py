@@ -139,12 +139,92 @@ def reverb(x, seconds=3.2, wet=.35):
     return out
 
 
+def camcorder_mic(x):
+    """A camcorder's built-in microphone: no lows, no air, its own hiss and the tape motor's hum."""
+    n = x.shape[1]
+    t = np.arange(n) / SR
+    hiss = band(rng.standard_normal(n), lo=3000, hi=9000) * .012
+    hum = (np.sin(2 * np.pi * 50 * t) * .4 + np.sin(2 * np.pi * 150 * t) * .25) * .004
+    return np.stack([band(x[c], lo=140, hi=8500, slope=12) + hiss + hum for c in range(2)])
+
+
+def footstep(gritty=1.0):
+    """A careful step on gritty concrete: a soft heel thud, then grit crunching under the sole."""
+    n = int(.32 * SR)
+    t = np.arange(n) / SR
+    heel = band(rng.standard_normal(n), lo=60, hi=500) * np.exp(-t / .025) * .9
+    grit = band(rng.standard_normal(n) * (rng.random(n) > .55), lo=1800, hi=7000) * np.exp(-np.maximum(t - .03, 0) / .07) * (t > .02) * gritty * .5
+    return heel + grit
+
+
+def breath(dur=1.9):
+    """A nervous breath close to the microphone: a short inhale, a longer shaky exhale."""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    air = band(rng.standard_normal(n), lo=350, hi=2600)
+    inhale = np.clip(t / .35, 0, 1) * np.clip((.55 - t) / .2, 0, 1)
+    exhale = np.clip((t - .7) / .15, 0, 1) * np.clip((dur - t) / .8, 0, 1) * (1 + .25 * np.sin(2 * np.pi * 9 * t))
+    return air * (inhale * .6 + exhale)
+
+
+def prologue(n, start, real_end, turn_end):
+    """The live-action prologue's sound, as the camcorder heard it; then the tape tears and the game's sound takes over.
+    Footsteps fall where tools/prologue_path.py puts the steps (1.75 a second, from 0.8 s)."""
+    buf = np.zeros((2, n))
+    t = np.arange(n) / SR
+    # power on: a click, the tape motor spinning up
+    put(buf, start + .18, band(rng.standard_normal(int(.03 * SR)), lo=900) * np.exp(-np.arange(int(.03 * SR)) / SR / .006), .5)
+    motor = band(rng.standard_normal(int(.6 * SR)), lo=180, hi=900) * np.linspace(0, 1, int(.6 * SR)) ** 2 * np.linspace(1, .15, int(.6 * SR))
+    put(buf, start + .2, motor, .06)
+    # the basement: low room tone, the bulb's mains buzz, a drip, something knocking behind the north door
+    live = (t >= start + .2) & (t < turn_end)
+    room = band(rng.standard_normal(n), lo=40, hi=260) * .05 + band(rng.standard_normal(n), lo=2000, hi=5000) * .004
+    buzz = (np.sign(np.sin(2 * np.pi * 100 * t)) * .5 + np.sin(2 * np.pi * 200 * t)) * .0035
+    for c in range(2):
+        buf[c] += (room + band(buzz, hi=1600)) * live
+    for d, pan in ((start + 1.6, -.5), (start + 4.1, -.5)):
+        m = int(.25 * SR)
+        tt = np.arange(m) / SR
+        put(buf, d, np.sin(2 * np.pi * np.cumsum(650 + 900 * np.exp(-tt / .03)) / SR) * env(m, .003, .08, .003), .05, pan)
+    for k, d in enumerate((5.05, 5.6, 6.25)):
+        put(buf, start + d, thump(95, .28, .7), .16 - .03 * k, -.1)
+    # Ekin: careful steps, breathing
+    k = 0
+    while True:
+        ts = (.5 + k) / 1.75
+        k += 1
+        if ts < .8:
+            continue
+        if start + ts >= real_end:
+            break
+        put(buf, start + ts, footstep(.8 + .4 * rng.random()), .5 * min(1, ts / .8), .15 if k % 2 else -.15)
+    for d in (.5, 2.6, 4.9):
+        put(buf, start + d, breath(), .07)
+    buf = reverb(buf, seconds=.9, wet=.22)
+    buf = camcorder_mic(buf) * ((t >= start) & (t < real_end))
+    # the turn: the tape tears (static bursts, a falling digital whine), the picture becomes the game
+    g = np.zeros((2, n))
+    put(g, real_end, static(.35), .35)
+    put(g, real_end + .25, static(.2), .3)
+    m = int((turn_end - real_end) * SR)
+    tt = np.arange(m) / SR
+    whine = np.sign(np.sin(2 * np.pi * np.cumsum(2400 * np.exp(-tt / .35) + 60) / SR))
+    crush = np.round(band(rng.standard_normal(m), lo=300) * 3) / 3
+    put(g, real_end, band(whine * .5 + crush * .4, hi=6000) * env(m, .01, (turn_end - real_end) * .5, (turn_end - real_end) * .4), .12)
+    put(g, turn_end - .05, boom(4.0), .9)
+    return buf + g
+
+
 def main(timeline_path, out_path):
     tl = json.load(open(timeline_path))
     total = tl['frames'] / tl['fps']
     n = int(total * SR)
     t = np.arange(n) / SR
     shots = tl['shots']
+    real = next((s for s in shots if s['kind'] == 'real'), None)
+    path = next((s for s in shots if s['kind'] == 'path'), None)
+    # with the live-action prologue the score waits until the footage has turned into the game
+    score_at = path['start'] + path.get('turn', 0) if real and path else 0.0
     end_at = next(s['start'] for s in shots if s['kind'] == 'end')
     # the music drops out for the 'behind you' shot (silence before the scare), else at the end card
     hush_at = next((s['start'] for s in shots if s['kind'] == 'behind'), end_at)
@@ -153,11 +233,12 @@ def main(timeline_path, out_path):
     rise[t >= hush_at] = 0
 
     bed = np.zeros((2, n))
+    score = np.clip((t - score_at) / .25, 0, 1)
     # 1. drone: the gate hum, its fifth and a slow beating pair, swelling with the cut
     drone = (np.sin(2 * np.pi * 55 * t) + .7 * np.sin(2 * np.pi * 82.6 * t)
              + .35 * np.sin(2 * np.pi * 110.4 * t) * (.5 + .5 * np.sin(2 * np.pi * .13 * t))
              + .25 * np.sin(2 * np.pi * 36.7 * t))
-    drone_env = np.clip(t / 3, 0, 1) * (.35 + .65 * rise)
+    drone_env = np.clip((t - score_at) / 3, 0, 1) * (.35 + .65 * rise)
     drone_env[t >= hush_at] = 0
     put(bed, 0, drone * drone_env, .16)
     # 2. wind: band-passed noise breathing at .07 Hz (ambienceWind)
@@ -223,6 +304,7 @@ def main(timeline_path, out_path):
             f = 650 + 850 * np.exp(-tt / .03)
             put(hits, d, np.sin(2 * np.pi * np.cumsum(f) / SR) * env(m, .003, .08, .003), .06, pan=-.4)
 
+    bed *= score
     mix = reverb(bed + hits, wet=.32)
     if reveal_at is not None:
         # the hush: everything before it (fast-cut booms, their reverb tails) is pulled down to near silence in .15 s
@@ -232,6 +314,8 @@ def main(timeline_path, out_path):
         duck[inside] = np.maximum(.06, 1 - (t[inside] - hush_at) / .15)
         mix *= duck
     mix += close
+    if real and path:
+        mix += prologue(n, real['start'], path['start'], score_at)
     # end card: let the reverb tail ring, then fade out with the last frames
     tail = np.clip((total - t) / .8, 0, 1)
     mix *= tail
