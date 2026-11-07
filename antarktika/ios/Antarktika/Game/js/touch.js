@@ -16,14 +16,16 @@
   zone.id = 'moveZone'; zone.setAttribute('aria-label', 'Hareket bölgesi');
   root.prepend(zone);
   const css = document.createElement('style');
-  css.textContent = `#moveZone{position:absolute;left:0;top:16%;width:46%;bottom:0;pointer-events:auto;touch-action:none}
+  css.textContent = `body.touch-device #mouseHint{display:none}
+#moveZone{position:absolute;left:0;top:16%;width:46%;bottom:0;pointer-events:auto;touch-action:none}
 #mobilePad{pointer-events:none;opacity:.42;transition:opacity .18s;left:max(22px,env(safe-area-inset-left));bottom:max(26px,env(safe-area-inset-bottom))}
 #mobilePad.live{opacity:.95;transition:none}#mobileStick{transition:transform .08s}
 #mobileLook{left:46%;right:0;width:auto;top:16%;height:auto;bottom:0}#mobileLook:after{content:'BAK · SÜRÜKLE'}
 #mobileActions{z-index:2;grid-template-columns:repeat(4,56px)}#mobileActions button{min-height:52px;font-size:11px}
 #mobileActions button.ready{background:#d9a35ee8;color:#081a24;box-shadow:0 0 18px #ffc98a88;animation:ePulse 1s ease-in-out infinite}
 @keyframes ePulse{50%{transform:scale(1.06)}}
-@media (max-height:500px){#mobileActions{grid-template-columns:repeat(4,50px)}#mobileActions button{min-height:42px}}`;
+@media (max-height:500px){#mobileActions{grid-template-columns:repeat(4,50px)}#mobileActions button{min-height:42px}}
+body.touch-device #mobileActions button{padding:0 1px;font-size:10px;letter-spacing:-.2px;line-height:1.25;overflow:hidden;white-space:nowrap}`;
   document.head.appendChild(css);
 
   const chamber = () => !!window.ICEWALK_CHAMBER?.active;

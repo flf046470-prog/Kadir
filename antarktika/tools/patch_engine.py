@@ -205,6 +205,10 @@ s = s[:start] + '<script src="js/touch.js"></script>' + s[end:]
 for ov in ("hcCurtain", "hcEnding", "hcEndCard", "hcRecord"):
     rep("body:has(#%s.hcVisible) #mobileControls" % ov, "body:has(#helikonChamber.hcActive #%s.hcVisible) #mobileControls" % ov)
 
+# ---------------------------------------------------------------- touch pause button label
+# "DURAKLAT" does not fit the 50 px button on a landscape iPhone; the button opens the pause menu.
+rep('<button data-key="Escape">Ⅱ<br>DURAKLAT</button>', '<button data-key="Escape" aria-label="Duraklat">Ⅱ<br>MENÜ</button>')
+
 # ---------------------------------------------------------------- save system + perf overlay at the end of the body
 rep("</body></html>", '<script src="js/save.js"></script><script src="js/perf.js"></script><script src="js/xr.js"></script></body></html>')
 
