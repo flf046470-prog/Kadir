@@ -86,6 +86,25 @@ ffmpeg -framerate 30 -i frames/%05d.jpg -i frames/soundtrack.wav -c:v libx264 -p
   -movflags +faststart DerinlikSteam/trailer/derinlik_teaser_1080p.mp4
 ```
 
+**Gerçek çekimle açılış (fragman v2).** Fragman, Sakarya bodrumunun el kamerasıyla çekilmiş gerçek bir görüntüsü gibi
+açılır; bant yırtılır ve görüntü aynı kamera hareketiyle yukarıdan aşağı oyunun kendisine dönüşür. "Gerçek" kısım
+fotoğraf ya da stok video değildir: oyunun bodrumu Blender'a aktarılır ve Cycles ile fotogerçekçi çizilir (dışarıdan
+varlık yok, lisans sorunu yok). Sıra:
+
+```sh
+P=prologue
+node DerinlikSteam/tools/export_scene.mjs DerinlikWeb/dist/offline/index.html $P 0        # bodrum: GLB + lambalar
+python3 DerinlikSteam/tools/prologue_path.py $P/path.json                                  # ortak el kamerası yolu
+blender -b --factory-startup -P DerinlikSteam/tools/prologue_blender.py -- --glb $P/chapter0.glb \
+  --lights $P/chapter0_lights.json --path $P/path.json --out $P/real --frames 0-245         # 246 kare, ~25 sn/kare
+node DerinlikSteam/tools/trailer.mjs DerinlikWeb/dist/offline/index.html frames --prologue $P/path.json
+python3 DerinlikSteam/tools/prologue_post.py --real $P/real --frames frames --path $P/path.json  # kamera görünümü + dönüşüm
+python3 DerinlikSteam/tools/soundtrack.py frames/timeline.json frames/soundtrack.wav
+```
+
+Sonra yukarıdaki ffmpeg satırı. `prologue_post.py` için `pip install opencv-python-headless` gerekir. Bu Blender
+derlemesinde OpenImageDenoise yok; kalan render gürültüsü kamera gürültüsünün içinde kalır.
+
 Bu ayarlar Steam'in fragman önerileriyle aynı: 1920×1080, 30 fps, H.264 yaklaşık 20 Mbps, AAC stereo 192 kbps, 48 kHz.
 Müzik `soundtrack.py` içinde osilatör ve gürültüden sentezlenir (oyunun kendi ses motifleri: kapı uğultusu, İkinci Ses
 fısıltısı, kamera bip'i); örnek (sample) kullanılmadığı için lisans sorunu yoktur. `--stride 15` ile her 15 karede bir

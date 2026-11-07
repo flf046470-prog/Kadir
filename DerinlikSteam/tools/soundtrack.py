@@ -173,7 +173,7 @@ def prologue(n, start, real_end, turn_end):
     buf = np.zeros((2, n))
     t = np.arange(n) / SR
     # power on: a click, the tape motor spinning up
-    put(buf, start + .18, band(rng.standard_normal(int(.03 * SR)), lo=900) * np.exp(-np.arange(int(.03 * SR)) / SR / .006), .5)
+    put(buf, start + .18, band(rng.standard_normal(int(.03 * SR)), lo=900) * np.exp(-np.arange(int(.03 * SR)) / SR / .006), .25)
     motor = band(rng.standard_normal(int(.6 * SR)), lo=180, hi=900) * np.linspace(0, 1, int(.6 * SR)) ** 2 * np.linspace(1, .15, int(.6 * SR))
     put(buf, start + .2, motor, .06)
     # the basement: low room tone, the bulb's mains buzz, a drip, something knocking behind the north door
@@ -186,8 +186,11 @@ def prologue(n, start, real_end, turn_end):
         m = int(.25 * SR)
         tt = np.arange(m) / SR
         put(buf, d, np.sin(2 * np.pi * np.cumsum(650 + 900 * np.exp(-tt / .03)) / SR) * env(m, .003, .08, .003), .05, pan)
-    for k, d in enumerate((5.05, 5.6, 6.25)):
-        put(buf, start + d, thump(95, .28, .7), .16 - .03 * k, -.1)
+    for k, d in enumerate((5.05, 5.6, 6.25)):                # knuckles on a wooden door, muffled by it
+        m = int(.25 * SR)
+        tt = np.arange(m) / SR
+        rap = band(rng.standard_normal(m), lo=300, hi=2200) * np.exp(-tt / .012)
+        put(buf, start + d, thump(150, .25, .5) * .7 + rap * .8, .3 - .05 * k, -.1)
     # Ekin: careful steps, breathing
     k = 0
     while True:
@@ -201,16 +204,16 @@ def prologue(n, start, real_end, turn_end):
     for d in (.5, 2.6, 4.9):
         put(buf, start + d, breath(), .07)
     buf = reverb(buf, seconds=.9, wet=.22)
-    buf = camcorder_mic(buf) * ((t >= start) & (t < real_end))
+    buf = camcorder_mic(buf) * ((t >= start) & (t < real_end)) * .9   # quieter than the score, so the turn lands
     # the turn: the tape tears (static bursts, a falling digital whine), the picture becomes the game
     g = np.zeros((2, n))
-    put(g, real_end, static(.35), .35)
-    put(g, real_end + .25, static(.2), .3)
+    put(g, real_end, static(.35), .1)              # loud enough to tear, not so loud it sets the whole mix's level
+    put(g, real_end + .25, static(.2), .08)
     m = int((turn_end - real_end) * SR)
     tt = np.arange(m) / SR
     whine = np.sign(np.sin(2 * np.pi * np.cumsum(2400 * np.exp(-tt / .35) + 60) / SR))
     crush = np.round(band(rng.standard_normal(m), lo=300) * 3) / 3
-    put(g, real_end, band(whine * .5 + crush * .4, hi=6000) * env(m, .01, (turn_end - real_end) * .5, (turn_end - real_end) * .4), .12)
+    put(g, real_end, band(whine * .5 + crush * .4, hi=6000) * env(m, .01, (turn_end - real_end) * .5, (turn_end - real_end) * .4), .06)
     put(g, turn_end - .05, boom(4.0), .9)
     return buf + g
 
