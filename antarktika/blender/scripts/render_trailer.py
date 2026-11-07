@@ -351,6 +351,12 @@ def shot_selin():
             for m in o.modifiers:
                 if m.type == "ARMATURE":
                     m.object = arm
+            # film close-up: smooth the game silhouette (render-time only)
+            sub = o.modifiers.new("Subsurf", "SUBSURF")
+            sub.levels = 0
+            sub.render_levels = 2
+            for poly in o.data.polygons:
+                poly.use_smooth = True
     walk = bpy.data.actions.get("Walk")
     ad = arm.animation_data_create()
     # gait cycle on an NLA strip; the travel path goes into its own action on top
@@ -358,9 +364,9 @@ def shot_selin():
     track = ad.nla_tracks.new()
     strip = track.strips.new("walk", 1, walk)
     strip.repeat = frames / 30.0 + 1
-    # walk toward the camera (+z in game space) at 1.35 m/s; the rig faces -z at rest
+    # walk toward the camera (+z in game space) at 1.35 m/s; the rig already faces +z at rest
     sx, sz = 6.0, 12.0
-    arm.rotation_euler = (0, 0, math.pi)
+    arm.rotation_euler = (0, 0, 0)
     for f in range(1, frames + 1, 6):
         t = (f - 1) / FPS
         arm.location = G(sx, T.terrain_y(sx, sz + 1.35 * t), sz + 1.35 * t)
