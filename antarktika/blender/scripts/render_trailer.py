@@ -341,8 +341,16 @@ def shot_selin():
     obs = append_collection("explorer")
     arm = next(o for o in obs if o.type == "ARMATURE")
     for o in obs:
-        if o.name.endswith("LOD1"):
+        if o.name.endswith("LOD1") or o.name.startswith("SRC_"):
             o.hide_render = True
+        elif o.type == "MESH":
+            # the game asset keeps meshes unparented (glTF skinning); for Cycles the skin has to
+            # ride on the rig object, otherwise moving the rig tears the deformation apart
+            o.parent = arm
+            o.matrix_parent_inverse = arm.matrix_world.inverted()
+            for m in o.modifiers:
+                if m.type == "ARMATURE":
+                    m.object = arm
     walk = bpy.data.actions.get("Walk")
     ad = arm.animation_data_create()
     # gait cycle on an NLA strip; the travel path goes into its own action on top

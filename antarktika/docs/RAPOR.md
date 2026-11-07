@@ -14,6 +14,18 @@
 | Kayıt → yeniden yükle → DEVAM ET: konum, görev, bulmacalar, kalıntılar, günlük geri gelir | ✔ |
 | 3 kalite seviyesi çözünürlüğü değiştirir (819×460 / 1024×576) | ✔ |
 
+## Diğer otomatik testler (son koşu)
+| Test | Sonuç | Kapsam |
+|---|---|---|
+| `tools/touch_test.cjs` | 8/8 ✔ | Telefon boyutu (852×393) dokunmatik: yüzen analog çubuk, yarım/tam itiş hızı, sağ yarıda bakış, hata yok |
+| `tools/xr_test.cjs` | 4/4 ✔ | Sahte WebXR oturumu: kare başına 2 göz görüntüsü, sol çubukla yürüme, kumanda elleri, hata yok |
+| `tools/chapter2_test.cjs` | 13/13 ✔ | Bölüm 2 kara kutu görevi: kilit, tarayıcı yön/mesafe, 4 parça, tipi baskısı, telsizde birleştirme, kayıt/devam |
+
+Bu turda bulunup düzeltilen hatalar:
+- Kapalı HELIKON salonunun perde katmanı dokunmatik kontrolleri oyun sırasında gizliyordu (orijinal oyundaki CSS kuralı; iPhone'da da oluşurdu).
+- VR bilek göstergesi, tuvali oluşturulmadan çizilmeye çalışılıyordu.
+- `setPointerCapture` bırakılmış parmakta istisna atabiliyordu.
+
 ## Ölçülen render yükü (SwiftShader)
 - Kare başına ~30–34 WebGL çizimi (A3D katmanı ≈12).
 - Kare başına ~143 bin üçgen; bunun ~120 bini orijinal arazi → arazi 41×41 parçalara bölünüp görüş konisi dışındakiler çizilmiyor.
