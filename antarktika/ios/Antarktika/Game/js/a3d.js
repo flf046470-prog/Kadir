@@ -251,7 +251,7 @@ precision highp float;
 varying vec3 vPos,vNorm;varying vec2 vUV;varying vec4 vTan;varying float vDist;
 uniform sampler2D uBaseTex,uOrmTex,uNrmTex,uEmiTex;
 uniform vec4 uBase;uniform vec3 uEmissive;uniform vec4 uHas;uniform float uRough,uMetal,uInterior,uIce,uDecal,uAlpha;
-uniform vec3 uCam,uCamF,uAmbient,uFogC;uniform float uTime,uFlash,uFogD;
+uniform vec3 uCam,uCamF,uAmbient,uFogC,uTorchP,uTorchD;uniform float uTime,uFlash,uFogD;
 uniform vec4 uLP[4];uniform vec3 uLC[4];uniform vec4 uScan;uniform float uScanAmt,uScanSel;
 void main(){
 vec4 base=uBase;if(uHas.x>.5)base*=texture2D(uBaseTex,vUV);
@@ -271,7 +271,7 @@ vec3 spec=vec3(0.);float shin=mix(96.,6.,rough);vec3 F0=mix(vec3(.04),alb,metal)
 if(uInterior<.5){vec3 H=normalize(L+V);spec+=F0*pow(max(dot(n,H),0.),shin)*ndl*(1.-rough)*1.6;}
 for(int i=0;i<4;i++){vec3 d=uLP[i].xyz-vPos;float dist=length(d);float att=clamp(1.-dist/max(uLP[i].w,.01),0.,1.);att*=att;vec3 l=d/max(dist,.001);
 float nl=max(dot(n,l),0.);col+=alb*uLC[i]*nl*att*(1.-metal*.5);vec3 H=normalize(l+V);spec+=F0*uLC[i]*pow(max(dot(n,H),0.),shin)*nl*att*(1.-rough)*2.;}
-vec3 dv=vPos-uCam;float len=length(dv);float cone=dot(dv/max(len,.001),uCamF);
+vec3 dv=vPos-uTorchP;float len=length(dv);float cone=dot(dv/max(len,.001),uTorchD);
 float spot=smoothstep(.86,.975,cone)*(1.-smoothstep(9.,42.,len));col+=alb*vec3(1.,.95,.86)*spot*uFlash*(.35+.65*max(dot(n,-dv/max(len,.001)),0.))*1.25;
 col+=spec;
 if(uIce>.5){float fr=pow(1.-max(dot(n,V),0.),3.);col+=vec3(.26,.58,.72)*fr*.32*(uInterior>.5?ao:1.);col+=alb*vec3(.08,.30,.42)*(uInterior>.5?ao*ao*1.1:.22);}
@@ -804,6 +804,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         const u = prog.u;
         gl.uniformMatrix4fv(u.uView, false, view); gl.uniformMatrix4fv(u.uProj, false, proj);
         gl.uniform3fv(u.uCam, eye); gl.uniform3fv(u.uCamF, fwd); gl.uniform1f(u.uTime, time);
+        gl.uniform3fv(u.uTorchP, (opts.xr && opts.xr.torch) ? opts.xr.torch.p : eye); gl.uniform3fv(u.uTorchD, (opts.xr && opts.xr.torch) ? opts.xr.torch.d : fwd);
         gl.uniform1f(u.uFlash, opts.torch ? 1 : 0); gl.uniform1f(u.uFogD, fogD); gl.uniform3fv(u.uFogC, fogC);
         gl.uniform3fv(u.uAmbient, indoorAmb);
         gl.uniform4fv(u.uLP, LP); gl.uniform3fv(u.uLC, LC);
@@ -834,7 +835,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       if (it.blend || it.decal) { gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL); }
       A.stats.draws++; A.stats.tris += it.pr.tris;
     }
-    drawHands(eye, fwd, opts, view, cur);
+    drawHands(eye, fwd, opts, view, proj);
     for (const loc of attribsOn) gl.disableVertexAttribArray(loc);
     attribsOn.clear();
     gl.activeTexture(gl.TEXTURE0);
@@ -858,8 +859,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     hands.raise = Math.max(0, hands.raise - dt / 1.8);
     hands.poke = Math.max(0, hands.poke - dt / 0.45);
   }
-  function drawHands(eye, fwd, opts, view, prog) {
+  const GRIP = { right: [0.212, -0.132, -0.19], left: [-0.23, -0.206, -0.287] };   // palm centres in the authored view space
+  function drawHands(eye, fwd, opts, view, worldProj) {
     const m = A.models.fp_hands; if (!m || E.state !== 'play') return;
+    const xr = opts.xr && opts.xr.hands;
     const p = E.player, r = [Math.cos(p.yaw), 0, Math.sin(p.yaw)];
     const u = [r[1] * fwd[2] - r[2] * fwd[1], r[2] * fwd[0] - r[0] * fwd[2], r[0] * fwd[1] - r[1] * fwd[0]];
     const cam = new Float32Array([r[0], r[1], r[2], 0, u[0], u[1], u[2], 0, -fwd[0], -fwd[1], -fwd[2], 0, eye[0], eye[1], eye[2], 1]);
@@ -868,13 +871,13 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const breathe = Math.sin(time * 1.4) * 0.003;
     const asp = gl.drawingBufferWidth / gl.drawingBufferHeight, q = 1 / Math.tan(76 * Math.PI / 360), n = 0.01, f = 10;
     const hp = new Float32Array([q / asp, 0, 0, 0, 0, q, 0, 0, 0, 0, -(f + n) / (f - n), -1, 0, 0, -2 * f * n / (f - n), 0]);
-    gl.clear(gl.DEPTH_BUFFER_BIT);
+    if (!xr) gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.enable(gl.DEPTH_TEST);
     const progH = compile(QUALITY[window.ICEWALK_VISUALS?.quality]?.normalMap === false ? [] : ['NORMALMAP']);
     gl.useProgram(progH.p);
     const U = progH.u;
-    gl.uniformMatrix4fv(U.uView, false, view); gl.uniformMatrix4fv(U.uProj, false, hp);
-    gl.uniform3fv(U.uCam, eye); gl.uniform3fv(U.uCamF, fwd); gl.uniform1f(U.uFlash, 0); gl.uniform1f(U.uFogD, 0);
+    gl.uniformMatrix4fv(U.uView, false, view); gl.uniformMatrix4fv(U.uProj, false, xr ? worldProj : hp);
+    gl.uniform3fv(U.uCam, eye); gl.uniform3fv(U.uCamF, fwd); gl.uniform3fv(U.uTorchP, eye); gl.uniform3fv(U.uTorchD, fwd); gl.uniform1f(U.uFlash, 0); gl.uniform1f(U.uFogD, 0);
     gl.uniform1f(U.uScanAmt, 0); gl.uniform1i(U.uBaseTex, 2); gl.uniform1i(U.uOrmTex, 3); gl.uniform1i(U.uNrmTex, 4); gl.uniform1i(U.uEmiTex, 5);
     const rs = smooth(0, 1, hands.raise), pk = Math.sin(hands.poke * Math.PI);
     for (const n2 of m.nodes) {
@@ -884,9 +887,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         ? [sway * 0.8 + hands.lag + rs * 0.05, bob + breathe + rs * 0.085, rs * -0.06]
         : [sway + hands.lag, bob * 1.2 + breathe, pk * -0.05];
       const local = M4.trs(off, side === 'left' ? [rs * 0.17, 0, 0, 1] : [0, 0, 0, 1], [1, 1, 1]);
-      const model = M4.mul(cam, M4.mul(local, n2.world));
+      let model;
+      if (xr) { const base = xr[side]; if (!base) continue; const g0 = GRIP[side]; model = M4.mul(base, M4.mul(M4.trs([-g0[0], -g0[1], -g0[2]], [0, 0, 0, 1], [1, 1, 1]), n2.world)); }
+      else model = M4.mul(cam, M4.mul(local, n2.world));
       const g = n2.extras.a3d_group;
-      const es = g === 'torch' ? (opts.torch ? 1.6 : 0.03) : g === 'scanner' ? 0.55 + rs * 1.2 + 0.15 * Math.sin(time * 5) : 1;
+      const es = g === 'torch' ? (opts.torch || (E.torch && xr) ? 1.6 : 0.03) : g === 'scanner' ? 0.55 + rs * 1.2 + 0.15 * Math.sin(time * 5) : 1;
       for (const pr of m.meshes[n2.mesh]) {
         const mat = pr.mat;
         gl.uniformMatrix4fv(U.uModel, false, model);
@@ -953,7 +958,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     replaces(tag) { return A.ready && ['station', 'cave', 'crew:explorer'].includes(tag); },
     groundY: (x, z) => (A.ready ? groundY(x, z) : E.terrainY(x, z)),
-    collide: (x0, z0, x1, z1) => (A.ready ? collide(x0, z0, x1, z1) : [x1, z1]),
+    collide: (x0, z0, x1, z1, r) => (A.ready ? collide(x0, z0, x1, z1, r) : [x1, z1]),
     surface: (x, z) => (A.ready && world.floors.some((f) => insideOBB(f, x, z)) ? 'metal' : 'snow'),
     update, draw, interact, onScan, blocksMission, footstep,
     talk(id) { if (id === 'explorer') npc.talkUntil = time + 2.2; },

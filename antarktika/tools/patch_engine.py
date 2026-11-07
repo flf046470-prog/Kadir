@@ -167,13 +167,40 @@ rep("storyPhase:window.ICEWALK_CAMPAIGN.phase,prologue:window.ICEWALK_PROLOGUE.s
 rep("$('startBtn').addEventListener('click',()=>{if(state==='paused')resume();else if(state==='chapter')beginMain();else start();});",
     "$('startBtn').addEventListener('click',()=>{if(state==='paused')resume();else if(state==='chapter'){beginMain();saveNow('chapter');}else{window.ANTARKTIKA_SAVE?.clear();start();saveNow('new');}});")
 
+# ---------------------------------------------------------------- terrain: 6x6 chunks + frustum culling
+# Same vertices and triangles as before, indices regrouped per tile so tiles outside
+# the view frustum are skipped (the 120k-triangle grid was drawn whole every frame).
+rep("for(let j=0;j<RES;j++)for(let i=0;i<RES;i++){const a=j*(RES+1)+i,b=a+RES+1;indices.push(a,b,a+1,a+1,b,b+1);}",
+    "const TILE=41,terrainChunks=[];for(let tj=0;tj<RES;tj+=TILE)for(let ti=0;ti<RES;ti+=TILE){const start=indices.length;let y0=1e9,y1=-1e9;"
+    "for(let j=tj;j<Math.min(RES,tj+TILE);j++)for(let i=ti;i<Math.min(RES,ti+TILE);i++){const a=j*(RES+1)+i,b=a+RES+1;indices.push(a,b,a+1,a+1,b,b+1);y0=Math.min(y0,tPos[a*3+1],tPos[b*3+1]);y1=Math.max(y1,tPos[a*3+1],tPos[b*3+1]);}"
+    "const x0=XMIN+ti*(XMAX-XMIN)/RES,x1=XMIN+Math.min(RES,ti+TILE)*(XMAX-XMIN)/RES,z0=ZMIN+tj*(ZMAX-ZMIN)/RES,z1=ZMIN+Math.min(RES,tj+TILE)*(ZMAX-ZMIN)/RES;"
+    "y0-=1;y1+=1;terrainChunks.push({off:start*2,count:indices.length-start,c:[(x0+x1)/2,(y0+y1)/2,(z0+z1)/2],r:Math.hypot(x1-x0,y1-y0,z1-z0)/2});}")
+rep("drawMesh(terrain);",
+    "{const vp=new Float32Array(16);for(let c=0;c<4;c++)for(let rr=0;rr<4;rr++)vp[c*4+rr]=proj[rr]*view[c*4]+proj[4+rr]*view[c*4+1]+proj[8+rr]*view[c*4+2]+proj[12+rr]*view[c*4+3];"
+    "const pl=[];for(const [sg,k] of [[1,0],[-1,0],[1,1],[-1,1],[1,2],[-1,2]]){const a=vp[3]+sg*vp[k],b=vp[7]+sg*vp[4+k],c=vp[11]+sg*vp[8+k],d=vp[15]+sg*vp[12+k],l=Math.hypot(a,b,c);pl.push([a/l,b/l,c/l,d/l]);}"
+    "gl.bindBuffer(gl.ARRAY_BUFFER,terrain.p);gl.enableVertexAttribArray(m.pos);gl.vertexAttribPointer(m.pos,3,gl.FLOAT,false,0,0);gl.bindBuffer(gl.ARRAY_BUFFER,terrain.n);gl.enableVertexAttribArray(m.norm);gl.vertexAttribPointer(m.norm,3,gl.FLOAT,false,0,0);"
+    "gl.uniform1f(m.kind,terrain.kind);gl.uniform3fv(m.tint,terrain.tint);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,terrain.i);let tv=0;"
+    "for(const ch of terrainChunks){let out=false;for(const q of pl)if(q[0]*ch.c[0]+q[1]*ch.c[1]+q[2]*ch.c[2]+q[3]<-ch.r){out=true;break;}if(out)continue;gl.drawElements(gl.TRIANGLES,ch.count,gl.UNSIGNED_SHORT,ch.off);tv+=ch.count/3;}"
+    "window.ICEWALK_TERRAIN_DRAWN=tv;}")
+
+# ---------------------------------------------------------------- stereo / external camera (VR via js/xr.js)
+rep("function render(){resize();const d=direction();", "function render(X){if(!X)resize();const d=direction();")
+rep("let view=lookAt(eye,f,r,u);gl.disable(gl.DEPTH_TEST);",
+    "let view=lookAt(eye,f,r,u);if(X){eye=X.eye;f=X.f;r=X.r;u=X.u;view=X.view;proj=X.proj;aspect=X.aspect;}gl.disable(gl.DEPTH_TEST);")
+rep("gl.uniform1f(sky.tan,Math.tan(76*PI/360));", "gl.uniform1f(sky.tan,X?X.tan:Math.tan(76*PI/360));")
+rep("if(A3)A3.draw(view,proj,eye,f,{storm,torch});", "if(A3)A3.draw(view,proj,eye,f,{storm,torch,xr:X?X.xr:null});")
+rep("// Position the objective marker against the camera", "if(X)return;\n// Position the objective marker against the camera")
+rep("function frame(now){let dt=clamp((now-prev)/1000,0,.045);prev=now;",
+    "function frame(now){if(window.ANTARKTIKA_XR&&window.ANTARKTIKA_XR.active){prev=now;requestAnimationFrame(frame);return;}let dt=clamp((now-prev)/1000,0,.045);prev=now;")
+rep("startFresh(){start();},", "startFresh(){start();},renderView(X){render(X);},get player(){return player;},")
+
 # ---------------------------------------------------------------- touch controls (replaces the original script block)
 start = s.index("<script>\n(()=>{if(!matchMedia('(pointer:coarse)').matches")
 end = s.index("</script>", start) + len("</script>")
 s = s[:start] + '<script src="js/touch.js"></script>' + s[end:]
 
 # ---------------------------------------------------------------- save system + perf overlay at the end of the body
-rep("</body></html>", '<script src="js/save.js"></script><script src="js/perf.js"></script></body></html>')
+rep("</body></html>", '<script src="js/save.js"></script><script src="js/perf.js"></script><script src="js/xr.js"></script></body></html>')
 
 open(path, "w", encoding="utf-8").write(s)
 print("patched", path, len(s))
