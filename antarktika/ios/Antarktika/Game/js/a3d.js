@@ -13,13 +13,13 @@
  */
 (() => {
   'use strict';
-  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb'];
+  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb'];
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
-    low: { lights: 2, lod: 0.6, normalMap: false, texScale: 0.5, aniso: 1 },
-    balanced: { lights: 3, lod: 1.0, normalMap: true, texScale: 1, aniso: 2 },
-    cinematic: { lights: 4, lod: 1.5, normalMap: true, texScale: 1, aniso: 4 },
+    low: { lights: 2, lod: 0.6, normalMap: false, texScale: 0.5, dataScale: 0.5, aniso: 1 },
+    balanced: { lights: 3, lod: 1.0, normalMap: true, texScale: 1, dataScale: 0.5, aniso: 2 },
+    cinematic: { lights: 4, lod: 1.5, normalMap: true, texScale: 1, dataScale: 1, aniso: 4 },
   };
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
@@ -111,9 +111,10 @@
   function makeTexture(img, colorData) {
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
     let src = img;
-    if (q.texScale < 1 && img.width > 256) {
+    const scale = colorData ? q.texScale : q.dataScale;
+    if (scale < 1 && img.width > 256) {
       const c = document.createElement('canvas');
-      c.width = img.width * q.texScale; c.height = img.height * q.texScale;
+      c.width = img.width * scale; c.height = img.height * scale;
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       src = c;
     }
@@ -499,13 +500,22 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     h.textContent = title; p.textContent = body; a.append(h, p); root.appendChild(a);
   }
 
+  function flash(color = '120,240,255', strength = 0.55) {
+    let f = document.getElementById('a3dFlash');
+    if (!f) { f = document.createElement('div'); f.id = 'a3dFlash'; f.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0;transition:opacity 1.4s ease-out'; document.body.appendChild(f); }
+    f.style.background = 'radial-gradient(ellipse at center,rgba(' + color + ',' + strength + '),rgba(' + color + ',0) 70%)';
+    f.style.transition = 'none'; f.style.opacity = '1';
+    requestAnimationFrame(() => requestAnimationFrame(() => { f.style.transition = 'opacity 1.6s ease-out'; f.style.opacity = '0'; }));
+  }
+
   function setPower(on) {
     A.state.power = on;
-    if (on) { startHum(); tone(80, 1.4, 'sawtooth', 0.12, 1.9); noiseBurst(0.8, 300, 900, 0.18); }
+    if (on) { startHum(); tone(80, 1.4, 'sawtooth', 0.12, 1.9); noiseBurst(0.8, 300, 900, 0.18); flash('255,214,150', 0.35); }
   }
 
   let lastMsgAt = -99;
   function interact(px, pz) {
+    hands.poke = 1;
     const r = interactInner(px, pz);
     if (r) lastMsgAt = time;
     return r;
@@ -559,7 +569,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         if (k === S.crystals) {
           S.crystals++; tone([392, 523, 659][k], 0.9, 'sine', 0.16, 1.01); tone([784, 1046, 1318][k], 1.2, 'triangle', 0.05, 1.0);
           if (S.crystals === 3) {
-            S.caveSolved = true; tone(196, 2.4, 'sine', 0.2, 2.0);
+            S.caveSolved = true; tone(196, 2.4, 'sine', 0.2, 2.0); flash('140,220,255', 0.7);
             journal('BUZ MAĞARASI — REZONANS', 'Üç kristal aynı anda titreşti ve işaret duvarının önünde bir çekirdek belirdi. HELIKON’un kapıları bu sırayı tanıyor.');
             E.save?.();
             return 'ÜÇ KRİSTAL UYANDI · REZONANS ÇEKİRDEĞİ AÇIĞA ÇIKTI · Q ile tara, E ile topla';
@@ -577,6 +587,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   }
 
   function onScan(px, pz) {
+    hands.raise = 1;
     scan = { x: px, z: pz, t: time };
     if (zoneAt(px, pz) === 'cave' && !A.state.caveSolved) crystalDemo = time;
   }
@@ -594,6 +605,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     time += dt;
     const p = E.player;
     A.zone = zoneAt(p.x, p.z);
+    handsUpdate(dt);
     npcUpdate(dt, p.x, p.z);
     for (const d of Object.values(world.dynamic)) {
       const near = Math.hypot(p.x - d.base[12], p.z - d.base[14]) < (d.ex.a3d_trigger || 2.5) || Math.hypot(npc.x - d.base[12], npc.z - d.base[14]) < 2;
@@ -603,7 +615,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (freqLockAt && time >= freqLockAt) {
       freqLockAt = 0; A.state.freqSolved = true;
       journal('SIĞINAK — ÇÖZÜLEN YAYIN (3.17 MHz)', 'Şifre çözüldü: yayın bizim istasyonumuzdan, yarının tarihiyle gönderilmiş. Koordinatlar kıta sahanlığındaki ikinci yarığı gösteriyor.');
-      tone(990, 0.8, 'sine', 0.15, 1.2);
+      tone(990, 0.8, 'sine', 0.15, 1.2); flash('200,170,255', 0.45);
       E.toast('ŞİFRE ÇÖZÜLDÜ · YAYIN YARINDAN GELİYOR');
       E.completeMission();
     }
@@ -618,7 +630,50 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       if (a) { if (!hint.dataset.a3d) hint.dataset.orig = hint.innerHTML; hint.dataset.a3d = a.id; hint.innerHTML = '<b>E</b> ' + a.label; hint.classList.add('show'); }
       else if (hint.dataset.a3d) { hint.innerHTML = hint.dataset.orig || hint.innerHTML; delete hint.dataset.a3d; }
     }
-    if (E.state === 'play') tutorial(p);
+    if (E.state === 'play') { tutorial(p); guide(); ambience(dt, p); }
+  }
+
+  // Dr. Selin tells the player what the world is waiting for, so nobody is stuck.
+  const SELIN_DEFAULT = window.ICEWALK_MESHY?.characters?.find((c) => c.id === 'explorer')?.spoken;
+  function guide() {
+    const c = window.ICEWALK_MESHY?.characters?.find((ch) => ch.id === 'explorer'); if (!c) return;
+    const S = A.state, pro = window.ICEWALK_PROLOGUE, stage = pro?.active ? pro.summary().stage : -1, m = E.mission;
+    let line = SELIN_DEFAULT;
+    if (stage === 0) line = 'Ekipman kontrolü kampta. Sonra rampadan çık, sığınağın telsizine geç.';
+    else if (!S.power && (stage === 1 || m === 2 || m === 5)) line = 'İstasyon karanlık. Jeneratör rampanın güneyinde, sarı konteyner. Yanına git, E ile çalıştır.';
+    else if (stage === 1) line = 'Telsiz kontrol odasında, en doğu uçta. Ada’nın son çağrısı orada kayıtlı.';
+    else if (stage === 2) line = 'Bilinmeyen frekans kuzeyde, buzulun üstünde. Yaklaş ve Q ile tara.';
+    else if (stage === 3) line = 'Mavi işaret buz mağarasının en dibinde. İçerisi karanlık: F ile fenerini aç.';
+    else if (m === 2 && !S.freqSolved) line = 'Lab terminali bütün saatlerin 03:17’de durduğunu yazıyor. Frekans çözücüde bu sayıyı ara.';
+    else if (!S.caveSolved && S.glyphRead) line = 'Mağaradaki şiir bir sıra anlatıyor: su, yıldız, karanlık. Kristallerin renklerine bak. Q sırayı gösterir.';
+    else if (m === 5 && S.power) line = 'Uplink direğin dibindeki terminalde. Dünya İttifakı’na bağlan.';
+    c.spoken = line;
+  }
+
+  // Positional ambience: ice creaks and drips in the cave, radio static near the powered radio.
+  let nextCreak = 2, staticNode = null;
+  function ambience(dt, p) {
+    const a = ac(); if (!a) return;
+    if (A.zone === 'cave') {
+      nextCreak -= dt;
+      if (nextCreak <= 0) {
+        nextCreak = 2.5 + Math.random() * 5;
+        if (Math.random() < 0.55) { tone(1400 + Math.random() * 900, 0.18, 'sine', 0.035, 0.55); }
+        else { noiseBurst(1.1 + Math.random(), 120, 60, 0.12, 2.2); }
+      }
+    }
+    const r = anchor('radio');
+    if (r && A.state.power) {
+      if (!staticNode) {
+        const len = a.sampleRate * 2, b = a.createBuffer(1, len, a.sampleRate), d = b.getChannelData(0);
+        for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (0.6 + 0.4 * Math.sin(i / a.sampleRate * 7.3));
+        const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+        src.buffer = b; src.loop = true; f.type = 'bandpass'; f.frequency.value = 1800; f.Q.value = 1.4; g.gain.value = 0;
+        src.connect(f); f.connect(g); g.connect(E.master); src.start(); staticNode = g;
+      }
+      const dist = Math.hypot(p.x - r.x, p.z - r.z);
+      staticNode.gain.setTargetAtTime(0.03 * Math.max(0, 1 - dist / 6), a.currentTime, 0.2);
+    }
   }
 
   function tutorial(p) {
@@ -707,6 +762,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       e.m = m;
       let es = groupScale(e);
       if (!e.visible) continue;
+      if (ex.a3d_glow !== undefined) es *= ex.a3d_glow;
       if (ex.a3d_power) es *= A.state.power ? 1 : 0.05;
       if (ex.a3d_pulse) es *= 0.7 + 0.3 * Math.sin(time * ex.a3d_pulse * Math.PI * 2);
       if (ex.a3d_blink) es *= (time * ex.a3d_blink) % 1 < 0.35 ? 1.2 : 0.08;
@@ -721,7 +777,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         let out = false;
         for (const pl of P) if (pl[0] * c[0] + pl[1] * c[1] + pl[2] * c[2] + pl[3] < -pr.radius) { out = true; break; }
         if (out) { A.stats.culled++; continue; }
-        items.push({ e, pr, m, d: Math.hypot(dx, dz), decal: !!ex.a3d_decal, blend: pr.mat.blend });
+        items.push({ e, pr, m, d: Math.hypot(dx, dz), decal: !!ex.a3d_decal, blend: pr.mat.blend || ex.a3d_group === 'glyph', additive: ex.a3d_group === 'glyph' });
       }
     }
     if (npc.model) {
@@ -770,7 +826,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       bindAttr(cur, 'aPos', b.aPos, 3); bindAttr(cur, 'aNorm', b.aNorm, 3); bindAttr(cur, 'aUV', b.aUV, 2); bindAttr(cur, 'aTan', b.aTan, 4);
       if (it.skin) { bindAttr(cur, 'aJoint', b.aJoint, 4); bindAttr(cur, 'aWeight', b.aWeight, 4); }
       if (it.blend || it.decal) {
-        gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+        gl.enable(gl.BLEND); if (it.additive) gl.blendFunc(gl.ONE, gl.ONE); else gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
         if (it.decal) { gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-2, -4); }
       }
       if (it.pr.index) { gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, it.pr.index); gl.drawElements(gl.TRIANGLES, it.pr.count, it.pr.itype, 0); }
@@ -778,9 +834,74 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       if (it.blend || it.decal) { gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL); }
       A.stats.draws++; A.stats.tris += it.pr.tris;
     }
+    drawHands(eye, fwd, opts, view, cur);
     for (const loc of attribsOn) gl.disableVertexAttribArray(loc);
     attribsOn.clear();
     gl.activeTexture(gl.TEXTURE0);
+  }
+
+  /* ------------------------------------------------------------ first-person hands */
+  const hands = { phase: 0, last: null, sway: [0, 0], yawPrev: null, lag: 0, raise: 0, poke: 0 };
+  function handsUpdate(dt) {
+    const p = E.player;
+    if (hands.last) {
+      const v = Math.hypot(p.x - hands.last[0], p.z - hands.last[1]) / Math.max(dt, 1e-3);
+      hands.speed = Math.min(8, v);
+      hands.phase += Math.min(8, v) * dt * 1.45;
+    }
+    hands.last = [p.x, p.z];
+    if (hands.yawPrev !== null) {
+      let dy = p.yaw - hands.yawPrev; dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+      hands.lag += (clamp(-dy * 1.6, -0.05, 0.05) - hands.lag) * Math.min(1, dt * 6);
+    }
+    hands.yawPrev = p.yaw;
+    hands.raise = Math.max(0, hands.raise - dt / 1.8);
+    hands.poke = Math.max(0, hands.poke - dt / 0.45);
+  }
+  function drawHands(eye, fwd, opts, view, prog) {
+    const m = A.models.fp_hands; if (!m || E.state !== 'play') return;
+    const p = E.player, r = [Math.cos(p.yaw), 0, Math.sin(p.yaw)];
+    const u = [r[1] * fwd[2] - r[2] * fwd[1], r[2] * fwd[0] - r[0] * fwd[2], r[0] * fwd[1] - r[1] * fwd[0]];
+    const cam = new Float32Array([r[0], r[1], r[2], 0, u[0], u[1], u[2], 0, -fwd[0], -fwd[1], -fwd[2], 0, eye[0], eye[1], eye[2], 1]);
+    const v = hands.speed || 0, ph = hands.phase;
+    const bob = Math.sin(ph * 2) * Math.min(0.012, v * 0.003), sway = Math.sin(ph) * Math.min(0.012, v * 0.003);
+    const breathe = Math.sin(time * 1.4) * 0.003;
+    const asp = gl.drawingBufferWidth / gl.drawingBufferHeight, q = 1 / Math.tan(76 * Math.PI / 360), n = 0.01, f = 10;
+    const hp = new Float32Array([q / asp, 0, 0, 0, 0, q, 0, 0, 0, 0, -(f + n) / (f - n), -1, 0, 0, -2 * f * n / (f - n), 0]);
+    gl.clear(gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    const progH = compile(QUALITY[window.ICEWALK_VISUALS?.quality]?.normalMap === false ? [] : ['NORMALMAP']);
+    gl.useProgram(progH.p);
+    const U = progH.u;
+    gl.uniformMatrix4fv(U.uView, false, view); gl.uniformMatrix4fv(U.uProj, false, hp);
+    gl.uniform3fv(U.uCam, eye); gl.uniform3fv(U.uCamF, fwd); gl.uniform1f(U.uFlash, 0); gl.uniform1f(U.uFogD, 0);
+    gl.uniform1f(U.uScanAmt, 0); gl.uniform1i(U.uBaseTex, 2); gl.uniform1i(U.uOrmTex, 3); gl.uniform1i(U.uNrmTex, 4); gl.uniform1i(U.uEmiTex, 5);
+    const rs = smooth(0, 1, hands.raise), pk = Math.sin(hands.poke * Math.PI);
+    for (const n2 of m.nodes) {
+      if (n2.mesh === undefined) continue;
+      const side = n2.extras.a3d_side || 'right';
+      const off = side === 'left'
+        ? [sway * 0.8 + hands.lag + rs * 0.05, bob + breathe + rs * 0.085, rs * -0.06]
+        : [sway + hands.lag, bob * 1.2 + breathe, pk * -0.05];
+      const local = M4.trs(off, side === 'left' ? [rs * 0.17, 0, 0, 1] : [0, 0, 0, 1], [1, 1, 1]);
+      const model = M4.mul(cam, M4.mul(local, n2.world));
+      const g = n2.extras.a3d_group;
+      const es = g === 'torch' ? (opts.torch ? 1.6 : 0.03) : g === 'scanner' ? 0.55 + rs * 1.2 + 0.15 * Math.sin(time * 5) : 1;
+      for (const pr of m.meshes[n2.mesh]) {
+        const mat = pr.mat;
+        gl.uniformMatrix4fv(U.uModel, false, model);
+        gl.uniform4fv(U.uBase, mat.base);
+        gl.uniform3f(U.uEmissive, mat.emissive[0] * es, mat.emissive[1] * es, mat.emissive[2] * es);
+        gl.uniform4f(U.uHas, mat.baseTex ? 1 : 0, mat.orm ? 1 : 0, mat.nrm ? 1 : 0, mat.emiTex ? 1 : 0);
+        gl.uniform1f(U.uRough, mat.rough); gl.uniform1f(U.uMetal, mat.metal);
+        gl.uniform1f(U.uInterior, A.zone ? 1 : 0); gl.uniform1f(U.uIce, 0); gl.uniform1f(U.uDecal, 0); gl.uniform1f(U.uAlpha, 1); gl.uniform1f(U.uScanSel, 0);
+        [[mat.baseTex, 2], [mat.orm, 3], [mat.nrm, 4], [mat.emiTex, 5]].forEach(([t, unit]) => { if (t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); } });
+        const b = pr.bufs;
+        bindAttr(progH, 'aPos', b.aPos, 3); bindAttr(progH, 'aNorm', b.aNorm, 3); bindAttr(progH, 'aUV', b.aUV, 2); bindAttr(progH, 'aTan', b.aTan, 4);
+        if (pr.index) { gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, pr.index); gl.drawElements(gl.TRIANGLES, pr.count, pr.itype, 0); } else gl.drawArrays(gl.TRIANGLES, 0, pr.count);
+        A.stats.draws++; A.stats.tris += pr.tris;
+      }
+    }
   }
 
   /* ------------------------------------------------------------ boot */
@@ -797,6 +918,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     }));
     for (const m of results) A.models[m.name] = m;
     harvest(A.models.station); harvest(A.models.ice_cave);
+    if (A.models.fp_hands) { const arm = document.getElementById('arm'); if (arm) arm.style.display = 'none'; }
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
     compile(['NORMALMAP']); compile([]); compile(['SKIN', 'NORMALMAP']); compile(['SKIN']);
@@ -835,6 +957,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     surface: (x, z) => (A.ready && world.floors.some((f) => insideOBB(f, x, z)) ? 'metal' : 'snow'),
     update, draw, interact, onScan, blocksMission, footstep,
     talk(id) { if (id === 'explorer') npc.talkUntil = time + 2.2; },
+    npcPlace(x, z, yaw = 0, hold = 8) { npc.x = x; npc.z = z; npc.yaw = yaw; npc.wait = hold; },
     blockCollect(px, pz) {
       if (!A.ready || A.state.caveSolved) return null;
       const c = anchor('a1core');
@@ -843,8 +966,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     snowFactor() { return A.zone === 'indoor' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
     restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {} }); if (A.state.power) startHum(); },
-    resetState() { A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, tutorial: {} }; },
-    get npc() { return { x: npc.x, z: npc.z, clip: npc.clip }; },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),
@@ -852,4 +974,6 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         models: Object.fromEntries(Object.entries(A.models).map(([k, m]) => [k, { meshes: m.meshes.length, clips: Object.keys(m.clips) }])) };
     },
   });
+  // Live getter (Object.assign would have copied a one-time snapshot).
+  Object.defineProperty(A, 'npc', { enumerable: true, get: () => ({ x: npc.x, z: npc.z, clip: npc.clip }) });
 })();

@@ -260,7 +260,7 @@ lod1 = C.make_lod(body, 0.38, "Selin_LOD1")
 body["a3d_lod_far"] = 28.0
 lod1["a3d_lod_near"] = 28.0
 for ob in (body, lod1):
-    ob.parent = arm
+    # skinned meshes stay root nodes (glTF: parent transforms never affect a skinned mesh)
     mod = ob.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
 

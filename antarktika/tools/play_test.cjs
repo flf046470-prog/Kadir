@@ -60,7 +60,8 @@ const check = (name, ok, detail) => { report.checks.push({ name, ok: !!ok, detai
   await place({ x: -8.4, z: -31.5, yaw: 0, pitch: 0.05 }, { torch: true }); await shot('06_cave_tunnel_torch');
   await place({ x: -8.2, z: -42.0, yaw: 0.05, pitch: 0.1 }, { torch: true }); await shot('07_cave_chamber');
   await place({ x: -8.2, z: -42.0, yaw: 0.05, pitch: 0.1 }, { torch: true, a3d: { crystals: 3, caveSolved: true } }); await shot('08_cave_chamber_solved');
-  await place({ x: 17.6, z: 21.0, yaw: 0, pitch: -0.12 }); await shot('09_npc_selin', 2600);
+  await place({ x: 17.6, z: 21.0, yaw: 0, pitch: -0.12 }); await page.evaluate(() => ANTARKTIKA3D.npcPlace(17.5, 18.2, 0.05)); await shot('09_npc_selin', 2600);
+  await place({ x: -1.5, z: 31.5, yaw: 1.2, pitch: 0.0 }, { torch: true }); await page.evaluate(() => { ICEWALK_IMMERSIVE.toggle(); }); await shot('11_first_person_hands', 2200); await page.evaluate(() => { ICEWALK_IMMERSIVE.toggle(); });
 
   // 2. collisions, door, ramp ---------------------------------------------------
   await place({ x: 14.0, z: 26.0, yaw: 0, pitch: 0 }); await hold('w', 2.5);
@@ -138,8 +139,9 @@ const check = (name, ok, detail) => { report.checks.push({ name, ok: !!ok, detai
   check('continue button appears after reload', saved && !!contVisible, contVisible);
   await page.click('#continueBtn'); await page.waitForTimeout(800);
   d = await diag();
-  check('continue restores position, mission, puzzles, relics and journal', Math.abs(d.position[0] - 24) < 0.5 && d.mission === 3 && d.a3d.state.freqSolved && d.field.taken.includes('A1') && d.notes >= 2,
-    { pos: d.position, mission: d.mission, a3d: d.a3d.state, taken: d.field.taken, notes: d.notes });
+  const journalCount = await page.evaluate(() => document.querySelectorAll('#journalEntries article').length);
+  check('continue restores position, mission, puzzles, relics and journal', Math.abs(d.position[0] - 24) < 0.5 && d.mission === 3 && d.a3d.state.freqSolved && d.field.taken.includes('A1') && journalCount >= 2,
+    { pos: d.position, mission: d.mission, a3d: d.a3d.state, taken: d.field.taken, journal: journalCount });
   await shot('10_after_continue', 1200);
 
   // 8. quality levels -----------------------------------------------------------------

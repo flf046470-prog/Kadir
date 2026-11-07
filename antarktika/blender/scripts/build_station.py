@@ -294,13 +294,15 @@ for v in grid["verts"]:
 for f in {f for v in grid["verts"] for f in v.link_faces}:
     f.material_index = 3
 for (x, z, rx, rz, h) in ((13.0, 22.2, 2.6, 1.2, 0.9), (19.0, 22.0, 3.0, 1.4, 0.7), (27.5, 22.3, 2.4, 1.1, 0.8), (11.0, 30.8, 1.6, 1.3, 0.6), (35.0, 26.5, 1.4, 2.6, 0.7)):
-    sph = bmesh.ops.create_uvsphere(ext, u_segments=14, v_segments=7, radius=1.0)
+    sph = bmesh.ops.create_uvsphere(ext, u_segments=24, v_segments=10, radius=1.0)
     for v in sph["verts"]:
         lx, ly, lz = v.co.x * rx, v.co.z, v.co.y * rz
         gxx, gzz = x + lx, z - lz
-        v.co = C.G(gxx, ground(gxx, gzz) - 0.25 + max(0.0, ly) * h, gzz)
+        # soft wind-blown drift: smooth dome, slightly steeper on the windward (north) side
+        v.co = C.G(gxx, ground(gxx, gzz) - 0.25 + (max(0.0, ly) ** 0.75) * h * (1.0 + 0.15 * (v.co.y > 0)), gzz)
     for f in {f for v in sph["verts"] for f in v.link_faces}:
         f.material_index = 3
+        f.smooth = True
 bmesh.ops.recalc_face_normals(ext, faces=ext.faces)
 ob_ext = C.mesh_object("SRC_station_exterior", ext, M_EXT, col_src)
 
@@ -474,7 +476,7 @@ def build_drill(bm, uv):
 
 
 ob_pow = emissive_mesh("EMI_powered", build_powered, a3d_power=1, a3d_cull=60.0)
-ob_static = emissive_mesh("EMI_static", build_static, a3d_cull=140.0)
+ob_static = emissive_mesh("EMI_static", build_static, a3d_cull=140.0, a3d_glow=0.38)
 ob_beacon = emissive_mesh("EMI_beacon", build_beacon, a3d_blink=0.8, a3d_cull=400.0)
 ob_drill = emissive_mesh("EMI_drill", build_drill, a3d_pulse=0.55, a3d_scan=1, a3d_group="drill", a3d_cull=160.0)
 
