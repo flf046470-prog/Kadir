@@ -3,7 +3,7 @@ Blender assets: physical sky at dusk, volumetric blizzard haze, displaced snow
 terrain, falling snow with motion blur, depth of field, AgX view transform.
 
 Usage:
-    python render_trailer.py <out_dir> [shot ...] [--frames N] [--preview]
+    python render_trailer.py <out_dir> [shot ...] [--frames N] [--preview] [--fast]
 Shots:
     station  slow push toward HELIKON-14 in the storm (beacon, warm windows)
     cave     dolly into the ice cave chamber toward the glowing glyph
@@ -32,6 +32,7 @@ args = [a for a in _argv if not a.startswith("--")]
 OUT = args[0] if args else "/tmp/trailer"
 SHOTS = args[1:] or ["station", "cave", "selin", "match"]
 PREVIEW = "--preview" in sys.argv
+FAST = "--fast" in sys.argv   # draft finals: 960x540, 10 samples + denoise (upscaled in the edit)
 FRAMES = int(sys.argv[sys.argv.index("--frames") + 1]) if "--frames" in sys.argv else None
 FPS = 24
 
@@ -60,12 +61,12 @@ def setup_scene(sun_elev=6.0, sun_rot=215.0, haze=0.012):
     scene = C.reset_scene()
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
-    scene.cycles.samples = 12 if PREVIEW else 28
+    scene.cycles.samples = 12 if PREVIEW else (10 if FAST else 28)
     scene.cycles.use_denoising = True
     scene.cycles.max_bounces = 4
     scene.cycles.volume_bounces = 0
     scene.cycles.volume_step_rate = 4.0
-    scene.render.resolution_x, scene.render.resolution_y = 1280, 720
+    scene.render.resolution_x, scene.render.resolution_y = (960, 540) if FAST else (1280, 720)
     scene.render.fps = FPS
     scene.render.use_motion_blur = True
     scene.render.motion_blur_shutter = 0.5
@@ -291,6 +292,9 @@ def render(shot, frames):
         sc.render.filepath = os.path.join(OUT, shot + "_preview.png")
         bpy.ops.render.render(write_still=True)
     else:
+        # resumable: frames already on disk are skipped, a placeholder marks the one in progress
+        sc.render.use_overwrite = False
+        sc.render.use_placeholder = True
         bpy.ops.render.render(animation=True)
 
 

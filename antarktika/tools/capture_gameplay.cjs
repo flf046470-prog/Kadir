@@ -44,7 +44,7 @@ function camAt(keys, t) {
   page.setDefaultTimeout(300000);
   await page.goto('http://localhost:8770/index.html?forcewebgl=1');
   await page.waitForFunction(() => window.ANTARKTIKA3D && ANTARKTIKA3D.status === 'ready', null, { timeout: 180000 });
-  await page.evaluate(() => { localStorage.clear(); ICEWALK_VISUALS.quality = 'cinematic'; });
+  await page.evaluate((q) => { localStorage.clear(); ICEWALK_VISUALS.quality = q; }, argv.includes('--hq') ? 'cinematic' : 'balanced');
   await page.click('#skipPrologue'); await page.waitForTimeout(300);
   if ((await page.evaluate(() => ICEWALK_DIAGNOSTICS().mode)) !== 'play') { await page.click('#startBtn'); await page.waitForTimeout(300); }
   const meta = [];

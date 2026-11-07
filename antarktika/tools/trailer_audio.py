@@ -17,7 +17,7 @@ SR = 44100
 
 def env(n, a, r):
     e = np.ones(n)
-    a, r = int(a * SR), int(r * SR)
+    a, r = min(int(a * SR), n // 2), min(int(r * SR), n // 2)
     if a: e[:a] = np.linspace(0, 1, a)
     if r: e[-r:] *= np.linspace(1, 0, r)
     return e
