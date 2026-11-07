@@ -72,7 +72,7 @@ def setup_scene(sun_elev=6.0, sun_rot=215.0, haze=0.012):
     try:
         scene.view_settings.view_transform = "AgX"
         scene.view_settings.look = "AgX - Medium High Contrast"
-        scene.view_settings.exposure = 0.9
+        scene.view_settings.exposure = 0.0
     except TypeError:
         scene.view_settings.view_transform = "Filmic"
     scene.render.image_settings.file_format = "PNG"
@@ -92,9 +92,9 @@ def setup_scene(sun_elev=6.0, sun_rot=215.0, haze=0.012):
     sky.sun_rotation = math.radians(sun_rot)
     sky.altitude = 2800
     sky.air_density = 1.6
-    sky.sun_disc = True
+    sky.sun_disc = False
     bg = nt.nodes.new("ShaderNodeBackground")
-    bg.inputs["Strength"].default_value = 1.35
+    bg.inputs["Strength"].default_value = 0.22
     out = nt.nodes.new("ShaderNodeOutputWorld")
     nt.links.new(sky.outputs[0], bg.inputs[0])
     nt.links.new(bg.outputs[0], out.inputs["Surface"])
