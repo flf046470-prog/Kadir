@@ -1,0 +1,5 @@
+node_modules/
+app/
+release/
+# the root .gitignore drops every build/ (Next.js); electron-builder reads the app icon from this one
+!build/

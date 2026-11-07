@@ -1,0 +1,52 @@
+{
+  "_comment": "Phase 1 (Sakarya prototype) hero props. Real-world scale via auto_size. Keep polycounts modest for 8 GB RAM.",
+  "defaults": {
+    "ai_model": "latest",
+    "should_remesh": true,
+    "topology": "triangle",
+    "target_polycount": 8000,
+    "texture_resolution": "2k",
+    "enable_pbr": true,
+    "target_formats": ["fbx", "glb"],
+    "auto_size": true,
+    "origin_at": "bottom"
+  },
+  "assets": [
+    {
+      "name": "SM_Camcorder",
+      "prompt": "Handheld consumer digital video camcorder from the late 2000s, compact body with flip-out side LCD screen, lens hood, hand strap, worn matte black plastic, realistic proportions, single object",
+      "texture_prompt": "Scuffed matte black plastic, worn rubber grip, small silver logo-free trim, slight dust, realistic",
+      "target_polycount": 10000
+    },
+    {
+      "name": "SM_Flashlight",
+      "prompt": "Rugged handheld LED flashlight, aluminium cylindrical body with knurled grip and tail switch, realistic, single object",
+      "texture_prompt": "Dark grey anodized aluminium with scratches and chipped edges, clear glass lens",
+      "target_polycount": 4000
+    },
+    {
+      "name": "SM_BasementDoor_Wood",
+      "prompt": "Old rotten wooden basement door, vertical planks with two horizontal braces, rusty iron strap hinges on one side and a simple iron latch handle, 90 cm wide 205 cm tall 5 cm thick, door slab only without frame",
+      "texture_prompt": "Damp decaying wood, peeling dark green paint, water stains, rust streaks under the iron hinges",
+      "target_polycount": 8000
+    },
+    {
+      "name": "SM_StorageShelf_Rusty",
+      "prompt": "Freestanding steel storage shelf with four shelves, bent and rusty, 100 cm wide 40 cm deep 190 cm tall, basement utility shelving, empty",
+      "texture_prompt": "Rusted grey painted steel, flaking paint, dust on horizontal surfaces",
+      "target_polycount": 12000
+    },
+    {
+      "name": "SM_MiniDVTape",
+      "prompt": "Small MiniDV video cassette tape, rectangular plastic cassette with label area and visible tape window, realistic, single object",
+      "texture_prompt": "Black plastic cassette with a blank yellowed paper label, slight scratches",
+      "target_polycount": 2000
+    },
+    {
+      "name": "SM_RecorderConsole_Stone",
+      "prompt": "Ancient carved stone control console from an unknown underground civilization, waist-high slanted pedestal with circular concentric grooves and inlaid dull bronze plates, no modern elements, 120 cm wide",
+      "texture_prompt": "Weathered grey limestone with fine carved geometric symbols, tarnished bronze inlays with green patina, dust in crevices",
+      "target_polycount": 30000
+    }
+  ]
+}
