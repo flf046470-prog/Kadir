@@ -26,6 +26,7 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   await place(0, 0, solved);
   let radio = await page.evaluate(([x, z]) => ANTARKTIKA3D.interact(x, z), [anchors.radio.x, anchors.radio.z]);
   check('radio reports missing fragments', /0\/4/.test(radio || ''), radio);
+  const pr0 = await page.evaluate(([x, z]) => { ICEWALK_ENGINE.player.x = x; ICEWALK_ENGINE.player.z = z; ICEWALK_ENGINE.step(1 / 30, 2); return ANTARKTIKA3D.chapter2Pressure(); }, [anchors.bb0.x + 30, anchors.bb0.z]);
   for (let i = 0; i < 4; i++) {
     const a = anchors['bb' + i];
     const far = await page.evaluate(([x, z]) => ANTARKTIKA3D.onScan(x, z), [a.x + 30, a.z]);
@@ -34,8 +35,12 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
     const dig = await page.evaluate(([x, z]) => ANTARKTIKA3D.interact(x, z), [a.x, a.z]);
     check('fragment ' + (i + 1) + ': scan gives bearing, then E digs it out', /SİNYALİ/.test(far || '') && hidden == null && /Yakında/.test(near || '') && new RegExp((i + 1) + '/4').test(dig || ''), { far, near, dig });
   }
+  const pr4 = await page.evaluate(([x, z]) => { ICEWALK_ENGINE.player.x = x; ICEWALK_ENGINE.player.z = z; ICEWALK_ENGINE.step(1 / 30, 2); return ANTARKTIKA3D.chapter2Pressure(); }, [anchors.bb0.x + 30, anchors.bb0.z]);
+  check('storm thickens as fragments are collected (03:17 approaches)', pr0 > 0 && pr4 > pr0 + 0.15, { pr0, pr4 });
   radio = await page.evaluate(([x, z]) => ANTARKTIKA3D.interact(x, z), [anchors.radio.x, anchors.radio.z]);
   const s = await st();
+  const prDone = await page.evaluate(() => ANTARKTIKA3D.chapter2Pressure());
+  check('storm pressure lifts once the recording is assembled', prDone === 0, prDone);
   check('radio assembles the recording and completes chapter 2', s.ch2 === true && /BÖLÜM 2/.test(radio || ''), radio);
   const j = await page.evaluate(() => document.body.innerText.includes('GELECEKTEN YAYIN') || JSON.stringify(window.ICEWALK_JOURNAL?.serialize?.() || '').includes('GELECEKTEN'));
   check('journal entry written', j);

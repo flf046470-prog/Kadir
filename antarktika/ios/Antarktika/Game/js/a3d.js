@@ -971,6 +971,17 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       const x = a.x + dx, z = a.z + dz;
       world.anchors.push({ id: 'bb' + i, label: 'KARA KUTU PARÇASI', radius: 2.2, x, y: groundY(x, z), z });
     });
+    // 03:17 draws closer with every fragment: the blizzard thickens until the recording is assembled.
+    const F = window.ICEWALK_FIELD;
+    if (F && F.pressure && !F.pressure.__ch2) {
+      const base = F.pressure.bind(F);
+      F.pressure = Object.assign((t) => base(t) + chapter2Pressure(), { __ch2: true });
+    }
+  }
+  function chapter2Pressure() {
+    const S = A.state;
+    if (!A.ready || !S.caveSolved || S.ch2 || A.zone) return 0;   // shelter indoors / in the cave
+    return 0.05 + 0.055 * S.bb.reduce((t, v) => t + v, 0);
   }
   function bbScan(px, pz) {
     const S = A.state; if (!S.caveSolved || S.ch2) return null;
@@ -1025,6 +1036,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       const c = anchor('a1core');
       return c && Math.hypot(px - c.x, pz - c.z) < 5 ? 'ÇEKİRDEK BUZDA MÜHÜRLÜ · Kristalleri doğru sırayla uyandır' : null;
     },
+    chapter2Pressure,
     snowFactor() { return A.zone === 'indoor' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
     restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2 }); if (A.state.power) startHum(); },

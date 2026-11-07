@@ -344,24 +344,19 @@ def shot_selin():
         if o.name.endswith("LOD1"):
             o.hide_render = True
     walk = bpy.data.actions.get("Walk")
-    arm.animation_data_create()
-    arm.animation_data.action = walk
-    try:
-        arm.animation_data.action_slot = walk.slots[0]
-    except (AttributeError, IndexError):
-        pass
-    # walk toward camera along +z at 1.35 m/s, looping the 30-frame cycle
+    ad = arm.animation_data_create()
+    # gait cycle on an NLA strip; the travel path goes into its own action on top
+    ad.action = None
+    track = ad.nla_tracks.new()
+    strip = track.strips.new("walk", 1, walk)
+    strip.repeat = frames / 30.0 + 1
+    # walk toward the camera (+z in game space) at 1.35 m/s; the rig faces -z at rest
     sx, sz = 6.0, 12.0
+    arm.rotation_euler = (0, 0, math.pi)
     for f in range(1, frames + 1, 6):
         t = (f - 1) / FPS
         arm.location = G(sx, T.terrain_y(sx, sz + 1.35 * t), sz + 1.35 * t)
-        arm.rotation_euler = (0, 0, 0)
         arm.keyframe_insert("location", frame=f)
-    if arm.animation_data:
-        nla = arm.animation_data.nla_tracks.new()
-        strip = nla.strips.new("walk", 1, walk)
-        strip.repeat = frames / 30.0 + 1
-        arm.animation_data.action = None
     append_collection("station")
     snow_terrain(8, 18, 40)
     mountains()

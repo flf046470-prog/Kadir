@@ -51,9 +51,10 @@
     return quad;
   }
   function paintHud(now) {
+    hudProgram();   // creates the HUD canvas/texture on the first XR frame
     if (now - hudAt < 200) return; hudAt = now;
     const d = window.ICEWALK_DIAGNOSTICS?.(); if (!d) return;
-    const c = hudCtx || (hudCtx = hudCanvas.getContext('2d')), $ = (id) => document.getElementById(id)?.textContent || '';
+    const c = hudCtx || (hudCtx = hudCanvas && hudCanvas.getContext('2d')), $ = (id) => document.getElementById(id)?.textContent || '';
     if (!c) return;
     c.clearRect(0, 0, 512, 256);
     c.fillStyle = 'rgba(4,24,34,0.82)'; c.fillRect(0, 0, 512, 256);
