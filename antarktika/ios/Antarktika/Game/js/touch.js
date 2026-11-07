@@ -50,7 +50,7 @@
     syncKeys(IN.x, IN.z);
   }
   zone.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); pid = e.pointerId; zone.setPointerCapture(pid);
+    e.preventDefault(); pid = e.pointerId; try { zone.setPointerCapture(pid); } catch (_) { /* pointer already released */ }
     const r = pad.offsetWidth / 2 || 70;
     ox = Math.max(r + 8, Math.min(innerWidth * 0.46 - r, e.clientX)); oy = Math.max(r + 8, Math.min(innerHeight - r - 8, e.clientY));
     pad.style.left = ox - r + 'px'; pad.style.top = oy - r + 'px'; pad.style.bottom = 'auto';
@@ -66,7 +66,7 @@
   // ---- look
   let lid = null, lx = 0, ly = 0;
   look.addEventListener('pointerdown', (e) => {
-    e.preventDefault(); lid = e.pointerId; look.setPointerCapture(lid); lx = e.clientX; ly = e.clientY;
+    e.preventDefault(); lid = e.pointerId; try { look.setPointerCapture(lid); } catch (_) { /* pointer already released */ } lx = e.clientX; ly = e.clientY;
     if (chamber()) {
       document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: lx, clientY: ly }));
       document.getElementById('hcWorld')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, clientX: lx, clientY: ly }));
@@ -89,7 +89,7 @@
   // ---- buttons
   document.querySelectorAll('#mobileActions button').forEach((b) => {
     b.addEventListener('pointerdown', (e) => {
-      e.preventDefault(); b.setPointerCapture(e.pointerId); key(b.dataset.key, true);
+      e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (_) { /* pointer already released */ } key(b.dataset.key, true);
       if (b.dataset.key === 'Shift') IN.run = true;
       if (!b.dataset.hold) key(b.dataset.key, false);
     });

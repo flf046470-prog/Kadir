@@ -18,7 +18,18 @@ const serve = require('./serve.cjs');
   if ((await page.evaluate(() => ICEWALK_DIAGNOSTICS().mode)) !== 'play') { await page.tap('#startBtn'); await page.waitForTimeout(300); }
   await page.evaluate(() => ICEWALK_ENGINE.continueFrom({ player: { x: 0, z: 35, yaw: 0, pitch: 0 }, mission: 0 }, () => ICEWALK_PROLOGUE.restore({ active: false, stage: -1, completed: true })));
   const cdp = await ctx.newCDPSession(page);
-  const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map(([x, y, id]) => ({ x, y, id })) });
+  // Pointer events with pointerType 'touch' dispatched on the element under the finger (what iOS WebKit
+  // delivers to touch.js). CDP's raw touch emulation in headless Chromium mixes in mouse-compat events.
+  const down = {};
+  const touch = (type, pts) => page.evaluate(([type, pts, down]) => {
+    const kind = { touchStart: 'pointerdown', touchMove: 'pointermove', touchEnd: 'pointerup' }[type];
+    if (type === 'touchEnd') pts = Object.entries(down).map(([id, p]) => [p[0], p[1], +id]);
+    for (const [x, y, id] of pts) {
+      const tgt = type === 'touchStart' ? document.elementFromPoint(x, y) : (window.__tt && window.__tt[id]) || document.elementFromPoint(x, y);
+      if (type === 'touchStart') (window.__tt = window.__tt || {})[id] = tgt;
+      tgt.dispatchEvent(new PointerEvent(kind, { pointerId: id, pointerType: 'touch', clientX: x, clientY: y, bubbles: true, cancelable: true, isPrimary: true }));
+    }
+  }, [type, pts, down]).then(() => { if (type === 'touchEnd') for (const k in down) delete down[k]; else for (const [x, y, id] of pts) down[id] = [x, y]; });
   const sim = (s) => page.evaluate((n) => ICEWALK_ENGINE.step(1 / 30, n), Math.round(s * 30));
   const d0 = await page.evaluate(() => ICEWALK_DIAGNOSTICS());
   const coarse = await page.evaluate(() => document.body.classList.contains('touch-device'));
@@ -35,6 +46,8 @@ const serve = require('./serve.cjs');
   await touch('touchEnd', []);
   const after = await page.evaluate(() => ({ ...window.ICEWALK_INPUT }));
   // look: drag right on the right half
+  const lookState = await page.evaluate(() => { const e = document.elementFromPoint(600, 200); return { at: e && (e.id || e.tagName), hud: document.getElementById('hud')?.className, controls: getComputedStyle(document.getElementById('mobileControls')).display, open: [...document.querySelectorAll('.open,.hcVisible')].map((x) => x.id) }; });
+  console.log('look target', JSON.stringify(lookState));
   await touch('touchStart', [[600, 200, 2]]);
   for (let i = 1; i <= 6; i++) await touch('touchMove', [[600 + i * 20, 200, 2]]);
   await touch('touchEnd', []);

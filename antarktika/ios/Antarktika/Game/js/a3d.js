@@ -24,7 +24,7 @@
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
     stats: { draws: 0, tris: 0, lights: 0, culled: 0 },
-    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, tutorial: {} },
+    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, tutorial: {} },
   };
   window.ANTARKTIKA3D = A;
   let E = null, gl = null, ext = {}, programs = {}, time = 0;
@@ -450,6 +450,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     for (const a of world.anchors) {
       if (a.id === 'entrance' || a.id === 'cargo_e1') continue;
       if (a.id === 'a1core' && !A.state.caveSolved) continue;
+      if (a.id.startsWith('bb')) { const i = +a.id.slice(2); if (!A.state.caveSolved || A.state.bb[i] || !A.state.bbSeen[i]) continue; }
       const d = Math.hypot(a.x - x, a.z - z);
       if (d <= a.radius && (!best || d < best.d)) best = { ...a, d };
     }
@@ -532,6 +533,13 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       case 'radio':
         if (!S.power) { tone(140, 0.3, 'square', 0.06, 0.8); return 'TELSİZ ENERJİSİZ · Önce dışarıdaki JENERATÖRÜ çalıştır'; }
         if (pro?.active && pro.summary().stage === 1) return null;   // prologue step handles it
+        if (!S.ch2 && S.bb.every(Boolean)) {
+          S.ch2 = true; tone(317, 1.4, 'sine', 0.16, 1.0); flash('255,210,150', 0.5);
+          journal('BÖLÜM 2 — GELECEKTEN YAYIN', 'Dört parça birleşti. Kaydın sonunda konuşan ses benim. Kayıt 03:17’de, Selin istasyona gelmeden 40 dakika önce yapılmış — ama Selin’in sesi de içinde. Ona güvenebilir miyim?');
+          E.save?.();
+          return 'KAYIT BİRLEŞTİ · “Sinyali kapatmayın. Cevap kapının ardında.” · BÖLÜM 2 TAMAMLANDI';
+        }
+        if (S.caveSolved && !S.ch2) { tone(660, 0.25); return 'TELSİZ · Kara kutu kaydı eksik · ' + S.bb.reduce((t, v) => t + v, 0) + '/4 parça'; }
         tone(660, 0.25); return 'TELSİZ · MERKEZ SESSİZ · Kayıtlı son çağrı: “İkinci yarığa yaklaşmayın.”';
       case 'labterminal':
         if (!S.power) return 'LAB TERMİNALİ KARANLIK · Enerji yok';
@@ -581,6 +589,14 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       }
       case 'a1core':
         return null;   // field scanner collects it
+      case 'bb0': case 'bb1': case 'bb2': case 'bb3': {
+        const i = +a.id.slice(2);
+        if (S.bb[i]) return null;
+        S.bb[i] = 1; S.bbSeen[i] = 1; noiseBurst(0.5, 300, 900, 0.18, 0.6); tone(523, 0.3, 'triangle', 0.1, 1.2);
+        journal('KARA KUTU — ' + BB_NAMES[i], BB_LOG[i]);
+        const n = S.bb.reduce((t, v) => t + v, 0); E.save?.();
+        return 'KARA KUTU PARÇASI · ' + n + '/4' + (n === 4 ? ' · TELSİZDE BİRLEŞTİR' : ' · Q ile sonrakini ara');
+      }
       default:
         return null;
     }
@@ -590,6 +606,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     hands.raise = 1;
     scan = { x: px, z: pz, t: time };
     if (zoneAt(px, pz) === 'cave' && !A.state.caveSolved) crystalDemo = time;
+    const msg = A.state.caveSolved && zoneAt(px, pz) !== 'cave' ? bbScan(px, pz) : null;
+    if (msg) { E.toast(msg); lastMsgAt = time; }
+    return msg;
   }
 
   function blocksMission(m, px, pz) {
@@ -646,6 +665,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     else if (stage === 3) line = 'Mavi işaret buz mağarasının en dibinde. İçerisi karanlık: F ile fenerini aç.';
     else if (m === 2 && !S.freqSolved) line = 'Lab terminali bütün saatlerin 03:17’de durduğunu yazıyor. Frekans çözücüde bu sayıyı ara.';
     else if (!S.caveSolved && S.glyphRead) line = 'Mağaradaki şiir bir sıra anlatıyor: su, yıldız, karanlık. Kristallerin renklerine bak. Q sırayı gösterir.';
+    else if (S.caveSolved && !S.ch2) line = S.bb.every(Boolean) ? 'Dört parça tamam. Kontrol odasındaki telsizde kaydı birleştir.' : 'Ada’nın kara kutusu düşerken dağıldı. Dışarıda Q ile tara: tarayıcı en yakın parçanın yönünü verir.';
     else if (m === 5 && S.power) line = 'Uplink direğin dibindeki terminalde. Dünya İttifakı’na bağlan.';
     c.spoken = line;
   }
@@ -927,10 +947,47 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
     compile(['NORMALMAP']); compile([]); compile(['SKIN', 'NORMALMAP']); compile(['SKIN']);
-    relocateStory();
+    relocateStory(); placeBlackBox();
     A.loadMs = Math.round(performance.now() - t0);
     A.status = 'ready'; A.ready = true;
     E.onReady?.();
+  }
+
+  /* ------------------------------------------------------------ chapter 2: black box */
+  // Four recorder fragments lie buried in the snow around the station. The field scanner (Q)
+  // pings the nearest one with distance and bearing; E digs it out; the radio plays the
+  // reassembled recording.
+  const BB_NAMES = ['KAYIT 1/4 · 02:58', 'KAYIT 2/4 · 03:06', 'KAYIT 3/4 · 03:12', 'KAYIT 4/4 · 03:17'];
+  const BB_LOG = [
+    'Ada (telsiz): “Yarıktan gelen ışık ritim tutuyor. Selin ölçüm yapmak için aşağı indi.”',
+    'Ada: “Selin dönmedi ama sesi telsizde. Bize yarın neler olacağını anlatıyor.”',
+    'Ada: “Kristal numunesi B7 kafesinde çınlıyor. Saatler geri sayıyor.”',
+    'Bilinmeyen ses — senin sesin: “Sinyali kapatmayın. Cevap kapının ardında.”',
+  ];
+  function placeBlackBox() {
+    const offs = [['drill', 7, 5], ['uplink', -6, 7], ['generator', -11, -7], ['entrance', 5, 7]];
+    offs.forEach(([id, dx, dz], i) => {
+      const a = anchor(id) || anchor('generator'); if (!a) return;
+      const x = a.x + dx, z = a.z + dz;
+      world.anchors.push({ id: 'bb' + i, label: 'KARA KUTU PARÇASI', radius: 2.2, x, y: groundY(x, z), z });
+    });
+  }
+  function bbScan(px, pz) {
+    const S = A.state; if (!S.caveSolved || S.ch2) return null;
+    let best = null;
+    for (let i = 0; i < 4; i++) {
+      if (S.bb[i]) continue;
+      const a = anchor('bb' + i); if (!a) continue;
+      const d = Math.hypot(a.x - px, a.z - pz);
+      if (!best || d < best.d) best = { i, d, a };
+    }
+    if (!best) return 'TÜM PARÇALAR TOPLANDI · Kontrol odasındaki TELSİZE götür';
+    if (best.d < 12) S.bbSeen[best.i] = 1;
+    const ang = Math.atan2(best.a.x - px, -(best.a.z - pz));   // 0 = north (−z)
+    const dirs = ['KUZEY', 'KUZEYDOĞU', 'DOĞU', 'GÜNEYDOĞU', 'GÜNEY', 'GÜNEYBATI', 'BATI', 'KUZEYBATI'];
+    const dir = dirs[(Math.round(ang / (Math.PI / 4)) + 8) % 8];
+    tone(best.d < 12 ? 1320 : 660, 0.12, 'square', 0.08, 1.0);
+    return 'KARA KUTU SİNYALİ · ' + Math.round(best.d) + ' m ' + dir + (best.d < 12 ? ' · Yakında: E ile kaz' : '');
   }
 
   function relocateStory() {
@@ -970,8 +1027,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     snowFactor() { return A.zone === 'indoor' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
-    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {} }); if (A.state.power) startHum(); },
-    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, tutorial: {} }; },
+    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2 }); if (A.state.power) startHum(); },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),

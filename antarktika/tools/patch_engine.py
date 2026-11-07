@@ -199,6 +199,12 @@ start = s.index("<script>\n(()=>{if(!matchMedia('(pointer:coarse)').matches")
 end = s.index("</script>", start) + len("</script>")
 s = s[:start] + '<script src="js/touch.js"></script>' + s[end:]
 
+# ---------------------------------------------------------------- mobile controls vs. HELIKON chamber overlays
+# The chamber's overlays carry .hcVisible even while the chamber itself is closed, which hid the
+# touch controls during normal play. Only hide them when the chamber is actually open.
+for ov in ("hcCurtain", "hcEnding", "hcEndCard", "hcRecord"):
+    rep("body:has(#%s.hcVisible) #mobileControls" % ov, "body:has(#helikonChamber.hcActive #%s.hcVisible) #mobileControls" % ov)
+
 # ---------------------------------------------------------------- save system + perf overlay at the end of the body
 rep("</body></html>", '<script src="js/save.js"></script><script src="js/perf.js"></script><script src="js/xr.js"></script></body></html>')
 

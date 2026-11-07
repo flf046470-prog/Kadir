@@ -53,7 +53,8 @@
   function paintHud(now) {
     if (now - hudAt < 200) return; hudAt = now;
     const d = window.ICEWALK_DIAGNOSTICS?.(); if (!d) return;
-    const c = hudCtx, $ = (id) => document.getElementById(id)?.textContent || '';
+    const c = hudCtx || (hudCtx = hudCanvas.getContext('2d')), $ = (id) => document.getElementById(id)?.textContent || '';
+    if (!c) return;
     c.clearRect(0, 0, 512, 256);
     c.fillStyle = 'rgba(4,24,34,0.82)'; c.fillRect(0, 0, 512, 256);
     c.strokeStyle = 'rgba(160,230,240,0.5)'; c.lineWidth = 3; c.strokeRect(2, 2, 508, 252);
@@ -76,7 +77,7 @@
     const n = document.getElementById('notice'), txt = n && n.classList.contains('show') ? n.textContent : '';
     if (txt && txt !== toastShown) { toastShown = txt; toastText = txt; toastUntil = performance.now() + 4200; }
     if (!toastTex) { toastTex = gl.createTexture(); toastCanvas = document.createElement('canvas'); toastCanvas.width = 1024; toastCanvas.height = 128; }
-    const c = toastCanvas.getContext('2d');
+    const c = toastCanvas.getContext('2d'); if (!c) return;
     c.clearRect(0, 0, 1024, 128);
     if (performance.now() < toastUntil) {
       c.fillStyle = 'rgba(7,27,41,0.9)'; c.fillRect(0, 0, 1024, 128); c.fillStyle = '#87f6f1'; c.fillRect(0, 0, 8, 128);

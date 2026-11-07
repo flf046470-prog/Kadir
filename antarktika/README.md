@@ -64,6 +64,7 @@ node -e "require('./antarktika/tools/serve.cjs')(8765)"   # http://localhost:876
 ```bash
 node antarktika/tools/play_test.cjs  <çıktı>   # oynanış, çarpışma, bulmacalar, kayıt, kalite
 node antarktika/tools/touch_test.cjs           # dokunmatik kontroller (mobil emülasyon)
+node antarktika/tools/chapter2_test.cjs        # Bölüm 2: kara kutu görevi + kayıt
 node antarktika/tools/xr_test.cjs    <çıktı>   # VR yolu (sahte WebXR oturumu)
 node antarktika/tools/verify_terrain_port.mjs  # Python arazi portu = JS orijinal
 ```

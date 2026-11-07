@@ -2,7 +2,7 @@
 
 Mevcut dikey dilim (istasyon, jeneratör, 3.17 MHz, buz mağarası, A1 çekirdeği) **Bölüm 1**'dir.
 
-## Bölüm 2 · "Gelecekten Yayın"
+## Bölüm 2 · "Gelecekten Yayın" — UYGULANDI (kara kutu görevi, `js/a3d.js`, test: `tools/chapter2_test.cjs` 11/11)
 - Kanca: 3.17 MHz yayını 72 saat sonrasından geliyor; konuşan oyuncunun kendi sesi.
 - Mekân: verici direği + kara kutunun düştüğü buzul yarığı (orijinal oyundaki 6 görevin verici/kara kutu bölgesi).
 - Bulmaca: kara kutu kaydını 4 parçadan birleştirme (tarayıcı Q ile parça bulunur, telsizde sıraya dizilir).
