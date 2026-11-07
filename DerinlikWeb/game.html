@@ -178,6 +178,7 @@ body.cam-on #objective { opacity: 0; }
     <div class="row">
       <button class="go" id="startBtn" type="button"><span class="dot"></span>Kayda başla</button>
       <button class="go ghost" id="continueBtn" type="button" hidden>Devam et</button>
+      <button class="go ghost" id="vrBtn" type="button" hidden><span class="dot"></span>VR'da oyna</button>
       <button class="go ghost quit" type="button" hidden>Masaüstüne çık</button>
     </div>
     <label class="lang">🌐 <select class="langSel" aria-label="Language"></select></label>
@@ -255,6 +256,8 @@ const D2R = Math.PI / 180;
 const FX = {
   quality: (() => { try { const q = localStorage.getItem('derinlik.quality'); if (['high', 'medium', 'low'].includes(q)) return q; } catch (_) {} return isTouch ? 'medium' : 'high'; })(),
   render: null, // a module may take over drawing: FX.render(realDt) runs instead of renderer.render(scene, camera)
+  xr: null, // fx-xr.js: while a headset session runs, xr.on is true and the head, not the mouse, places the view
+  aim: null, // a module may aim the interaction ray: FX.aim(ray) returns true when it set it (a VR controller)
   handlers: {},
   on(ev, fn) { (this.handlers[ev] ??= []).push(fn); },
   emit(ev, ...args) { for (const fn of this.handlers[ev] || []) { try { fn(...args); } catch (e) { console.error('FX', ev, e); } } },
@@ -772,15 +775,18 @@ function resolve(x, z, h, r = player.r) {
   return [x, z];
 }
 function updatePlayer(dt) {
+  const xr = FX.xr && FX.xr.on ? FX.xr : null;
+  if (xr) xr.before(); // the head pose sets where Ekin stands, faces and how low she is
   let mx = 0, mz = 0;
   const active = player.enabled && !state.reading && !state.archive;
   if (active) {
     if (keys.has('KeyW') || keys.has('ArrowUp')) mz += 1; if (keys.has('KeyS') || keys.has('ArrowDown')) mz -= 1;
     if (keys.has('KeyD') || keys.has('ArrowRight')) mx += 1; if (keys.has('KeyA') || keys.has('ArrowLeft')) mx -= 1;
     mx += touch.mx; mz += touch.mz;
+    if (xr) { mx += xr.mx; mz += xr.mz; }
   }
   const len = Math.hypot(mx, mz); if (len > 1) { mx /= len; mz /= len; }
-  player.sprinting = active && (keys.has('ShiftLeft') || keys.has('ShiftRight') || touch.sprint) && !player.crouched && mz > .1;
+  player.sprinting = active && (keys.has('ShiftLeft') || keys.has('ShiftRight') || touch.sprint || (xr && xr.sprint)) && !player.crouched && mz > .1;
   const speed = player.crouched ? 1.1 : player.sprinting ? 3.6 : 1.9;
   const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw), rx = Math.cos(player.yaw), rz = -Math.sin(player.yaw);
   const ox = player.x, oz = player.z;
@@ -791,6 +797,7 @@ function updatePlayer(dt) {
     player.bob += moved * 3.4; player.stride += moved;
     if (player.stride > (player.crouched ? .55 : player.sprinting ? .95 : .72)) { player.stride = 0; sfx.step(player.crouched); FX.emit('step', player.crouched, player.sprinting); }
   } else player.bob *= .9;
+  if (xr) { xr.after(dt); syncListener(); return; } // the headset owns the view: the rig follows the resolved position instead
   player.eye += ((player.crouched ? .92 : 1.64) - player.eye) * (1 - Math.exp(-10 * dt));
   camera.position.set(player.x, player.eye + (settings.bob ? Math.sin(player.bob) * .012 : 0), player.z);
   camera.rotation.set(player.pitch, player.yaw, 0); camera.updateMatrixWorld(); // raycasts this step must use this step's view
@@ -867,7 +874,7 @@ function echoGate(x, y, z, rotY, next, { radius = 1.05 } = {}) {
 
 /* ================================================================ camcorder, interaction, reader, archive */
 const ray = new THREE.Raycaster(), centre = new THREE.Vector2(0, 0);
-function firstHit(extra, far) { ray.setFromCamera(centre, camera); ray.far = far; return ray.intersectObjects([...W.occluders, ...extra], false)[0] || null; }
+function firstHit(extra, far) { if (!(FX.aim && FX.aim(ray))) ray.setFromCamera(centre, camera); ray.far = far; return ray.intersectObjects([...W.occluders, ...extra], false)[0] || null; }
 function interactOf(o) { while (o) { if (o.userData.interact) return o.userData.interact; o = o.parent; } return null; }
 function updateInteraction() {
   state.focus = null;
@@ -1828,7 +1835,7 @@ document.addEventListener('mousemove', (e) => {
 });
 function lockPointer() { if (isTouch) return; try { const p = canvas.requestPointerLock(); if (p && p.catch) p.catch(() => {}); } catch (_) {} }
 document.addEventListener('pointerlockchange', () => {
-  if (isTouch || !state.started || state.ended) return;
+  if (isTouch || !state.started || state.ended || renderer.xr.isPresenting) return;
   if (locked()) setPaused(false);
   else { unlockedAt = performance.now(); if (!state.reading && !state.archive) setPaused(true); }
 });
@@ -1915,14 +1922,18 @@ function step(dt) {
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  if (DEBUG.manual) { requestAnimationFrame(frame); return; }
+  if (DEBUG.manual) return;
   if (state.started && !paused) step(dt);
   else if (!state.started) { camera.position.set(0, 1.64, 1.8); camera.rotation.set(-.04, Math.PI + Math.sin(now / 4000) * .25, 0); }
   draw(dt);
-  requestAnimationFrame(frame);
 }
-function draw(realDt) { FX.emit('draw', realDt); if (FX.render) FX.render(realDt); else renderer.render(scene, camera); if (tape.want) tapeGrab(); }
-const ready = loadModels().catch((e) => console.warn(e)).then(() => { FX.emit('init'); buildChapter(0, { persist: false }); requestAnimationFrame(frame); }); // the basement is the living backdrop behind the start screen
+function draw(realDt) {
+  FX.emit('draw', realDt);
+  const xr = renderer.xr.isPresenting; // post-processing composers cannot draw into a headset's layers
+  if (FX.render && !xr) FX.render(realDt); else renderer.render(scene, camera);
+  if (tape.want) { if (xr) tape.want = null; else tapeGrab(); } // the canvas holds no frame while a headset draws
+}
+const ready = loadModels().catch((e) => console.warn(e)).then(() => { FX.emit('init'); buildChapter(0, { persist: false }); renderer.setAnimationLoop(frame); }); // the basement is the living backdrop behind the start screen; setAnimationLoop: the browser's frame loop, or the headset's while one is on
 
 // Test hooks for the automated play-through: advance() runs the simulation at 30 Hz without waiting on frames.
 function advance(seconds) { for (let t = 0; t < seconds; t += 1 / 30) step(1 / 30); draw(1 / 30); }

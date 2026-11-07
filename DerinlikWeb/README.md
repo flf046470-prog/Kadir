@@ -17,6 +17,7 @@ Birinci şahıs psikolojik korku oyunu. Dört bölüm, her bölümde kalıcı ka
 - **Pause menüsünde "Görüntü kalitesi":** Yüksek (tam dokular, bloom, gölgeli lamba, yansımalar) · Orta (512 px dokular, daha hafif efektler) · Düşük (efektsiz).
 - **Kontroller:** W A S D + fare (fare kilitlenemezse sol tıkla sürükleyerek bak) · Shift koş · F el feneri · Q / sağ tık video kamera · C / Ctrl çömel · E etkileşim · Tab kanıt arşivi · Esc duraklat.
 - **Telefon / tablet:** sol altta hareket çubuğu, sağda düğmeler, ekranın sağ yarısında sürükleyerek bak.
+- **VR (WebXR, Meta Quest tarayıcısı):** başlangıç ekranında “VR'da oyna” yalnızca tarayıcı sürükleyici VR destekliyorsa görünür. Kafanla bak, odada yürü ya da gerçekten çömel. Sol çubuk yürü (çubuğa basınca koş), sağ çubuk 30° adımlı dön (aşağı: çömelme aç/kapa), sağ tetik / A etkileşim, sağ kavrama video kamera, sol tetik el feneri. Fener sol elde, kamera sağ elde; sağ el neyi gösterirse onunla etkileşirsin ve onu çekersin. Altyazı, ipucu, bölüm kartı ve belgeler önünde duran bir panelde; yürürken görüş kenarları kararır (rahatlık). VR'da görüntü kalitesi Düşük'e iner, oturum bitince eski ayar döner. Son ekranı ve kaset HTML olduğu için oyun bitince oturum kendiliğinden kapanır. Henüz yalnızca Meta'nın IWER emülatörüyle (Quest 3 profili) test edildi, gerçek gözlükte değil.
 - **Kayıt:** her bölüm başında ve her kararda tarayıcıya kaydedilir (`derinlik.save.v2`); başlangıç ekranında “Devam et” çıkar. Devam edince bölüm verdiğin kararlarla yeniden kurulur ve verilmiş bir karar bir daha sorulmaz. Bozuk kayıt ve eski hikâyenin v1 kaydı sessizce silinir.
 
 ## Derlemek
@@ -44,6 +45,7 @@ Blender'ın glTF dışa aktarıcısı `numpy` ister (Debian/Ubuntu: `apt install
 | `src/fx-materials.js` | Dokuları malzemelere giydirir; bölüme göre zeminler (çamur, toprak, ıslak beton), duvar dibinde nem ve tuz izi, SIFIR-17'de kırağı, su birikintileri, donmuş su, buz sarkıtları, kar yığını, alev isi |
 | `src/fx-lighting.js` | El feneri: LED reflektör deseni, ışığın çarptığı yerden sekme ışığı, kovalanırken titreme. Lambalarda hale, cereyanda sallanan ve kapı çarpınca savrulan ampuller, Yüksek'te gölgeli lamba, su ve buz için ortam yansıması |
 | `src/fx-post.js` | Görüntü sonrası: yalnızca gerçek ışık kaynaklarında bloom, bölüme göre renk ayarı, lens vinyeti, film greni, hafif renk sapması, Yankı bozulması, video kamerada DV NightShot görünümü |
+| `src/fx-xr.js` | VR: WebXR oturumu, kafa ve el kontrolcüleri, dönüş/yürüme/çömelme, ellerde fener ve kamera, 3B altyazı ve ipucu paneli, rahatlık vinyeti |
 | `package.json` | İnternetsiz derleme araçları (esbuild, three 0.160.0, @fontsource yazı tipleri) |
 | `src/README.md` | Gerçekçilik modüllerinin sözleşmesi |
 | `build.py` | `dist/index.html` üretir |

@@ -28,7 +28,7 @@ for (const m of js.matchAll(/tf\('((?:[^'\\]|\\.)*)'/g)) keys.add(m[1].replace(/
 for (const m of body.matchAll(/>([^<>]+)</g)) { const p = m[1].trim(); if (/[a-zçğıöşüA-ZÇĞİÖŞÜ]{2}/.test(p)) keys.add(p); }
 // strings built at run time that the scan cannot see
 for (const k of [...js.matchAll(/'(> [^'>]+)'/g)].map((m) => m[1])) keys.add(k); // monitor lines
-for (const k of ['PARİS', 'Çarkı çevir', 'AKTARIM', 'AKTARIM: PARİS', 'kilitli', 'Aç', 'emin misin? Tekrar E', 'KANIT ARŞİVİ', 'Kararlar', 'Kırık mühürler', 'Kanıt eklendi', 'Mühür kırıldı', 'hayatta', 'kayıp', 'adı seninle', 'kayıtta', 'uyutuldu', 'serbest', 'yanında', 'kapının ardında', 'SON']) keys.add(k);
+for (const k of ['PARİS', 'Çarkı çevir', 'AKTARIM', 'AKTARIM: PARİS', 'kilitli', 'Aç', 'emin misin? Tekrar E', 'KANIT ARŞİVİ', 'Kararlar', 'Kırık mühürler', 'Kanıt eklendi', 'Mühür kırıldı', 'hayatta', 'kayıp', 'adı seninle', 'kayıtta', 'uyutuldu', 'serbest', 'yanında', 'kapının ardında', 'SON', "VR'da devam et", 'TETİK', 'VR oturumu açılamadı.']) keys.add(k);
 // short labels that need no translation: names, places, code words on in-world signs
 for (const k of ['Ekin', 'Camille', 'Deniz', 'Élise', 'Volkova', 'Deniz?', 'Sakarya', 'Nevşehir', 'Paris', 'Dr. Camille Moreau', 'Deniz Arat', 'DERİNLİK', 'THE DEPTHS: ECHOES OF THE FORGOTTEN', 'AUTO · NIGHTSHOT', 'REC 00:00:00', '02:51:00', 'SAKARYA · 2028', 'W A S D · Fare'].filter((k) => k !== 'W A S D · Fare')) keys.delete(k);
 console.log(JSON.stringify([...keys], null, 1));
