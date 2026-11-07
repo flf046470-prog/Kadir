@@ -13,7 +13,7 @@
  */
 (() => {
   'use strict';
-  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb'];
+  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb'];
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
@@ -24,7 +24,7 @@
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
     stats: { draws: 0, tris: 0, lights: 0, culled: 0 },
-    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, tutorial: {} },
+    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], tutorial: {} },
   };
   window.ANTARKTIKA3D = A;
   let E = null, gl = null, ext = {}, programs = {}, time = 0;
@@ -308,17 +308,18 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     return { x: cx, y: cy, z: cz, ux: ax[0] / sx, uz: ax[1] / sx, vx: az[0] / sz, vz: az[1] / sz, hx: sx, hy: sy, hz: sz, r: Math.hypot(sx, sz) };
   }
 
-  function harvest(model) {
+  // layer: null = the outdoor world; 'hall' = the Chapter 3 interior, only live while state.inHall
+  function harvest(model, layer = null) {
     for (const n of model.nodes) {
       const ex = n.extras, nm = n.name;
-      if (ex.a3d_kind === 'collider') world.colliders.push({ ...obb(n), name: nm, door: ex.a3d_door || null });
-      else if (ex.a3d_kind === 'floor') world.floors.push({ ...obb(n), name: nm, ramp: !!ex.a3d_ramp });
-      else if (ex.a3d_kind === 'volume') world.volumes.push({ ...obb(n), name: nm, zone: ex.a3d_zone });
-      else if (ex.a3d_kind === 'interact') world.anchors.push({ id: ex.a3d_id, label: ex.a3d_label, radius: ex.a3d_radius || 2, x: n.world[12], y: n.world[13], z: n.world[14] });
-      else if (ex.a3d_kind === 'light') world.lights.push({ name: nm.replace('LIGHT_', ''), x: n.world[12], y: n.world[13], z: n.world[14], color: ex.a3d_color, intensity: ex.a3d_intensity, range: ex.a3d_range, flicker: ex.a3d_flicker || 0, power: ex.a3d_power ?? 0, group: ex.a3d_group || null });
+      if (ex.a3d_kind === 'collider') world.colliders.push({ ...obb(n), name: nm, door: ex.a3d_door || null, layer });
+      else if (ex.a3d_kind === 'floor') world.floors.push({ ...obb(n), name: nm, ramp: !!ex.a3d_ramp, layer });
+      else if (ex.a3d_kind === 'volume') world.volumes.push({ ...obb(n), name: nm, zone: ex.a3d_zone, layer });
+      else if (ex.a3d_kind === 'interact') world.anchors.push({ id: ex.a3d_id, label: ex.a3d_label, radius: ex.a3d_radius || 2, x: n.world[12], y: n.world[13], z: n.world[14], layer });
+      else if (ex.a3d_kind === 'light') world.lights.push({ name: nm.replace('LIGHT_', ''), x: n.world[12], y: n.world[13], z: n.world[14], color: ex.a3d_color, intensity: ex.a3d_intensity, range: ex.a3d_range, flicker: ex.a3d_flicker || 0, power: ex.a3d_power ?? 0, group: ex.a3d_group || null, layer });
       else if (ex.a3d_kind === 'path') world.path.push({ x: n.world[12], z: n.world[14], order: ex.a3d_order, wait: ex.a3d_wait || 0 });
       if (n.mesh !== undefined && n.skin === undefined) {
-        const entry = { model, node: n, prims: model.meshes[n.mesh], ex, base: new Float32Array(n.world), m: new Float32Array(n.world), emissiveScale: 1, visible: !ex.a3d_hidden, open: 0 };
+        const entry = { model, node: n, prims: model.meshes[n.mesh], ex, base: new Float32Array(n.world), m: new Float32Array(n.world), emissiveScale: 1, visible: !ex.a3d_hidden, open: 0, layer };
         world.draw.push(entry);
         if (ex.a3d_group) (world.groups[ex.a3d_group] = world.groups[ex.a3d_group] || []).push(entry);
         if (nm.startsWith('DOOR_')) world.dynamic[nm] = entry;
@@ -399,9 +400,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     return Math.abs(lx) <= o.hx + pad && Math.abs(lz) <= o.hz + pad ? [lx, lz] : null;
   }
 
+  const live = (o) => (o.layer === 'hall') === !!A.state.inHall;
   function groundY(x, z) {
     let best = null;
     for (const f of world.floors) {
+      if (!live(f)) continue;
       const l = insideOBB(f, x, z);
       if (!l) continue;
       let h = f.y + f.hy;
@@ -415,6 +418,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     let x = x1, z = z1;
     for (let it = 0; it < 3; it++) {
       for (const c of world.colliders) {
+        if (!live(c)) continue;
         if (c.door && world.dynamic[c.door] && world.dynamic[c.door].open > 0.65) continue;
         const dx = x - c.x, dz = z - c.z;
         if (Math.abs(dx) > c.r + r + 0.5 || Math.abs(dz) > c.r + r + 0.5) continue;
@@ -432,7 +436,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         x += (ex * push) * c.ux + (ez * push) * c.vx;
         z += (ex * push) * c.uz + (ez * push) * c.vz;
       }
-      if (npc.model) {
+      if (npc.model && !A.state.inHall) {
         const dx = x - npc.x, dz = z - npc.z, d = Math.hypot(dx, dz), rr = r + 0.38;
         if (d < rr && d > 1e-4) { x = npc.x + dx / d * rr; z = npc.z + dz / d * rr; }
       }
@@ -441,14 +445,14 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   }
 
   function zoneAt(x, z) {
-    for (const v of world.volumes) if (insideOBB(v, x, z)) return v.zone;
+    for (const v of world.volumes) if (live(v) && insideOBB(v, x, z)) return v.zone;
     return null;
   }
 
   function nearestAnchor(x, z) {
     let best = null;
     for (const a of world.anchors) {
-      if (a.id === 'entrance' || a.id === 'cargo_e1') continue;
+      if (a.id === 'entrance' || a.id === 'cargo_e1' || a.id === 'hall_spawn' || !live(a)) continue;
       if (a.id === 'a1core' && !A.state.caveSolved) continue;
       if (a.id.startsWith('bb')) { const i = +a.id.slice(2); if (!A.state.caveSolved || A.state.bb[i] || !A.state.bbSeen[i]) continue; }
       const d = Math.hypot(a.x - x, a.z - z);
@@ -527,6 +531,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const S = A.state, mission = E.mission, pro = window.ICEWALK_PROLOGUE;
     switch (a.id) {
       case 'generator':
+        if (S.power && S.kaanSeen && !S.heatCell) {
+          S.heatCell = 1; tone(440, 0.5, 'square', 0.08, 1.4); E.save?.();
+          return 'YEDEK ISI HÜCRESİ ALINDI · Buz mağarasından HELIKON salonuna, Kaan’a götür';
+        }
         if (S.power) return 'JENERATÖR ÇALIŞIYOR · İSTASYONDA ELEKTRİK VAR';
         setPower(true); E.save?.();
         return 'JENERATÖR ÇALIŞTI · Işıklar, ekranlar ve telsiz enerjilendi';
@@ -569,6 +577,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         return 'BİRLİK UPLINK · 3/8 uydu bağlı · Görev bekleniyor';
       case 'glyph':
         if (pro?.active && pro.summary().stage === 3) return null;
+        if (S.ch2) return enterHall();
+        if (S.caveSolved) return 'HELIKON İŞARETİ · Duvarın ardında boşluk var · “Cevap kapının ardında” — önce kara kutu kaydını birleştir';
         if (!S.glyphRead) { S.glyphRead = true; journal('BUZ MAĞARASI — HELIKON İŞARETİ', 'İşaretin çevresinde üç kristal var. Tarayıcı sinyali şiiri çözdü: “Önce su, sonra yıldız, en son karanlık.”'); }
         return 'HELIKON İŞARETİ · “Önce su, sonra yıldız, en son karanlık.” · Kristalleri sırayla uyandır';
       case 'crystal1': case 'crystal2': case 'crystal3': {
@@ -589,6 +599,22 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       }
       case 'a1core':
         return null;   // field scanner collects it
+      case 'hall_exit': return exitHall();
+      case 'kaan': return talkKaan();
+      case 'vent': return 'ISI KUYUSU · Sıcak hava yükseliyor · Burada ısınıyorsun';
+      case 'stele1': case 'stele2': case 'stele3': case 'stele4': case 'stele5': {
+        const i = +a.id.slice(-1) - 1;
+        readStele(i);
+        if (!S.kaanFree) return steleText(i) + ' · Taş sessiz: nasıl uyandığını bilen biri lazım';
+        if (S.ch3) return steleText(i) + (S.stars.includes(i) ? ' · YANIYOR' : ' · KARANLIK — henüz değil');
+        return lightStele(i);
+      }
+      case 'dais':
+        if (S.ch3) return 'YILDIZ HARİTASI · Dört yıldız yanıyor · Kapı uyandı';
+        return 'YILDIZ HARİTASI · ' + S.stars.length + '/4 yıldız' + (S.kaanFree ? ' · Stelleri o gecenin saat sırasıyla yak' : ' · Buzdaki adam bir şey biliyor olmalı');
+      case 'gate4':
+        if (!S.ch3) return 'ÜÇ HALKALI KAPI · Mühürlü · Yıldız haritası karanlık';
+        return 'ÜÇ CEVAP KAPISI · Sus · Cevap ver · Kapıdan geç — BÖLÜM 4 yakında';
       case 'bb0': case 'bb1': case 'bb2': case 'bb3': {
         const i = +a.id.slice(2);
         if (S.bb[i]) return null;
@@ -606,6 +632,12 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     hands.raise = 1;
     scan = { x: px, z: pz, t: time };
     if (zoneAt(px, pz) === 'cave' && !A.state.caveSolved) crystalDemo = time;
+    if (A.state.inHall) {
+      let best = null;
+      for (let i = 0; i < 5; i++) { const a = anchor('stele' + (i + 1)); if (!a) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d < 4.5 && (!best || d < best.d)) best = { i, d }; }
+      const hm = best ? (readStele(best.i), steleText(best.i)) : 'HELIKON SALONU · 5 stel · Yakına git ve Q ile oku · −41°C';
+      tone(880, 0.12, 'square', 0.06, 1.0); E.toast(hm); lastMsgAt = time; return hm;
+    }
     const msg = A.state.caveSolved && zoneAt(px, pz) !== 'cave' ? bbScan(px, pz) : null;
     if (msg) { E.toast(msg); lastMsgAt = time; }
     return msg;
@@ -624,6 +656,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     time += dt;
     const p = E.player;
     A.zone = zoneAt(p.x, p.z);
+    if (A.state.inHall) { const v = anchor('vent'); if (v && Math.hypot(p.x - v.x, p.z - v.z) < 3.2 && p.warmth !== undefined) p.warmth = Math.min(100, p.warmth + 10 * dt); }
     handsUpdate(dt);
     npcUpdate(dt, p.x, p.z);
     for (const d of Object.values(world.dynamic)) {
@@ -666,6 +699,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     else if (m === 2 && !S.freqSolved) line = 'Lab terminali bütün saatlerin 03:17’de durduğunu yazıyor. Frekans çözücüde bu sayıyı ara.';
     else if (!S.caveSolved && S.glyphRead) line = 'Mağaradaki şiir bir sıra anlatıyor: su, yıldız, karanlık. Kristallerin renklerine bak. Q sırayı gösterir.';
     else if (S.caveSolved && !S.ch2) line = S.bb.every(Boolean) ? 'Dört parça tamam. Kontrol odasındaki telsizde kaydı birleştir.' : 'Ada’nın kara kutusu düşerken dağıldı. Dışarıda Q ile tara: tarayıcı en yakın parçanın yönünü verir.';
+    else if (S.ch2 && !S.tutorial.hall) line = 'Kaydı birleştirdin: “Cevap kapının ardında.” Mağaradaki işaret duvarına git, E ile dokun.';
+    else if (S.kaanSeen && !S.kaanFree) line = S.heatCell === 1 ? 'Isı hücresi sende. Mağaradaki kapıdan salona in, buzdaki adama götür.' : 'Buzdaki adamı eritmek için jeneratörün yedek ısı hücresi lazım. Sarı konteynere git, E ile al.';
+    else if (S.kaanFree && !S.ch3) line = 'Kaan saatlerden söz ediyor. Stelleri Q ile oku; en erken saatten 03:17’ye yak. Sonrasına dokunma.';
+    else if (S.ch3) line = 'Yıldız haritası açıldı. Salonun sonundaki kapı bir şey soruyor. Hazır olduğunda… ama önce dinlen.';
     else if (m === 5 && S.power) line = 'Uplink direğin dibindeki terminalde. Dünya İttifakı’na bağlan.';
     c.spoken = line;
   }
@@ -700,6 +737,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const T = A.state.tutorial;
     if (time - lastMsgAt < 4) return;   // never talk over a message the player just triggered
     const st = anchor('generator');
+    if (A.state.inHall && !T.kaanHint) { const k = anchor('kaan'); if (k && Math.hypot(p.x - k.x, p.z - k.z) < 6) { T.kaanHint = 1; E.toast('BUZUN İÇİNDE BİRİ VAR · Yaklaş ve E ile bak'); } }
     if (!T.cave && A.zone === 'cave') { T.cave = 1; if (!E.torch) E.toast('BUZ MAĞARASI · Karanlık · F ile feneri aç'); }
     if (!T.station && A.zone === 'indoor') { T.station = 1; if (!A.state.power) E.toast('İSTASYON KARANLIK · Jeneratör dışarıda, rampanın güneyinde'); }
     if (!T.gen && st && Math.hypot(p.x - st.x, p.z - st.z) < 8 && !A.state.power) { T.gen = 1; E.toast('JENERATÖR · Yaklaş ve E ile çalıştır'); }
@@ -715,6 +753,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       k = (A.state.caveSolved || i < A.state.crystals) ? 1.1 : demoFlash(i) * 1.2;
     }
     if (L.name === 'glyph' && A.state.caveSolved) k *= 1.5;
+    if (L.group === 'starmap') k *= 0.4 + 0.6 * (A.state.stars.length / 4);
+    if (L.group === 'gate4') k = A.state.ch3 ? 1.4 + 0.3 * Math.sin(time * 1.3) : 0;
     if (L.flicker) k *= 1 - L.flicker * (0.5 + 0.5 * Math.sin(time * 13.7 + Math.sin(time * 4.1) * 3));
     return k;
   }
@@ -729,6 +769,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (!g) return 1;
     if (g.startsWith('crystal')) { const i = +g.slice(-1) - 1; return (S.caveSolved || i < S.crystals) ? 1.25 : 0.18 + demoFlash(i) * 1.3; }
     if (g === 'glyph') return S.caveSolved ? 1.4 : 0.55;
+    if (g.startsWith('stele')) { const i = +g.slice(-1) - 1; return S.stars.includes(i) ? 1.6 : S.steles[i] ? 0.75 : 0.35; }
+    if (g === 'starmap') return 0.35 + 0.3 * S.stars.length;
+    if (/^star\d$/.test(g)) { const i = +g.slice(-1) - 1; e.visible = i < S.stars.length; return 1.6; }
+    if (g === 'gate4') return S.ch3 ? 1.5 + 0.3 * Math.sin(time * 1.3) : 0.12;
+    if (g === 'kaan_ice') { e.visible = !S.kaanFree; return 1; }
     if (g === 'a1core') { e.visible = S.caveSolved && !(window.ICEWALK_FIELD?.diagnostics().taken || []).includes('A1'); return 1.4; }
     return 1;
   }
@@ -757,19 +802,21 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
     A.stats.draws = 0; A.stats.tris = 0; A.stats.culled = 0;
     const vp = M4.mul(proj, view), P = planes(vp);
-    const storm = opts.storm, fogD = 0.0015 + storm * 0.0100, fogC = [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
+    const storm = opts.storm, hall = A.zone === 'hall';
+    const fogD = hall ? 0.016 : 0.0015 + storm * 0.0100, fogC = hall ? [0.03, 0.07, 0.10] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
     // lights: nearest active N
-    const lights = world.lights.map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
+    const lights = world.lights.filter(live).map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
       .filter((o) => o.k > 0.01 && o.d < o.L.range + 45).sort((a, b) => a.d - b.d).slice(0, q.lights);
     const LP = new Float32Array(16), LC = new Float32Array(12);
     lights.forEach((o, i) => { LP.set([o.L.x, o.L.y, o.L.z, o.L.range], i * 4); LC.set(o.L.color.map((c) => c * o.k), i * 3); });
     A.stats.lights = lights.length;
     const scanAge = time - scan.t, scanR = scanAge * 22, scanAmt = scanAge < 3.2 ? (1 - scanAge / 3.2) * 1.4 : 0;
-    const indoorAmb = A.zone === 'cave' ? [0.10, 0.17, 0.22] : A.state.power ? [0.30, 0.31, 0.32] : [0.11, 0.115, 0.13];
+    const indoorAmb = hall ? [0.07, 0.11, 0.15] : A.zone === 'cave' ? [0.10, 0.17, 0.22] : A.state.power ? [0.30, 0.31, 0.32] : [0.11, 0.115, 0.13];
 
     const items = [];
     for (const e of world.draw) {
-      if (!e.visible && !e.ex.a3d_hidden) continue;
+      if (!live(e)) continue;
+      if (!e.visible && !e.ex.a3d_hidden && !e.ex.a3d_group) continue;   // grouped nodes re-evaluate visibility
       // per-node animation
       const ex = e.ex;
       let m = e.base;
@@ -800,7 +847,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         items.push({ e, pr, m, d: Math.hypot(dx, dz), decal: !!ex.a3d_decal, blend: pr.mat.blend || ex.a3d_group === 'glyph', additive: ex.a3d_group === 'glyph' });
       }
     }
-    if (npc.model) {
+    if (npc.model && !A.state.inHall) {
       poseNPC();
       const d = Math.hypot(npc.x - eye[0], npc.z - eye[2]);
       for (const n of npc.model.nodes) {
@@ -942,7 +989,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       return buildModel(name, buf);
     }));
     for (const m of results) A.models[m.name] = m;
-    harvest(A.models.station); harvest(A.models.ice_cave);
+    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall');
     if (A.models.fp_hands) { const arm = document.getElementById('arm'); if (arm) arm.style.display = 'none'; }
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
@@ -975,7 +1022,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const F = window.ICEWALK_FIELD;
     if (F && F.pressure && !F.pressure.__ch2) {
       const base = F.pressure.bind(F);
-      F.pressure = Object.assign((t) => base(t) + chapter2Pressure(), { __ch2: true });
+      F.pressure = Object.assign((t) => base(t) + chapter2Pressure() + hallPressure(), { __ch2: true });
     }
   }
   function chapter2Pressure() {
@@ -999,6 +1046,118 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const dir = dirs[(Math.round(ang / (Math.PI / 4)) + 8) % 8];
     tone(best.d < 12 ? 1320 : 660, 0.12, 'square', 0.08, 1.0);
     return 'KARA KUTU SİNYALİ · ' + Math.round(best.d) + ' m ' + dir + (best.d < 12 ? ' · Yakında: E ile kaz' : '');
+  }
+
+
+  /* ------------------------------------------------------------ chapter 3: HELIKON hall */
+  // The glyph wall in the cave opens once the black box is assembled (Chapter 2). The hall is an
+  // instanced interior (layer 'hall'): five steles carry constellations and clock marks; the
+  // star map wakes when the steles are lit in the order of the night's clocks — and the one
+  // whose time has not come yet (03:41) is left dark. Kaan, frozen in the ice, knows the rule;
+  // thawing him needs the generator's spare heat cell from the surface.
+  const STELES = [
+    { name: 'KUZGUN', time: '03:12' }, { name: 'BALIK', time: '02:58' }, { name: 'TERAZİ', time: '03:41' },
+    { name: 'YILAN', time: '03:06' }, { name: 'KAPI', time: '03:17' },
+  ];
+  const STAR_ORDER = [1, 3, 0, 4];          // 02:58 → 03:06 → 03:12 → 03:17 (03:41 is still to come)
+  const KAAN_LINES = [
+    'KAAN: “…Ada? Hayır. Sen… istasyondan mısın? Kaç saat geçti?”',
+    'KAAN: “Selin bizi buraya indirdi. Yıldız haritasını açarsak eve dönebiliriz dedi.”',
+    'KAAN: “Steller o gecenin saatlerini tutuyor. Kapı saatlere göre açılır, sırayla.”',
+  ];
+  function enterHall() {
+    const S = A.state, sp = anchor('hall_spawn'), p = E.player; if (!sp) return null;
+    S.inHall = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z);
+    flash('170,235,255', 0.9); tone(147, 2.2, 'sine', 0.18, 2.0); noiseBurst(1.6, 200, 60, 0.15, 1.8);
+    if (!S.tutorial.hall) {
+      S.tutorial.hall = 1;
+      journal('BÖLÜM 3 — HELIKON KAPISI', 'İşaret duvarı açıldı ve beni buzun 30 metre altına indirdi. Taş sütunlar, beş stel, ortada bir yıldız haritası. Burası insanlıktan eski. Hava −41°C: ısı kuyusundan uzak kalmamalıyım.');
+    }
+    E.save?.();
+    return 'BÖLÜM 3 · HELIKON KAPISI · Salon çok soğuk: ısı kuyusunda ısın';
+  }
+  function exitHall() {
+    const S = A.state, g = anchor('glyph'), p = E.player; if (!g) return null;
+    S.inHall = false; p.x = g.x; p.z = g.z + 2.2; p.yaw = Math.PI; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z);
+    flash('170,235,255', 0.7); tone(220, 1.2, 'sine', 0.12, 0.6);
+    E.save?.();
+    return 'BUZ MAĞARASI · Kapı arkanda açık kaldı';
+  }
+  function hallPressure() { return A.ready && A.state.inHall ? 0.3 : 0; }
+  function steleText(i) { const d = STELES[i]; return 'TAŞ STEL ' + (i + 1) + ' · ' + d.name + ' TAKIMYILDIZI · Saat işareti ' + d.time; }
+  function readStele(i) {
+    const S = A.state;
+    if (!S.steles[i]) {
+      S.steles[i] = 1;
+      journal('STEL ' + (i + 1) + ' — ' + STELES[i].name, 'Taşın tepesinde ' + (i + 3) + ' yıldızlı bir takımyıldız, ayağında bir saat işareti: ' + STELES[i].time + '.');
+    }
+  }
+  function lightStele(i) {
+    const S = A.state, p = E.player;
+    if (S.stars.includes(i)) return steleText(i) + ' · YANIYOR';
+    const want = STAR_ORDER[S.stars.length];
+    if (i === want) {
+      S.stars.push(i); tone([392, 466, 523, 659][S.stars.length - 1], 1.1, 'sine', 0.15, 1.01); flash('150,230,255', 0.35);
+      if (S.stars.length === 4) {
+        S.ch3 = true; tone(98, 3.0, 'sine', 0.22, 2.0); flash('255,215,140', 0.8);
+        journal('BÖLÜM 3 — YILDIZ HARİTASI', 'Dört yıldız yandı: 02:58, 03:06, 03:12, 03:17. 03:41 karanlık kaldı — o saat daha gelmedi. Salonun sonundaki üç halkalı kapı uyandı. Kaan: “Üç cevap var. Hangisini seçeceğin senin işin.”');
+        E.save?.();
+        return 'YILDIZ HARİTASI TAMAMLANDI · ÜÇ CEVAP KAPISI uyandı · BÖLÜM 3 TAMAMLANDI';
+      }
+      E.save?.();
+      return STELES[i].name + ' YANDI · ' + S.stars.length + '/4 yıldız';
+    }
+    S.stars = []; p.warmth = Math.max(0, (p.warmth ?? 100) - 12);
+    noiseBurst(1.2, 160, 70, 0.3, 1.2); tone(98, 1.0, 'sawtooth', 0.09, 0.6); flash('120,170,255', 0.6);
+    if (i === 2) return 'HENÜZ OLMADI · 03:41 gelecekte · Harita söndü, soğuk dalgası';
+    return 'YANLIŞ SAAT · Harita söndü, soğuk dalgası · Sıra o gecenin saatleri';
+  }
+  function choice(question, a, b, cb) {
+    let el = document.getElementById('a3dChoice');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'a3dChoice';
+      el.style.cssText = 'position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:30000;display:flex;flex-direction:column;gap:8px;align-items:center;padding:12px 14px;background:#061c28e6;border:1px solid #8ac7d6;border-radius:8px;color:#e6fbff;font:600 13px system-ui;max-width:min(560px,90vw);text-align:center';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = ''; const q = document.createElement('div'); q.textContent = question; el.appendChild(q);
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center'; el.appendChild(row);
+    const done = (k) => { el.remove(); removeEventListener('keydown', onKey, true); cb(k); };
+    const onKey = (ev) => { if (ev.key === '1') { ev.stopPropagation(); done(1); } else if (ev.key === '2') { ev.stopPropagation(); done(-1); } };
+    [[1, '1 · ' + a], [-1, '2 · ' + b]].forEach(([k, t]) => {
+      const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = t;
+      btn.style.cssText = 'min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid #b7e7ef99;background:#0d3346;color:#fff;font:700 12px system-ui;pointer-events:auto';
+      btn.addEventListener('click', () => done(k)); row.appendChild(btn);
+    });
+    addEventListener('keydown', onKey, true);
+  }
+  function talkKaan() {
+    const S = A.state;
+    if (!S.kaanFree) {
+      if (S.heatCell === 1) {
+        S.heatCell = 2; S.kaanFree = true; tone(196, 1.6, 'sine', 0.14, 1.5); noiseBurst(1.4, 600, 1500, 0.18, 1.4); flash('255,170,90', 0.6);
+        journal('KAAN ÇÖZÜLDÜ', 'Isı hücresi buzu bir dakikada eritti. Kaan Erdem, HELIKON-14 mühendisi. Selin’le birlikte aşağı inmiş. Saatin 03:17 olduğunu sanıyor.');
+        E.save?.();
+        return 'ISI HÜCRESİ BUZU ERİTTİ · Kaan nefes alıyor · E ile konuş';
+      }
+      if (!S.kaanSeen) {
+        S.kaanSeen = true;
+        journal('BUZDAKİ ADAM', 'Buzun içinde turuncu bir tulum: HELIKON-14. Göğsü çok yavaş inip kalkıyor. Buzu eritmek için ısı lazım — istasyon jeneratörünün yedek ISI HÜCRESİ işe yarar.');
+        E.save?.();
+      }
+      return 'BUZDAKİ ADAM · Hâlâ nefes alıyor · Jeneratörün yedek ISI HÜCRESİNİ getir';
+    }
+    if (S.kaanTalk < KAAN_LINES.length) { const l = KAAN_LINES[S.kaanTalk++]; tone(330, 0.15, 'triangle', 0.05, 1.0); return l; }
+    if (!S.kaanTrust) {
+      choice('KAAN: “Selin’e güveniyor musun? Kaydın sonundaki ses senindi.”', 'Selin’e güveniyorum', 'Selin bir şey saklıyor', (k) => {
+        S.kaanTrust = k; E.save?.();
+        E.toast(k > 0 ? 'KAAN: “İyi. O zaman sırayla: en erken saatten 03:17’ye. Sonrasına dokunma.”' : 'KAAN: “Ben de öyle düşünüyorum. Saatleri en erkenden 03:17’ye yak — sonrasına dokunma.”');
+        journal('KAAN — KURAL', 'Stelleri o gecenin saatlerine göre, en erkenden 03:17’ye kadar yak. 03:17’den sonraki saat henüz yaşanmadı; ona dokunma. (Q: stelin saatini okur, E: yakar)');
+      });
+      return null;
+    }
+    return S.ch3 ? 'KAAN: “Kapı uyandı. Üç cevap var: susmak, cevap vermek, geçmek.”' : 'KAAN: “En erken saatten 03:17’ye. Q ile stelleri oku, E ile yak.”';
   }
 
   function relocateStory() {
@@ -1037,10 +1196,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       return c && Math.hypot(px - c.x, pz - c.z) < 5 ? 'ÇEKİRDEK BUZDA MÜHÜRLÜ · Kristalleri doğru sırayla uyandır' : null;
     },
     chapter2Pressure,
-    snowFactor() { return A.zone === 'indoor' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
+    hallPressure,
+    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
-    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2 }); if (A.state.power) startHum(); },
-    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, tutorial: {} }; },
+    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [] }); if (A.state.power) startHum(); },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),
