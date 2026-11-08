@@ -13,7 +13,7 @@
  */
 (() => {
   'use strict';
-  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb', 'models/helikon_city.glb', 'models/helikon_grid.glb'];
+  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb', 'models/helikon_city.glb', 'models/helikon_grid.glb', 'models/drill_camp.glb'];
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
@@ -24,7 +24,7 @@
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
     stats: { draws: 0, tris: 0, lights: 0, culled: 0 },
-    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', tutorial: {} },
+    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', inCamp: false, pump6: 0, pumpP: 38, relay6: 0, soldier6: '', spill6: 0, spot6: 0, ch6: false, tutorial: {} },
   };
   window.ANTARKTIKA3D = A;
   let E = null, gl = null, ext = {}, programs = {}, time = 0;
@@ -400,9 +400,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     return Math.abs(lx) <= o.hx + pad && Math.abs(lz) <= o.hz + pad ? [lx, lz] : null;
   }
 
-  // layers: null = outdoor world, 'hall' = chapter 3 interior, 'city' = chapter 4 lake basin, 'grid' = chapter 5 gallery.
+  // layers: null = outdoor world, 'hall' = chapter 3 interior, 'city' = chapter 4 lake basin, 'grid' = chapter 5 gallery, 'camp' = chapter 6 drill camp.
   // cond: 'bridge' = only once the crystal bridge is up, 'nobridge' = only before.
-  const curLayer = () => (A.state.inGrid ? 'grid' : A.state.inCity ? 'city' : A.state.inHall ? 'hall' : null);
+  const curLayer = () => (A.state.inCamp ? 'camp' : A.state.inGrid ? 'grid' : A.state.inCity ? 'city' : A.state.inHall ? 'hall' : null);
   const live = (o) => (o.layer || null) === curLayer() && (!o.cond || (o.cond === 'bridge') === !!A.state.bridge);
   function groundY(x, z) {
     let best = null;
@@ -439,6 +439,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         x += (ex * push) * c.ux + (ez * push) * c.vx;
         z += (ex * push) * c.uz + (ez * push) * c.vz;
       }
+      if (A.state.inCamp) { const c = campClamp(x, z); x = c[0]; z = c[1]; }
       if (npc.model && !curLayer()) {
         const dx = x - npc.x, dz = z - npc.z, d = Math.hypot(dx, dz), rr = r + 0.38;
         if (d < rr && d > 1e-4) { x = npc.x + dx / d * rr; z = npc.z + dz / d * rr; }
@@ -455,7 +456,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   function nearestAnchor(x, z) {
     let best = null;
     for (const a of world.anchors) {
-      if (a.id === 'entrance' || a.id === 'cargo_e1' || a.id === 'hall_spawn' || a.id === 'grid_spawn' || !live(a)) continue;
+      if (a.id === 'entrance' || a.id === 'cargo_e1' || a.id === 'hall_spawn' || a.id === 'grid_spawn' || a.id === 'camp_spawn' || !live(a)) continue;
       if (a.id === 'a1core' && !A.state.caveSolved) continue;
       if (a.id.startsWith('bb')) { const i = +a.id.slice(2); if (!A.state.caveSolved || A.state.bb[i] || !A.state.bbSeen[i]) continue; }
       const d = Math.hypot(a.x - x, a.z - z);
@@ -545,6 +546,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         if (!S.power) { tone(140, 0.3, 'square', 0.06, 0.8); return 'TELSİZ ENERJİSİZ · Önce dışarıdaki JENERATÖRÜ çalıştır'; }
         if (pro?.active && pro.summary().stage === 1) return null;   // prologue step handles it
         if (S.ch4 && !S.plane5) return lastPlane();
+        if (S.ch5 && !S.ch6) { tone(660, 0.25); return 'TELSİZ · SELİN: “Haziran. Koalisyon sondaj ekibi göl havzasının üstüne indi. Isı kuyusu galerisindeki çekirdek kuzeyde bir tünel gösteriyor — sıvı pompasını, uydu rölesini ve donan askeri hallet.”'; }
         if (S.plane5 && !S.ch5) { tone(660, 0.25); return S.cable5 ? 'TELSİZ · SELİN: “Kablo aşağıda. Şalteri kapatmadan önce üç değerin de istasyonla aynı olduğundan emin ol.”' : 'TELSİZ · SELİN: “Kalan yakıt 83 gün. Isı kuyusunun altındaki galeriye in; istasyon kablosunu sondaj kuyusundan sarktım.”'; }
         if (!S.ch2 && S.bb.every(Boolean)) {
           S.ch2 = true; tone(317, 1.4, 'sine', 0.16, 1.0); flash('255,210,150', 0.5);
@@ -616,6 +618,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       case 'cable': return connectCable();
       case 'sync': return syncPanel();
       case 'core': return talkCore();
+      case 'camp_exit': return exitCamp();
+      case 'pump': return pumpAct();
+      case 'relay': return relayAct();
+      case 'soldier': return soldierAct();
       case 'stele1': case 'stele2': case 'stele3': case 'stele4': case 'stele5': {
         const i = +a.id.slice(-1) - 1;
         readStele(i);
@@ -678,6 +684,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     A.zone = zoneAt(p.x, p.z);
     if (A.state.inGrid && p.warmth !== undefined && time >= blackoutUntil) p.warmth = Math.min(100, p.warmth + 4 * dt);
     syncUpdate(p);
+    campUpdate(p, dt);
     if (A.state.inHall) { const v = anchor('vent'); if (v && Math.hypot(p.x - v.x, p.z - v.z) < 3.2 && p.warmth !== undefined) p.warmth = Math.min(100, p.warmth + 10 * dt); }
     handsUpdate(dt);
     if (!hudQueued) { hudQueued = true; queueMicrotask(ch3Hud); }
@@ -726,6 +733,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     else if (S.kaanSeen && !S.kaanFree) line = S.heatCell === 1 ? 'Isı hücresi sende. Mağaradaki kapıdan salona in, buzdaki adama götür.' : 'Buzdaki adamı eritmek için jeneratörün yedek ısı hücresi lazım. Sarı konteynere git, E ile al.';
     else if (S.kaanFree && !S.ch3) line = 'Kaan saatlerden söz ediyor. Stelleri Q ile oku; en erken saatten 03:17’ye yak. Sonrasına dokunma.';
     else if (S.ch3 && !S.ch4) line = S.tutorial.city ? 'Göldeki taşlar bir dil öğretiyor. Sözlüğü tamamla, sonra kulenin ne istediğini dinle.' : 'Yıldız haritası açıldı. Salonun sonundaki üç halkalı kapıdan geç.';
+    else if (S.ch6) line = 'Kutup gecesi geçiyor. Ağustos’ta ilk güneşle birlikte karar anı geliyor; 03:17 hâlâ çözülmedi.';
+    else if (S.ch5 && S.inCamp) line = 'Pompa, röle, asker. Dronlar sıcak olanı uzaktan görür: soğuk kal, kar duvarlarının arkasından git. Pompada önce motoru durdur, basınç sıfırlanınca vanayı kapat.';
+    else if (S.ch5 && S.load5) line = 'Haziran. Koalisyon sondajı göl havzasının üstüne indi. Isı kuyusu galerisindeki çekirdek kuzeyde bir tünel gösteriyor.';
     else if (S.ch5) line = { tam: 'İstasyon tam yükte. Ama göldeki ısı kuyuları soğuyor; Helikonlar bunu fark edecek.', denge: 'Yükü paylaştık. İkimiz de kışı ancak geçiririz.', sinir: 'İstasyon idareli çalışacak. Kaan haklı olabilir; ama konsorsiyum bunu sevmeyecek.' }[S.load5] || line;
     else if (S.ch4 && S.plane5) line = !S.inGrid ? 'Isı kuyusu salonda, batı duvarında. Aşağı inen bir merdiven var.' : !S.cable5 ? 'Kabloyu sondaj kuyusundan sarktım. Galerinin sonunda, sağda.' : 'Senkronoskop panelinde istasyon değerleri yazıyor. Üç düğümü onlara eşle, sonra ibre tepedeyken şalteri kapat.';
     else if (S.ch4 && !S.plane5) line = 'Son uçak pistte. Telsize gel; kalıp kalmayacağını pilota söylemen lazım.';
@@ -785,6 +795,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (L.group === 'bridge') k = A.state.bridge ? k : 0;
     if (L.group === 'citylights') k *= A.state.bridge ? 1 : 0.2;
     if (L.group === 'spire') k *= 0.6 + 0.2 * A.state.voice;
+    if (L.group === 'pump') k *= A.state.pump6 ? 0.25 : 1;
+    if (L.group === 'relay') k *= A.state.relay6 ? 0 : 1;
+    if (L.group === 'bore') k *= A.state.pump6 >= 2 ? 0.5 : 1;
     if (L.group === 'conduit') k = time < blackoutUntil ? 0 : k * (A.state.grid5 ? 1.5 : 0.65);
     if (L.group === 'core') k = time < blackoutUntil ? k * 0.1 : k * (A.state.grid5 ? 1.4 : 0.7);
     if (L.flicker) k *= 1 - L.flicker * (0.5 + 0.5 * Math.sin(time * 13.7 + Math.sin(time * 4.1) * 3));
@@ -811,6 +824,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (g === 'bridge') { e.visible = !!S.bridge; return 0.55 + 0.1 * Math.sin(time * 1.7); }
     if (g === 'citylights') return S.ch4 ? 0.85 : S.bridge ? 0.5 : 0.1;
     if (g === 'spire') return 0.7 + 0.35 * S.voice + (S.ch4 && S.ending4 !== 'sus' ? 0.8 : 0);
+    if (g === 'pump') return S.pump6 ? 0.15 : 1.1;
+    if (g === 'relay') return S.relay6 ? 0.08 : 1.2;
+    if (g === 'bore') return S.pump6 >= 2 ? 0.4 : 1.2;
+    if (/^drone\d$/.test(g)) return S.relay6 ? 0.7 : 1.1;
     if (g === 'conduit') return time < blackoutUntil ? 0.04 : S.grid5 ? 1.6 : 0.55;
     if (g === 'core') return time < blackoutUntil ? 0.08 : S.grid5 ? 1.7 + 0.2 * Math.sin(time * 2.2) : 0.6 + 0.12 * Math.sin(time * 1.1);
     if (/^j\d$/.test(g)) { const i = +g.slice(1) - 1; return time < blackoutUntil ? 0.1 : dialPulse[i] > time ? 1.6 : 1.0; }
@@ -844,7 +861,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
     A.stats.draws = 0; A.stats.tris = 0; A.stats.culled = 0;
     const vp = M4.mul(proj, view), P = planes(vp);
-    const storm = opts.storm, hall = A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid';
+    const storm = opts.storm, hall = A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' || A.zone === 'camp';
     const fogD = hall ? 0.009 : 0.0015 + storm * 0.0100, fogC = hall ? [0.07, 0.12, 0.16] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
     // lights: nearest active N
     const lights = world.lights.filter(live).map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
@@ -862,10 +879,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       // per-node animation
       const ex = e.ex;
       let m = e.base;
-      if (ex.a3d_spin || ex.a3d_bob || ex.a3d_slide) {
+      if (ex.a3d_spin || ex.a3d_bob || ex.a3d_slide || ex.a3d_drone) {
         m = new Float32Array(e.base);
         if (ex.a3d_spin) { const r = M4.rotY(time * ex.a3d_spin); const t = [m[12], m[13], m[14]]; m = M4.mul(r, m); m[12] = t[0]; m[13] = t[1]; m[14] = t[2]; }
         if (ex.a3d_bob) m[13] += Math.sin(time * 2.1) * ex.a3d_bob;
+        if (ex.a3d_drone) { const o = campOrigin(); if (o) { const i = ex.a3d_drone - 1, a = dronePos(i, o), s0 = DRONE_PATHS[i][0]; m[12] += a[0] - (o.x + s0[0]); m[14] += a[1] - (o.z + s0[1]); m[13] += Math.sin(time * 3.0 + i) * 0.05; } }
         if (ex.a3d_slide) { const s = smooth(0, 1, e.open); m[12] += ex.a3d_slide[0] * s; m[13] += ex.a3d_slide[1] * s; m[14] += ex.a3d_slide[2] * s; }
       }
       e.m = m;
@@ -1031,7 +1049,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       return buildModel(name, buf);
     }));
     for (const m of results) A.models[m.name] = m;
-    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall'); if (A.models.helikon_city) harvest(A.models.helikon_city, 'city'); if (A.models.helikon_grid) harvest(A.models.helikon_grid, 'grid');
+    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall'); if (A.models.helikon_city) harvest(A.models.helikon_city, 'city'); if (A.models.helikon_grid) harvest(A.models.helikon_grid, 'grid'); if (A.models.drill_camp) harvest(A.models.drill_camp, 'camp');
     if (A.models.fp_hands) { const arm = document.getElementById('arm'); if (arm) arm.style.display = 'none'; }
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
@@ -1113,6 +1131,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   function ch3Goal(p) {
     const S = A.state;
     if (S.ch4 && !S.ch5) return ch5Goal(p);
+    if (S.ch5 && !S.ch6) return ch6Goal(p);
+    if (S.ch6) return { text: 'BÖLÜM 6 TAMAMLANDI · DEVAMI: BÖLÜM 7', d: null, ch: 6 };
     if (S.ch5) return { text: 'TAMAMLANDI · ' + (LOADS[S.load5] || ['—'])[0] + ' · DEVAMI: BÖLÜM 6', d: null, ch: 5 };
     if (S.inCity) { const g = cityGoal(); return g && { text: g[0], d: g[1] ? Math.hypot(g[1].x - p.x, g[1].z - p.z) : 0, ch: 4 }; }
     if (!S.ch2 || !S.tutorial.hall || S.ch4) return null;
@@ -1141,9 +1161,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (g) {
       if ($('missionName')) $('missionName').textContent = 'BÖLÜM ' + g.ch + ' · ' + g.text;
       if ($('distance')) $('distance').textContent = g.d == null ? '—' : Math.round(g.d) + ' m';
-      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inGrid ? 'İLETİM GALERİSİ · BUZUN 36 m ALTI' : A.state.inCity ? 'HELIKON HAVZASI · BUZ ALTI GÖLÜ' : A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : g.ch === 5 ? 'BÖLÜM 5 · İLK TEMAS · MART' : 'BÖLÜM 3 · HELIKON KAPISI';
+      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inCamp ? 'KOALİSYON KAMPI · BUZUN 35 m ALTI' : A.state.inGrid ? 'İLETİM GALERİSİ · BUZUN 36 m ALTI' : A.state.inCity ? 'HELIKON HAVZASI · BUZ ALTI GÖLÜ' : A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : g.ch === 6 ? 'BÖLÜM 6 · KIŞ ABLUKASI · HAZİRAN' : g.ch === 5 ? 'BÖLÜM 5 · İLK TEMAS · MART' : 'BÖLÜM 3 · HELIKON KAPISI';
     }
     if (A.state.inCity && $('temperature')) $('temperature').textContent = '−4°C';
+    if (A.state.inCamp && $('temperature')) $('temperature').textContent = '−11°C';
     if (A.state.inGrid && $('temperature')) $('temperature').textContent = time < blackoutUntil ? '−18°C' : A.state.grid5 ? '+9°C' : '+4°C';
     if (A.state.inHall && $('temperature')) {
       const v = anchor('vent'), dv = v ? Math.hypot(v.x - p.x, v.z - p.z) : 99;
@@ -1394,6 +1415,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   }
   function talkCore() {
     const S = A.state;
+    if (S.ch5 && !S.ch6) return enterCamp();
     if (S.ch5) return 'HELIKON ÇEKİRDEĞİ · ' + { tam: '◇ … ◇ … (soğuyor)', denge: '◆ ◇ (sabit, sıcak)', sinir: '◆ ≈ (sakin)' }[S.load5];
     if (S.grid5) return 'HELIKON ÇEKİRDEĞİ · ◆ ≈ ◇ — ' + symText(0) + ' · ' + symText(3) + ' · ' + symText(1);
     tone(147, 0.8, 'sine', 0.1, 1.02);
@@ -1408,7 +1430,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (!sync5) { if (syncEl) { syncEl.remove(); syncEl = null; } return; }
     if (!syncEl) {
       syncEl = document.createElement('canvas'); syncEl.id = 'a3dSync'; syncEl.width = 160; syncEl.height = 160;
-      syncEl.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);width:120px;height:120px;z-index:29000;pointer-events:none';
+      syncEl.style.cssText = 'position:fixed;left:50%;bottom:24%;transform:translateX(-50%);width:120px;height:120px;z-index:29000;pointer-events:none';
       document.body.appendChild(syncEl);
     }
     const c = syncEl.getContext('2d'), a = syncAngle() * Math.PI / 180;
@@ -1435,6 +1457,165 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const a = anchor(id);
     return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0, ch: 5 };
   }
+
+  /* ------------------------------------------------------------ chapter 6: winter siege ("Kış Ablukası") */
+  // June, polar night. An emergency coalition has airdropped a drilling team above the Helikon lake. They use
+  // kerosene-based drilling fluid (the real Vostok borehole was filled with kerosene + HCFC-141b; hot-water
+  // drilling as at Lake Whillans is the clean, slower alternative). The player is unarmed: stop the pump
+  // without a pressure surge, cut the Iridium relay (geostationary satellites are not visible this far south,
+  // so polar-orbit Iridium is the link), and decide about a hypothermic soldier — all while thermal drones
+  // patrol: the warmer the body, the farther it is seen; snow-block windbreaks halve that distance.
+  const DRONE_PATHS = [[[2, -17], [15, -17], [15, -30], [2, -30]], [[-19, -24], [-6, -24], [-6, -46], [-19, -46]]];
+  const DRONE_SPEED = 2.4, CAMP_DC = -28, CAMP_RX = 20.8, CAMP_RZ = 22.8;
+  let detect6 = 0, caughtUntil = 0, detectEl = null, lastWarn6 = 0;
+  function campOrigin() { const e = anchor('camp_exit'); return e ? { x: e.x, y: e.y, z: e.z - 1.8 } : null; }
+  function dronePos(i, o) {
+    const path = DRONE_PATHS[i], seg = path.map((q, k) => Math.hypot(path[(k + 1) % path.length][0] - q[0], path[(k + 1) % path.length][1] - q[1]));
+    const per = seg.reduce((t, v) => t + v, 0);
+    let d = ((time * DRONE_SPEED + i * per * 0.37) % per + per) % per, k = 0;
+    while (d > seg[k]) { d -= seg[k]; k++; }
+    const a = path[k], b = path[(k + 1) % path.length], t = d / seg[k];
+    return [o.x + a[0] + (b[0] - a[0]) * t, o.z + a[1] + (b[1] - a[1]) * t];
+  }
+  const detectRange = (warm, cover) => (5 + 7 * clamp((warm ?? 100) / 100, 0, 1)) * (cover ? 0.45 : 1);
+  function inCover(x, z) { return world.volumes.some((v) => live(v) && v.zone === 'cover' && insideOBB(v, x, z)); }
+  function campClamp(x, z) {
+    const o = campOrigin(); if (!o) return [x, z];
+    const lx = x - o.x, lz = z - o.z;
+    if (Math.abs(lx) < 2.4 && lz > -7.5) return [x, z];   // entry corridor
+    const q = (lx / CAMP_RX) ** 2 + ((lz - CAMP_DC) / CAMP_RZ) ** 2;
+    if (q <= 1 || lz > -5) return [x, z];
+    const k = 0.999 / Math.sqrt(q);
+    return [o.x + lx * k, o.z + CAMP_DC + (lz - CAMP_DC) * k];
+  }
+  function enterCamp() {
+    const S = A.state, sp = anchor('camp_spawn'), p = E.player; if (!sp) return null;
+    S.inGrid = false; S.inCamp = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = -0.03; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z); sync5 = null; detect6 = 0;
+    flash('180,220,255', 0.8); tone(90, 2.0, 'sine', 0.14, 1.3); noiseBurst(1.2, 400, 120, 0.12, 1.6);
+    if (!S.tutorial.camp) {
+      S.tutorial.camp = 1;
+      journal('BÖLÜM 6 — KIŞ ABLUKASI', 'Çekirdeğin gösterdiği tünel buzun 35 m altında bir mağaraya açılıyor. Koalisyon sondaj kampı: üç konteyner, matkap kulesi, kırmızı sıvı tankları. Sondaj sıvısı kerosen bazlı (Vostok kuyusuna da kerosen ve HCFC-141b doldurulmuştu); göle bir damla sızarsa şehir kirlenir. Tavanda termal kameralı iki dron dolaşıyor: vücut ne kadar sıcaksa o kadar uzaktan görüyorlar. Kar bloklarının arkası menzili yarıya indiriyor.');
+    }
+    E.save?.();
+    return 'BÖLÜM 6 · KIŞ ABLUKASI · Koalisyon kampı · Dronlar sıcak olanı görür: soğuk kal, kar duvarlarının arkasından git';
+  }
+  function exitCamp() {
+    const S = A.state, c = anchor('core'), p = E.player; if (!c) return null;
+    S.inCamp = false; S.inGrid = true; p.x = c.x; p.z = c.z + 0.5; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z); detect6 = 0;
+    flash('180,220,255', 0.6); tone(220, 0.9, 'sine', 0.1, 0.7);
+    E.save?.();
+    return 'İLETİM GALERİSİ · Çekirdek odasına döndün';
+  }
+  function checkDone6() {
+    const S = A.state;
+    if (S.ch6 || S.pump6 < 2 || !S.relay6 || !S.soldier6) return;
+    S.ch6 = true;
+    const pumpTxt = S.spill6 ? 'Vana basınç varken kapandı: hortum patladı ve birkaç yüz litre kerosen kamp tabanına yayıldı. Göl suyu henüz temiz, ama ilk damla düştü.' : 'Vana basınç sıfırlandıktan sonra kapandı: tek damla sıvı çıkmadı. Matkap hattı kuru.';
+    const soldierTxt = S.soldier6 === 'save' ? 'Çavuş Dagan nefes alıyor; seni görmediğini söyleyecek.' : 'Çavuş’u bıraktın. Ona ne olduğunu hiçbir zaman bilmeyeceksin.';
+    const spotTxt = S.spot6 ? 'Dronlar seni ' + S.spot6 + ' kez yakaladı: koalisyon artık “yetkisiz bir sivil” kaydı tutuyor.' : 'Hiç yakalanmadın: koalisyon sabotajı bir ekipman arızası sandı.';
+    const body = 'Üç iş bitti: sondaj sıvısı pompası durdu, uydu bağlantısı kesildi. ' + pumpTxt + ' ' + soldierTxt + ' ' + spotTxt;
+    tone(130.8, 3.0, 'sine', 0.2, 1.4); flash('200,230,255', 0.8);
+    journal('BÖLÜM 6 — KUTUP GECESİ', body);
+    E.save?.();
+    showCard('BÖLÜM 6 · KIŞ ABLUKASI', 'KUTUP GECESİ', body, 'Devamı: Bölüm 7 · “03:17” — Ağustos, ilk güneş.');
+  }
+  function pumpAct() {
+    const S = A.state;
+    if (S.pump6 === 0) {
+      S.pump6 = 1; S.pumpP = 38; tone(120, 1.8, 'sawtooth', 0.08, 0.4); noiseBurst(1.5, 300, 80, 0.12, 1.2);
+      E.save?.();
+      return 'MOTOR DURDU · Basınç 38 bar ve düşüyor · Vanayı basınç SIFIRA inince kapat';
+    }
+    if (S.pump6 === 1) {
+      if (S.pumpP > 1) {
+        S.pump6 = 3; S.spill6 = 1; detect6 = Math.max(detect6, 0.6);
+        noiseBurst(1.4, 2400, 200, 0.3, 0.8); tone(70, 1.2, 'square', 0.1, 0.5); flash('255,140,60', 0.5);
+        journal('SONDAJ SIVISI — HORTUM PATLADI', 'Vanayı basınç ' + Math.round(S.pumpP) + ' bar iken kapattım: su darbesi hortumu yırttı, kerosen tabana yayıldı. Basınç sıfıra inmeden kapatmamalıydım.');
+        E.save?.(); checkDone6();
+        return 'SU DARBESİ · Hortum patladı, kerosen yayıldı · Pompa durdu ama sızıntı var';
+      }
+      S.pump6 = 2; tone(196, 0.5, 'square', 0.07, 1.0);
+      journal('SONDAJ SIVISI — POMPA DURDU', 'Motoru durdurdum, basınç sıfıra inince vanayı kapattım. Hat kuru; sıvı göle inmeyecek.');
+      E.save?.(); checkDone6();
+      return 'VANA KAPANDI · Pompa güvenle durdu · Matkap hattı kuru' + (A.state.ch6 ? '' : ' · ' + todo6());
+    }
+    return S.pump6 === 3 ? 'POMPA · Hortum patlak, kerosen tabanda' : 'POMPA · Durdu, vana kapalı';
+  }
+  function todo6() {
+    const S = A.state, left = [];
+    if (S.pump6 < 2) left.push('pompa');
+    if (!S.relay6) left.push('röle');
+    if (!S.soldier6) left.push('asker');
+    return left.length ? 'Kalan: ' + left.join(', ') : '';
+  }
+  function relayAct() {
+    const S = A.state;
+    if (S.relay6) return 'UYDU RÖLESİ · Anten fişi çekili · Link kopuk';
+    S.relay6 = 1; tone(660, 0.12, 'square', 0.06, 0.6); noiseBurst(0.6, 3000, 400, 0.15, 1.0);
+    journal('UYDU RÖLESİ', 'Kampın bağlantısı Iridium üzerinden: bu enlemde jeostasyoner uydular ufkun altında kalıyor, alçak yörüngedeki Iridium ağı kutupları kapsıyor. Anten kablosunu çektim; kamp dünyayla konuşamıyor.');
+    E.save?.(); checkDone6();
+    return 'ANTEN FİŞİ ÇEKİLDİ · Kampın uydu bağlantısı kesildi' + (S.ch6 ? '' : ' · ' + todo6());
+  }
+  function soldierAct() {
+    const S = A.state, p = E.player;
+    if (S.soldier6) return 'ÇAVUŞ DAGAN · ' + (S.soldier6 === 'save' ? 'Battaniyeye sarılı, nefes alıyor' : 'Yalnız bırakıldı');
+    choice('ÇAVUŞ DAGAN (kısık sesle): “Donuyorum… ısıtmaya yardım eder misin?” — Ne yapacaksın?',
+      [['save', 'Isıt ve kurtar (vücut ısısı −30)'], ['leave', 'Bırak, sessiz kal']], (k) => {
+        S.soldier6 = k;
+        if (k === 'save') { p.warmth = Math.max(8, (p.warmth ?? 100) - 30); tone(262, 0.8, 'sine', 0.12, 1.2); }
+        journal('ÇAVUŞ DAGAN', k === 'save' ? 'Battaniyemi ve vücut ısımı verdim. Koalisyon çavuşu Dagan, matkap vardiyasında kalmış, ekibi onu geride bırakmış. Konuşmaya başladı: “Bu göl bir sondaj hedefi değil, değil mi?”' : 'Sessiz kaldım ve yanından geçtim. Çavuş tek kelime etmedi.');
+        E.save?.(); checkDone6();
+        E.toast(k === 'save' ? 'ÇAVUŞ DAGAN KURTARILDI · Vücut ısın −30' : 'ÇAVUŞ BIRAKILDI · Sessizce uzaklaştın');
+      });
+    return null;
+  }
+  function campUpdate(p, dt) {
+    const S = A.state;
+    if (!S.inCamp) { if (detectEl) { detectEl.remove(); detectEl = null; } return; }
+    if (S.pump6 === 1) S.pumpP = Math.max(0, S.pumpP - 38 / 4 * dt);
+    // heat from the containers
+    for (const L of world.lights) if (L.layer === 'camp' && L.name.startsWith('cont') && Math.hypot(L.x - p.x, L.z - p.z) < 4.5 && p.warmth !== undefined) p.warmth = Math.min(100, p.warmth + 5 * dt);
+    const o = campOrigin(); if (!o) return;
+    const range = detectRange(p.warmth, inCover(p.x, p.z));
+    let worst = 0;
+    DRONE_PATHS.forEach((_, i) => { const a = dronePos(i, o), d = Math.hypot(a[0] - p.x, a[1] - p.z); if (d < range) worst = Math.max(worst, 1 - d / range); });
+    if (time < caughtUntil) worst = 0;
+    if (worst > 0) detect6 += dt * (0.9 + worst * 1.4); else detect6 = Math.max(0, detect6 - dt * 0.6);
+    if (detect6 > 0.5 && time - lastWarn6 > 1.5) { lastWarn6 = time; tone(880, 0.1, 'square', 0.05, 1.0); }
+    if (detect6 >= 1) caught(p);
+    if (!detectEl) {
+      detectEl = document.createElement('div'); detectEl.id = 'a3dDetect';
+      detectEl.style.cssText = 'position:fixed;left:50%;bottom:26%;transform:translateX(-50%);z-index:29000;pointer-events:none;width:200px;font:700 11px system-ui;color:#e8f6ff;text-align:center;text-shadow:0 1px 2px #000';
+      detectEl.innerHTML = '<div id="a3dDetectT"></div><div style="height:7px;background:#0a1418cc;border:1px solid #8ac7d6;border-radius:4px;margin-top:3px"><div id="a3dDetectB" style="height:100%;width:0;border-radius:3px"></div></div>';
+      document.body.appendChild(detectEl);
+    }
+    const t = detectEl.querySelector('#a3dDetectT'), b = detectEl.querySelector('#a3dDetectB');
+    t.textContent = 'TERMAL İZ · menzil ' + range.toFixed(1) + ' m' + (inCover(p.x, p.z) ? ' (siperde)' : '');
+    b.style.width = Math.min(100, detect6 * 100) + '%'; b.style.background = detect6 > 0.66 ? '#ff5a3c' : detect6 > 0.33 ? '#ffc04a' : '#6fd4ff';
+  }
+  function caught(p) {
+    const S = A.state, sp = anchor('camp_spawn'); if (!sp) return;
+    S.spot6++; detect6 = 0; caughtUntil = time + 3;
+    p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0; p.warmth = Math.max(0, (p.warmth ?? 100) - 8);
+    flash('255,60,40', 0.8); tone(520, 0.8, 'sawtooth', 0.1, 0.5); noiseBurst(0.8, 2000, 300, 0.2, 0.8);
+    if (!S.tutorial.caught) { S.tutorial.caught = 1; journal('TERMAL TESPİT', 'Bir dron beni gördü: ışık spotu üzerime kilitlendi, kaçıp tünele çekildim. Dron vücut ısısını sayıyor; sıcak olduğum sürece uzaktan görünüyorum. Soğuk kalmalı ve kar duvarlarının arkasından gitmeliyim.'); }
+    E.save?.();
+    E.toast('DRON SENİ GÖRDÜ · Tünele çekildin · Soğuk kal, siper kullan (' + S.spot6 + ')');
+  }
+  function ch6Goal(p) {
+    const S = A.state;
+    let text, id;
+    if (!S.inCamp) {
+      text = 'ÇEKİRDEKTEN KUZEY TÜNELİNE GİR';
+      id = S.inGrid ? 'core' : S.inCity ? 'city_exit' : S.inHall ? 'vent' : 'glyph';
+    } else if (S.pump6 < 2 && S.pump6 !== 3) { text = S.pump6 === 1 ? 'BASINÇ SIFIRA İNİNCE VANAYI KAPAT · ' + Math.round(S.pumpP) + ' bar' : 'SONDAJ SIVISI POMPASINI DURDUR'; id = 'pump'; }
+    else if (!S.relay6) { text = 'UYDU RÖLESİNİN ANTEN FİŞİNİ ÇEK'; id = 'relay'; }
+    else { text = 'DONAN ASKER İÇİN KARAR VER'; id = 'soldier'; }
+    const a = anchor(id);
+    return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0, ch: 6 };
+  }
   function enterHall() {
     const S = A.state, sp = anchor('hall_spawn'), p = E.player; if (!sp) return null;
     S.inHall = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
@@ -1455,7 +1636,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     E.save?.();
     return 'BUZ MAĞARASI · Kapı arkanda açık kaldı';
   }
-  function hallPressure() { return !A.ready ? 0 : A.state.inGrid ? (time < blackoutUntil ? 0.35 : 0) : A.state.inHall ? 0.3 : A.state.inCity ? 0.04 : 0; }
+  function hallPressure() { return !A.ready ? 0 : A.state.inCamp ? 0.14 : A.state.inGrid ? (time < blackoutUntil ? 0.35 : 0) : A.state.inHall ? 0.3 : A.state.inCity ? 0.04 : 0; }
   function steleText(i) { const d = STELES[i]; return 'TAŞ STEL ' + (i + 1) + ' · ' + d.name + ' TAKIMYILDIZI · Saat işareti ' + d.time; }
   function readStele(i) {
     const S = A.state;
@@ -1568,11 +1749,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     chapter2Pressure,
     hallPressure,
-    syncAngle,
-    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
+    syncAngle, dronePos: (i) => { const o = campOrigin(); return o ? dronePos(i, o) : null; }, detectRange: (warm, cover) => detectRange(warm, cover),
+    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' || A.zone === 'camp' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
-    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '', inGrid: !!s.inGrid, plane5: s.plane5 | 0, left5: s.left5 | 0, cable5: s.cable5 | 0, dials: s.dials || [2, 0, 1], grid5: !!s.grid5, ch5: !!s.ch5, load5: s.load5 || '' }); sync5 = null; blackoutUntil = 0; if (A.state.power) startHum(); },
-    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', tutorial: {} }; },
+    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '', inGrid: !!s.inGrid, plane5: s.plane5 | 0, left5: s.left5 | 0, cable5: s.cable5 | 0, dials: s.dials || [2, 0, 1], grid5: !!s.grid5, ch5: !!s.ch5, load5: s.load5 || '', inCamp: !!s.inCamp, pump6: s.pump6 | 0, pumpP: s.pumpP ?? 38, relay6: s.relay6 | 0, soldier6: s.soldier6 || '', spill6: s.spill6 | 0, spot6: s.spot6 | 0, ch6: !!s.ch6 }); sync5 = null; blackoutUntil = 0; detect6 = 0; caughtUntil = 0; if (A.state.power) startHum(); },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', inCamp: false, pump6: 0, pumpP: 38, relay6: 0, soldier6: '', spill6: 0, spot6: 0, ch6: false, tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),

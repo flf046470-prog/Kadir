@@ -15,6 +15,7 @@ Aşağıdaki varlıkların hepsi bu repodaki betiklerle sıfırdan, prosedürel 
 | `models/helikon_hall.glb`, `source/helikon_hall.blend` | `blender/scripts/build_helikon_hall.py` | Bölüm 3 salonu: tonoz, sütunlar, steller, kapı; Kaan = `explorer` modelinin pozlanmış kopyası |
 | `models/helikon_city.glb`, `source/helikon_city.blend` | `blender/scripts/build_helikon_city.py` | Bölüm 4 buz altı gölü: kubbe, göl, şehir terasları, sembol taşları, kristal köprü ve kule |
 | `models/helikon_grid.glb`, `source/helikon_grid.blend` | `blender/scripts/build_helikon_grid.py` | Bölüm 5 iletim galerisi: merdivenli kuyu, iletkenli galeri, üç bağlantı düğümü, sondaj kuyusu + kablo makarası, senkronoskop paneli, Helikon çekirdeği |
+| `models/drill_camp.glb`, `source/drill_camp.blend` | `blender/scripts/build_drill_camp.py` | Bölüm 6 koalisyon sondaj kampı: buz kubbe, konteynerler, matkap kulesi, sıvı tankları, pompa kızağı, uydu rölesi, kar blokları, iki dron ve HELIKON-14 ekip modelinden oturan asker |
 | `textures/*_basecolor/orm/normal.png` | Cycles bake (aynı betikler) | Blender'ın prosedürel düğümlerinden |
 | `textures/screens_atlas.png` | `blender/scripts/screens.py` | Pillow ile çizildi |
 | `textures/cave_emissive.png`, `fp_hands_emissive.png`, `hall_emissive.png`, `city_emissive.png` | ilgili betikler | Pillow ile çizildi |

@@ -70,14 +70,23 @@ Hedef yaş derecelendirmesi 12+.
 - **Selin / Kaan ayrılığı (`kaanTrust` metni değiştirir):** Selin (konsorsiyum) tam yük ister, Kaan Helikon kuyularının soğumasından korkar.
   Seçim `load5`: *Tam yük 60 kW* / *Paylaş 35 kW* / *Sınırlı 20 kW* → bölüm sonu kartı; Bölüm 6'nın başlangıç koşulu.
 
-## Bölüm 6 · "Kış Ablukası" — Haziran, kutup gecesi
-- BM Güvenlik Konseyi kilitlenir; AAK antlaşmanın askerî yasağını askıya alır. Kış ortasında hava indirmesi: paraşütle ikmal, kayaklı nakliye uçakları, buz üstü insansız araçlar.
-- Gerçekçi tehdit: Koalisyonun amacı şehri yok etmek değil, enerji kaynağını ele geçirmek. Sondaj ekipleri göl havzasına iniyor; Helikonlar tünelleri dondurarak yanıt veriyor. Bir sondaj hattı gölü kirletirse şehir ölür.
-- Oynanış (silahsız):
-  - **Gizlilik:** Termal kameralı devriye dronlarından kaçmak (tipide görünmezlik, ısı izi sistemi — vücut ısısı mekaniğine bağlı: sıcakken daha görünürsün).
-  - **Sabotaj:** Sondaj hattının çamur pompasını durdurmak, uydu bağlantısını karıştırmak.
-  - **Kurtarma:** Mahsur kalan bir koalisyon askerini donmaktan kurtarmak ya da bırakmak (sonuca etki eder).
-- Varlıklar: `build_drill_camp.py` (koalisyon sondaj kampı, konteyner modüller), dron modeli.
+## Bölüm 6 · "Kış Ablukası" — Haziran, kutup gecesi — UYGULANDI (`build_drill_camp.py`, `js/a3d.js`, test: `tools/chapter6_test.cjs`)
+- **Giriş:** Bölüm 5 bitince iletim galerisindeki Helikon çekirdeği kuzeyde bir tünel gösterir (çekirdeğe E). Tünel, buzun 35 m altında
+  bir mağaraya, koalisyonun sondaj kampına açılır (katman `camp`, `state.inCamp`).
+- **Gerçekçi dayanak:** Kamp, kerosen bazlı sondaj sıvısı kullanır (gerçek Vostok kuyusu kerosen + HCFC-141b ile doldurulmuştu; Whillans
+  Gölü'nde olduğu gibi sıcak su sondajı temiz ama yavaş alternatiftir). Bu enlemde jeostasyoner uydular ufkun altında kalır, kutupları
+  alçak yörüngeli Iridium ağı kapsar.
+- **Silahsız oynanış:**
+  - **Gizlilik:** İki termal dron sabit güzergâhta devriye gezer. Görüş menzili vücut ısısına bağlı: 5 m (soğuk) – 12 m (sıcak); kar
+    bloğu siperinde menzil %45'e iner. Dron görürse ekran kırmızıya döner, oyuncu tünele çekilir (ısı −8, `spot6` artar).
+    Konteynerlerin yanında ısınılır (+5/sn) ama menzil de büyür: ısınma ile saklanma arasında denge.
+  - **Sabotaj 1 — sondaj sıvısı pompası:** Önce motor durdurulur; basınç 38 bar'dan 4 sn'de sıfıra iner. Vana basınç sıfırlanmadan kapatılırsa
+    su darbesi hortumu patlatır, kerosen yayılır (`spill6`). Sıfırdayken kapatmak temiz kapanıştır.
+  - **Sabotaj 2 — uydu rölesi:** Anten fişini çekmek; röle, ikinci dronun devriye alanının içindedir.
+  - **Kurtarma:** Hipotermik çavuş Dagan: ısıt ve kurtar (vücut ısısı −30) ya da bırak.
+- **Sonuç (`ch6`):** Üç iş bitince bölüm sonu kartı; metin pompa (temiz/sızıntı), asker (kurtarıldı/bırakıldı) ve yakalanma sayısına göre
+  değişir. Bölüm 7'nin başlangıç koşulları.
+- **Şiddet sınırı:** Ekranda çatışma yok; dronlar silahsız, yakalanma = tünele geri dönüş.
 
 ## Bölüm 7 · "03:17" — Ağustos, ilk güneş
 - Helikonlar son çare olarak kıyı buz sahanlığını yarmaya hazırlanır (küresel deniz seviyesi tehdidi). Koalisyon kıtadaki varlığını tahliye etmekle tehdit edilir.

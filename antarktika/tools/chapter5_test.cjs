@@ -108,8 +108,10 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   await page.click('#a3dEndCard button');
   const t1 = await hud('temperature');
   check('coupled gallery warms up (+9°C)', /\+9°C/.test(t1 || ''), t1);
-  const core = await E(A.core.x, A.core.z);
-  check('core answers in the crystal language after the choice', /◆ ◇/.test(core || ''), core);
+  const core = await E(A.core.x, A.core.z); await step(2);
+  check('after the choice the core opens the north tunnel (chapter 6 camp)', /KIŞ ABLUKASI/.test(core || '') && (await st()).inCamp, core);
+  await E(A.camp_exit.x, A.camp_exit.z); await step(2);
+  check('the camp tunnel leads back to the core chamber', (await st()).inGrid, await st().then((x) => ({ inGrid: x.inGrid, inCamp: x.inCamp })));
   const stats = await page.evaluate(([x, z]) => { const p = ICEWALK_ENGINE.player; p.x = x; p.z = z; p.yaw = 0; p.pitch = 0.02; ICEWALK_ENGINE.step(1 / 30, 2); ICEWALK_ENGINE.renderView(); return ANTARKTIKA3D.diagnostics().stats; }, [A.grid_spawn.x, A.grid_spawn.z - 6]);
   check('gallery renders (draw calls, lights)', stats.draws > 5 && stats.lights > 0, stats);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, 'grid_gallery.png') });
