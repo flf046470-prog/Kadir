@@ -246,5 +246,7 @@ FX.on('draw', (dt) => {
   vignette.visible = vignette.material.opacity > .02;
   camFrame.visible = state.camRaised; if (camFrame.visible) drawCamFrame();
   drawPanel();
-  if (state.ended && session && !xr.ending) { xr.ending = true; later(3500, () => { xr.ending = false; xr.end(); }); } // the end screen and the tape are HTML
+  // the end screen and the tape are HTML: leave the headset once the ending has had a moment. Wall-clock time, because
+  // game time may stand still once the game is over.
+  if (state.ended && session) { if (!xr.endAt) xr.endAt = performance.now() + 3500; else if (performance.now() > xr.endAt) { xr.endAt = 0; xr.end(); } }
 });
