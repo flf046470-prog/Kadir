@@ -158,6 +158,10 @@ if (navigator.xr && navigator.xr.isSessionSupported) {
     const dot = b.querySelector('.dot'), label = () => { b.replaceChildren(dot, document.createTextNode(t(loadSave() ? "VR'da devam et" : "VR'da oyna"))); };
     label(); FX.on('lang', label); b.hidden = false;
     b.addEventListener('click', () => { if (!state.started) startVR(loadSave()); });
+    // Installed from the Meta Horizon Store (a TWA, the only place getDigitalGoodsService exists) there is no 2D page
+    // to click: the app-icon tap is the user activation, so go straight into the headset, continuing a save if any.
+    // ?autovr does the same in a browser, for the emulator test. A refusal leaves the start screen and its VR button.
+    if ('getDigitalGoodsService' in window || /[?&]autovr\b/.test(location.search)) { if (!state.started) startVR(loadSave()); }
   }).catch(() => {});
 }
 

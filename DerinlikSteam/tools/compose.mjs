@@ -99,5 +99,29 @@ if (!only || only.has('icon')) {
   await render(icon(512), { width: 512, height: 512 }, path.join(root, 'DerinlikDesktop', 'build', 'icon.png'));
   await render(icon(184), { width: 184, height: 184 }, path.join(art, 'community_icon_184x184.png'));
 }
+// Meta Horizon Store (Quest) art and the installable web app's icons: --only meta. Store: 1024 app icon (square, no
+// rounded corners: the store rounds it), 2560x1440 hero with the title inside the inner 80%, 1280x720 small landscape.
+// Web app: 192/512 icons and a 512 maskable one, full-bleed and opaque, its mark inside the 80% safe circle.
+if (!only || only.has('meta')) {
+  const quest = path.join(root, 'DerinlikQuest');
+  const icons = path.join(quest, 'public', 'icons');
+  fs.mkdirSync(icons, { recursive: true }); fs.mkdirSync(path.join(quest, 'art'), { recursive: true });
+  const metaIcon = (n, safe = 1) => {
+    const c = (pos) => `<div style="position:absolute; width:${n * .2 * safe}px; height:${n * .2 * safe}px; border:0 solid #e4ded2; ${pos}"></div>`;
+    const b = n * .035 * safe, m = n * (safe < 1 ? .25 : .1);   // maskable: bracket corners at r = .25·√2 < .4
+    return `<div class="art" style="width:${n}px; height:${n}px; background: radial-gradient(circle at 50% 45%, #1d1915, #050506 72%)">
+      ${c(`left:${m}px; top:${m}px; border-left-width:${b}px; border-top-width:${b}px`)}${c(`right:${m}px; top:${m}px; border-right-width:${b}px; border-top-width:${b}px`)}
+      ${c(`left:${m}px; bottom:${m}px; border-left-width:${b}px; border-bottom-width:${b}px`)}${c(`right:${m}px; bottom:${m}px; border-right-width:${b}px; border-bottom-width:${b}px`)}
+      <div style="position:absolute; left:${m + n * .1 * safe}px; top:${m + n * .1 * safe}px; width:${n * .1 * safe}px; height:${n * .1 * safe}px; border-radius:50%; background:#e3312b; box-shadow:0 0 ${n * .04 * safe}px rgba(227,49,43,.9)"></div>
+      <div class="logo" style="font-size:${n * .56 * safe}px; left:50%; top:53%; transform:translate(-50%,-50%)"><div class="word" style="letter-spacing:0; margin:0; font-weight:400">D</div></div></div>`;
+  };
+  for (const n of [192, 512]) await render(metaIcon(n), { width: n, height: n }, path.join(icons, `icon-${n}.png`));
+  await render(metaIcon(512, .62), { width: 512, height: 512 }, path.join(icons, 'icon-512-maskable.png'));
+  await render(metaIcon(1024), { width: 1024, height: 1024 }, path.join(quest, 'art', 'app_icon_1024x1024.png'));
+  // the gate plate keeps its arch whole; the title sits low but inside the inner 80% (y <= 90% - its own height)
+  const hero = { w: 2560, h: 1440, bg: 'k_gate', size: 'cover', pos: '50% 40%', shade: `linear-gradient(rgba(5,5,6,0) 45%, rgba(5,5,6,.88) 86%), ${vignette(.55)}`, logo: { size: 230, y: 77 } };
+  await render(scene(hero), { width: 2560, height: 1440 }, path.join(quest, 'art', 'hero_2560x1440.png'));
+  await render(scene({ ...hero, w: 1280, h: 720, logo: { size: 115, y: 77 } }), { width: 1280, height: 720 }, path.join(quest, 'art', 'small_landscape_1280x720.png'));
+}
 fs.rmSync(tmp, { force: true });
 await browser.close();
