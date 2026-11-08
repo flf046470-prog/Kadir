@@ -14,12 +14,14 @@ kurulan uygulama açılınca oyun doğrudan gözlüğe girer (`DerinlikWeb/src/f
 | Kurulu uygulamada otomatik VR'a giriş | Hazır; emülatörde `?autovr` ile test edildi. Asıl yolu (`getDigitalGoodsService`) yalnızca gözlükte denenebilir. |
 | Web uygulaması: manifest, ikonlar, gizlilik sayfası | Hazır → `public/`; `make_quest.py` `web/` klasörüne derler. Chrome manifest'i hatasız okuyor. |
 | `twa-manifest.json` (bubblewrap girdisi) | `make_quest.py --host …` üretir (`horizonOSAppMode: "immersive"`). |
-| `assetlinks.json` | `make_quest.py --fingerprint …` üretir; imza anahtarı oluşunca. |
+| İmza anahtarı | **Oluşturuldu** (RSA 4096, 10000 gün, takma ad `derinlik`). Dosya ve parola sende; depoda yalnızca herkese açık parmak izi var (`signing.json`). |
+| `assetlinks.json` | `make_quest.py` her çalıştığında `signing.json`'dan üretir. |
 | APK paketleme | **Denendi:** geçici bir test anahtarıyla bubblewrap 1.24.1 APK ve AAB üretti. Paket kontrolü: `immersive` modu, `com.oculus.intent.category.VR`, minSdk 29, targetSdk 32, tek izin `HAND_TRACKING`, imza anahtarla aynı (APK Signature Scheme v3). Test anahtarı ve APK depoda değil; gerçek paket senin anahtarınla yeniden üretilecek. |
-| Mağaza görselleri | Uygulama ikonu 1024, hero 2560×1440 (yazı iç %80'de), küçük yatay 1280×720 → `art/` (`node DerinlikSteam/tools/compose.mjs --only meta`) |
+| Markalı görseller | Meta'nın güncel ölçüleriyle → `art/` (`node DerinlikSteam/tools/compose.mjs --only meta`): hero 3000×900, yatay kapak 2560×1440, kare 1440×1440, dikey 1008×1440, mini yatay 1080×360, fragman kapağı 2560×1440, şeffaf logo, ikon 512, uzamsal ikon (arka plan + ön plan 180). Üzerlerinde yalnızca "DERİNLİK" yazar (Meta: başlık birebir, slogan yok). |
+| 360 önizleme | `art/preview360_equirect_7680x3840.jpg` (1,6 MB; sınır 2,3 MB): Paris'teki mühür odası, oyunun kendi motoruyla, göz yüksekliği 1,7 m, başlık yazısı ve karakter yok (`tools/preview360.mjs` + `.py`). Meta'nın "içerik 10 m uzakta" önerisi bu yeraltı mekânında karşılanamıyor; en yakın kaide ~4 m. |
 | Mağaza metni | `store-text-meta.md` (ad, kısa ve uzun açıklama, konfor derecesi, IARC cevapları) |
-| Ekran görüntüleri (en az 3, 2560×1440) | **Yok.** Meta gözlükte çekilmiş gerçek görüntü istiyor (`metavr capture screenshot`); masaüstü ekran görüntüsü reddedilir. |
-| Fragman | İsteğe bağlı; Steam fragmanı (1080p, 61 s) kullanılabilir, Meta 30–60 s öneriyor → kısaltılmış kesim gerekebilir. |
+| Ekran görüntüleri (5 × 2560×1440) | `art/screenshots/`: oyunun kendi motorundan, oyuncunun gözünden, VR'daki görünümle (Düşük kalite, son işleme yok, ekran yazısı yok) (`META=1 node DerinlikSteam/tools/capture.mjs …`). Meta "oyun içi içerik" istiyor; gözlükte çekilmiş görüntüyle değiştirmek istersen `metavr capture screenshot`. |
+| Fragman | Steam fragmanı v3 doğrudan kullanılabilir: 1920×1080, 61,4 s, H.264/AAC (Meta: 1080p–2K, 30 s–2 dk). Başka platform logosu ya da donanım göstermiyor. Video ~140 MB, depoda değil (`DerinlikSteam/README.md`'deki komutlarla yeniden üretilir). |
 | Performans (Quest 2'de 72 Hz, Quest 3'te 90 Hz) | **Ölçülmedi.** Bu ortamda gerçek GPU yok. VR'da kalite otomatik "Düşük"e iner ve son işleme kapanır. |
 
 ## Senin yapman gerekenler (hesap ve izin gerektirir)
@@ -30,15 +32,9 @@ kurulan uygulama açılınca oyun doğrudan gözlüğe girer (`DerinlikWeb/src/f
 2. **Herkese açık HTTPS adresi:** `web/` klasörü bir yerde yayında olmalı (ör. yeni bir Vercel projesi, kök dizini
    `DerinlikQuest/web`). bubblewrap manifest ve ikonları bu adresten indirir. Deploy korumalı (401 veren) adres olmaz;
    projenin herkese açık `*.vercel.app` adresi ya da kendi alan adın.
-3. **İmza anahtarı:** kalıcıdır; sonraki her güncelleme aynı anahtar ve aynı paket adıyla (`com.derinlik.quest`)
-   imzalanmak zorunda. Kaybolursa mağazada yeni uygulama açmak gerekir. Elinde bir anahtar varsa onu, yoksa yenisini
-   oluştur ve **web klasörünün dışında**, yedekli sakla:
-
-   ```sh
-   keytool -genkeypair -v -keystore ~/derinlik-keys/derinlik.keystore -alias derinlik \
-     -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=DERINLIK, O=<şirket ya da adın>, C=TR"
-   keytool -list -v -keystore ~/derinlik-keys/derinlik.keystore -alias derinlik | grep SHA256
-   ```
+3. **İmza anahtarı:** oluşturuldu ve sana gönderildi (`derinlik-quest.keystore` + `ANAHTAR-BILGILERI.txt`).
+   Kalıcıdır: sonraki her güncelleme aynı anahtar ve aynı paket adıyla (`com.derinlik.quest`) imzalanmak zorunda;
+   kaybolursa mağazada yeni uygulama açmak gerekir. İki ayrı güvenli yerde yedekle; depoya ya da `web/` içine koyma.
 4. **Gözlükte deneme:** APK'yı gözlüğe yükleyip (geliştirici modu) bütün oyunu bir kez oyna; kare hızına ve 15 dakika
    boyunca çökme olmamasına bak, mağaza ekran görüntülerini orada çek.
 5. **Mağaza sayfası:** `store-text-meta.md` ve `art/` içeriğini panele gir, IARC anketini doldur, fiyatı belirle,
@@ -53,7 +49,7 @@ python3 DerinlikQuest/make_quest.py
 
 # 2. anahtar hazır olunca: assetlinks + bubblewrap girdisi
 python3 DerinlikQuest/make_quest.py --skip-build --host <ALAN> --app-id <APP_ID> \
-  --keystore ~/derinlik-keys/derinlik.keystore --fingerprint <SHA256, iki nokta ayrımlı>
+  --keystore <yol>/derinlik-quest.keystore
 # → web/.well-known/assetlinks.json (tekrar yayınla) ve DerinlikQuest/twa/twa-manifest.json
 
 # 3. APK  (JDK 17 ve Android SDK gerekir: build-tools;34.0.0 + platforms;android-36; bubblewrap SDK klasöründe

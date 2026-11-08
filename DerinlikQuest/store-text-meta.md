@@ -3,11 +3,14 @@
 Limits (Meta Horizon Store submission guide): app name 30 characters, short description 150, long description 4000.
 Plain text: the long description supports only basic formatting, so the Steam BBCode is left out.
 
-## App name (20 / 30)
+## App name (8 / 30)
 
 ```
-DERİNLİK: The Depths
+DERİNLİK
 ```
+
+Meta's review requires the exact app title on every branded asset and no taglines (asset design guidelines,
+"Exact Title Match"); the covers and logo in `art/` carry "DERİNLİK" alone, so the app name is the same.
 
 ## Short description (137 / 150)
 

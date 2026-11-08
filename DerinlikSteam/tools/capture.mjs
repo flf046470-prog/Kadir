@@ -3,6 +3,7 @@
 //   node DerinlikSteam/tools/capture.mjs DerinlikWeb/dist/offline/index.html DerinlikSteam [--only s01,k_gate]
 // Writes <out>/screenshots/sNN_*.png (1920x1080, in-game HUD as the player sees it) and
 // <out>/tools/plates/k_*.png (3840x2160, no HUD: backgrounds for the capsules in compose.mjs).
+// META=1 node capture.mjs ... writes the Meta Horizon Store set instead (see META below).
 // Rendering uses the browser's software GPU when there is no real one: slow, but deterministic (time is stepped).
 import { chromium } from 'playwright';
 import fs from 'fs'; import http from 'http'; import path from 'path';
@@ -31,6 +32,11 @@ const SHOTS = [
   { name: 'k_copy', plate: true, at: [2, 3.2, 12.0, .2, 12.0, 1.2], enemy: true, run: 1.0, enemyAt: [0, 12.0, .5] },
   { name: 'k_paris', plate: true, at: [3, 0, 1.0, 0, 13, 1.3], run: .6 },
 ].filter((s) => !only || only.has(s.name));
+// META=1: the Meta Horizon Store screenshots instead (5 at 2560x1440, DerinlikQuest/art/screenshots/). They show the game
+// as the headset draws it: the VR quality (low: no post-processing) and no flat-screen HUD, which the headset never shows.
+const META = !!process.env.META;
+const META_SHOTS = ['s01_sakarya_basement', 's04_nevsehir_hall', 's06_kola_corridor', 's08_paris_catacombs', 's09_paris_final_chamber'];
+if (META) SHOTS.splice(0, SHOTS.length, ...SHOTS.filter((s) => META_SHOTS.includes(s.name)));
 
 fs.mkdirSync(path.join(outRoot, 'screenshots'), { recursive: true });
 fs.mkdirSync(path.join(outRoot, 'tools', 'plates'), { recursive: true });
@@ -42,11 +48,11 @@ const errors = [];
 
 async function open(plate) {
   // plates: 2560x1440 CSS px at the game's maximum pixel ratio (1.5) = 3840x2160 rendered pixels
-  const page = await browser.newPage(plate ? { viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1.5 } : { viewport: { width: 1920, height: 1080 } });
+  const page = await browser.newPage(plate ? { viewport: { width: 2560, height: 1440 }, deviceScaleFactor: 1.5 } : META ? { viewport: { width: 2560, height: 1440 } } : { viewport: { width: 1920, height: 1080 } });
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route('**/*', (r) => (r.request().url().startsWith(url) || /^(data|blob):/.test(r.request().url()) ? r.continue() : r.abort()));
-  await page.addInitScript((LANG) => { try { localStorage.setItem('derinlik.quality', 'high'); localStorage.setItem('derinlik.lang', LANG); } catch (_) {} }, process.env.LANG_UI || 'en'); // on-screen text language: LANG_UI=tr node capture.mjs
+  await page.addInitScript(([LANG, Q]) => { try { localStorage.setItem('derinlik.quality', Q); localStorage.setItem('derinlik.lang', LANG); } catch (_) {} }, [process.env.LANG_UI || 'en', META ? 'low' : 'high']); // on-screen text language: LANG_UI=tr node capture.mjs
   // pictures only: without a sound device the headless browser's Web Audio grows by gigabytes over a long capture
   await page.addInitScript(() => { delete window.AudioContext; delete window.webkitAudioContext; });
   await page.goto(url);
@@ -87,11 +93,12 @@ for (const s of SHOTS) {
     if (s.behind) { d.face(...s.behind); d.advance(1 / 30); d.advance(.12); } // the figure stands for 480 ms
     // transient pop-ups never; the HUD, the camcorder OSD and subtitles only on screenshots, never on plates
     for (const id of ['toast', 'prompt']) document.getElementById(id).style.visibility = 'hidden';
-    for (const id of ['hud', 'cam', 'subs']) document.getElementById(id).style.visibility = s.plate ? 'hidden' : '';
+    for (const id of ['hud', 'cam', 'subs']) document.getElementById(id).style.visibility = s.plate || s.meta ? 'hidden' : '';
     d.advance(1 / 30);
-  }, s);
+  }, { ...s, meta: META });
   await page.waitForTimeout(400);
-  const file = s.plate ? path.join(outRoot, 'tools', 'plates', `${s.name}.png`) : path.join(outRoot, 'screenshots', `${s.name}.png`);
+  if (META) fs.mkdirSync(path.join(outRoot, '..', 'DerinlikQuest', 'art', 'screenshots'), { recursive: true });
+  const file = META ? path.join(outRoot, '..', 'DerinlikQuest', 'art', 'screenshots', `${s.name}_2560x1440.png`) : s.plate ? path.join(outRoot, 'tools', 'plates', `${s.name}.png`) : path.join(outRoot, 'screenshots', `${s.name}.png`);
   await page.screenshot({ path: file, timeout: 300000 });
   console.log('wrote', path.relative(process.cwd(), file));
 }
