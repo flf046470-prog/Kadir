@@ -43,10 +43,35 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
       `s02_sakarya_sigil_camcorder.jpg` ve `s05_nevsehir_other_camcorder.jpg` eski sürümden kaldı (o sahneler değişti): silinmesi senin onayınla.
       Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek.
 - [x] Steam Next Fest demosu: yalnızca Sakarya bölümü, sonunda istek listesi çağrısı ve oyuncunun kaseti → `DerinlikWeb/build.py --offline --demo --out dist/demo/index.html`. Steamworks'te ayrı bir "Demo" uygulaması olarak yüklenir (ana oyunun sayfasına bağlanır, ayrı ücret yok).
-- [x] Fragman v2: 61,4 s, gerçek el kamerası çekimi gibi açılır (Blender Cycles, 7 s; kamera duvardaki "D.A. · 11.10" kazımasına zoom yapar), bant yırtılır ve aynı kamera hareketiyle oyuna dönüşür; sonra eski kurgu. Aşağıdaki "Gerçek çekimle açılış" adımları. Video repoda değil (~140 MB).
+- [x] Fragman v3 (güncel): 61,4 s, gerçek el kamerası çekimi gibi açılır (Blender Cycles, 7 s; kamera duvardaki "D.A. · 11.10" kazımasına zoom yapar), bant yırtılır ve aynı kamera hareketiyle oyuna dönüşür; sonra eski kurgu. Aşağıdaki "Gerçek çekimle açılış" adımları. Video repoda değil (~140 MB).
 - [x] Fragman v1: 57,6 s, 1920×1080, 30 fps, H.264 ~18 Mbps, AAC 48 kHz stereo → `tools/trailer.mjs` + `tools/soundtrack.py` +
       aşağıdaki ffmpeg satırı. Sakarya → Nevşehir → Kola → Paris, hızlı kesmeler, sonra müzik susar ve "arkanda" anı, logo.
       Video ~130 MB olduğu için repoya konmadı (GitHub'ın dosya sınırı 100 MB); aynı komutlarla birebir yeniden üretilir.
+
+## Oyunu Steam'e yüklemek (SteamPipe)
+
+Hazır olan: güncel oyunla derlenmiş Windows paketleri ve onları yükleyen betikler.
+
+- [x] Tam oyun → `DerinlikDesktop/release/win-unpacked/` (`npm run dist:win`), demo → `DerinlikDesktop/release-demo/win-unpacked/`
+      (`npm run dist:win:demo`). Başlatma seçeneği ikisinde de `Derinlik.exe`.
+- [x] Yükleme betikleri → `steamworks/make_steampipe.py` (Steamworks'teki uygulama ve depo numaralarıyla `app_build_<AppID>.vdf` yazar).
+
+Senin yapacağın (hesap ve Steam Guard gerektirir):
+
+1. Steamworks → uygulama → **SteamPipe > Depots**: Windows deposunun numarasını not et (genelde AppID + 1); demo için de aynı.
+2. **Installation > General**: başlatma seçeneği `Derinlik.exe`, işletim sistemi Windows.
+3. Betikleri yaz ve yükle (Steamworks SDK'daki `steamcmd` ile):
+
+   ```sh
+   python3 DerinlikSteam/steamworks/make_steampipe.py --app <AppID> --depot <DepotID> --demo-app <DemoAppID> --demo-depot <DemoDepotID>
+   cd DerinlikSteam/steamworks
+   steamcmd +login <steam_kullanıcı_adın> +run_app_build "$PWD/scripts/app_build_<AppID>.vdf" +quit
+   ```
+4. **SteamPipe > Builds**: yüklenen build'i önce bir beta dalında dene, sonra `default` dalında yayına al ve build'i
+   incelemeye gönder. Varsayılan dalı betik hiçbir zaman kendiliğinden açmaz.
+
+Bağlı olmayanlar: Steam başarımları, bulut kayıt ve Steam overlay (Electron'da `steamworks.js` gibi yerel bir modül ve
+Steam istemcisi açık bir Windows PC'de test gerekir).
 
 ## Karar vermen gerekenler
 

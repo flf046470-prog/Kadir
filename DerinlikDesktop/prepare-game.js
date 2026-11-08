@@ -6,4 +6,6 @@ const path = require('path');
 const web = path.join(__dirname, '..', 'DerinlikWeb');
 const out = path.join(__dirname, 'app', 'index.html');
 const python = process.platform === 'win32' ? 'python' : 'python3';
-execFileSync(python, [path.join(web, 'build.py'), '--offline', '--out', out], { stdio: 'inherit' });
+// --demo: the Steam Next Fest demo (Sakarya only, then the demo end screen), a separate Steam app with its own depot
+const demo = process.argv.includes('--demo');
+execFileSync(python, [path.join(web, 'build.py'), '--offline', ...(demo ? ['--demo'] : []), '--out', out], { stdio: 'inherit' });

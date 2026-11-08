@@ -3,13 +3,14 @@
   "productName": "DERINLIK",
   "version": "0.1.0",
   "private": true,
-  "description": "DERİNLİK — The Depths: Echoes of the Forgotten. Desktop (Windows/Linux) shell for the Steam build.",
+  "description": "DER\u0130NL\u0130K \u2014 The Depths: Echoes of the Forgotten. Desktop (Windows/Linux) shell for the Steam build.",
   "main": "main.js",
   "scripts": {
     "prepare-game": "node prepare-game.js",
     "start": "npm run prepare-game && electron .",
     "dist:win": "npm run prepare-game && electron-builder --win --x64",
-    "dist:linux": "npm run prepare-game && electron-builder --linux --x64"
+    "dist:linux": "npm run prepare-game && electron-builder --linux --x64",
+    "dist:win:demo": "node prepare-game.js --demo && electron-builder --win --x64 -c.directories.output=release-demo"
   },
   "devDependencies": {
     "electron": "44.5.1",
