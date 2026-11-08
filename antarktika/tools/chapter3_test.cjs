@@ -41,7 +41,7 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   check('glyph wall opens into the hall (chapter 3 starts)', s.inHall && /BÖLÜM 3/.test(enter || '') && pl.zone === 'hall' && Math.hypot(pl.x - A.hall_spawn.x, pl.z - A.hall_spawn.z) < 1.5, { enter, pl });
   check('hall floor carries the player (not the terrain above)', Math.abs(gy - A.hall_spawn.y) < 0.2, { gy, floor: A.hall_spawn.y });
   // walking: hall walls block, the surface terrain does not
-  const walked = await page.evaluate(([x, z]) => ANTARKTIKA3D.collide(x, z, x - 30, z, 0.32), [pl.x, pl.z - 10]);
+  const walked = await page.evaluate(([x, z]) => { let p = [x, z]; for (let i = 0; i < 300; i++) p = ANTARKTIKA3D.collide(p[0], p[1], p[0] - 0.1, p[1], 0.32); return p; }, [pl.x, pl.z - 10]);   // walk 30 m west in 10 cm steps
   check('hall walls stop the player', walked[0] > A.hall_spawn.x - 11.7, walked);
   const pr = await page.evaluate(() => ANTARKTIKA3D.hallPressure());
   check('hall is cold (adds storm pressure)', pr > 0.2, pr);
@@ -61,7 +61,9 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   check('Kaan talks', lines.every((l) => /^KAAN/.test(l || '')), lines);
   await E(A.kaan.x, A.kaan.z);
   const hasChoice = await page.isVisible('#a3dChoice');
-  await page.click('#a3dChoice button >> nth=1');
+  const probe = await page.evaluate(() => { const b = document.querySelectorAll('#a3dChoice button')[1]; const r = b.getBoundingClientRect(); const h = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return { rect: [r.x, r.y, r.width, r.height], hit: h && h.tagName + '#' + h.id, scroll: [scrollX, scrollY], vis: getComputedStyle(document.getElementById('a3dChoice')).visibility, lock: !!document.pointerLockElement, mode: ICEWALK_DIAGNOSTICS().mode }; });
+  console.log('choice probe', JSON.stringify(probe));
+  await page.click('#a3dChoice button >> nth=1', { timeout: 8000 });
   check('trust choice panel works (touch/click)', hasChoice && (await st()).kaanTrust === -1, await st().then((x) => x.kaanTrust));
   const scan3 = await Q(A.stele3.x, A.stele3.z);
   check('scanner reads a stele (constellation + clock mark)', /TERAZİ/.test(scan3 || '') && /03:41/.test(scan3 || ''), scan3);
@@ -88,7 +90,7 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
     await page.screenshot({ path: path.join(SHOTS, 'hall_entry.png') });
     await page.evaluate(([x, z]) => { const p = ICEWALK_ENGINE.player; p.x = x; p.z = z; p.yaw = 0; p.pitch = 0.08; ICEWALK_ENGINE.step(1 / 30, 2); ICEWALK_ENGINE.renderView(); }, [A.dais.x, A.dais.z + 6]);
     await page.screenshot({ path: path.join(SHOTS, 'hall_dais.png') });
-    await page.evaluate(([x, z]) => { const p = ICEWALK_ENGINE.player; p.x = x; p.z = z; p.yaw = -Math.PI / 2; p.pitch = 0; ICEWALK_ENGINE.step(1 / 30, 2); ICEWALK_ENGINE.renderView(); }, [A.kaan.x - 1.2, A.kaan.z]);
+    await page.evaluate(([x, z]) => { const p = ICEWALK_ENGINE.player; p.x = x; p.z = z; p.yaw = Math.PI / 2; p.pitch = -0.12; ICEWALK_ENGINE.step(1 / 30, 2); ICEWALK_ENGINE.renderView(); }, [A.kaan.x - 0.6, A.kaan.z]);
     await page.screenshot({ path: path.join(SHOTS, 'hall_kaan.png') });
   }
   // save / continue inside the hall

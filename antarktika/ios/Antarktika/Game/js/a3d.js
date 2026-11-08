@@ -658,6 +658,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     A.zone = zoneAt(p.x, p.z);
     if (A.state.inHall) { const v = anchor('vent'); if (v && Math.hypot(p.x - v.x, p.z - v.z) < 3.2 && p.warmth !== undefined) p.warmth = Math.min(100, p.warmth + 10 * dt); }
     handsUpdate(dt);
+    if (!hudQueued) { hudQueued = true; queueMicrotask(ch3Hud); }
     npcUpdate(dt, p.x, p.z);
     for (const d of Object.values(world.dynamic)) {
       const near = Math.hypot(p.x - d.base[12], p.z - d.base[14]) < (d.ex.a3d_trigger || 2.5) || Math.hypot(npc.x - d.base[12], npc.z - d.base[14]) < 2;
@@ -803,7 +804,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     A.stats.draws = 0; A.stats.tris = 0; A.stats.culled = 0;
     const vp = M4.mul(proj, view), P = planes(vp);
     const storm = opts.storm, hall = A.zone === 'hall';
-    const fogD = hall ? 0.016 : 0.0015 + storm * 0.0100, fogC = hall ? [0.03, 0.07, 0.10] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
+    const fogD = hall ? 0.009 : 0.0015 + storm * 0.0100, fogC = hall ? [0.07, 0.12, 0.16] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
     // lights: nearest active N
     const lights = world.lights.filter(live).map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
       .filter((o) => o.k > 0.01 && o.d < o.L.range + 45).sort((a, b) => a.d - b.d).slice(0, q.lights);
@@ -811,7 +812,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     lights.forEach((o, i) => { LP.set([o.L.x, o.L.y, o.L.z, o.L.range], i * 4); LC.set(o.L.color.map((c) => c * o.k), i * 3); });
     A.stats.lights = lights.length;
     const scanAge = time - scan.t, scanR = scanAge * 22, scanAmt = scanAge < 3.2 ? (1 - scanAge / 3.2) * 1.4 : 0;
-    const indoorAmb = hall ? [0.07, 0.11, 0.15] : A.zone === 'cave' ? [0.10, 0.17, 0.22] : A.state.power ? [0.30, 0.31, 0.32] : [0.11, 0.115, 0.13];
+    const indoorAmb = hall ? [0.20, 0.26, 0.32] : A.zone === 'cave' ? [0.10, 0.17, 0.22] : A.state.power ? [0.30, 0.31, 0.32] : [0.11, 0.115, 0.13];
 
     const items = [];
     for (const e of world.draw) {
@@ -1065,6 +1066,44 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     'KAAN: “Selin bizi buraya indirdi. Yıldız haritasını açarsak eve dönebiliriz dedi.”',
     'KAAN: “Steller o gecenin saatlerini tutuyor. Kapı saatlere göre açılır, sırayla.”',
   ];
+
+  // Chapter 3 HUD: the engine's campaign panel knows nothing about the hall, so after its frame
+  // (microtask) the objective, distance and temperature are overwritten while a chapter 3 step is live.
+  function ch3Goal(p) {
+    const S = A.state;
+    if (!S.ch2 || !S.tutorial.hall) return null;
+    let text, id;
+    if (S.inHall) {
+      if (!S.kaanSeen) { text = 'BUZDAKİ ADAMI İNCELE'; id = 'kaan'; }
+      else if (!S.heatCell) { text = 'YÜZEYE ÇIK · JENERATÖRDEN ISI HÜCRESİ AL'; id = 'hall_exit'; }
+      else if (!S.kaanFree) { text = 'ISI HÜCRESİYLE KAAN’I ÇÖZ'; id = 'kaan'; }
+      else if (S.kaanTalk < KAAN_LINES.length || !S.kaanTrust) { text = 'KAAN İLE KONUŞ'; id = 'kaan'; }
+      else if (!S.ch3) { text = 'STELLERİ SAAT SIRASIYLA YAK · ' + S.stars.length + '/4'; id = 'dais'; }
+      else { text = 'ÜÇ CEVAP KAPISI'; id = 'gate4'; }
+    } else if (S.kaanSeen && !S.heatCell) { text = 'JENERATÖRDEN YEDEK ISI HÜCRESİ AL'; id = 'generator'; }
+    else if (S.heatCell === 1 && !S.kaanFree) { text = 'ISI HÜCRESİNİ KAAN’A GÖTÜR · MAĞARA KAPISI'; id = 'glyph'; }
+    else return null;
+    const a = anchor(id);
+    return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0 };
+  }
+  let hudQueued = false, hudSaved = null;
+  function ch3Hud() {
+    hudQueued = false;
+    if (!A.ready || E.state !== 'play') return;
+    const p = E.player, g = ch3Goal(p), $ = (id) => document.getElementById(id);
+    const ids = ['missionName', 'objectiveHint'];
+    if (g && !hudSaved) { hudSaved = {}; for (const id of ids) if ($(id)) hudSaved[id] = $(id).textContent; }
+    if (!g && hudSaved) { for (const id of ids) if ($(id) && hudSaved[id] !== undefined) $(id).textContent = hudSaved[id]; hudSaved = null; }
+    if (g) {
+      if ($('missionName')) $('missionName').textContent = 'BÖLÜM 3 · ' + g.text;
+      if ($('distance')) $('distance').textContent = Math.round(g.d) + ' m';
+      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : 'BÖLÜM 3 · HELIKON KAPISI';
+    }
+    if (A.state.inHall && $('temperature')) {
+      const v = anchor('vent'), dv = v ? Math.hypot(v.x - p.x, v.z - p.z) : 99;
+      $('temperature').textContent = '−' + Math.round(dv < 3.2 ? 9 : dv < 7 ? 9 + (dv - 3.2) / 3.8 * 32 : 41) + '°C';
+    }
+  }
   function enterHall() {
     const S = A.state, sp = anchor('hall_spawn'), p = E.player; if (!sp) return null;
     S.inHall = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
@@ -1121,6 +1160,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       el.style.cssText = 'position:fixed;left:50%;bottom:18%;transform:translateX(-50%);z-index:30000;display:flex;flex-direction:column;gap:8px;align-items:center;padding:12px 14px;background:#061c28e6;border:1px solid #8ac7d6;border-radius:8px;color:#e6fbff;font:600 13px system-ui;max-width:min(560px,90vw);text-align:center';
       document.body.appendChild(el);
     }
+    document.exitPointerLock?.();   // desktop: free the cursor so the buttons can be clicked (1/2 keys also work)
     el.innerHTML = ''; const q = document.createElement('div'); q.textContent = question; el.appendChild(q);
     const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center'; el.appendChild(row);
     const done = (k) => { el.remove(); removeEventListener('keydown', onKey, true); cb(k); };

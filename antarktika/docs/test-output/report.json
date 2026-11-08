@@ -1,0 +1,507 @@
+{
+  "started": "2026-11-08T02:40:01.342Z",
+  "checks": [
+    {
+      "name": "GLB models load (station, ice cave, explorer)",
+      "ok": true,
+      "detail": {
+        "status": "ready",
+        "error": null,
+        "loadMs": 3000
+      }
+    },
+    {
+      "name": "wall blocks player inside the airlock (north wall z≈23.3)",
+      "ok": true,
+      "detail": {
+        "z": 24.17
+      }
+    },
+    {
+      "name": "ramp lifts the player toward floor height",
+      "ok": true,
+      "detail": {
+        "from": 1.0382052410754008,
+        "to": 2.759999990463257,
+        "pos": [
+          12.19,
+          27
+        ]
+      }
+    },
+    {
+      "name": "sliding door opens and the player walks into the airlock",
+      "ok": true,
+      "detail": {
+        "pos": [
+          23.73,
+          27
+        ],
+        "zone": "indoor"
+      }
+    },
+    {
+      "name": "ramp railing stops sideways exit",
+      "ok": true,
+      "detail": {
+        "z": 26.41
+      }
+    },
+    {
+      "name": "radio refuses without power",
+      "ok": true,
+      "detail": "TELSİZ ENERJİSİZ · Önce dışarıdaki JENERATÖRÜ çalıştır"
+    },
+    {
+      "name": "generator starts station power",
+      "ok": true,
+      "detail": "JENERATÖR ÇALIŞTI · Işıklar, ekranlar ve telsiz enerjilendi"
+    },
+    {
+      "name": "powered radio completes prologue step 2",
+      "ok": true,
+      "detail": {
+        "active": true,
+        "stage": 2,
+        "completed": false,
+        "steps": 4,
+        "goal": "BUZUL / ANOMALİ",
+        "action": "Q"
+      }
+    },
+    {
+      "name": "generic E does not skip the cipher mission",
+      "ok": true,
+      "detail": "FREKANS 1.42 MHz · PARAZİT · E: sonraki kanal"
+    },
+    {
+      "name": "third channel is 3.17 MHz and locks",
+      "ok": true,
+      "detail": "FREKANS 3.17 MHz · SİNYAL KİLİTLENİYOR..."
+    },
+    {
+      "name": "decoded broadcast advances to mission 04",
+      "ok": true,
+      "detail": {
+        "mission": 3
+      }
+    },
+    {
+      "name": "wrong crystal first resets the sequence",
+      "ok": true,
+      "detail": "REZONANS ÇAKIŞMASI · Kristaller söndü · İpucu: işarete bak (E) veya tara (Q)"
+    },
+    {
+      "name": "blue → gold → violet wakes the crystals and frees the A1 core",
+      "ok": true,
+      "detail": "ÜÇ KRİSTAL UYANDI · REZONANS ÇEKİRDEĞİ AÇIĞA ÇIKTI · Q ile tara, E ile topla"
+    },
+    {
+      "name": "Dr. Selin walks her patrol path",
+      "ok": true,
+      "detail": {
+        "n0": {
+          "x": 27.866645601634566,
+          "z": 18.34989670723966,
+          "clip": "Walk"
+        },
+        "n1": {
+          "x": 30.77482543370319,
+          "z": 18.488962211438817,
+          "clip": "Walk"
+        }
+      }
+    },
+    {
+      "name": "talking to Dr. Selin plays the Interact animation",
+      "ok": true,
+      "detail": {
+        "clip": "Interact",
+        "notice": "Dr. Selin / Araştırmacı · Buzun içinden gelen sinyal insan sesini taklit ediyor. En son konuşmamızdan üç dakika önce yanıt verdi."
+      }
+    },
+    {
+      "name": "continue button appears after reload",
+      "ok": true,
+      "detail": "DEVAM ET · 04 / BUZ ALTI KAPISINI BUL · 1 dk"
+    },
+    {
+      "name": "continue restores position, mission, puzzles, relics and journal",
+      "ok": true,
+      "detail": {
+        "pos": [
+          24,
+          27.5
+        ],
+        "mission": 3,
+        "a3d": {
+          "power": true,
+          "freqIndex": -1,
+          "freqSolved": true,
+          "crystals": 0,
+          "caveSolved": false,
+          "labRead": false,
+          "artifact": false,
+          "drill": false,
+          "glyphRead": false,
+          "bb": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "bbSeen": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "ch2": false,
+          "inHall": false,
+          "ch3": false,
+          "kaanSeen": false,
+          "kaanFree": false,
+          "kaanTalk": 0,
+          "kaanTrust": 0,
+          "heatCell": 0,
+          "steles": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "stars": [],
+          "tutorial": {
+            "station": 1
+          }
+        },
+        "taken": [
+          "A1"
+        ],
+        "journal": 2
+      }
+    },
+    {
+      "name": "three quality levels change render resolution",
+      "ok": true,
+      "detail": {
+        "loadMs": 3000,
+        "quality_low": {
+          "canvas": [
+            819,
+            460
+          ],
+          "draws": 51,
+          "a3dLights": 2,
+          "fps": 2
+        },
+        "quality_balanced": {
+          "canvas": [
+            1024,
+            576
+          ],
+          "draws": 51,
+          "a3dLights": 3,
+          "fps": 1
+        },
+        "quality_cinematic": {
+          "canvas": [
+            1024,
+            576
+          ],
+          "draws": 51,
+          "a3dLights": 4,
+          "fps": 1
+        }
+      }
+    }
+  ],
+  "shots": [
+    {
+      "name": "01_station_exterior",
+      "file": "01_station_exterior.png",
+      "fps": 1,
+      "p95": 2783.2,
+      "draws": 51,
+      "tris": 86089,
+      "a3dDraws": 16,
+      "a3dTris": 17502,
+      "culled": 6,
+      "lights": 3
+    },
+    {
+      "name": "02_airlock_dark",
+      "file": "02_airlock_dark.png",
+      "fps": 1,
+      "p95": 2883.2,
+      "draws": 46,
+      "tris": 75979,
+      "a3dDraws": 15,
+      "a3dTris": 17478,
+      "culled": 7,
+      "lights": 3
+    },
+    {
+      "name": "03_lab_powered",
+      "file": "03_lab_powered.png",
+      "fps": 1,
+      "p95": 2783.2,
+      "draws": 40,
+      "tris": 55807,
+      "a3dDraws": 15,
+      "a3dTris": 17478,
+      "culled": 7,
+      "lights": 3
+    },
+    {
+      "name": "04_control_room",
+      "file": "04_control_room.png",
+      "fps": 1,
+      "p95": 2799.9,
+      "draws": 44,
+      "tris": 82575,
+      "a3dDraws": 11,
+      "a3dTris": 17350,
+      "culled": 11,
+      "lights": 3
+    },
+    {
+      "name": "05_cave_outside",
+      "file": "05_cave_outside.png",
+      "fps": 1,
+      "p95": 2783.2,
+      "draws": 52,
+      "tris": 102478,
+      "a3dDraws": 11,
+      "a3dTris": 13719,
+      "culled": 11,
+      "lights": 3
+    },
+    {
+      "name": "06_cave_tunnel_torch",
+      "file": "06_cave_tunnel_torch.png",
+      "fps": 1,
+      "p95": 2749.9,
+      "draws": 52,
+      "tris": 102478,
+      "a3dDraws": 11,
+      "a3dTris": 13719,
+      "culled": 11,
+      "lights": 2
+    },
+    {
+      "name": "07_cave_chamber",
+      "file": "07_cave_chamber.png",
+      "fps": 1,
+      "p95": 2749.9,
+      "draws": 51,
+      "tris": 99116,
+      "a3dDraws": 11,
+      "a3dTris": 13719,
+      "culled": 11,
+      "lights": 2
+    },
+    {
+      "name": "08_cave_chamber_solved",
+      "file": "08_cave_chamber_solved.png",
+      "fps": 1,
+      "p95": 2633.2,
+      "draws": 52,
+      "tris": 99196,
+      "a3dDraws": 12,
+      "a3dTris": 13799,
+      "culled": 11,
+      "lights": 3
+    },
+    {
+      "name": "09_npc_selin",
+      "file": "09_npc_selin.png",
+      "fps": 1,
+      "p95": 2333.3,
+      "draws": 54,
+      "tris": 118937,
+      "a3dDraws": 12,
+      "a3dTris": 26816,
+      "culled": 10,
+      "lights": 3
+    },
+    {
+      "name": "11_first_person_hands",
+      "file": "11_first_person_hands.png",
+      "fps": 3,
+      "p95": 2016.7,
+      "draws": 52,
+      "tris": 89451,
+      "a3dDraws": 16,
+      "a3dTris": 17502,
+      "culled": 6,
+      "lights": 3
+    },
+    {
+      "name": "10_after_continue",
+      "file": "10_after_continue.png",
+      "fps": 1,
+      "p95": 4016.5,
+      "draws": 45,
+      "tris": 86088,
+      "a3dDraws": 11,
+      "a3dTris": 17350,
+      "culled": 11,
+      "lights": 3
+    }
+  ],
+  "perf": {
+    "loadMs": 3000,
+    "quality_low": {
+      "canvas": [
+        819,
+        460
+      ],
+      "draws": 51,
+      "a3dLights": 2,
+      "fps": 2
+    },
+    "quality_balanced": {
+      "canvas": [
+        1024,
+        576
+      ],
+      "draws": 51,
+      "a3dLights": 3,
+      "fps": 1
+    },
+    "quality_cinematic": {
+      "canvas": [
+        1024,
+        576
+      ],
+      "draws": 51,
+      "a3dLights": 4,
+      "fps": 1
+    }
+  },
+  "console": [],
+  "a3d": {
+    "status": "ready",
+    "error": null,
+    "loadMs": 2942,
+    "zone": null,
+    "state": {
+      "power": false,
+      "freqIndex": -1,
+      "freqSolved": false,
+      "crystals": 0,
+      "caveSolved": false,
+      "labRead": false,
+      "artifact": false,
+      "drill": false,
+      "glyphRead": false,
+      "bb": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "bbSeen": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "ch2": false,
+      "inHall": false,
+      "ch3": false,
+      "kaanSeen": false,
+      "kaanFree": false,
+      "kaanTalk": 0,
+      "kaanTrust": 0,
+      "heatCell": 0,
+      "steles": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "stars": [],
+      "tutorial": {}
+    },
+    "stats": {
+      "draws": 16,
+      "tris": 17502,
+      "lights": 4,
+      "culled": 6
+    },
+    "textureMB": 65.3,
+    "colliders": 126,
+    "floors": 5,
+    "anchors": [
+      "artifact",
+      "drill",
+      "freq",
+      "generator",
+      "labterminal",
+      "radio",
+      "uplink",
+      "a1core",
+      "cargo_e1",
+      "crystal1",
+      "crystal2",
+      "crystal3",
+      "entrance",
+      "glyph",
+      "dais",
+      "gate4",
+      "hall_exit",
+      "hall_spawn",
+      "kaan",
+      "stele1",
+      "stele2",
+      "stele3",
+      "stele4",
+      "stele5",
+      "vent",
+      "bb0",
+      "bb1",
+      "bb2",
+      "bb3"
+    ],
+    "lights": 21,
+    "npc": {
+      "x": 17.5,
+      "z": 17.600000381469727,
+      "clip": "Idle"
+    },
+    "models": {
+      "station": {
+        "meshes": 12,
+        "clips": []
+      },
+      "ice_cave": {
+        "meshes": 8,
+        "clips": []
+      },
+      "explorer": {
+        "meshes": 2,
+        "clips": [
+          "Idle",
+          "Interact",
+          "Run",
+          "Walk"
+        ]
+      },
+      "fp_hands": {
+        "meshes": 4,
+        "clips": []
+      },
+      "helikon_hall": {
+        "meshes": 18,
+        "clips": []
+      }
+    }
+  },
+  "finished": "2026-11-08T02:47:17.842Z",
+  "passed": 18,
+  "failed": 0
+}

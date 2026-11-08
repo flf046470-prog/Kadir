@@ -33,7 +33,7 @@ const STEP = 1 / 10;
     await page.evaluate(([s, k0]) => {
       ICEWALK_ENGINE.continueFrom({ player: { x: k0.x, z: k0.z, yaw: k0.yaw, pitch: k0.pitch }, mission: s.mission, elapsed: 300, torch: !!s.torch },
         () => { ICEWALK_PROLOGUE.restore({ active: false, stage: -1, completed: true }); ANTARKTIKA3D.restore(s.a3d); });
-      document.getElementById('notice').classList.remove('show');
+      document.getElementById('storyRadio')?.classList.remove('visible'); document.getElementById('notice').classList.remove('show');
       if (ICEWALK_IMMERSIVE.enabled === s.hud) ICEWALK_IMMERSIVE.toggle();
       if (s.npc) ANTARKTIKA3D.npcPlace(s.npc[0], s.npc[1], s.npc[2], 30);
       ICEWALK_MESHY.setPlaying(true);

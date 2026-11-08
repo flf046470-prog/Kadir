@@ -25,7 +25,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import bpy  # noqa: E402
 import bmesh  # noqa: E402
-from mathutils import Vector, noise  # noqa: E402
+from mathutils import Matrix, Quaternion, Vector, noise  # noqa: E402
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
 import a3d_common as C  # noqa: E402
@@ -178,21 +178,8 @@ torus(bm, P(-6.2, 0.6, -41.0), 2.3, 0.32, axis="X", mat_index=2)
 torus(bm, P(7.8, 0.4, -8.4), 1.8, 0.28, axis="Z", mat_index=2)
 C.bm_box(bm, P(-6.2, 0.45, -41.0), (1.2, 0.9, 1.0), bevel=0.06, mat_index=2)
 
-# Kaan — kneeling, head bowed (static; the ice block is a separate glass object)
+# Kaan — the team's own character model (explorer.blend), posed kneeling; built after the bake (see below)
 KAAN = (8.9, -11.6)
-kx, kz = KAAN
-C.bm_box(bm, P(kx, 0.35, kz + 0.25), (0.55, 0.3, 0.75), mat_index=3)                 # shins on the floor
-C.bm_box(bm, P(kx, 0.85, kz - 0.05), (0.62, 0.75, 0.42), yaw=0.0, mat_index=3)        # torso
-C.bm_box(bm, P(kx - 0.36, 0.85, kz + 0.1), (0.16, 0.62, 0.18), mat_index=3)           # arms
-C.bm_box(bm, P(kx + 0.36, 0.85, kz + 0.1), (0.16, 0.62, 0.18), mat_index=3)
-C.bm_box(bm, P(kx, 0.62, kz + 0.42), (0.5, 0.14, 0.24), mat_index=4)                  # boots
-sph = bmesh.ops.create_uvsphere(bm, u_segments=12, v_segments=8, radius=0.17)
-for v in sph["verts"]:
-    v.co = v.co + Vector(C.G(*P(kx - 0.12, 1.36, kz + 0.06)))
-for f in {f for v in sph["verts"] for f in v.link_faces}:
-    f.material_index = 4
-    f.smooth = True
-C.bm_box(bm, P(kx + 0.05, 1.05, kz - 0.32), (0.42, 0.5, 0.22), mat_index=4)           # backpack
 
 # vent: a ring of dark rock around the glowing fissure
 VENT = (-9.6, -18.5)
@@ -412,10 +399,10 @@ C.anchor("hall_spawn", P(0, 0, -3.4), cm, a3d_id="hall_spawn", a3d_radius=0.1, a
 # lights
 for name, pos, colour, inten, rng_m, flick, group in (
     ("portal", P(0, 2.6, -1.0), (0.35, 0.85, 1.0), 1.0, 7.0, 0.0, "portal"),
-    ("lamp_a", P(-6.8, 3.5, -16.0), (0.40, 0.80, 1.0), 0.8, 11.0, 0.0, None),
-    ("lamp_b", P(6.8, 3.5, -28.0), (0.40, 0.80, 1.0), 0.8, 11.0, 0.0, None),
-    ("lamp_c", P(-6.8, 3.5, -40.0), (0.40, 0.80, 1.0), 0.6, 11.0, 0.0, None),
-    ("lamp_d", P(6.8, 3.5, -10.0), (0.40, 0.80, 1.0), 0.6, 10.0, 0.0, None),
+    ("lamp_a", P(-6.8, 3.5, -16.0), (0.40, 0.80, 1.0), 1.6, 14.0, 0.0, None),
+    ("lamp_b", P(6.8, 3.5, -28.0), (0.40, 0.80, 1.0), 1.6, 14.0, 0.0, None),
+    ("lamp_c", P(-6.8, 3.5, -40.0), (0.40, 0.80, 1.0), 1.4, 14.0, 0.0, None),
+    ("lamp_d", P(6.8, 3.5, -10.0), (0.40, 0.80, 1.0), 1.4, 13.0, 0.0, None),
     ("vent", P(VENT[0], 1.0, VENT[1]), (1.0, 0.45, 0.15), 1.4, 8.0, 0.25, "vent"),
     ("starmap", P(DAIS[0], 1.6, DAIS[1]), (0.55, 0.85, 1.0), 0.5, 9.0, 0.0, "starmap"),
     ("gate4", P(0, 5.6, Z1 + 2.0), (1.0, 0.8, 0.45), 0.0, 14.0, 0.0, "gate4"),
@@ -431,7 +418,59 @@ C.unwrap(game, margin=0.003)
 C.bake_atlas(game, "hall_interior", 1024, ao_distance=6.0, ao_samples=64, interior=True, extra_props={"a3d_zone": "hall"})
 game["a3d_cull"] = 120.0
 
-export = [game, ob_ice] + emissive + list(col_meta.objects)
+# ------------------------------------------------------------------ Kaan (posed copy of the HELIKON-14 crew model)
+def build_kaan():
+    """Load the crew model + rig from explorer.blend, pose it kneeling with the head bowed and the
+    arms drawn in against the cold, bake the pose into a static mesh and place it in the hall."""
+    path = os.path.join(C.SOURCE_DIR, "explorer.blend")
+    with bpy.data.libraries.load(path, link=False) as (src, dst):
+        dst.objects = [n for n in src.objects if n in ("Selin", "Selin_Rig")]
+    body = next(o for o in dst.objects if o.name.startswith("Selin") and o.type == "MESH")
+    rig = next(o for o in dst.objects if o.type == "ARMATURE")
+    for o in (body, rig):
+        col_src.objects.link(o)
+    rig.animation_data_clear()
+
+    def q(axis, deg):
+        return Quaternion(Vector(axis).normalized(), math.radians(deg))
+    X = (1, 0, 0)
+    pose = {   # armature-space rotations, accumulated down each chain (same convention as build_explorer)
+        "spine": q(X, 12), "chest": q(X, 8), "neck": q(X, 10), "head": q(X, 22),
+        "shin.L": q(X, 92), "shin.R": q(X, 92), "foot.L": q(X, -40), "foot.R": q(X, -40),
+        # arms drawn in: swing forward (X) first, then toward the chest (Z) — q(a) @ q(b) applies b first
+        "upper_arm.L": q(X, -30) @ q((0, 1, 0), 12), "upper_arm.R": q(X, -30) @ q((0, 1, 0), -12),
+        "forearm.L": q((0, 0, 1), -55) @ q(X, -80), "forearm.R": q((0, 0, 1), 55) @ q(X, -80),
+    }
+    for pb in rig.pose.bones:
+        pb.rotation_mode = "QUATERNION"
+        rest = pb.bone.matrix_local.to_quaternion()
+        pb.rotation_quaternion = rest.inverted() @ pose.get(pb.name, Quaternion()) @ rest
+        pb.location = (0, 0, 0)
+    bpy.context.view_layer.update()
+    for m in body.modifiers:
+        if m.type == "ARMATURE":
+            m.object = rig
+    kaan = C.join_copies([body], "KAAN", col_game)
+    body.hide_render = True
+    # lowest point -> floor; face the causeway (-x in game = -x in Blender); kneel at KAAN
+    me = kaan.data
+    zmin = min(v.co.z for v in me.vertices)
+    rot = Matrix.Rotation(math.radians(-90), 4, "Z")
+    for v in me.vertices:
+        v.co = rot @ Vector((v.co.x, v.co.y, v.co.z - zmin + 0.01))
+    me.update()
+    kaan.location = C.G(*P(KAAN[0], 0.0, KAAN[1]))
+    kaan["a3d_cull"] = 70.0
+    for k in list(kaan.keys()):
+        if k.startswith("a3d_lod"):
+            del kaan[k]
+    return kaan
+
+
+ob_kaan = build_kaan()
+print("kaan tris", C.tri_count(ob_kaan))
+
+export = [game, ob_ice, ob_kaan] + emissive + list(col_meta.objects)
 root = bpy.data.objects.new("HALL_root", None)
 col_game.objects.link(root)
 root["a3d_model"] = "helikon_hall"

@@ -43,6 +43,7 @@ python build_station.py      # ~1.5 dk (Cycles bake)
 python build_ice_cave.py     # ~2 dk
 python build_explorer.py     # ~20 sn
 python build_fp_hands.py     # ~15 sn
+python build_helikon_hall.py # ~1 dk (Bölüm 3 salonu; explorer.blend'den Kaan'ı pozlar — önce build_explorer)
 ```
 
 Her betik `.blend` kaynağını, PNG dokuları ve `Game/models/*.glb` dosyasını yazar. Oyun mantığı GLB düğüm `extras` alanından okunur:
@@ -65,6 +66,8 @@ node -e "require('./antarktika/tools/serve.cjs')(8765)"   # http://localhost:876
 node antarktika/tools/play_test.cjs  <çıktı>   # oynanış, çarpışma, bulmacalar, kayıt, kalite
 node antarktika/tools/touch_test.cjs           # dokunmatik kontroller (mobil emülasyon)
 node antarktika/tools/chapter2_test.cjs        # Bölüm 2: kara kutu görevi + kayıt
+node antarktika/tools/chapter3_test.cjs [çıktı] # Bölüm 3: HELIKON salonu, Kaan, steller, kayıt
+node antarktika/tools/hall_shots.cjs  <çıktı>   # Bölüm 3 salonundan oyun içi kareler
 node antarktika/tools/xr_test.cjs    <çıktı>   # VR yolu (sahte WebXR oturumu)
 node antarktika/tools/verify_terrain_port.mjs  # Python arazi portu = JS orijinal
 ```

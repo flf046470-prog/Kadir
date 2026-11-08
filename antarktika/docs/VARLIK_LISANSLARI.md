@@ -12,9 +12,10 @@ Aşağıdaki varlıkların hepsi bu repodaki betiklerle sıfırdan, prosedürel 
 | `models/ice_cave.glb`, `source/ice_cave.blend` | `blender/scripts/build_ice_cave.py` | Buz sarkıtları, işaret ve kristaller özgün |
 | `models/explorer.glb`, `source/explorer.blend` | `blender/scripts/build_explorer.py` | İskelet ve 4 animasyon elle keyframe'lendi |
 | `models/fp_hands.glb`, `source/fp_hands.blend` | `blender/scripts/build_fp_hands.py` | Eldivenler, fener, tarayıcı |
+| `models/helikon_hall.glb`, `source/helikon_hall.blend` | `blender/scripts/build_helikon_hall.py` | Bölüm 3 salonu: tonoz, sütunlar, steller, kapı; Kaan = `explorer` modelinin pozlanmış kopyası |
 | `textures/*_basecolor/orm/normal.png` | Cycles bake (aynı betikler) | Blender'ın prosedürel düğümlerinden |
 | `textures/screens_atlas.png` | `blender/scripts/screens.py` | Pillow ile çizildi |
-| `textures/cave_emissive.png`, `fp_hands_emissive.png` | ilgili betikler | Pillow ile çizildi |
+| `textures/cave_emissive.png`, `fp_hands_emissive.png`, `hall_emissive.png` | ilgili betikler | Pillow ile çizildi |
 | `Assets.xcassets/AppIcon.appiconset/Icon.png` | `tools/make_icon.py` | Pillow ile çizildi; alfa kanalı yok |
 | Oyun içi sesler (rüzgâr, adım, jeneratör, kristal, telsiz) | `Game/js/a3d.js` ve orijinal motor | Web Audio ile çalışma anında sentezleniyor; ses dosyası yok |
 
