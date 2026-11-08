@@ -43,7 +43,8 @@ yayınlamak senin kararın ve senin hesabınla olur. Tarihler ve kurallar Steamw
       `s02_sakarya_sigil_camcorder.jpg` ve `s05_nevsehir_other_camcorder.jpg` eski sürümden kaldı (o sahneler değişti): silinmesi senin onayınla.
       Kola'nın ikisi, o bölümün gerçekçilik geçişinden sonra yeniden çekilecek.
 - [x] Steam Next Fest demosu: yalnızca Sakarya bölümü, sonunda istek listesi çağrısı ve oyuncunun kaseti → `DerinlikWeb/build.py --offline --demo --out dist/demo/index.html`. Steamworks'te ayrı bir "Demo" uygulaması olarak yüklenir (ana oyunun sayfasına bağlanır, ayrı ücret yok).
-- [x] Fragman: 57,6 s, 1920×1080, 30 fps, H.264 ~18 Mbps, AAC 48 kHz stereo → `tools/trailer.mjs` + `tools/soundtrack.py` +
+- [x] Fragman v2: 61,4 s, gerçek el kamerası çekimi gibi açılır (Blender Cycles, 7 s), bant yırtılır ve aynı kamera hareketiyle oyuna dönüşür; sonra eski kurgu. Aşağıdaki "Gerçek çekimle açılış" adımları. Video repoda değil (~140 MB).
+- [x] Fragman v1: 57,6 s, 1920×1080, 30 fps, H.264 ~18 Mbps, AAC 48 kHz stereo → `tools/trailer.mjs` + `tools/soundtrack.py` +
       aşağıdaki ffmpeg satırı. Sakarya → Nevşehir → Kola → Paris, hızlı kesmeler, sonra müzik susar ve "arkanda" anı, logo.
       Video ~130 MB olduğu için repoya konmadı (GitHub'ın dosya sınırı 100 MB); aynı komutlarla birebir yeniden üretilir.
 
