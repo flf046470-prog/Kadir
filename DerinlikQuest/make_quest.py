@@ -83,10 +83,14 @@ if a.host:
         "name": m["name"], "launcherName": m["short_name"],
         "display": "standalone", "orientation": "landscape",
         "themeColor": m["theme_color"], "backgroundColor": m["background_color"], "startUrl": "/",
+        "navigationColor": m["theme_color"], "themeColorDark": m["theme_color"], "navigationColorDark": m["theme_color"],
+        # fields bubblewrap's Gradle template prints verbatim: left out, they become a syntax error in build.gradle
+        "enableNotifications": False, "splashScreenFadeOutDuration": 300, "enableSiteSettingsShortcut": False,
+        "enableMicrophone": False, "enableXRScene": False, "shortcuts": [], "generatorApp": "bubblewrap-cli",
         "iconUrl": f"https://{host}/icons/icon-512.png", "maskableIconUrl": f"https://{host}/icons/icon-512-maskable.png",
         "webManifestUrl": f"https://{host}/manifest.webmanifest",
         "signingKey": {"path": str(pathlib.Path(a.keystore).resolve()) if a.keystore else "", "alias": a.alias},
-        "appVersion": str(a.version), "appVersionName": a.version_name, "appVersionCode": a.version,
+        "appVersion": a.version_name, "appVersionCode": a.version,   # bubblewrap reads the version name from "appVersion"
         "fallbackType": "customtabs", "features": {},
         "isMetaQuest": True, "horizonOSAppMode": "immersive",   # WebXR: "2D" would show a URL bar, not the headset
         "fingerprints": [], "minSdkVersion": 29,

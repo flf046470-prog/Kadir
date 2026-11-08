@@ -15,6 +15,7 @@ kurulan uygulama açılınca oyun doğrudan gözlüğe girer (`DerinlikWeb/src/f
 | Web uygulaması: manifest, ikonlar, gizlilik sayfası | Hazır → `public/`; `make_quest.py` `web/` klasörüne derler. Chrome manifest'i hatasız okuyor. |
 | `twa-manifest.json` (bubblewrap girdisi) | `make_quest.py --host …` üretir (`horizonOSAppMode: "immersive"`). |
 | `assetlinks.json` | `make_quest.py --fingerprint …` üretir; imza anahtarı oluşunca. |
+| APK paketleme | **Denendi:** geçici bir test anahtarıyla bubblewrap 1.24.1 APK ve AAB üretti. Paket kontrolü: `immersive` modu, `com.oculus.intent.category.VR`, minSdk 29, targetSdk 32, tek izin `HAND_TRACKING`, imza anahtarla aynı (APK Signature Scheme v3). Test anahtarı ve APK depoda değil; gerçek paket senin anahtarınla yeniden üretilecek. |
 | Mağaza görselleri | Uygulama ikonu 1024, hero 2560×1440 (yazı iç %80'de), küçük yatay 1280×720 → `art/` (`node DerinlikSteam/tools/compose.mjs --only meta`) |
 | Mağaza metni | `store-text-meta.md` (ad, kısa ve uzun açıklama, konfor derecesi, IARC cevapları) |
 | Ekran görüntüleri (en az 3, 2560×1440) | **Yok.** Meta gözlükte çekilmiş gerçek görüntü istiyor (`metavr capture screenshot`); masaüstü ekran görüntüsü reddedilir. |
@@ -55,8 +56,10 @@ python3 DerinlikQuest/make_quest.py --skip-build --host <ALAN> --app-id <APP_ID>
   --keystore ~/derinlik-keys/derinlik.keystore --fingerprint <SHA256, iki nokta ayrımlı>
 # → web/.well-known/assetlinks.json (tekrar yayınla) ve DerinlikQuest/twa/twa-manifest.json
 
-# 3. APK
+# 3. APK  (JDK 17 ve Android SDK gerekir: build-tools;34.0.0 + platforms;android-36; bubblewrap SDK klasöründe
+#    eski "tools" adını arar → cmdline-tools/latest'e "tools" bağlantısı yeterli)
 npm i -g @meta-quest/bubblewrap-cli
+printf '{"jdkPath":"/usr/lib/jvm/java-17-openjdk-amd64","androidSdkPath":"<SDK>"}' > ~/.bubblewrap/config.json
 cd DerinlikQuest/twa
 export BUBBLEWRAP_KEYSTORE_PASSWORD=… BUBBLEWRAP_KEY_PASSWORD=…
 bubblewrap update && bubblewrap build          # → app-release-signed.apk
