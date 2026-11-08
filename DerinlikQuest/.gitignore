@@ -3,3 +3,4 @@ twa/
 *.keystore
 *.jks
 node_modules/
+__pycache__/
