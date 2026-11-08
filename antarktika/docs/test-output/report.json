@@ -1,5 +1,5 @@
 {
-  "started": "2026-11-08T02:40:01.342Z",
+  "started": "2026-11-08T09:23:47.683Z",
   "checks": [
     {
       "name": "GLB models load (station, ice cave, explorer)",
@@ -7,7 +7,7 @@
       "detail": {
         "status": "ready",
         "error": null,
-        "loadMs": 3000
+        "loadMs": 3842
       }
     },
     {
@@ -24,7 +24,7 @@
         "from": 1.0382052410754008,
         "to": 2.759999990463257,
         "pos": [
-          12.19,
+          12.3,
           27
         ]
       }
@@ -34,7 +34,7 @@
       "ok": true,
       "detail": {
         "pos": [
-          23.73,
+          23.92,
           27
         ],
         "zone": "indoor"
@@ -101,13 +101,13 @@
       "ok": true,
       "detail": {
         "n0": {
-          "x": 27.866645601634566,
-          "z": 18.34989670723966,
+          "x": 27.36769242942252,
+          "z": 18.325588566610378,
           "clip": "Walk"
         },
         "n1": {
-          "x": 30.77482543370319,
-          "z": 18.488962211438817,
+          "x": 31.20399330735909,
+          "z": 18.51044179547752,
           "clip": "Walk"
         }
       }
@@ -172,6 +172,24 @@
             0
           ],
           "stars": [],
+          "inCity": false,
+          "ch4": false,
+          "syms": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "stones": [
+            0,
+            0,
+            0
+          ],
+          "bridge": false,
+          "voice": 0,
+          "ending4": "",
           "tutorial": {
             "station": 1
           }
@@ -186,7 +204,7 @@
       "name": "three quality levels change render resolution",
       "ok": true,
       "detail": {
-        "loadMs": 3000,
+        "loadMs": 3842,
         "quality_low": {
           "canvas": [
             819,
@@ -194,7 +212,7 @@
           ],
           "draws": 51,
           "a3dLights": 2,
-          "fps": 2
+          "fps": 0
         },
         "quality_balanced": {
           "canvas": [
@@ -222,9 +240,9 @@
       "name": "01_station_exterior",
       "file": "01_station_exterior.png",
       "fps": 1,
-      "p95": 2783.2,
+      "p95": 3849.8,
       "draws": 51,
-      "tris": 86089,
+      "tris": 86264,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -234,9 +252,9 @@
       "name": "02_airlock_dark",
       "file": "02_airlock_dark.png",
       "fps": 1,
-      "p95": 2883.2,
+      "p95": 3799.9,
       "draws": 46,
-      "tris": 75979,
+      "tris": 76154,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -246,9 +264,9 @@
       "name": "03_lab_powered",
       "file": "03_lab_powered.png",
       "fps": 1,
-      "p95": 2783.2,
+      "p95": 3383.2,
       "draws": 40,
-      "tris": 55807,
+      "tris": 55982,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -258,9 +276,9 @@
       "name": "04_control_room",
       "file": "04_control_room.png",
       "fps": 1,
-      "p95": 2799.9,
+      "p95": 3133.3,
       "draws": 44,
-      "tris": 82575,
+      "tris": 82750,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -270,9 +288,9 @@
       "name": "05_cave_outside",
       "file": "05_cave_outside.png",
       "fps": 1,
-      "p95": 2783.2,
+      "p95": 3383.2,
       "draws": 52,
-      "tris": 102478,
+      "tris": 102653,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -282,9 +300,9 @@
       "name": "06_cave_tunnel_torch",
       "file": "06_cave_tunnel_torch.png",
       "fps": 1,
-      "p95": 2749.9,
+      "p95": 3383.2,
       "draws": 52,
-      "tris": 102478,
+      "tris": 102653,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -294,9 +312,9 @@
       "name": "07_cave_chamber",
       "file": "07_cave_chamber.png",
       "fps": 1,
-      "p95": 2749.9,
+      "p95": 3333.1,
       "draws": 51,
-      "tris": 99116,
+      "tris": 99291,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -306,9 +324,9 @@
       "name": "08_cave_chamber_solved",
       "file": "08_cave_chamber_solved.png",
       "fps": 1,
-      "p95": 2633.2,
+      "p95": 3049.9,
       "draws": 52,
-      "tris": 99196,
+      "tris": 99371,
       "a3dDraws": 12,
       "a3dTris": 13799,
       "culled": 11,
@@ -317,10 +335,10 @@
     {
       "name": "09_npc_selin",
       "file": "09_npc_selin.png",
-      "fps": 1,
-      "p95": 2333.3,
+      "fps": 0,
+      "p95": 3016.6,
       "draws": 54,
-      "tris": 118937,
+      "tris": 119112,
       "a3dDraws": 12,
       "a3dTris": 26816,
       "culled": 10,
@@ -329,10 +347,10 @@
     {
       "name": "11_first_person_hands",
       "file": "11_first_person_hands.png",
-      "fps": 3,
-      "p95": 2016.7,
+      "fps": 1,
+      "p95": 2766.6,
       "draws": 52,
-      "tris": 89451,
+      "tris": 89626,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -342,9 +360,9 @@
       "name": "10_after_continue",
       "file": "10_after_continue.png",
       "fps": 1,
-      "p95": 4016.5,
+      "p95": 3266.5,
       "draws": 45,
-      "tris": 86088,
+      "tris": 86120,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -352,7 +370,7 @@
     }
   ],
   "perf": {
-    "loadMs": 3000,
+    "loadMs": 3842,
     "quality_low": {
       "canvas": [
         819,
@@ -360,7 +378,7 @@
       ],
       "draws": 51,
       "a3dLights": 2,
-      "fps": 2
+      "fps": 0
     },
     "quality_balanced": {
       "canvas": [
@@ -385,7 +403,7 @@
   "a3d": {
     "status": "ready",
     "error": null,
-    "loadMs": 2942,
+    "loadMs": 3795,
     "zone": null,
     "state": {
       "power": false,
@@ -425,6 +443,24 @@
         0
       ],
       "stars": [],
+      "inCity": false,
+      "ch4": false,
+      "syms": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "stones": [
+        0,
+        0,
+        0
+      ],
+      "bridge": false,
+      "voice": 0,
+      "ending4": "",
       "tutorial": {}
     },
     "stats": {
@@ -433,9 +469,9 @@
       "lights": 4,
       "culled": 6
     },
-    "textureMB": 65.3,
-    "colliders": 126,
-    "floors": 5,
+    "textureMB": 99.9,
+    "colliders": 164,
+    "floors": 14,
     "anchors": [
       "artifact",
       "drill",
@@ -462,12 +498,19 @@
       "stele4",
       "stele5",
       "vent",
+      "bridgestone",
+      "city_exit",
+      "city_spawn",
+      "spire",
+      "sym1",
+      "sym2",
+      "sym3",
       "bb0",
       "bb1",
       "bb2",
       "bb3"
     ],
-    "lights": 21,
+    "lights": 30,
     "npc": {
       "x": 17.5,
       "z": 17.600000381469727,
@@ -498,10 +541,14 @@
       "helikon_hall": {
         "meshes": 18,
         "clips": []
+      },
+      "helikon_city": {
+        "meshes": 11,
+        "clips": []
       }
     }
   },
-  "finished": "2026-11-08T02:47:17.842Z",
+  "finished": "2026-11-08T09:32:50.902Z",
   "passed": 18,
   "failed": 0
 }

@@ -78,7 +78,9 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   s = await st();
   check('steles in clock order complete chapter 3', s.ch3 && s.stars.join() === '1,3,0,4' && /BÖLÜM 3 TAMAMLANDI/.test(seq[3] || ''), seq);
   const gate = await E(A.gate4.x, A.gate4.z);
-  check('three-ring gate is awake (chapter 4 teaser)', /ÜÇ CEVAP KAPISI/.test(gate || ''), gate);
+  const inCity = (await st()).inCity;
+  const backC = await E(A.city_exit.x, A.city_exit.z); await step(2);
+  check('three-ring gate opens into chapter 4 and the way back works', /BÖLÜM 4/.test(gate || '') && inCity && (await st()).inHall && /SALON/.test(backC || ''), { gate, backC });
   // vent warms
   await page.evaluate(([x, z]) => { const p = ICEWALK_ENGINE.player; p.x = x; p.z = z; p.warmth = 40; }, [A.vent.x, A.vent.z]);
   await step(60); pl = await P();

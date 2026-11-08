@@ -25,6 +25,16 @@ const [W, H] = (process.argv[3] || '960x443').split('x').map(Number);
     ['hall_wide', { ...base, kaanSeen: true }, A.hall_spawn.x + 1.5, A.hall_spawn.z - 3, -0.12, 0.12],
     ['hall_done', { ...base, kaanSeen: true, heatCell: 2, kaanFree: true, kaanTalk: 3, kaanTrust: 1, stars: [1, 3, 0, 4], steles: [1, 1, 1, 1, 1], ch3: true }, A.dais.x - 2, A.dais.z + 7, 0.1, 0.1],
   ];
+  const ch3 = { ...base, kaanSeen: true, heatCell: 2, kaanFree: true, kaanTalk: 3, kaanTrust: 1, stars: [1, 3, 0, 4], steles: [1, 1, 1, 1, 1], ch3: true };
+  const city = { ...ch3, inHall: false, inCity: true, tutorial: { hall: 1, city: 1, kaanHint: 1 } };
+  const lit = { ...city, stones: [1, 1, 0], syms: [1, 1, 1, 1, 0, 0], bridge: true };
+  shots.push(
+    ['city_terrace', city, A.city_spawn.x + 1, A.city_spawn.z - 9, 0.12, -0.12],
+    ['city_lake', city, A.bridgestone.x + 7, A.bridgestone.z - 1.5, 0.0, -0.22],
+    ['city_lake_down', lit, A.sym1.x + 1.2, A.sym1.z + 4, 0.5, -0.45],
+    ['city_bridge', lit, A.bridgestone.x + 4.5, A.bridgestone.z + 1.5, -0.12, 0.05],
+    ['city_spire', { ...lit, voice: 2 }, A.spire.x + 2.5, A.spire.z + 4.5, -0.45, 0.32],
+  );
   for (const [name, st, x, z, yaw, pitch] of shots) {
     await page.evaluate(([st, x, z, yaw, pitch]) => {
       ICEWALK_ENGINE.continueFrom({ player: { x, z, yaw, pitch }, mission: 3, elapsed: 300 },

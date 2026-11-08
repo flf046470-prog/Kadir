@@ -13,7 +13,7 @@
  */
 (() => {
   'use strict';
-  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb'];
+  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb', 'models/helikon_city.glb'];
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
@@ -24,7 +24,7 @@
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
     stats: { draws: 0, tris: 0, lights: 0, culled: 0 },
-    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], tutorial: {} },
+    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', tutorial: {} },
   };
   window.ANTARKTIKA3D = A;
   let E = null, gl = null, ext = {}, programs = {}, time = 0;
@@ -312,8 +312,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   function harvest(model, layer = null) {
     for (const n of model.nodes) {
       const ex = n.extras, nm = n.name;
-      if (ex.a3d_kind === 'collider') world.colliders.push({ ...obb(n), name: nm, door: ex.a3d_door || null, layer });
-      else if (ex.a3d_kind === 'floor') world.floors.push({ ...obb(n), name: nm, ramp: !!ex.a3d_ramp, layer });
+      if (ex.a3d_kind === 'collider') world.colliders.push({ ...obb(n), name: nm, door: ex.a3d_door || null, layer, cond: ex.a3d_cond || null });
+      else if (ex.a3d_kind === 'floor') world.floors.push({ ...obb(n), name: nm, ramp: !!ex.a3d_ramp, layer, cond: ex.a3d_cond || null });
       else if (ex.a3d_kind === 'volume') world.volumes.push({ ...obb(n), name: nm, zone: ex.a3d_zone, layer });
       else if (ex.a3d_kind === 'interact') world.anchors.push({ id: ex.a3d_id, label: ex.a3d_label, radius: ex.a3d_radius || 2, x: n.world[12], y: n.world[13], z: n.world[14], layer });
       else if (ex.a3d_kind === 'light') world.lights.push({ name: nm.replace('LIGHT_', ''), x: n.world[12], y: n.world[13], z: n.world[14], color: ex.a3d_color, intensity: ex.a3d_intensity, range: ex.a3d_range, flicker: ex.a3d_flicker || 0, power: ex.a3d_power ?? 0, group: ex.a3d_group || null, layer });
@@ -400,7 +400,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     return Math.abs(lx) <= o.hx + pad && Math.abs(lz) <= o.hz + pad ? [lx, lz] : null;
   }
 
-  const live = (o) => (o.layer === 'hall') === !!A.state.inHall;
+  // layers: null = outdoor world, 'hall' = chapter 3 interior, 'city' = chapter 4 lake basin.
+  // cond: 'bridge' = only once the crystal bridge is up, 'nobridge' = only before.
+  const curLayer = () => (A.state.inCity ? 'city' : A.state.inHall ? 'hall' : null);
+  const live = (o) => (o.layer || null) === curLayer() && (!o.cond || (o.cond === 'bridge') === !!A.state.bridge);
   function groundY(x, z) {
     let best = null;
     for (const f of world.floors) {
@@ -600,6 +603,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       case 'a1core':
         return null;   // field scanner collects it
       case 'hall_exit': return exitHall();
+      case 'city_exit': return exitCity();
+      case 'sym1': case 'sym2': case 'sym3': return readStone(+a.id.slice(-1) - 1);
+      case 'bridgestone': return bridgeStone();
+      case 'spire': return talkSpire();
       case 'kaan': return talkKaan();
       case 'vent': return 'ISI KUYUSU · Sıcak hava yükseliyor · Burada ısınıyorsun';
       case 'stele1': case 'stele2': case 'stele3': case 'stele4': case 'stele5': {
@@ -614,7 +621,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         return 'YILDIZ HARİTASI · ' + S.stars.length + '/4 yıldız' + (S.kaanFree ? ' · Stelleri o gecenin saat sırasıyla yak' : ' · Buzdaki adam bir şey biliyor olmalı');
       case 'gate4':
         if (!S.ch3) return 'ÜÇ HALKALI KAPI · Mühürlü · Yıldız haritası karanlık';
-        return 'ÜÇ CEVAP KAPISI · Sus · Cevap ver · Kapıdan geç — BÖLÜM 4 yakında';
+        return enterCity();
       case 'bb0': case 'bb1': case 'bb2': case 'bb3': {
         const i = +a.id.slice(2);
         if (S.bb[i]) return null;
@@ -632,6 +639,12 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     hands.raise = 1;
     scan = { x: px, z: pz, t: time };
     if (zoneAt(px, pz) === 'cave' && !A.state.caveSolved) crystalDemo = time;
+    if (A.state.inCity) {
+      let best = null;
+      for (let i = 0; i < 3; i++) { const a = anchor('sym' + (i + 1)); if (!a) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d < 4.5 && (!best || d < best.d)) best = { i, d }; }
+      const cm = best ? readStone(best.i) : 'HELIKON HAVZASI · Su −3°C, basınç altında sıvı · Kristal kule rezonansta';
+      tone(880, 0.12, 'square', 0.06, 1.0); E.toast(cm); lastMsgAt = time; return cm;
+    }
     if (A.state.inHall) {
       let best = null;
       for (let i = 0; i < 5; i++) { const a = anchor('stele' + (i + 1)); if (!a) continue; const d = Math.hypot(a.x - px, a.z - pz); if (d < 4.5 && (!best || d < best.d)) best = { i, d }; }
@@ -703,7 +716,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     else if (S.ch2 && !S.tutorial.hall) line = 'Kaydı birleştirdin: “Cevap kapının ardında.” Mağaradaki işaret duvarına git, E ile dokun.';
     else if (S.kaanSeen && !S.kaanFree) line = S.heatCell === 1 ? 'Isı hücresi sende. Mağaradaki kapıdan salona in, buzdaki adama götür.' : 'Buzdaki adamı eritmek için jeneratörün yedek ısı hücresi lazım. Sarı konteynere git, E ile al.';
     else if (S.kaanFree && !S.ch3) line = 'Kaan saatlerden söz ediyor. Stelleri Q ile oku; en erken saatten 03:17’ye yak. Sonrasına dokunma.';
-    else if (S.ch3) line = 'Yıldız haritası açıldı. Salonun sonundaki kapı bir şey soruyor. Hazır olduğunda… ama önce dinlen.';
+    else if (S.ch3 && !S.ch4) line = S.tutorial.city ? 'Göldeki taşlar bir dil öğretiyor. Sözlüğü tamamla, sonra kulenin ne istediğini dinle.' : 'Yıldız haritası açıldı. Salonun sonundaki üç halkalı kapıdan geç.';
+    else if (S.ch4) line = { sus: 'Sinyali kapattın. Ama uydu kaydı yakaladı. Mart geliyor; son uçak kalkmadan karar ver.', cevap: 'Dünya duydu. Antlaşma toplantısı olağanüstü gündemle toplanıyor. Son uçak Mart’ta.', gec: 'Kapıdan geçtin… telsiz hâlâ senin sesinle konuşuyor. Neredesin?' }[S.ending4] || line;
     else if (m === 5 && S.power) line = 'Uplink direğin dibindeki terminalde. Dünya İttifakı’na bağlan.';
     c.spoken = line;
   }
@@ -756,6 +770,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (L.name === 'glyph' && A.state.caveSolved) k *= 1.5;
     if (L.group === 'starmap') k *= 0.4 + 0.6 * (A.state.stars.length / 4);
     if (L.group === 'gate4') k = A.state.ch3 ? 1.4 + 0.3 * Math.sin(time * 1.3) : 0;
+    if (L.group === 'bridge') k = A.state.bridge ? k : 0;
+    if (L.group === 'citylights') k *= A.state.bridge ? 1 : 0.2;
+    if (L.group === 'spire') k *= 0.6 + 0.2 * A.state.voice;
     if (L.flicker) k *= 1 - L.flicker * (0.5 + 0.5 * Math.sin(time * 13.7 + Math.sin(time * 4.1) * 3));
     return k;
   }
@@ -775,6 +792,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (/^star\d$/.test(g)) { const i = +g.slice(-1) - 1; e.visible = i < S.stars.length; return 1.6; }
     if (g === 'gate4') return S.ch3 ? 1.5 + 0.3 * Math.sin(time * 1.3) : 0.12;
     if (g === 'kaan_ice') { e.visible = !S.kaanFree; return 1; }
+    if (/^sym\d$/.test(g)) return S.stones[+g.slice(-1) - 1] ? 1.5 : 0.45 + 0.25 * Math.sin(time * 2.0);
+    if (g === 'bridgestone') return S.bridge ? 1.4 : (S.stones[0] && S.stones[1]) ? 1.0 + 0.4 * Math.sin(time * 4.0) : 0.35;
+    if (g === 'bridge') { e.visible = !!S.bridge; return 0.55 + 0.1 * Math.sin(time * 1.7); }
+    if (g === 'citylights') return S.ch4 ? 0.85 : S.bridge ? 0.5 : 0.1;
+    if (g === 'spire') return 0.7 + 0.35 * S.voice + (S.ch4 && S.ending4 !== 'sus' ? 0.8 : 0);
     if (g === 'a1core') { e.visible = S.caveSolved && !(window.ICEWALK_FIELD?.diagnostics().taken || []).includes('A1'); return 1.4; }
     return 1;
   }
@@ -803,7 +825,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
     A.stats.draws = 0; A.stats.tris = 0; A.stats.culled = 0;
     const vp = M4.mul(proj, view), P = planes(vp);
-    const storm = opts.storm, hall = A.zone === 'hall';
+    const storm = opts.storm, hall = A.zone === 'hall' || A.zone === 'city';
     const fogD = hall ? 0.009 : 0.0015 + storm * 0.0100, fogC = hall ? [0.07, 0.12, 0.16] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
     // lights: nearest active N
     const lights = world.lights.filter(live).map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
@@ -990,7 +1012,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       return buildModel(name, buf);
     }));
     for (const m of results) A.models[m.name] = m;
-    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall');
+    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall'); if (A.models.helikon_city) harvest(A.models.helikon_city, 'city');
     if (A.models.fp_hands) { const arm = document.getElementById('arm'); if (arm) arm.style.display = 'none'; }
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
@@ -1071,7 +1093,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   // (microtask) the objective, distance and temperature are overwritten while a chapter 3 step is live.
   function ch3Goal(p) {
     const S = A.state;
-    if (!S.ch2 || !S.tutorial.hall) return null;
+    if (S.inCity) { const g = cityGoal(); return g && { text: g[0], d: g[1] ? Math.hypot(g[1].x - p.x, g[1].z - p.z) : 0, ch: 4 }; }
+    if (!S.ch2 || !S.tutorial.hall || S.ch4) return null;
     let text, id;
     if (S.inHall) {
       if (!S.kaanSeen) { text = 'BUZDAKİ ADAMI İNCELE'; id = 'kaan'; }
@@ -1079,12 +1102,12 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       else if (!S.kaanFree) { text = 'ISI HÜCRESİYLE KAAN’I ÇÖZ'; id = 'kaan'; }
       else if (S.kaanTalk < KAAN_LINES.length || !S.kaanTrust) { text = 'KAAN İLE KONUŞ'; id = 'kaan'; }
       else if (!S.ch3) { text = 'STELLERİ SAAT SIRASIYLA YAK · ' + S.stars.length + '/4'; id = 'dais'; }
-      else { text = 'ÜÇ CEVAP KAPISI'; id = 'gate4'; }
+      else { text = 'ÜÇ CEVAP KAPISI · İÇERİ GİR'; id = 'gate4'; }
     } else if (S.kaanSeen && !S.heatCell) { text = 'JENERATÖRDEN YEDEK ISI HÜCRESİ AL'; id = 'generator'; }
     else if (S.heatCell === 1 && !S.kaanFree) { text = 'ISI HÜCRESİNİ KAAN’A GÖTÜR · MAĞARA KAPISI'; id = 'glyph'; }
     else return null;
     const a = anchor(id);
-    return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0 };
+    return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0, ch: 3 };
   }
   let hudQueued = false, hudSaved = null;
   function ch3Hud() {
@@ -1095,14 +1118,131 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (g && !hudSaved) { hudSaved = {}; for (const id of ids) if ($(id)) hudSaved[id] = $(id).textContent; }
     if (!g && hudSaved) { for (const id of ids) if ($(id) && hudSaved[id] !== undefined) $(id).textContent = hudSaved[id]; hudSaved = null; }
     if (g) {
-      if ($('missionName')) $('missionName').textContent = 'BÖLÜM 3 · ' + g.text;
+      if ($('missionName')) $('missionName').textContent = 'BÖLÜM ' + g.ch + ' · ' + g.text;
       if ($('distance')) $('distance').textContent = Math.round(g.d) + ' m';
-      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : 'BÖLÜM 3 · HELIKON KAPISI';
+      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inCity ? 'HELIKON HAVZASI · BUZ ALTI GÖLÜ' : A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : 'BÖLÜM 3 · HELIKON KAPISI';
     }
+    if (A.state.inCity && $('temperature')) $('temperature').textContent = '−4°C';
     if (A.state.inHall && $('temperature')) {
       const v = anchor('vent'), dv = v ? Math.hypot(v.x - p.x, v.z - p.z) : 99;
       $('temperature').textContent = '−' + Math.round(dv < 3.2 ? 9 : dv < 7 ? 9 + (dv - 3.2) / 3.8 * 32 : 41) + '°C';
     }
+  }
+
+  /* ------------------------------------------------------------ chapter 4: the lake basin ("Üç Cevap") */
+  // Behind the three-ring gate lies a subglacial lake (kept liquid by pressure and geothermal heat,
+  // like Lake Vostok). Symbol stones teach the crystal language; two of them wake the bridge stone,
+  // the third (on the island) completes the dictionary; the spire speaks in symbols and asks for
+  // one of three answers. Whatever is chosen, the 03:17 broadcast has already been caught by a satellite.
+  const SYMS = [{ g: '◆', w: 'BİZ' }, { g: '◇', w: 'SİZ' }, { g: '△', w: 'ZAMAN' }, { g: '≈', w: 'SU' }, { g: '□', w: 'KAPI' }, { g: '○', w: 'SESSİZLİK' }];
+  const SYM_STONES = [[0, 3], [1, 2], [4, 5]];
+  const VOICE = [
+    { s: [0, 3, 2], t: '“Biz suyun altında zamanı tutarız.”' },
+    { s: [1, 2, 4], t: '“Siz zamanın kapısını açtınız.”' },
+    { s: [5, 4, 1], t: '“Sessizlik mi, kapı mı? Seçim sizin.”' },
+  ];
+  const ENDINGS = {
+    sus: ['SUS', 'Uplink’i kapattın ve kristallerin sesi kesildi. Şehir yeniden karanlığa gömüldü. Ama uplink günlüğünde son bir satır var: 03:17 kaydı bir yer gözlem uydusuna çoktan iletilmiş — “KAYNAK BİLİNMİYOR · 86° GÜNEY”.'],
+    cevap: ['CEVAP VER', 'Kuleye uplink frekansında cevap verdin. Sinyal uydu ağına yayıldı. Birkaç saat içinde Antarktika Antlaşması Danışma Toplantısı olağanüstü gündemle toplanıyor; dünya ilk kez dinliyor.'],
+    gec: ['KAPIDAN GEÇ', 'Kulenin ışığına yürüdün. Su yükseldi, ses içini doldurdu. Yüzeyde istasyonun telsizi senin sesinle tek bir cümleyi tekrarlıyor: “Sinyali kapatmayın.” Bir uydu bunu da kaydetti.'],
+  };
+  function symText(k) { return A.state.syms[k] ? SYMS[k].g + ' ' + SYMS[k].w : SYMS[k].g + ' ?'; }
+  function enterCity() {
+    const S = A.state, sp = anchor('city_spawn'), p = E.player; if (!sp) return null;
+    S.inHall = false; S.inCity = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = -0.05; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z);
+    flash('200,240,255', 0.95); tone(110, 2.6, 'sine', 0.2, 1.6); noiseBurst(2.0, 120, 50, 0.18, 2.4);
+    if (!S.tutorial.city) {
+      S.tutorial.city = 1;
+      journal('BÖLÜM 4 — ÜÇ CEVAP', 'Kapının ardında buzun altında bir göl var. Tavan buz, duvarlar kaya; su donmamış — üstteki buzun basıncı ve dipteki ısı onu sıvı tutuyor (Vostok Gölü gibi). Kuzey duvarında basamak basamak bir şehir. Ortadaki adada bir kristal kule titreşiyor.');
+    }
+    E.save?.();
+    return 'BÖLÜM 4 · ÜÇ CEVAP · Buz altı gölü · Kıyıdaki sembol taşlarını oku (Q / E)';
+  }
+  function exitCity() {
+    const S = A.state, g = anchor('gate4'), p = E.player; if (!g) return null;
+    S.inCity = false; S.inHall = true; p.x = g.x; p.z = g.z + 1.2; p.yaw = Math.PI; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z);
+    flash('200,240,255', 0.7); tone(220, 1.0, 'sine', 0.12, 0.7);
+    E.save?.();
+    return 'HELIKON SALONU · Üç halkalı kapı arkanda';
+  }
+  function readStone(i) {
+    const S = A.state, [a, b] = SYM_STONES[i];
+    if (!S.stones[i]) {
+      S.stones[i] = 1; S.syms[a] = 1; S.syms[b] = 1;
+      tone([523, 587, 659][i], 0.7, 'sine', 0.13, 1.0); tone([1046, 1174, 1318][i], 0.9, 'triangle', 0.04, 1.0);
+      journal('KRİSTAL DİLİ — SÖZLÜK', SYMS[a].g + ' = ' + SYMS[a].w + ' · ' + SYMS[b].g + ' = ' + SYMS[b].w + '. Taşın titreşimi tarayıcıda bir sözcüğe dönüşüyor; anlam sesle değil ritimle taşınıyor.');
+      E.save?.();
+      const n = S.syms.reduce((t, v) => t + v, 0);
+      return 'SEMBOL TAŞI · ' + symText(a) + ' · ' + symText(b) + ' öğrenildi · Sözlük ' + n + '/6';
+    }
+    return 'SEMBOL TAŞI · ' + symText(a) + ' · ' + symText(b) + ' (sözlükte)';
+  }
+  function bridgeStone() {
+    const S = A.state;
+    if (S.bridge) return 'KÖPRÜ TAŞI · Kristal köprü açık · Adaya geç';
+    const need = [0, 3, 1, 2];
+    if (!need.every((k) => S.syms[k])) return 'KÖPRÜ TAŞI · Dört yuva: ' + need.map(symText).join(' · ') + ' · Kıyıdaki iki sembol taşını oku';
+    S.bridge = true; tone(147, 2.4, 'sine', 0.18, 1.5); noiseBurst(2.2, 300, 900, 0.16, 2.0); flash('150,235,255', 0.6);
+    journal('KRİSTAL KÖPRÜ', 'Dört sembolü taşa okuttuğumda suyun altından kristal levhalar yükseldi ve adaya bir köprü oluştu. Kuzey duvarındaki şehrin pencerelerinde ışıklar yandı — birileri, ya da bir şeyler, bizi fark etti.');
+    E.save?.();
+    return 'KRİSTAL KÖPRÜ SUDAN YÜKSELDİ · Şehrin pencereleri aydınlandı';
+  }
+  function endCard(key) {
+    const [title, body] = ENDINGS[key];
+    let el = document.getElementById('a3dEndCard');
+    if (!el) {
+      el = document.createElement('div'); el.id = 'a3dEndCard';
+      el.style.cssText = 'position:fixed;inset:0;z-index:30001;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#06202ee8,#010608f5);color:#e6fbff;font:500 14px/1.55 system-ui;padding:24px';
+      document.body.appendChild(el);
+    }
+    document.exitPointerLock?.();
+    el.innerHTML = '';
+    const box = document.createElement('div'); box.style.cssText = 'max-width:620px;text-align:center';
+    const k = document.createElement('div'); k.textContent = 'BÖLÜM 4 · ÜÇ CEVAP'; k.style.cssText = 'letter-spacing:3px;font-size:11px;color:#8fd7e6;margin-bottom:10px';
+    const h = document.createElement('div'); h.textContent = title; h.style.cssText = 'font:800 30px system-ui;letter-spacing:4px;margin-bottom:14px;color:#ffd3a3';
+    const pTxt = document.createElement('p'); pTxt.textContent = body;
+    const nx = document.createElement('p'); nx.textContent = 'Devamı: Bölüm 5 · “İlk Temas” — Mart, son uçak.'; nx.style.cssText = 'color:#8fb9c4;font-size:12px;margin-top:14px';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'DEVAM';
+    btn.style.cssText = 'margin-top:18px;min-height:44px;padding:8px 26px;border-radius:8px;border:1px solid #b7e7ef99;background:#0d3346;color:#fff;font:700 13px system-ui;pointer-events:auto';
+    btn.addEventListener('click', () => el.remove());
+    box.append(k, h, pTxt, nx, btn); el.appendChild(box);
+  }
+  function finale(key) {
+    const S = A.state;
+    S.ch4 = true; S.ending4 = key;
+    tone(key === 'sus' ? 82 : key === 'cevap' ? 330 : 196, 3.2, 'sine', 0.2, key === 'sus' ? 0.5 : 1.8); flash(key === 'gec' ? '255,255,255' : '160,230,255', 0.95);
+    journal('BÖLÜM 4 — CEVAP: ' + ENDINGS[key][0], ENDINGS[key][1]);
+    E.save?.();
+    endCard(key);
+  }
+  function talkSpire() {
+    const S = A.state;
+    if (S.ch4) return 'KRİSTAL KULE · Sessiz · Cevabın: ' + ENDINGS[S.ending4][0];
+    if (S.voice < VOICE.length) {
+      const L = VOICE[S.voice], known = L.s.every((k) => S.syms[k]);
+      tone(196 + S.voice * 60, 0.9, 'sine', 0.12, 1.02);
+      const shown = 'SES · ' + L.s.map(symText).join(' · ');
+      if (!known) return shown + ' — çeviri eksik · Adadaki sembol taşını oku (Q)';
+      S.voice++;
+      journal('KRİSTAL KULE — SES ' + S.voice + '/3', L.s.map((k) => SYMS[k].g).join(' ') + ' → ' + L.t);
+      E.save?.();
+      return shown + ' — ' + L.t + (S.voice === VOICE.length ? ' · E: cevabını seç' : '');
+    }
+    choice('KRİSTAL KULE: “Sessizlik mi, kapı mı? Seçim sizin.” — Ne cevap vereceksin?',
+      [['sus', 'Sus — uplink’i kapat'], ['cevap', 'Cevap ver — dünyaya duyur'], ['gec', 'Kapıdan geç — şehre katıl']], finale);
+    return null;
+  }
+  function cityGoal() {
+    const S = A.state, p = E.player;
+    if (S.ch4) return null;
+    const near = (ids) => ids.map((id) => anchor(id)).filter(Boolean).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z))[0];
+    if (!S.stones[0] || !S.stones[1]) return ['KIYIDAKİ SEMBOL TAŞLARINI OKU · ' + (S.stones[0] + S.stones[1]) + '/2', near(['sym1', 'sym2'].filter((_, i) => !S.stones[i]))];
+    if (!S.bridge) return ['KÖPRÜ TAŞINI UYANDIR', anchor('bridgestone')];
+    if (S.voice === 1 && !S.stones[2]) return ['ADADAKİ SEMBOL TAŞINI OKU', anchor('sym3')];
+    if (S.voice < 3) return ['KRİSTAL KULEYİ DİNLE · ' + S.voice + '/3', anchor('spire')];
+    return ['CEVABINI SEÇ', anchor('spire')];
   }
   function enterHall() {
     const S = A.state, sp = anchor('hall_spawn'), p = E.player; if (!sp) return null;
@@ -1124,7 +1264,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     E.save?.();
     return 'BUZ MAĞARASI · Kapı arkanda açık kaldı';
   }
-  function hallPressure() { return A.ready && A.state.inHall ? 0.3 : 0; }
+  function hallPressure() { return !A.ready ? 0 : A.state.inHall ? 0.3 : A.state.inCity ? 0.04 : 0; }
   function steleText(i) { const d = STELES[i]; return 'TAŞ STEL ' + (i + 1) + ' · ' + d.name + ' TAKIMYILDIZI · Saat işareti ' + d.time; }
   function readStele(i) {
     const S = A.state;
@@ -1153,7 +1293,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (i === 2) return 'HENÜZ OLMADI · 03:41 gelecekte · Harita söndü, soğuk dalgası';
     return 'YANLIŞ SAAT · Harita söndü, soğuk dalgası · Sıra o gecenin saatleri';
   }
-  function choice(question, a, b, cb) {
+  function choice(question, options, cb) {   // options: [[value, label], ...]; keys 1..n also pick
     let el = document.getElementById('a3dChoice');
     if (!el) {
       el = document.createElement('div'); el.id = 'a3dChoice';
@@ -1164,8 +1304,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     el.innerHTML = ''; const q = document.createElement('div'); q.textContent = question; el.appendChild(q);
     const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center'; el.appendChild(row);
     const done = (k) => { el.remove(); removeEventListener('keydown', onKey, true); cb(k); };
-    const onKey = (ev) => { if (ev.key === '1') { ev.stopPropagation(); done(1); } else if (ev.key === '2') { ev.stopPropagation(); done(-1); } };
-    [[1, '1 · ' + a], [-1, '2 · ' + b]].forEach(([k, t]) => {
+    const onKey = (ev) => { const i = +ev.key - 1; if (i >= 0 && i < options.length) { ev.stopPropagation(); done(options[i][0]); } };
+    options.map(([k, t], i) => [k, (i + 1) + ' · ' + t]).forEach(([k, t]) => {
       const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = t;
       btn.style.cssText = 'min-height:44px;padding:8px 16px;border-radius:8px;border:1px solid #b7e7ef99;background:#0d3346;color:#fff;font:700 12px system-ui;pointer-events:auto';
       btn.addEventListener('click', () => done(k)); row.appendChild(btn);
@@ -1190,7 +1330,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     }
     if (S.kaanTalk < KAAN_LINES.length) { const l = KAAN_LINES[S.kaanTalk++]; tone(330, 0.15, 'triangle', 0.05, 1.0); return l; }
     if (!S.kaanTrust) {
-      choice('KAAN: “Selin’e güveniyor musun? Kaydın sonundaki ses senindi.”', 'Selin’e güveniyorum', 'Selin bir şey saklıyor', (k) => {
+      choice('KAAN: “Selin’e güveniyor musun? Kaydın sonundaki ses senindi.”', [[1, 'Selin’e güveniyorum'], [-1, 'Selin bir şey saklıyor']], (k) => {
         S.kaanTrust = k; E.save?.();
         E.toast(k > 0 ? 'KAAN: “İyi. O zaman sırayla: en erken saatten 03:17’ye. Sonrasına dokunma.”' : 'KAAN: “Ben de öyle düşünüyorum. Saatleri en erkenden 03:17’ye yak — sonrasına dokunma.”');
         journal('KAAN — KURAL', 'Stelleri o gecenin saatlerine göre, en erkenden 03:17’ye kadar yak. 03:17’den sonraki saat henüz yaşanmadı; ona dokunma. (Q: stelin saatini okur, E: yakar)');
@@ -1237,10 +1377,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     chapter2Pressure,
     hallPressure,
-    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
+    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
-    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [] }); if (A.state.power) startHum(); },
-    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], tutorial: {} }; },
+    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '' }); if (A.state.power) startHum(); },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),

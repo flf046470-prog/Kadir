@@ -44,12 +44,15 @@ Hedef yaş derecelendirmesi 12+.
 
 ---
 
-## Bölüm 4 · "Üç Cevap" (köprü)
-- Üç halkalı kapının ardında Helikon şehrinin göl havzası uyanır: buz tavanlı, jeotermal ışıklı bir yeraltı kenti.
-- İlk temas: bir Helikon "sesi" kristal rezonansla konuşur. Kristal dili sembolleri öğrenildikçe çeviri tamamlanır (yeni mekanik: sembol sözlüğü, günlükte).
-- **Seçim (`ending4`):** *Sus* (sinyali kapat) / *Cevap ver* (uydu uplink'iyle dünyaya duyur) / *Kapıdan geç* (şehre katıl).
-  Hangisi seçilirse seçilsin, uplink'in 03:17 kaydı bir uydu tarafından çoktan yakalanmıştır — kriz kaçınılmazdır; seçim yalnızca **nasıl** başlayacağını belirler.
-- Varlıklar: `build_helikon_city.py` (göl havzası, kristal köprüler).
+## Bölüm 4 · "Üç Cevap" — UYGULANDI (`build_helikon_city.py`, `js/a3d.js`, test: `tools/chapter4_test.cjs`)
+- Üç halkalı kapı (Bölüm 3 sonrası) buzun ~38 m altındaki göl havzasına açılır (katman `city`, `state.inCity`).
+  Gerçek dayanak: buz altı gölleri (Vostok) basınç ve jeotermal ısıyla sıvı kalır; su −3°C, hava −4°C; dipte jeotermal ışıma.
+- **Kristal dili:** 6 sembol — ◆ BİZ, ◇ SİZ, △ ZAMAN, ≈ SU, □ KAPI, ○ SESSİZLİK. Üç sembol taşı (Q ya da E) ikişer sembol öğretir; sözlük günlüğe yazılır.
+- **Köprü taşı:** kıyıdaki iki taşın dört sembolü bilinince kristal köprü sudan yükselir, kuzey duvarındaki şehrin pencereleri yanar
+  (köprü zemini/çarpışması `a3d_cond` ile koşullu).
+- **Kristal kule:** üç cümleyi sembollerle söyler; bilinmeyen sembol çevrilmez (adadaki üçüncü taş gerekir).
+- **Seçim (`ending4`):** *Sus* / *Cevap ver* / *Kapıdan geç* → bölüm sonu kartı. Her durumda 03:17 kaydı bir uyduya çoktan ulaşmıştır;
+  seçim krizin nasıl başladığını belirler (Bölüm 5).
 
 ## Bölüm 5 · "İlk Temas" — Mart, son uçak
 - Sonbahar: son ikmal uçağı kalkmak üzere. Konsorsiyum istasyonları boşaltıyor; oyuncu kalmayı seçer (kalırsan 6 ay kimse gelemez).

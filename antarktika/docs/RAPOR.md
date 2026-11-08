@@ -21,6 +21,7 @@
 | `tools/xr_test.cjs` | 4/4 ✔ | Sahte WebXR oturumu: kare başına 2 göz görüntüsü, sol çubukla yürüme, kumanda elleri, hata yok |
 | `tools/chapter2_test.cjs` | 13/13 ✔ | Bölüm 2 kara kutu görevi: kilit, tarayıcı yön/mesafe, 4 parça, tipi baskısı, telsizde birleştirme, kayıt/devam |
 | `tools/chapter3_test.cjs` | 21/21 ✔ | Bölüm 3 HELIKON salonu: kapı kilidi, katman yalıtımı (salon zemini/duvarları/çapaları yalnız içeride), soğuk + ısı kuyusu, Kaan + ısı hücresi gidiş-dönüşü, güven seçimi (tıklama), stel sırası (03:41 tuzağı), kayıt/devam, render |
+| `tools/chapter4_test.cjs` | 19/19 ✔ | Bölüm 4 göl havzası: kapı kilidi, katman yalıtımı, teras/rampa zemini, köprüden önce göl kenarı engeli, sembol taşları (E ve tarayıcı), köprü + zemin, eksik sembolde çevrilmeyen cümle, 3 seçenekli cevap + bölüm sonu kartı, dönüş, kayıt/devam |
 
 Bu turda bulunup düzeltilen hatalar:
 - Seçim paneli açılırken fare imleci tuvale kilitli kalıyordu (masaüstünde düğmeler tıklanamıyordu); panel artık kilidi bırakıyor.
