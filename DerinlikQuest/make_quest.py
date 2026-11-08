@@ -26,11 +26,16 @@ ap.add_argument("--app-id", default="0", help="numeric Horizon App ID ('0' build
 ap.add_argument("--package", default="com.derinlik.quest", help="Android package name; permanent once uploaded")
 ap.add_argument("--keystore", help="signing keystore path (kept OUTSIDE web/; permanent: every update must reuse it)")
 ap.add_argument("--alias", default="derinlik")
-ap.add_argument("--fingerprint", help="the keystore's SHA-256 certificate fingerprint (colon hex) for assetlinks.json")
+ap.add_argument("--fingerprint", help="the keystore's SHA-256 certificate fingerprint (colon hex) for assetlinks.json; default: signing.json")
 ap.add_argument("--version", type=int, default=1, help="version code; must rise with every uploaded build")
 ap.add_argument("--version-name", default="0.1.0")
 ap.add_argument("--skip-build", action="store_true", help="reuse web/index.html")
 a = ap.parse_args()
+# the release key's public identity is kept in the repository (signing.json); its file and password are not
+signing = json.loads((pathlib.Path(__file__).resolve().parent / "signing.json").read_text(encoding="utf-8"))
+a.fingerprint = a.fingerprint or signing["sha256"]
+if a.package == "com.derinlik.quest": a.package = signing["package"]
+if a.alias == "derinlik": a.alias = signing["alias"]
 
 web = here / "web"
 public = here / "public"

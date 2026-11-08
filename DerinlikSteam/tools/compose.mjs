@@ -99,29 +99,45 @@ if (!only || only.has('icon')) {
   await render(icon(512), { width: 512, height: 512 }, path.join(root, 'DerinlikDesktop', 'build', 'icon.png'));
   await render(icon(184), { width: 184, height: 184 }, path.join(art, 'community_icon_184x184.png'));
 }
-// Meta Horizon Store (Quest) art and the installable web app's icons: --only meta. Store: 1024 app icon (square, no
-// rounded corners: the store rounds it), 2560x1440 hero with the title inside the inner 80%, 1280x720 small landscape.
-// Web app: 192/512 icons and a 512 maskable one, full-bleed and opaque, its mark inside the 80% safe circle.
+// Meta Horizon Store (Quest) art and the installable web app's icons: --only meta. Sizes and rules from Meta's asset
+// design guidelines (developers.meta.com/vr/resources/asset-guidelines): branded assets carry the exact app title
+// ("DERİNLİK") and nothing else (no tagline), title inside the safe area and never in a corner, all of one design.
+// Store icon 512 (square, opaque), spatialized icon 180 as background + transparent foreground. Web app: 192/512 icons
+// and a 512 maskable one, full-bleed and opaque, its mark inside the 80% safe circle.
 if (!only || only.has('meta')) {
   const quest = path.join(root, 'DerinlikQuest');
-  const icons = path.join(quest, 'public', 'icons');
-  fs.mkdirSync(icons, { recursive: true }); fs.mkdirSync(path.join(quest, 'art'), { recursive: true });
-  const metaIcon = (n, safe = 1) => {
+  const icons = path.join(quest, 'public', 'icons'), out = path.join(quest, 'art');
+  fs.mkdirSync(icons, { recursive: true }); fs.mkdirSync(out, { recursive: true });
+  for (const f of ['app_icon_1024x1024.png', 'hero_2560x1440.png', 'small_landscape_1280x720.png']) fs.rmSync(path.join(out, f), { force: true });
+  const metaIcon = (n, safe = 1, { bg = true, mark = true } = {}) => {
     const c = (pos) => `<div style="position:absolute; width:${n * .2 * safe}px; height:${n * .2 * safe}px; border:0 solid #e4ded2; ${pos}"></div>`;
     const b = n * .035 * safe, m = n * (safe < 1 ? .25 : .1);   // maskable: bracket corners at r = .25·√2 < .4
-    return `<div class="art" style="width:${n}px; height:${n}px; background: radial-gradient(circle at 50% 45%, #1d1915, #050506 72%)">
-      ${c(`left:${m}px; top:${m}px; border-left-width:${b}px; border-top-width:${b}px`)}${c(`right:${m}px; top:${m}px; border-right-width:${b}px; border-top-width:${b}px`)}
+    return `<div class="art" style="width:${n}px; height:${n}px; background:${bg ? 'radial-gradient(circle at 50% 45%, #1d1915, #050506 72%)' : 'transparent'}">
+      ${mark ? `${c(`left:${m}px; top:${m}px; border-left-width:${b}px; border-top-width:${b}px`)}${c(`right:${m}px; top:${m}px; border-right-width:${b}px; border-top-width:${b}px`)}
       ${c(`left:${m}px; bottom:${m}px; border-left-width:${b}px; border-bottom-width:${b}px`)}${c(`right:${m}px; bottom:${m}px; border-right-width:${b}px; border-bottom-width:${b}px`)}
       <div style="position:absolute; left:${m + n * .1 * safe}px; top:${m + n * .1 * safe}px; width:${n * .1 * safe}px; height:${n * .1 * safe}px; border-radius:50%; background:#e3312b; box-shadow:0 0 ${n * .04 * safe}px rgba(227,49,43,.9)"></div>
-      <div class="logo" style="font-size:${n * .56 * safe}px; left:50%; top:53%; transform:translate(-50%,-50%)"><div class="word" style="letter-spacing:0; margin:0; font-weight:400">D</div></div></div>`;
+      <div class="logo" style="font-size:${n * .56 * safe}px; left:50%; top:53%; transform:translate(-50%,-50%)"><div class="word" style="letter-spacing:0; margin:0; font-weight:400">D</div></div>` : ''}</div>`;
   };
   for (const n of [192, 512]) await render(metaIcon(n), { width: n, height: n }, path.join(icons, `icon-${n}.png`));
   await render(metaIcon(512, .62), { width: 512, height: 512 }, path.join(icons, 'icon-512-maskable.png'));
-  await render(metaIcon(1024), { width: 1024, height: 1024 }, path.join(quest, 'art', 'app_icon_1024x1024.png'));
-  // the gate plate keeps its arch whole; the title sits low but inside the inner 80% (y <= 90% - its own height)
-  const hero = { w: 2560, h: 1440, bg: 'k_gate', size: 'cover', pos: '50% 40%', shade: `linear-gradient(rgba(5,5,6,0) 45%, rgba(5,5,6,.88) 86%), ${vignette(.55)}`, logo: { size: 230, y: 77 } };
-  await render(scene(hero), { width: 2560, height: 1440 }, path.join(quest, 'art', 'hero_2560x1440.png'));
-  await render(scene({ ...hero, w: 1280, h: 720, logo: { size: 115, y: 77 } }), { width: 1280, height: 720 }, path.join(quest, 'art', 'small_landscape_1280x720.png'));
+  await render(metaIcon(512), { width: 512, height: 512 }, path.join(out, 'icon_512x512.png'));
+  // spatialized library tile: the dark ground, and the viewfinder mark alone on transparency (18 px padding inside 180)
+  await render(metaIcon(180, 1, { mark: false }), { width: 180, height: 180 }, path.join(out, 'spatial_icon_background_180x180.png'));
+  await render(metaIcon(180, .8, { bg: false }), { width: 180, height: 180 }, path.join(out, 'spatial_icon_foreground_180x180.png'), { transparent: true });
+  // covers: the lit Sakarya gate, the title low and centred, inside the middle 80%
+  const cover = (w, h, size, { pos = '50% 40%', y = 74 } = {}) => scene({ w, h, bg: 'k_gate', size: 'cover', pos,
+    shade: `linear-gradient(rgba(5,5,6,0) 45%, rgba(5,5,6,.88) 86%), ${vignette(.55)}`, logo: { size, y, sub: false } });
+  const COVERS = [
+    ['hero_cover_3000x900.png', 3000, 900, 250, { pos: '50% 42%', y: 72 }],
+    ['cover_landscape_2560x1440.png', 2560, 1440, 280],
+    ['cover_square_1440x1440.png', 1440, 1440, 210],
+    ['cover_portrait_1008x1440.png', 1008, 1440, 150, { y: 76 }],
+    ['mini_landscape_1080x360.png', 1080, 360, 96, { pos: '50% 42%', y: 70 }],
+    ['trailer_cover_2560x1440.png', 2560, 1440, 280],
+  ];
+  for (const [file, w, h, size, o] of COVERS) await render(cover(w, h, size, o), { width: w, height: h }, path.join(out, file));
+  const body = `<div class="art" style="width:2400px; height:640px; background:transparent">${logo({ size: 360, y: 50, sub: false })}</div>`;
+  await render(body, { width: 2400, height: 640 }, path.join(out, 'logo_transparent_2400x640.png'), { transparent: true });
 }
 fs.rmSync(tmp, { force: true });
 await browser.close();
