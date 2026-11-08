@@ -54,11 +54,21 @@ Hedef yaş derecelendirmesi 12+.
 - **Seçim (`ending4`):** *Sus* / *Cevap ver* / *Kapıdan geç* → bölüm sonu kartı. Her durumda 03:17 kaydı bir uyduya çoktan ulaşmıştır;
   seçim krizin nasıl başladığını belirler (Bölüm 5).
 
-## Bölüm 5 · "İlk Temas" — Mart, son uçak
-- Sonbahar: son ikmal uçağı kalkmak üzere. Konsorsiyum istasyonları boşaltıyor; oyuncu kalmayı seçer (kalırsan 6 ay kimse gelemez).
-- Haberler (telsiz ve uplink'ten): ATCM olağanüstü toplantıda; bazı taraflar "Madrid Protokolü bilinmeyen bir enerji kaynağını kapsamaz" diyor.
-- Oynanış: Helikon şehrinde rehberlik — Kaan ve Selin farklı taraflara çekilir (Selin konsorsiyumdan, Kaan Helikonlardan yana). `kaanTrust` diyalogları değiştirir.
-- Görev: Helikonların enerji ağı ile istasyon jeneratörünü bağlamak (kışı geçirmek için). Yanlış bağlantı = karartma.
+## Bölüm 5 · "İlk Temas" — Mart, son uçak — UYGULANDI (`build_helikon_grid.py`, `js/a3d.js`, test: `tools/chapter5_test.cjs`)
+- **Son uçak:** Bölüm 4 bitince görev oyuncuyu istasyon telsizine yollar. Pilot, sezonun son kayaklı uçağının 40 dakika sonra kalkacağını söyler;
+  Ekim'e kadar uçuş yoktur. *Uçağa bin* bir sondur ("AYRILIŞ", `left5`); telsize yeniden gidilerek geri alınabilir. *Kal* → `plane5`.
+- **Haber ve gerçekçi zemin:** Uplink'ten gelen haberde ATCM olağanüstü oturumda; bazı taraflar 1991 Madrid Protokolü'nün maden kaynakları yasağının
+  (Madde 7) "bilinmeyen bir enerji kaynağını" kapsamadığını savunuyor. Yakıt hesabı: 16.000 L Antarktika dizeli, 60 kVA jeneratör kış yükünde
+  ~8 L/saat → 83 gün; kutup gecesi ~180 gün. Fark 97 gün: Helikon ısısı olmadan kış geçmez.
+- **İletim galerisi (katman `grid`, `state.inGrid`):** salondaki ısı kuyusundan merdivenle 12 m aşağı, 40 m oyulmuş galeri (+4°C, jeotermal),
+  duvarlarda ışıyan iletkenler, sonunda Helikon çekirdeği ve tavanı delen 840 m'lik istasyon sondaj kuyusu (Bölüm 1'deki sondaj).
+- **Mekanik — iki şebekeyi paralel bağlamak (gerçek senkronizasyon kuralları):** önce kuyudan sarkan istasyon kablosu bağlanır; panel istasyon
+  tarafını gösterir (400 V · 50 Hz · L1-L2-L3). Üç düğüm (gerilim / frekans / faz sırası) buna eşlenir. Şalter yalnızca senkronoskop ibresi
+  saat 12'deyken (faz açısı ≤ 20°) kapatılabilir. Yanlış değerde ya da yanlış anda kapatmak koruma rölesini açtırır: galeri kararır,
+  6 sn soğuk dalgası (−18°C, vücut ısısı −15).
+- **İlk temas:** bağlantı kurulunca çekirdek oyuncuya dönük ilk deseni gösterir: ◆ ≈ ◇ ("biz · su · siz").
+- **Selin / Kaan ayrılığı (`kaanTrust` metni değiştirir):** Selin (konsorsiyum) tam yük ister, Kaan Helikon kuyularının soğumasından korkar.
+  Seçim `load5`: *Tam yük 60 kW* / *Paylaş 35 kW* / *Sınırlı 20 kW* → bölüm sonu kartı; Bölüm 6'nın başlangıç koşulu.
 
 ## Bölüm 6 · "Kış Ablukası" — Haziran, kutup gecesi
 - BM Güvenlik Konseyi kilitlenir; AAK antlaşmanın askerî yasağını askıya alır. Kış ortasında hava indirmesi: paraşütle ikmal, kayaklı nakliye uçakları, buz üstü insansız araçlar.

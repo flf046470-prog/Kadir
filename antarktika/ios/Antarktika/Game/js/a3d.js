@@ -13,7 +13,7 @@
  */
 (() => {
   'use strict';
-  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb', 'models/helikon_city.glb'];
+  const MODELS = ['models/station.glb', 'models/ice_cave.glb', 'models/explorer.glb', 'models/fp_hands.glb', 'models/helikon_hall.glb', 'models/helikon_city.glb', 'models/helikon_grid.glb'];
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
@@ -24,7 +24,7 @@
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
     stats: { draws: 0, tris: 0, lights: 0, culled: 0 },
-    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', tutorial: {} },
+    state: { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', tutorial: {} },
   };
   window.ANTARKTIKA3D = A;
   let E = null, gl = null, ext = {}, programs = {}, time = 0;
@@ -400,9 +400,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     return Math.abs(lx) <= o.hx + pad && Math.abs(lz) <= o.hz + pad ? [lx, lz] : null;
   }
 
-  // layers: null = outdoor world, 'hall' = chapter 3 interior, 'city' = chapter 4 lake basin.
+  // layers: null = outdoor world, 'hall' = chapter 3 interior, 'city' = chapter 4 lake basin, 'grid' = chapter 5 gallery.
   // cond: 'bridge' = only once the crystal bridge is up, 'nobridge' = only before.
-  const curLayer = () => (A.state.inCity ? 'city' : A.state.inHall ? 'hall' : null);
+  const curLayer = () => (A.state.inGrid ? 'grid' : A.state.inCity ? 'city' : A.state.inHall ? 'hall' : null);
   const live = (o) => (o.layer || null) === curLayer() && (!o.cond || (o.cond === 'bridge') === !!A.state.bridge);
   function groundY(x, z) {
     let best = null;
@@ -439,7 +439,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         x += (ex * push) * c.ux + (ez * push) * c.vx;
         z += (ex * push) * c.uz + (ez * push) * c.vz;
       }
-      if (npc.model && !A.state.inHall) {
+      if (npc.model && !curLayer()) {
         const dx = x - npc.x, dz = z - npc.z, d = Math.hypot(dx, dz), rr = r + 0.38;
         if (d < rr && d > 1e-4) { x = npc.x + dx / d * rr; z = npc.z + dz / d * rr; }
       }
@@ -455,7 +455,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   function nearestAnchor(x, z) {
     let best = null;
     for (const a of world.anchors) {
-      if (a.id === 'entrance' || a.id === 'cargo_e1' || a.id === 'hall_spawn' || !live(a)) continue;
+      if (a.id === 'entrance' || a.id === 'cargo_e1' || a.id === 'hall_spawn' || a.id === 'grid_spawn' || !live(a)) continue;
       if (a.id === 'a1core' && !A.state.caveSolved) continue;
       if (a.id.startsWith('bb')) { const i = +a.id.slice(2); if (!A.state.caveSolved || A.state.bb[i] || !A.state.bbSeen[i]) continue; }
       const d = Math.hypot(a.x - x, a.z - z);
@@ -544,6 +544,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       case 'radio':
         if (!S.power) { tone(140, 0.3, 'square', 0.06, 0.8); return 'TELSİZ ENERJİSİZ · Önce dışarıdaki JENERATÖRÜ çalıştır'; }
         if (pro?.active && pro.summary().stage === 1) return null;   // prologue step handles it
+        if (S.ch4 && !S.plane5) return lastPlane();
+        if (S.plane5 && !S.ch5) { tone(660, 0.25); return S.cable5 ? 'TELSİZ · SELİN: “Kablo aşağıda. Şalteri kapatmadan önce üç değerin de istasyonla aynı olduğundan emin ol.”' : 'TELSİZ · SELİN: “Kalan yakıt 83 gün. Isı kuyusunun altındaki galeriye in; istasyon kablosunu sondaj kuyusundan sarktım.”'; }
         if (!S.ch2 && S.bb.every(Boolean)) {
           S.ch2 = true; tone(317, 1.4, 'sine', 0.16, 1.0); flash('255,210,150', 0.5);
           journal('BÖLÜM 2 — GELECEKTEN YAYIN', 'Dört parça birleşti. Kaydın sonunda konuşan ses benim. Kayıt 03:17’de, Selin istasyona gelmeden 40 dakika önce yapılmış — ama Selin’in sesi de içinde. Ona güvenebilir miyim?');
@@ -608,7 +610,12 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       case 'bridgestone': return bridgeStone();
       case 'spire': return talkSpire();
       case 'kaan': return talkKaan();
-      case 'vent': return 'ISI KUYUSU · Sıcak hava yükseliyor · Burada ısınıyorsun';
+      case 'vent': return S.plane5 ? enterGrid() : 'ISI KUYUSU · Sıcak hava yükseliyor · Burada ısınıyorsun';
+      case 'grid_exit': return exitGrid();
+      case 'j1': case 'j2': case 'j3': return turnDial(+a.id.slice(1) - 1);
+      case 'cable': return connectCable();
+      case 'sync': return syncPanel();
+      case 'core': return talkCore();
       case 'stele1': case 'stele2': case 'stele3': case 'stele4': case 'stele5': {
         const i = +a.id.slice(-1) - 1;
         readStele(i);
@@ -669,6 +676,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     time += dt;
     const p = E.player;
     A.zone = zoneAt(p.x, p.z);
+    if (A.state.inGrid && p.warmth !== undefined && time >= blackoutUntil) p.warmth = Math.min(100, p.warmth + 4 * dt);
+    syncUpdate(p);
     if (A.state.inHall) { const v = anchor('vent'); if (v && Math.hypot(p.x - v.x, p.z - v.z) < 3.2 && p.warmth !== undefined) p.warmth = Math.min(100, p.warmth + 10 * dt); }
     handsUpdate(dt);
     if (!hudQueued) { hudQueued = true; queueMicrotask(ch3Hud); }
@@ -717,6 +726,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     else if (S.kaanSeen && !S.kaanFree) line = S.heatCell === 1 ? 'Isı hücresi sende. Mağaradaki kapıdan salona in, buzdaki adama götür.' : 'Buzdaki adamı eritmek için jeneratörün yedek ısı hücresi lazım. Sarı konteynere git, E ile al.';
     else if (S.kaanFree && !S.ch3) line = 'Kaan saatlerden söz ediyor. Stelleri Q ile oku; en erken saatten 03:17’ye yak. Sonrasına dokunma.';
     else if (S.ch3 && !S.ch4) line = S.tutorial.city ? 'Göldeki taşlar bir dil öğretiyor. Sözlüğü tamamla, sonra kulenin ne istediğini dinle.' : 'Yıldız haritası açıldı. Salonun sonundaki üç halkalı kapıdan geç.';
+    else if (S.ch5) line = { tam: 'İstasyon tam yükte. Ama göldeki ısı kuyuları soğuyor; Helikonlar bunu fark edecek.', denge: 'Yükü paylaştık. İkimiz de kışı ancak geçiririz.', sinir: 'İstasyon idareli çalışacak. Kaan haklı olabilir; ama konsorsiyum bunu sevmeyecek.' }[S.load5] || line;
+    else if (S.ch4 && S.plane5) line = !S.inGrid ? 'Isı kuyusu salonda, batı duvarında. Aşağı inen bir merdiven var.' : !S.cable5 ? 'Kabloyu sondaj kuyusundan sarktım. Galerinin sonunda, sağda.' : 'Senkronoskop panelinde istasyon değerleri yazıyor. Üç düğümü onlara eşle, sonra ibre tepedeyken şalteri kapat.';
+    else if (S.ch4 && !S.plane5) line = 'Son uçak pistte. Telsize gel; kalıp kalmayacağını pilota söylemen lazım.';
     else if (S.ch4) line = { sus: 'Sinyali kapattın. Ama uydu kaydı yakaladı. Mart geliyor; son uçak kalkmadan karar ver.', cevap: 'Dünya duydu. Antlaşma toplantısı olağanüstü gündemle toplanıyor. Son uçak Mart’ta.', gec: 'Kapıdan geçtin… telsiz hâlâ senin sesinle konuşuyor. Neredesin?' }[S.ending4] || line;
     else if (m === 5 && S.power) line = 'Uplink direğin dibindeki terminalde. Dünya İttifakı’na bağlan.';
     c.spoken = line;
@@ -773,6 +785,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (L.group === 'bridge') k = A.state.bridge ? k : 0;
     if (L.group === 'citylights') k *= A.state.bridge ? 1 : 0.2;
     if (L.group === 'spire') k *= 0.6 + 0.2 * A.state.voice;
+    if (L.group === 'conduit') k = time < blackoutUntil ? 0 : k * (A.state.grid5 ? 1.5 : 0.65);
+    if (L.group === 'core') k = time < blackoutUntil ? k * 0.1 : k * (A.state.grid5 ? 1.4 : 0.7);
     if (L.flicker) k *= 1 - L.flicker * (0.5 + 0.5 * Math.sin(time * 13.7 + Math.sin(time * 4.1) * 3));
     return k;
   }
@@ -797,6 +811,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (g === 'bridge') { e.visible = !!S.bridge; return 0.55 + 0.1 * Math.sin(time * 1.7); }
     if (g === 'citylights') return S.ch4 ? 0.85 : S.bridge ? 0.5 : 0.1;
     if (g === 'spire') return 0.7 + 0.35 * S.voice + (S.ch4 && S.ending4 !== 'sus' ? 0.8 : 0);
+    if (g === 'conduit') return time < blackoutUntil ? 0.04 : S.grid5 ? 1.6 : 0.55;
+    if (g === 'core') return time < blackoutUntil ? 0.08 : S.grid5 ? 1.7 + 0.2 * Math.sin(time * 2.2) : 0.6 + 0.12 * Math.sin(time * 1.1);
+    if (/^j\d$/.test(g)) { const i = +g.slice(1) - 1; return time < blackoutUntil ? 0.1 : dialPulse[i] > time ? 1.6 : 1.0; }
+    if (g === 'sync') return time < blackoutUntil ? 0.15 : 1.1;
+    if (g === 'cablelamp') { e.visible = !S.cable5; return 1.4; }
     if (g === 'a1core') { e.visible = S.caveSolved && !(window.ICEWALK_FIELD?.diagnostics().taken || []).includes('A1'); return 1.4; }
     return 1;
   }
@@ -825,7 +844,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
     A.stats.draws = 0; A.stats.tris = 0; A.stats.culled = 0;
     const vp = M4.mul(proj, view), P = planes(vp);
-    const storm = opts.storm, hall = A.zone === 'hall' || A.zone === 'city';
+    const storm = opts.storm, hall = A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid';
     const fogD = hall ? 0.009 : 0.0015 + storm * 0.0100, fogC = hall ? [0.07, 0.12, 0.16] : [0.72 + (0.81 - 0.72) * storm * 0.65, 0.80 + (0.85 - 0.80) * storm * 0.65, 0.83 + (0.85 - 0.83) * storm * 0.65];
     // lights: nearest active N
     const lights = world.lights.filter(live).map((L) => ({ L, k: lightState(L), d: Math.hypot(L.x - eye[0], L.y - eye[1], L.z - eye[2]) }))
@@ -870,7 +889,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         items.push({ e, pr, m, d: Math.hypot(dx, dz), decal: !!ex.a3d_decal, blend: pr.mat.blend || ex.a3d_group === 'glyph', additive: ex.a3d_group === 'glyph' });
       }
     }
-    if (npc.model && !A.state.inHall) {
+    if (npc.model && !curLayer()) {
       poseNPC();
       const d = Math.hypot(npc.x - eye[0], npc.z - eye[2]);
       for (const n of npc.model.nodes) {
@@ -1012,7 +1031,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       return buildModel(name, buf);
     }));
     for (const m of results) A.models[m.name] = m;
-    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall'); if (A.models.helikon_city) harvest(A.models.helikon_city, 'city');
+    harvest(A.models.station); harvest(A.models.ice_cave); if (A.models.helikon_hall) harvest(A.models.helikon_hall, 'hall'); if (A.models.helikon_city) harvest(A.models.helikon_city, 'city'); if (A.models.helikon_grid) harvest(A.models.helikon_grid, 'grid');
     if (A.models.fp_hands) { const arm = document.getElementById('arm'); if (arm) arm.style.display = 'none'; }
     npc.model = A.models.explorer;
     const p0 = world.path[0]; if (p0) { npc.x = p0.x; npc.z = p0.z; }
@@ -1093,6 +1112,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   // (microtask) the objective, distance and temperature are overwritten while a chapter 3 step is live.
   function ch3Goal(p) {
     const S = A.state;
+    if (S.ch4 && !S.ch5) return ch5Goal(p);
+    if (S.ch5) return { text: 'TAMAMLANDI · ' + (LOADS[S.load5] || ['—'])[0] + ' · DEVAMI: BÖLÜM 6', d: null, ch: 5 };
     if (S.inCity) { const g = cityGoal(); return g && { text: g[0], d: g[1] ? Math.hypot(g[1].x - p.x, g[1].z - p.z) : 0, ch: 4 }; }
     if (!S.ch2 || !S.tutorial.hall || S.ch4) return null;
     let text, id;
@@ -1119,10 +1140,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (!g && hudSaved) { for (const id of ids) if ($(id) && hudSaved[id] !== undefined) $(id).textContent = hudSaved[id]; hudSaved = null; }
     if (g) {
       if ($('missionName')) $('missionName').textContent = 'BÖLÜM ' + g.ch + ' · ' + g.text;
-      if ($('distance')) $('distance').textContent = Math.round(g.d) + ' m';
-      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inCity ? 'HELIKON HAVZASI · BUZ ALTI GÖLÜ' : A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : 'BÖLÜM 3 · HELIKON KAPISI';
+      if ($('distance')) $('distance').textContent = g.d == null ? '—' : Math.round(g.d) + ' m';
+      if ($('objectiveHint')) $('objectiveHint').textContent = A.state.inGrid ? 'İLETİM GALERİSİ · BUZUN 36 m ALTI' : A.state.inCity ? 'HELIKON HAVZASI · BUZ ALTI GÖLÜ' : A.state.inHall ? 'HELIKON SALONU · BUZUN 30 m ALTI' : g.ch === 5 ? 'BÖLÜM 5 · İLK TEMAS · MART' : 'BÖLÜM 3 · HELIKON KAPISI';
     }
     if (A.state.inCity && $('temperature')) $('temperature').textContent = '−4°C';
+    if (A.state.inGrid && $('temperature')) $('temperature').textContent = time < blackoutUntil ? '−18°C' : A.state.grid5 ? '+9°C' : '+4°C';
     if (A.state.inHall && $('temperature')) {
       const v = anchor('vent'), dv = v ? Math.hypot(v.x - p.x, v.z - p.z) : 99;
       $('temperature').textContent = '−' + Math.round(dv < 3.2 ? 9 : dv < 7 ? 9 + (dv - 3.2) / 3.8 * 32 : 41) + '°C';
@@ -1189,8 +1211,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     E.save?.();
     return 'KRİSTAL KÖPRÜ SUDAN YÜKSELDİ · Şehrin pencereleri aydınlandı';
   }
-  function endCard(key) {
-    const [title, body] = ENDINGS[key];
+  function endCard(key) { const [title, body] = ENDINGS[key]; showCard('BÖLÜM 4 · ÜÇ CEVAP', title, body, 'Devamı: Bölüm 5 · “İlk Temas” — Mart, son uçak.'); }
+  function showCard(kicker, title, body, next) {
     let el = document.getElementById('a3dEndCard');
     if (!el) {
       el = document.createElement('div'); el.id = 'a3dEndCard';
@@ -1200,10 +1222,10 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     document.exitPointerLock?.();
     el.innerHTML = '';
     const box = document.createElement('div'); box.style.cssText = 'max-width:620px;text-align:center';
-    const k = document.createElement('div'); k.textContent = 'BÖLÜM 4 · ÜÇ CEVAP'; k.style.cssText = 'letter-spacing:3px;font-size:11px;color:#8fd7e6;margin-bottom:10px';
+    const k = document.createElement('div'); k.textContent = kicker; k.style.cssText = 'letter-spacing:3px;font-size:11px;color:#8fd7e6;margin-bottom:10px';
     const h = document.createElement('div'); h.textContent = title; h.style.cssText = 'font:800 30px system-ui;letter-spacing:4px;margin-bottom:14px;color:#ffd3a3';
     const pTxt = document.createElement('p'); pTxt.textContent = body;
-    const nx = document.createElement('p'); nx.textContent = 'Devamı: Bölüm 5 · “İlk Temas” — Mart, son uçak.'; nx.style.cssText = 'color:#8fb9c4;font-size:12px;margin-top:14px';
+    const nx = document.createElement('p'); nx.textContent = next; nx.style.cssText = 'color:#8fb9c4;font-size:12px;margin-top:14px';
     const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'DEVAM';
     btn.style.cssText = 'margin-top:18px;min-height:44px;padding:8px 26px;border-radius:8px;border:1px solid #b7e7ef99;background:#0d3346;color:#fff;font:700 13px system-ui;pointer-events:auto';
     btn.addEventListener('click', () => el.remove());
@@ -1244,6 +1266,175 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     if (S.voice < 3) return ['KRİSTAL KULEYİ DİNLE · ' + S.voice + '/3', anchor('spire')];
     return ['CEVABINI SEÇ', anchor('spire')];
   }
+
+  /* ------------------------------------------------------------ chapter 5: first contact ("İlk Temas") */
+  // March: the season's last aircraft leaves and nobody can fly in for ~6 months. The station's diesel
+  // will not last the polar night, so the player couples the station to the Helikon geothermal network
+  // through a gallery under the hall's heat well. Paralleling two AC sources needs equal voltage,
+  // frequency and phase sequence, and the breaker may only close near zero phase angle (synchroscope
+  // needle at 12 o'clock); anything else trips the protection relay — a blackout in the gallery.
+  const DIAL_SPEC = [
+    { name: 'GERİLİM', opts: ['230 V', '400 V', '690 V', '11 kV'], want: 1 },
+    { name: 'FREKANS', opts: ['3,17 Hz', '48 Hz', '50 Hz', '60 Hz'], want: 2 },
+    { name: 'FAZ SIRASI', opts: ['L1-L2-L3', 'L1-L3-L2', 'L2-L1-L3'], want: 0 },
+  ];
+  const SYNC_RPS = 0.3, SYNC_WINDOW = 20;   // needle turns at 0.3 rev/s (slip); close within ±20°
+  const LOADS = {
+    tam: ['TAM YÜK', 'Şalteri tam yüke aldın: 60 kW istasyona akıyor. Işıklar, seralar, lab — her şey çalışıyor. Ama galerideki iletkenlerin ışığı sarardı; göl havzasındaki ısı kuyuları soğumaya başladı. Kristal çekirdek tek bir sembol yineliyor: ◇ — “siz”.'],
+    denge: ['PAYLAŞ', 'Yükü 35 kW’a ayarladın. İstasyon kışı idareli geçirecek, Helikon kuyuları da sıcak kalacak. Çekirdek iki sembolü birlikte gösteriyor: ◆ ◇ — “biz, siz”. Bir anlaşmaya benziyor.'],
+    sinir: ['SINIRLI YÜK', 'Yükü 20 kW’ta tuttun: istasyon yalnızca ısınma ve telsizle yaşayacak. Selin’in sesi telsizde gergin: “Konsorsiyum bunu bir tercih olarak görecek.” Çekirdek ◆ ≈ gösteriyor — “biz, su”. Kaan gülümsüyor.'],
+  };
+  let sync5 = null, blackoutUntil = 0, syncEl = null;
+  const dialPulse = [0, 0, 0];
+  const dialOk = () => A.state.dials.every((v, i) => v === DIAL_SPEC[i].want);
+  function syncAngle() { if (!sync5) return null; const a = ((time - sync5.t0) * SYNC_RPS * 360 + 180) % 360; return a > 180 ? a - 360 : a; }
+  function lastPlane() {
+    const S = A.state;
+    tone(392, 0.5, 'square', 0.06, 1.0);
+    choice('TELSİZ · PİLOT: “Kayaklı Basler pistte, 40 dakika sonra kalkıyoruz. Bu sezonun son uçağı — Ekim’e kadar kimse gelemez. Biniyor musun?”',
+      [['kal', 'Kal — kışı istasyonda geçir'], ['git', 'Uçağa bin']], (k) => {
+        if (k === 'git') {
+          S.left5++; E.save?.();
+          journal('BÖLÜM 5 — AYRILIŞ', 'Uçak kalktı. Rapora yazdıklarına kimse inanmadı: “Buz altında bir şehir.” Ekim’de ilk uçakla dönüldüğünde istasyonun ışıkları sönüktü, ısı kuyusu soğuktu.');
+          showCard('BÖLÜM 5 · İLK TEMAS', 'AYRILIŞ', 'Uçağa bindin. Altı ay boyunca Helikonlar hakkında bildiklerin bir rapor dosyasında kaldı. Ekim’de dönen ekip istasyonu boş, ısı kuyusunu soğuk buldu. Ne olduğunu kimse bilmiyor.', 'Bu bir son. Telsize yeniden gidersen son anda kalmayı seçebilirsin.');
+          return;
+        }
+        S.plane5 = 1; tone(196, 2.4, 'sine', 0.16, 0.7); flash('255,220,170', 0.4);
+        const news = { sus: 'Sinyali kapatmıştım ama uydu kaydı sızdı; haber ajansları “86° Güney’den bilinmeyen yayın” diye yazıyor.', cevap: 'Cevabımız dünyaya ulaştı; ajanslar 03:17 kaydını yayımlıyor.', gec: 'Telsiz hâlâ benim sesimle “Sinyali kapatmayın” diyor; kayıt bütün ajanslarda.' }[S.ending4] || '';
+        journal('BÖLÜM 5 — İLK TEMAS', 'Uçak kalktı, ben kaldım. Kış boyunca (≈6 ay) kıtaya uçuş yok. ' + news + ' Uplink’ten: Antarktika Antlaşması Danışma Toplantısı olağanüstü oturumda. Bazı taraflar, 1991 Madrid Protokolü’nün maden kaynakları yasağının (Madde 7) “bilinmeyen bir enerji kaynağını” kapsamadığını savunuyor. Konsorsiyum diğer istasyonlarını boşaltıyor.');
+        journal('KIŞLAMA — YAKIT HESABI', 'Tankta 16.000 litre Antarktika dizeli var. 60 kVA jeneratör kış yükünde saatte ~8 litre yakıyor: 2.000 saat, yani 83 gün. Kutup gecesi ~180 gün. Eksik: 97 gün. Kaan: “Isı kuyusunun altında bir iletim galerisi var. Helikonların enerjisi oradan geçiyor. Senin sondaj kuyun galerinin tavanına çıkıyor.”');
+        E.save?.();
+        E.toast('BÖLÜM 5 · İLK TEMAS · Uçak kalktı · Yakıt 83 gün · Salondaki ISI KUYUSUNDAN galeriye in');
+      });
+    return null;
+  }
+  function enterGrid() {
+    const S = A.state, sp = anchor('grid_spawn'), p = E.player; if (!sp) return null;
+    S.inHall = false; S.inGrid = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = -0.05; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z); sync5 = null;
+    flash('255,190,120', 0.8); tone(98, 2.2, 'sine', 0.16, 1.4); noiseBurst(1.4, 300, 90, 0.14, 1.6);
+    if (!S.tutorial.grid) {
+      S.tutorial.grid = 1;
+      journal('İLETİM GALERİSİ', 'Isı kuyusundaki merdiven 12 metre aşağı, oyulmuş bir galeriye iniyor. Duvarlarda ışıyan iletkenler; hava +4°C — geotermal ısı. Galerinin sonunda bir çekirdek ve tavanı delip geçen çelik bir boru: bizim 840 metrelik sondaj kuyumuz. Selin kabloyu oradan sarktı.');
+    }
+    E.save?.();
+    return 'BÖLÜM 5 · İLETİM GALERİSİ · +4°C · Galerinin sonunda istasyon kablosu';
+  }
+  function exitGrid() {
+    const S = A.state, v = anchor('vent'), p = E.player; if (!v) return null;
+    S.inGrid = false; S.inHall = true; p.x = v.x + 0.6; p.z = v.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
+    A.zone = zoneAt(p.x, p.z); sync5 = null;
+    flash('255,190,120', 0.6); tone(220, 1.0, 'sine', 0.12, 0.7);
+    E.save?.();
+    return 'HELIKON SALONU · Isı kuyusundan çıktın';
+  }
+  function dialText(i) { const d = DIAL_SPEC[i]; return 'DÜĞÜM ' + (i + 1) + ' · ' + d.name + ': ' + d.opts[A.state.dials[i]]; }
+  function turnDial(i) {
+    const S = A.state;
+    if (S.grid5) return dialText(i) + ' · Kilitli (şebeke bağlı)';
+    if (time < blackoutUntil) return 'KARARTMA · Düğümler enerjisiz';
+    S.dials[i] = (S.dials[i] + 1) % DIAL_SPEC[i].opts.length; dialPulse[i] = time + 0.5; sync5 = null;
+    tone(330 + 60 * S.dials[i], 0.18, 'triangle', 0.08, 1.0); noiseBurst(0.12, 1800, 900, 0.05, 0.6);
+    E.save?.();
+    return dialText(i) + ' · E: sonraki kademe';
+  }
+  function connectCable() {
+    const S = A.state;
+    if (S.cable5) return 'İSTASYON KABLOSU · Bağlı · 400 V / 50 Hz hat panele geliyor';
+    S.cable5 = 1; tone(220, 0.4, 'square', 0.08, 1.0); noiseBurst(0.4, 600, 300, 0.12, 0.8);
+    journal('İSTASYON KABLOSU', 'Zırhlı kabloyu sondaj kuyusundan gelen makaradan bağlantı kutusuna taktım. Panelde istasyon tarafı canlandı: 400 V, 50 Hz, faz sırası L1-L2-L3. Helikon tarafını üç düğümle buna eşlemem lazım — gerilim, frekans, faz sırası. Ancak üçü de tutunca ve senkronoskobun ibresi saat 12’deyken şalteri kapatabilirim.');
+    E.save?.();
+    return 'KABLO BAĞLANDI · İstasyon hattı canlı · Senkronoskop panelini oku';
+  }
+  function syncReadout() {
+    const S = A.state;
+    return 'İSTASYON 400 V · 50 Hz · L1-L2-L3 | HELIKON ' + S.dials.map((v, i) => DIAL_SPEC[i].opts[v]).join(' · ');
+  }
+  function trip(reason) {
+    const p = E.player; sync5 = null; blackoutUntil = time + 6;
+    p.warmth = Math.max(0, (p.warmth ?? 100) - 15);
+    tone(70, 1.6, 'sawtooth', 0.14, 0.5); noiseBurst(1.8, 2600, 120, 0.3, 0.9); flash('10,20,30', 0.95);
+    if (!A.state.tutorial.trip) { A.state.tutorial.trip = 1; journal('KORUMA RÖLESİ', 'Şalter attı, galeri karardı. Röle ekranı: ' + reason + '. İki şebeke birbirine uymazken bağlanırsa ani akım jeneratörü de, iletkenleri de yakabilir; röle bu yüzden açıyor.'); }
+    return 'KARARTMA · KORUMA RÖLESİ AÇTI · ' + reason + ' · Soğuk dalgası';
+  }
+  function syncPanel() {
+    const S = A.state;
+    if (S.grid5 && !S.load5) { loadChoice(); return null; }
+    if (S.grid5) return 'ŞEBEKE BAĞLI · ' + LOADS[S.load5][0] + ' · Çekirdek sıcak';
+    if (!S.cable5) return 'SENKRONOSKOP · İstasyon hattı bağlı değil · Sondaj kuyusundaki kabloyu bağla';
+    if (time < blackoutUntil) return 'KARARTMA · Röle kendini sıfırlıyor…';
+    if (!sync5) {
+      const bad = DIAL_SPEC.map((d, i) => (S.dials[i] === d.want ? null : d.name)).filter(Boolean);
+      if (bad.length) return trip(bad[0] + ' UYUŞMUYOR');
+      sync5 = { t0: time }; tone(523, 0.3, 'sine', 0.1, 1.0);
+      return 'SENKRONİZASYON · ' + syncReadout() + ' · İbre saat 12’ye gelince E (şalteri kapat)';
+    }
+    const ang = Math.round(syncAngle());
+    if (Math.abs(ang) > SYNC_WINDOW) return trip('FAZ AÇISI ' + Math.abs(ang) + '° · ani akım');
+    sync5 = null; S.grid5 = true;
+    tone(130.8, 3.0, 'sine', 0.2, 1.5); tone(261.6, 2.4, 'triangle', 0.06, 1.5); flash('150,235,255', 0.85);
+    journal('ŞEBEKE BAĞLANDI', 'İbre tepedeyken şalteri kapattım (faz açısı ' + Math.abs(ang) + '°). İki şebeke aynı ritimde. İletkenler parladı, çekirdek ilk kez bize dönük bir desen gösterdi: ◆ ≈ ◇ — “biz · su · siz”. İlk temas bu mu?');
+    E.save?.();
+    loadChoice();
+    return 'ŞALTER KAPANDI · İKİ ŞEBEKE SENKRON · Çekirdek bir desen gösteriyor: ◆ ≈ ◇';
+  }
+  function loadChoice() {
+    const S = A.state;
+    const kaan = S.kaanTrust > 0 ? 'KAAN (kristal ağından): “Selin’e güvendiğini biliyorum. Ama bu ısı şehrin kalbi.”' : 'KAAN (kristal ağından): “Haklıydın: konsorsiyum ısının hepsini isteyecek. Şehrin kuyuları soğursa onlar da cevap verir.”';
+    choice('TELSİZ · SELİN: “Tam yük ver, kışı rahat geçirelim.” · ' + kaan + ' — Şebekeden ne kadar çekeceksin?',
+      [['tam', 'Tam yük — 60 kW (Selin)'], ['denge', 'Paylaş — 35 kW'], ['sinir', 'Sınırlı — 20 kW (Kaan)']], finale5);
+  }
+  function finale5(key) {
+    const S = A.state;
+    S.ch5 = true; S.load5 = key;
+    tone(key === 'tam' ? 110 : key === 'denge' ? 196 : 262, 3.0, 'sine', 0.18, key === 'tam' ? 0.7 : 1.4); flash('255,220,170', 0.7);
+    journal('BÖLÜM 5 — YÜK: ' + LOADS[key][0], LOADS[key][1]);
+    E.save?.();
+    showCard('BÖLÜM 5 · İLK TEMAS', LOADS[key][0], LOADS[key][1], 'Devamı: Bölüm 6 · “Kış Ablukası” — Haziran, kutup gecesi.');
+  }
+  function talkCore() {
+    const S = A.state;
+    if (S.ch5) return 'HELIKON ÇEKİRDEĞİ · ' + { tam: '◇ … ◇ … (soğuyor)', denge: '◆ ◇ (sabit, sıcak)', sinir: '◆ ≈ (sakin)' }[S.load5];
+    if (S.grid5) return 'HELIKON ÇEKİRDEĞİ · ◆ ≈ ◇ — ' + symText(0) + ' · ' + symText(3) + ' · ' + symText(1);
+    tone(147, 0.8, 'sine', 0.1, 1.02);
+    return 'HELIKON ÇEKİRDEĞİ · Yavaş bir nabız · İki şebeke ayrık: bağlantı galerinin sonundaki panelden';
+  }
+  function syncUpdate(p) {
+    const on = !!sync5 && A.state.inGrid;
+    if (on) {
+      const s = anchor('sync');
+      if (!s || Math.hypot(p.x - s.x, p.z - s.z) > 3.5 || time - sync5.t0 > 30) sync5 = null;
+    }
+    if (!sync5) { if (syncEl) { syncEl.remove(); syncEl = null; } return; }
+    if (!syncEl) {
+      syncEl = document.createElement('canvas'); syncEl.id = 'a3dSync'; syncEl.width = 160; syncEl.height = 160;
+      syncEl.style.cssText = 'position:fixed;left:50%;top:14%;transform:translateX(-50%);width:120px;height:120px;z-index:29000;pointer-events:none';
+      document.body.appendChild(syncEl);
+    }
+    const c = syncEl.getContext('2d'), a = syncAngle() * Math.PI / 180;
+    c.clearRect(0, 0, 160, 160);
+    c.fillStyle = '#0a0e10e0'; c.beginPath(); c.arc(80, 80, 76, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#ddddcc'; c.lineWidth = 3; c.stroke();
+    c.fillStyle = '#2aa04a'; c.beginPath(); c.moveTo(80, 80); c.arc(80, 80, 70, -Math.PI / 2 - SYNC_WINDOW * Math.PI / 180, -Math.PI / 2 + SYNC_WINDOW * Math.PI / 180); c.fill();
+    c.strokeStyle = '#ffcf80'; c.lineWidth = 5; c.beginPath(); c.moveTo(80, 80); c.lineTo(80 + 62 * Math.sin(a), 80 - 62 * Math.cos(a)); c.stroke();
+    c.fillStyle = '#e8e8dc'; c.font = '700 13px system-ui'; c.textAlign = 'center'; c.fillText('E', 80, 132);
+  }
+  function ch5Goal(p) {
+    const S = A.state;
+    let text, id;
+    if (!S.plane5) {
+      text = 'SON UÇAK KALKIYOR · TELSİZE GİT';
+      id = S.inCity ? 'city_exit' : S.inHall ? 'hall_exit' : S.inGrid ? 'grid_exit' : 'radio';
+    } else if (!S.inGrid) {
+      text = 'ISI KUYUSUNDAN İLETİM GALERİSİNE İN';
+      id = S.inCity ? 'city_exit' : S.inHall ? 'vent' : 'glyph';
+    } else if (!S.cable5) { text = 'İSTASYON KABLOSUNU BAĞLA'; id = 'cable'; }
+    else if (S.grid5) { text = 'YÜKÜ SEÇ'; id = 'sync'; }
+    else if (!dialOk()) { text = 'DÜĞÜMLERİ İSTASYONA EŞLE · ' + S.dials.filter((v, i) => v === DIAL_SPEC[i].want).length + '/3'; id = S.dials.map((v, i) => (v === DIAL_SPEC[i].want ? null : 'j' + (i + 1))).filter(Boolean)[0]; }
+    else { text = 'ŞALTERİ KAPAT · İBRE SAAT 12’DEYKEN'; id = 'sync'; }
+    const a = anchor(id);
+    return { text, d: a ? Math.hypot(a.x - p.x, a.z - p.z) : 0, ch: 5 };
+  }
   function enterHall() {
     const S = A.state, sp = anchor('hall_spawn'), p = E.player; if (!sp) return null;
     S.inHall = true; p.x = sp.x; p.z = sp.z; p.yaw = 0; p.pitch = 0; p.spdX = 0; p.spdZ = 0;
@@ -1264,7 +1455,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     E.save?.();
     return 'BUZ MAĞARASI · Kapı arkanda açık kaldı';
   }
-  function hallPressure() { return !A.ready ? 0 : A.state.inHall ? 0.3 : A.state.inCity ? 0.04 : 0; }
+  function hallPressure() { return !A.ready ? 0 : A.state.inGrid ? (time < blackoutUntil ? 0.35 : 0) : A.state.inHall ? 0.3 : A.state.inCity ? 0.04 : 0; }
   function steleText(i) { const d = STELES[i]; return 'TAŞ STEL ' + (i + 1) + ' · ' + d.name + ' TAKIMYILDIZI · Saat işareti ' + d.time; }
   function readStele(i) {
     const S = A.state;
@@ -1377,10 +1568,11 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     chapter2Pressure,
     hallPressure,
-    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
+    syncAngle,
+    snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
-    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '' }); if (A.state.power) startHum(); },
-    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', tutorial: {} }; },
+    restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '', inGrid: !!s.inGrid, plane5: s.plane5 | 0, left5: s.left5 | 0, cable5: s.cable5 | 0, dials: s.dials || [2, 0, 1], grid5: !!s.grid5, ch5: !!s.ch5, load5: s.load5 || '' }); sync5 = null; blackoutUntil = 0; if (A.state.power) startHum(); },
+    resetState() { if (staticNode) staticNode.gain.value = 0; A.state = { power: false, freqIndex: -1, freqSolved: false, crystals: 0, caveSolved: false, labRead: false, artifact: false, drill: false, glyphRead: false, bb: [0, 0, 0, 0], bbSeen: [0, 0, 0, 0], ch2: false, inHall: false, ch3: false, kaanSeen: false, kaanFree: false, kaanTalk: 0, kaanTrust: 0, heatCell: 0, steles: [0, 0, 0, 0, 0], stars: [], inCity: false, ch4: false, syms: [0, 0, 0, 0, 0, 0], stones: [0, 0, 0], bridge: false, voice: 0, ending4: '', inGrid: false, plane5: 0, left5: 0, cable5: 0, dials: [2, 0, 1], grid5: false, ch5: false, load5: '', tutorial: {} }; },
     world,
     diagnostics() {
       return { status: A.status, error: A.error, loadMs: A.loadMs, zone: A.zone, state: A.serialize(), stats: { ...A.stats }, textureMB: +((A.texBytes || 0) / 1048576).toFixed(1),
