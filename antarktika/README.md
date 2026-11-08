@@ -71,6 +71,7 @@ node antarktika/tools/touch_test.cjs           # dokunmatik kontroller (mobil em
 node antarktika/tools/chapter2_test.cjs        # Bölüm 2: kara kutu görevi + kayıt
 node antarktika/tools/chapter3_test.cjs [çıktı] # Bölüm 3: HELIKON salonu, Kaan, steller, kayıt
 node antarktika/tools/chapter4_test.cjs [çıktı] # Bölüm 4: göl havzası, kristal dili, köprü, üç cevap, kayıt
+node antarktika/tools/chapter7_test.cjs [çıktı] # Bölüm 7: kule saati 03:17, güven puanı, üç son (Antlaşma/Mühür/Döngü), sonlar galerisi, déjà vu, kayıt
 node antarktika/tools/chapter6_test.cjs [çıktı] # Bölüm 6: kamp, termal dronlar, pompa (su darbesi), röle, asker, iki son metni, kayıt
 node antarktika/tools/chapter5_test.cjs [çıktı] # Bölüm 5: son uçak, iletim galerisi, kablo, düğümler, karartma, senkronoskop, yük seçimi, kayıt
 node antarktika/tools/hall_shots.cjs  <çıktı>   # Bölüm 3 salonu + Bölüm 4 havzasından oyun içi kareler

@@ -24,6 +24,7 @@
 | `tools/chapter4_test.cjs` | 19/19 ✔ | Bölüm 4 göl havzası: kapı kilidi, katman yalıtımı, teras/rampa zemini, köprüden önce göl kenarı engeli, sembol taşları (E ve tarayıcı), köprü + zemin, eksik sembolde çevrilmeyen cümle, 3 seçenekli cevap + bölüm sonu kartı, dönüş, kayıt/devam |
 | `tools/chapter5_test.cjs` | 26/26 ✔ | Bölüm 5 ilk temas: görev telsize yönlendirir, son uçak (bin = geri alınabilir son, kal = bölüm başlar), ısı kuyusu → galeri katmanı, galeri duvarları ve uzunluğu, +4°C, kablo şartı, uyumsuz düğümde koruma rölesi (karartma, −18°C, vücut ısısı düşer), düğüm ayarı, senkronoskop (yanlış açıda röle, saat 12'de bağlantı), Selin/Kaan yük seçimi + bölüm sonu kartı, +9°C, çekirdek cevabı, render, merdivenle dönüş, kayıt/devam |
 | `tools/chapter6_test.cjs` | 23/23 ✔ | Bölüm 6 kış ablukası: görev çekirdeğe yönlendirir, katman yalıtımı, tünel + kubbe duvarı (elips kısıtı), −11°C, dron menzili (sıcak/soğuk/siper), devriye hareketi, yakalanıp tünele dönüş, su darbesi ile temiz pompa kapanışı, röle, asker seçimi (ısı −30), iki farklı son metni, kayıt/devam |
+| `tools/chapter7_test.cjs` | 20/20 ✔ | Bölüm 7 (03:17): kuleye yönlendirme, telsiz, kule saati (erken/geç/uzaklaşma), güven 4/4 ile 3 seçenek, 0/4 ile Antlaşma kapalı, üç son metni, sonlar galerisi 3/3, yeni oyunda déjà vu, render, kayıt/devam |
 
 Bu turda bulunup düzeltilen hatalar:
 - Seçim paneli açılırken fare imleci tuvale kilitli kalıyordu (masaüstünde düğmeler tıklanamıyordu); panel artık kilidi bırakıyor.

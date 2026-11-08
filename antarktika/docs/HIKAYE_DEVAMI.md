@@ -88,16 +88,21 @@ Hedef yaş derecelendirmesi 12+.
   değişir. Bölüm 7'nin başlangıç koşulları.
 - **Şiddet sınırı:** Ekranda çatışma yok; dronlar silahsız, yakalanma = tünele geri dönüş.
 
-## Bölüm 7 · "03:17" — Ağustos, ilk güneş
-- Helikonlar son çare olarak kıyı buz sahanlığını yarmaya hazırlanır (küresel deniz seviyesi tehdidi). Koalisyon kıtadaki varlığını tahliye etmekle tehdit edilir.
-- Yayının sırrı çözülür: 03:17 kaydını yapan, bu son gecedeki oyuncunun kendisidir; kristal rezonans sinyali 72 saat geriye taşır.
-- **Sonlar** (`ending`, kayıtta; ana menüde sonlar galerisi):
-  1. **Antlaşma** — Kristal sözlük tamam + Kaan ve Selin hayatta: oyuncu uplink'ten ATCM'ye canlı bağlanır; Helikon havzası Madrid Protokolü kapsamında "korunan alan" ilan edilir. Gerçek dünyanın aracıyla barış.
-  2. **Mühür** — Şehir kendini 4 km buzun altına gömer; koalisyon çekilir, dünya olanları "sondaj kazası" diye bilir. Oyuncunun günlüğü tek tanık.
-  3. **Döngü** — Sahanlık yarılır; oyuncu yayını gönderir ve 03:17'ye, ilk geceye geri döner (New Game+: önceki bilgiler günlükte "déjà vu" notları olarak kalır).
+## Bölüm 7 · "03:17" — Ağustos, ilk güneş — UYGULANDI (`js/a3d.js`, test: `tools/chapter7_test.cjs`)
+- **Durum:** Helikonlar kıyı buz sahanlığını yarmaya hazırlanır (küresel deniz seviyesi tehdidi), koalisyon tahliye eder. Telsiz oyuncuyu Bölüm 4'teki kristal kuleye çağırır.
+- **Sırrın çözümü:** Telsizdeki 03:17 sesi oyuncunun kendi sesidir; kulenin kristal rezonansı sözü 72 saat geriye taşır. Kule başında günlüğe düşer.
+- **Mekanik — kule saati:** Kuleye ilk E bir saat başlatır (03:10 → 03:24, saniyede bir dakika, ekranda büyük saat). Yayın, saat 03:17'yi (±0,9 dk) gösterirken E'ye basılarak başlatılır;
+  erken ya da geç basınca saat yeniden başlar, kuleden uzaklaşmak da saati sıfırlar.
+- **Güven puanı (0–4):** Önceki bölümlerdeki seçimlerden gelir: asker kurtarıldı mı (Bölüm 6), kerosen sızıntısı yok mu, yük tam çekilmedi mi (Bölüm 5), en çok bir kez yakalandın mı.
+  Antarktika Antlaşması kararları konsensüsle alınır; güven burada para birimidir.
+- **Sonlar (`ending7`, kayıtta; `localStorage` sonlar galerisi, "Açılan sonlar n/3"):**
+  1. **Antlaşma** — yalnızca güven ≥ 3 iken sunulur: ATCM'ye canlı bağlanılır; havza, Madrid Protokolü Ek V kapsamında özel korunan alan ilan edilir, sondaj durur, ortak bilim komisyonu kurulur.
+  2. **Mühür** — şehir kendini 4 km buzun altına gömer; koalisyon "sondaj kazası" der; oyuncunun günlüğü tek tanık.
+  3. **Döngü** — yayın 72 saat geriye gider; yeni oyunda günlükte "déjà vu" notu belirir.
+- Üç son da bölüm sonu kartıyla kapanır; oyun tamamlanınca HUD "OYUN TAMAMLANDI · SON: …" der.
 
 ## Bölüm sonrası
-- Bölüm 4 ana sürümle; 5–7 ücretsiz güncellemeler olarak (her biri bir "yeni bölüm" mağaza öne çıkarması).
+- Bölümler 1–7 oyunda tamam. Mağazada Bölüm 4–7 "ücretsiz güncelleme" olarak öne çıkarılabilir (karar sahibinin).
 - Her bölüm: 1 yeni Blender mekânı + 1 yeni mekanik + test betiği + kayıt alanları.
 
 ## Teknik yol
