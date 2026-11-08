@@ -12,7 +12,7 @@ separate folder to look at.
 The camcorder: auto-exposure that settles after power-on, tungsten light only half corrected, sensor noise heavier in
 the shadows with blotchy colour noise, 4:1:1 colour smear, edge-enhancement halos, a soft SD picture blown up to HD,
 a cheap zoom lens (barrel, colour fringes, vignette, glow round the bulb), and the on-screen display: REC, tape
-counter, battery, date and time (02:51, the minute the game's own camcorder clock starts).
+counter, battery, zoom bar while zooming, date and time (02:51, the minute the game's own camcorder clock starts).
 The turn: a tape glitch, then the picture is re-drawn from the top down as the game, the front a line of blocks.
 Needs numpy, Pillow and opencv-python-headless.
 """
@@ -37,6 +37,8 @@ ap.add_argument('--preview')
 a = ap.parse_args()
 P = json.load(open(a.path))
 FPS, REAL, TURN = P['fps'], P['real'], P['turn']
+ZOOM = P.get('zoom') or []
+ZMAX = 10.0                                            # the bar's tele end: a cheap camcorder's 10x optical zoom
 rng = np.random.default_rng(2028)
 
 
@@ -77,6 +79,15 @@ def osd(img, i, alpha=1.0, flicker=False):
         for b in range(3):
             d.rectangle((x + 12 + b * 35, y + 11, x + 38 + b * 35, y + 33), fill=(238, 238, 232, a8))
         txt((1660, 160), 'SP', F_SMALL)
+        z = ZOOM[i] if i < len(ZOOM) else 1.0
+        near = [ZOOM[j] for j in range(max(0, i - FPS * 3 // 2), min(len(ZOOM), i + 1))]
+        if max(near, default=1.0) > 1.01:              # the zoom bar, while zooming and a moment after
+            x0, x1, y = 760, 1160, 128
+            txt((x0 - 46, y - 30), 'W', F_SMALL)
+            txt((x1 + 18, y - 30), 'T', F_SMALL)
+            d.rectangle((x0, y - 4, x1, y + 4), outline=(238, 238, 232, a8), width=3)
+            k = x0 + (x1 - x0) * (z - 1) / (ZMAX - 1)
+            d.rectangle((k - 6, y - 22, k + 6, y + 22), fill=(238, 238, 232, a8))
         clock = 2 * 3600 + 51 * 60 + 4 + int(t)
         txt((120, 900), '07.11.2028', F_SMALL)
         txt((120, 954), f'{clock // 3600:02d}:{clock // 60 % 60:02d}:{clock % 60:02d}', F_SMALL)

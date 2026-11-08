@@ -148,6 +148,8 @@ for name, size, blend, share in (("torch_spill", 2 * T["angle"], T["penumbra"], 
     scene.collection.objects.link(so)
 
 path = json.load(open(opt["path"]))
+zoom = path.get("zoom") or [1.0] * len(path["frames"])
+half = math.tan(math.radians(data["fov"]) / 2)
 prev = None
 for f, (x, y, z, yaw, pitch, roll) in enumerate(path["frames"]):
     mt = Matrix.Translation((x, y, z)) @ Matrix.Rotation(yaw, 4, "Y") @ Matrix.Rotation(pitch, 4, "X") @ Matrix.Rotation(roll, 4, "Z")
@@ -158,9 +160,12 @@ for f, (x, y, z, yaw, pitch, roll) in enumerate(path["frames"]):
     prev = e
     cam.keyframe_insert("location", frame=f + 1)
     cam.keyframe_insert("rotation_euler", frame=f + 1)
-for fc in cam.animation_data.action.fcurves:
-    for kp in fc.keyframe_points:
-        kp.interpolation = "LINEAR"
+    cd.angle_y = 2 * math.atan(half / zoom[f])          # the camcorder's zoom narrows the view
+    cd.keyframe_insert("lens", frame=f + 1)
+for fcs in (cam.animation_data.action.fcurves, cd.animation_data.action.fcurves):
+    for fc in fcs:
+        for kp in fc.keyframe_points:
+            kp.interpolation = "LINEAR"
 
 # ---- air: a little dust for the beam to show in ----
 world = bpy.data.worlds.new("night")
