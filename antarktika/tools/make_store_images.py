@@ -32,8 +32,17 @@ CAPTIONS = {
                  ("DR. SELİN", "The last voice of the team.", "Can you trust her?")),
     "g9_wide": (("ÇEVRİMDIŞI · REKLAMSIZ", "Tam kayıt, dokunmatik analog", "kontroller ve oyun kumandası."),
                 ("OFFLINE · NO ADS", "Full saves, analog touch", "controls and controller support.")),
+    "h1_hall_stars": (("TAŞ SALON", "İnsanlıktan eski bir yapı.", "Tavanındaki yıldızlar bir harita."),
+                      ("THE STONE HALL", "Older than humankind.", "The stars on its ceiling are a map.")),
+    "c1_city_bridge": (("BUZUN ALTINDAKİ ŞEHİR", "Dört kilometre buzun altında,", "bir gölün ortasında ışıklar yanıyor."),
+                       ("THE CITY UNDER THE ICE", "Four kilometres down, lights", "burn in the middle of a lake.")),
+    "gr2_sync": (("İKİ ŞEBEKEYİ EŞLE", "Senkronoskobu izle, doğru anda", "şalteri kapat. Kış geliyor."),
+                 ("COUPLE THE TWO GRIDS", "Watch the synchroscope, close the", "breaker in phase. Winter is coming.")),
+    "k1_camp_drone": (("SİLAHSIZSIN", "Termal dronlar sıcağı görür.", "Soğuk kal, gölgede yürü."),
+                      ("YOU ARE UNARMED", "Thermal drones see warmth.", "Stay cold. Stay in cover.")),
+    "t1_tower_clock": (("03:17", "Yedi bölüm, üç son.", "Saat geldiğinde ne yapacaksın?"),
+                       ("03:17", "Seven chapters, three endings.", "What will you do when the clock strikes?")),
 }
-
 
 def font(weight, size):
     return ImageFont.truetype(FONT.format(weight), size)

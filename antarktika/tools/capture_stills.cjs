@@ -2,7 +2,7 @@
  * Uses the same scripted shots as capture_gameplay.cjs: the game is stepped to time t of
  * each shot (firing its events on the way) and one frame is rendered at device scale 2.
  *
- * node tools/capture_stills.cjs <outDir> [--hq] [--size 1434x660] [--dsf 2] [--hud auto|on|off] [--shots id:t,id:t]
+ * node tools/capture_stills.cjs <outDir> [--hq] [--size 1434x660] [--dsf 2] [--hud auto|on|off] [--touch on|off] [--shots id:t,id:t]
  * Writes <outDir>/<nn>_<shot>.png (raw, no captions). Captions: tools/make_store_images.py
  * App Store 6.9": 1434x660 @2 = 2868x1320 · Steam: 1920x1080 @1 · Meta Quest: 1280x720 @2 = 2560x1440 */
 const { chromium } = require('playwright');
@@ -19,13 +19,14 @@ const STILLS = arg('--shots', DEFAULT).split(',').map((x) => { const [id, t] = x
 const [VW, VH] = arg('--size', '1434x660').split('x').map(Number);
 const DSF = +arg('--dsf', 2);
 const HUD = arg('--hud', 'auto');
+const TOUCH = arg('--touch', 'on') !== 'off';   // off: desktop/VR stores must not show the phone controls
 const STEP = 1 / 10;
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const srv = await serve(8773 + Math.floor(Math.random() * 50));
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF, hasTouch: true });
+  const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF, hasTouch: TOUCH });
   page.setDefaultTimeout(600000);
   await page.goto('http://localhost:' + srv.address().port + '/index.html?forcewebgl=1');
   await page.waitForFunction(() => window.ANTARKTIKA3D && ANTARKTIKA3D.status === 'ready', null, { timeout: 300000 });
