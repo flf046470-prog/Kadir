@@ -108,7 +108,7 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   check('other branch: hose burst, soldier left, spotted twice → different ending text', s.ch6 && s.soldier6 === 'leave' && /kerosen/.test(cardB) && /bıraktın/.test(cardB) && /2 kez/.test(cardB), { cardB: cardB.slice(0, 80) });
   await page.click('#a3dEndCard button');
   const goal6 = await hud('missionName');
-  check('HUD shows chapter 6 completed', /BÖLÜM 6 TAMAMLANDI/.test(goal6 || ''), goal6);
+  check('once chapter 6 is done the HUD hands over to chapter 7 (crystal tower)', /BÖLÜM 7/.test(goal6 || '') && /KRİSTAL KULE/.test(goal6 || ''), goal6);
 
   // ---- render, save/continue inside the camp, then leave through the tunnel
   await place(A.camp_spawn.x, A.camp_spawn.z, camp({ pump6: 2, relay6: 1, soldier6: 'save', ch6: true }));

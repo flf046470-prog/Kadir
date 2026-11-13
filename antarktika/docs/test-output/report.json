@@ -1,5 +1,5 @@
 {
-  "started": "2026-11-08T14:44:00.677Z",
+  "started": "2026-11-08T20:00:49.186Z",
   "checks": [
     {
       "name": "GLB models load (station, ice cave, explorer)",
@@ -7,7 +7,7 @@
       "detail": {
         "status": "ready",
         "error": null,
-        "loadMs": 3757
+        "loadMs": 8054
       }
     },
     {
@@ -24,7 +24,7 @@
         "from": 1.0382052410754008,
         "to": 2.759999990463257,
         "pos": [
-          12.38,
+          12.3,
           27
         ]
       }
@@ -34,7 +34,7 @@
       "ok": true,
       "detail": {
         "pos": [
-          23.92,
+          23.72,
           27
         ],
         "zone": "indoor"
@@ -101,13 +101,13 @@
       "ok": true,
       "detail": {
         "n0": {
-          "x": 27.81260787706905,
-          "z": 18.348438694919704,
+          "x": 27.664148076490967,
+          "z": 18.341172794931218,
           "clip": "Walk"
         },
         "n1": {
-          "x": 30.810733319669602,
-          "z": 18.490808752797566,
+          "x": 31.051046099863875,
+          "z": 18.502814596005674,
           "clip": "Walk"
         }
       }
@@ -202,6 +202,16 @@
           "grid5": false,
           "ch5": false,
           "load5": "",
+          "inCamp": false,
+          "pump6": 0,
+          "pumpP": 38,
+          "relay6": 0,
+          "soldier6": "",
+          "spill6": 0,
+          "spot6": 0,
+          "ch6": false,
+          "ch7": false,
+          "ending7": "",
           "tutorial": {
             "station": 1
           }
@@ -216,7 +226,7 @@
       "name": "three quality levels change render resolution",
       "ok": true,
       "detail": {
-        "loadMs": 3757,
+        "loadMs": 8054,
         "quality_low": {
           "canvas": [
             819,
@@ -224,7 +234,7 @@
           ],
           "draws": 51,
           "a3dLights": 2,
-          "fps": 1
+          "fps": 0
         },
         "quality_balanced": {
           "canvas": [
@@ -252,9 +262,9 @@
       "name": "01_station_exterior",
       "file": "01_station_exterior.png",
       "fps": 1,
-      "p95": 2799.9,
+      "p95": 4849.8,
       "draws": 51,
-      "tris": 85965,
+      "tris": 86055,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -263,10 +273,10 @@
     {
       "name": "02_airlock_dark",
       "file": "02_airlock_dark.png",
-      "fps": 2,
-      "p95": 2816.6,
+      "fps": 1,
+      "p95": 4599.8,
       "draws": 46,
-      "tris": 75855,
+      "tris": 75945,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -276,9 +286,9 @@
       "name": "03_lab_powered",
       "file": "03_lab_powered.png",
       "fps": 1,
-      "p95": 2799.9,
+      "p95": 4416.4,
       "draws": 40,
-      "tris": 55683,
+      "tris": 55773,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -288,9 +298,9 @@
       "name": "04_control_room",
       "file": "04_control_room.png",
       "fps": 1,
-      "p95": 2583.3,
+      "p95": 3649.9,
       "draws": 44,
-      "tris": 82451,
+      "tris": 82541,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -299,10 +309,10 @@
     {
       "name": "05_cave_outside",
       "file": "05_cave_outside.png",
-      "fps": 3,
-      "p95": 2483.3,
+      "fps": 1,
+      "p95": 3299.9,
       "draws": 52,
-      "tris": 102354,
+      "tris": 102444,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -312,9 +322,9 @@
       "name": "06_cave_tunnel_torch",
       "file": "06_cave_tunnel_torch.png",
       "fps": 1,
-      "p95": 2583.3,
+      "p95": 3299.9,
       "draws": 52,
-      "tris": 102354,
+      "tris": 102444,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -323,10 +333,10 @@
     {
       "name": "07_cave_chamber",
       "file": "07_cave_chamber.png",
-      "fps": 2,
-      "p95": 2416.6,
+      "fps": 1,
+      "p95": 3133.2,
       "draws": 51,
-      "tris": 98992,
+      "tris": 99082,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -335,10 +345,10 @@
     {
       "name": "08_cave_chamber_solved",
       "file": "08_cave_chamber_solved.png",
-      "fps": 1,
-      "p95": 2316.6,
+      "fps": 0,
+      "p95": 3116.6,
       "draws": 52,
-      "tris": 99072,
+      "tris": 99162,
       "a3dDraws": 12,
       "a3dTris": 13799,
       "culled": 11,
@@ -347,10 +357,10 @@
     {
       "name": "09_npc_selin",
       "file": "09_npc_selin.png",
-      "fps": 3,
-      "p95": 2166.6,
+      "fps": 1,
+      "p95": 3049.8,
       "draws": 54,
-      "tris": 118813,
+      "tris": 118903,
       "a3dDraws": 12,
       "a3dTris": 26816,
       "culled": 10,
@@ -360,9 +370,9 @@
       "name": "11_first_person_hands",
       "file": "11_first_person_hands.png",
       "fps": 1,
-      "p95": 2050,
+      "p95": 2666.5,
       "draws": 52,
-      "tris": 89327,
+      "tris": 89417,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -372,9 +382,9 @@
       "name": "10_after_continue",
       "file": "10_after_continue.png",
       "fps": 1,
-      "p95": 3716.4,
+      "p95": 3299.9,
       "draws": 45,
-      "tris": 85806,
+      "tris": 85954,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -382,7 +392,7 @@
     }
   ],
   "perf": {
-    "loadMs": 3757,
+    "loadMs": 8054,
     "quality_low": {
       "canvas": [
         819,
@@ -390,7 +400,7 @@
       ],
       "draws": 51,
       "a3dLights": 2,
-      "fps": 1
+      "fps": 0
     },
     "quality_balanced": {
       "canvas": [
@@ -415,7 +425,7 @@
   "a3d": {
     "status": "ready",
     "error": null,
-    "loadMs": 4031,
+    "loadMs": 7847,
     "zone": null,
     "state": {
       "power": false,
@@ -485,6 +495,16 @@
       "grid5": false,
       "ch5": false,
       "load5": "",
+      "inCamp": false,
+      "pump6": 0,
+      "pumpP": 38,
+      "relay6": 0,
+      "soldier6": "",
+      "spill6": 0,
+      "spot6": 0,
+      "ch6": false,
+      "ch7": false,
+      "ending7": "",
       "tutorial": {}
     },
     "stats": {
@@ -493,9 +513,9 @@
       "lights": 4,
       "culled": 6
     },
-    "textureMB": 134.5,
-    "colliders": 178,
-    "floors": 16,
+    "textureMB": 177.1,
+    "colliders": 198,
+    "floors": 18,
     "anchors": [
       "artifact",
       "drill",
@@ -537,16 +557,21 @@
       "j2",
       "j3",
       "sync",
+      "camp_exit",
+      "camp_spawn",
+      "pump",
+      "relay",
+      "soldier",
       "bb0",
       "bb1",
       "bb2",
       "bb3"
     ],
-    "lights": 37,
+    "lights": 45,
     "npc": {
-      "x": 17.681669583778692,
-      "z": 17.614533957412213,
-      "clip": "Walk"
+      "x": 17.5,
+      "z": 17.600000381469727,
+      "clip": "Idle"
     },
     "models": {
       "station": {
@@ -581,10 +606,14 @@
       "helikon_grid": {
         "meshes": 9,
         "clips": []
+      },
+      "drill_camp": {
+        "meshes": 8,
+        "clips": []
       }
     }
   },
-  "finished": "2026-11-08T14:51:20.053Z",
+  "finished": "2026-11-08T20:09:59.727Z",
   "passed": 18,
   "failed": 0
 }
