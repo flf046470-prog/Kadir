@@ -101,6 +101,11 @@ const check = (n, ok, d) => { ok ? pass++ : fail++; console.log((ok ? 'PASS ' : 
   await page.click('#a3dEndCard button');
   const gallery = await page.evaluate(() => JSON.parse(localStorage.getItem('antarktika_endings') || '[]'));
   check('the ending gallery remembers all three endings', gallery.length === 3 && ['antlasma', 'muhur', 'dongu'].every((k) => gallery.includes(k)), gallery);
+  const menu = await page.evaluate(() => { ANTARKTIKA3D.endingsButton(); ANTARKTIKA3D.endingsGallery(); return { btn: document.getElementById('endingsBtn')?.textContent, open: [...document.querySelectorAll('.a3dEndingCard')].map((c) => c.dataset.open + ':' + c.textContent.slice(0, 12)) }; });
+  check('main menu shows the endings gallery (SONLAR 3/3, three open cards)', /SONLAR · 3\/3/.test(menu.btn || '') && menu.open.length === 3 && menu.open.every((x) => x.startsWith('1:')), menu);
+  await page.click('#a3dEndings button');
+  const locked = await page.evaluate(() => { localStorage.setItem('antarktika_endings', JSON.stringify(['muhur'])); ANTARKTIKA3D.endingsButton(); ANTARKTIKA3D.endingsGallery(); const r = { btn: document.getElementById('endingsBtn')?.textContent, cards: [...document.querySelectorAll('.a3dEndingCard')].map((c) => c.dataset.open + ':' + c.textContent.slice(0, 40)) }; document.getElementById('a3dEndings').remove(); localStorage.setItem('antarktika_endings', JSON.stringify(['antlasma', 'muhur', 'dongu'])); return r; });
+  check('locked endings show a hint, not the text', /1\/3/.test(locked.btn || '') && locked.cards[0].startsWith('0:') && /Kilitli/.test(locked.cards[0]) && locked.cards[1].startsWith('1:MÜHÜR'), locked);
 
   // ---- déjà vu on the next fresh game after the loop ending
   await page.evaluate(() => { ANTARKTIKA3D.resetState(); });

@@ -210,5 +210,18 @@
     b.addEventListener('click', () => enter().catch((e) => { console.warn('WebXR', e); b.textContent = 'VR BAŞLATILAMADI'; }));
     const anchor = document.getElementById('qualityBtn') || document.getElementById('startBtn');
     anchor.insertAdjacentElement('afterend', b);
+    // Installed Meta Quest app (immersive PWA/TWA): there is no 2D page to click on, so the session
+    // starts by itself once the 3D world is loaded. getDigitalGoodsService only exists inside the
+    // installed app, never in a browser tab; ?autovr=1 does the same for the Steam/desktop shell.
+    const auto = 'getDigitalGoodsService' in window || /[?&]autovr=1/.test(location.search);
+    if (auto) {
+      const t0 = Date.now();
+      const iv = setInterval(() => {
+        const ready = window.ANTARKTIKA3D && window.ANTARKTIKA3D.status === 'ready';
+        if (!ready && Date.now() - t0 < 60000) return;
+        clearInterval(iv);
+        if (ready && !X.active) enter().catch((e) => { console.warn('WebXR auto-enter', e); });
+      }, 250);
+    }
   }).catch(() => {});
 })();

@@ -2,8 +2,9 @@
  * Uses the same scripted shots as capture_gameplay.cjs: the game is stepped to time t of
  * each shot (firing its events on the way) and one frame is rendered at device scale 2.
  *
- * node tools/capture_stills.cjs <outDir> [--hq]
- * Writes <outDir>/<nn>_<shot>.png (raw, no captions). Captions: tools/make_store_images.py */
+ * node tools/capture_stills.cjs <outDir> [--hq] [--size 1434x660] [--dsf 2] [--hud auto|on|off] [--shots id:t,id:t]
+ * Writes <outDir>/<nn>_<shot>.png (raw, no captions). Captions: tools/make_store_images.py
+ * App Store 6.9": 1434x660 @2 = 2868x1320 · Steam: 1920x1080 @1 · Meta Quest: 1280x720 @2 = 2560x1440 */
 const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
@@ -12,16 +13,21 @@ const { SHOTS, camAt } = require('./shots.cjs');
 const argv = process.argv.slice(2);
 const OUT = path.resolve(argv[0] || 'stills');
 // [shot id, t in 0..1] — chosen so each still shows one selling point
-const STILLS = [['g2_ramp_door', 0.55], ['g3_generator', 0.8], ['g5_frequency', 0.75], ['g6_cave_torch', 0.6], ['g7_crystals', 0.85], ['g8_selin', 0.7], ['g9_wide', 0.5]];
+const arg = (k, d) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : d);
+const DEFAULT = 'g2_ramp_door:0.55,g7_crystals:0.85,h1_hall_stars:0.6,c1_city_bridge:0.7,gr2_sync:0.9,k1_camp_drone:0.6,t1_tower_clock:0.9,g6_cave_torch:0.6,g3_generator:0.8,g9_wide:0.5';
+const STILLS = arg('--shots', DEFAULT).split(',').map((x) => { const [id, t] = x.split(':'); return [id, +(t || 0.6)]; });
+const [VW, VH] = arg('--size', '1434x660').split('x').map(Number);
+const DSF = +arg('--dsf', 2);
+const HUD = arg('--hud', 'auto');
 const STEP = 1 / 10;
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  const srv = await serve(8773);
+  const srv = await serve(8773 + Math.floor(Math.random() * 50));
   const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
-  const page = await browser.newPage({ viewport: { width: 1434, height: 660 }, deviceScaleFactor: 2, hasTouch: true });
+  const page = await browser.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: DSF, hasTouch: true });
   page.setDefaultTimeout(600000);
-  await page.goto('http://localhost:8773/index.html?forcewebgl=1');
+  await page.goto('http://localhost:' + srv.address().port + '/index.html?forcewebgl=1');
   await page.waitForFunction(() => window.ANTARKTIKA3D && ANTARKTIKA3D.status === 'ready', null, { timeout: 300000 });
   await page.evaluate((q) => { localStorage.clear(); ICEWALK_VISUALS.quality = q; }, argv.includes('--hq') ? 'cinematic' : 'balanced');
   await page.click('#skipPrologue'); await page.waitForTimeout(300);
@@ -35,12 +41,13 @@ const STEP = 1 / 10;
         () => { ICEWALK_PROLOGUE.restore({ active: false, stage: -1, completed: true }); ANTARKTIKA3D.restore(s.a3d); });
       document.getElementById('storyRadio')?.classList.remove('visible'); document.getElementById('notice').classList.remove('show');
       if (ICEWALK_IMMERSIVE.enabled === s.hud) ICEWALK_IMMERSIVE.toggle();
+      if (s.warmth !== undefined) ICEWALK_ENGINE.player.warmth = s.warmth;
       if (s.npc) ANTARKTIKA3D.npcPlace(s.npc[0], s.npc[1], s.npc[2], 30);
       ICEWALK_MESHY.setPlaying(true);
       window.ANTARKTIKA_XR = window.ANTARKTIKA_XR || {}; window.ANTARKTIKA_XR.active = true;
       document.getElementById('perfOverlay') && (document.getElementById('perfOverlay').style.display = 'none');
       ICEWALK_ENGINE.step(1 / 30, 20);
-    }, [shot, k0]);
+    }, [{ ...shot, hud: HUD === 'auto' ? shot.hud : HUD === 'on' }, k0]);
     // step (logic only) up to tEnd, firing the shot's events at their times
     const steps = Math.max(1, Math.round(shot.secs * tEnd / STEP));
     const plan = [];
@@ -50,7 +57,7 @@ const STEP = 1 / 10;
       const evs = (shot.events || []).filter(([at], j) => t >= at && !fired.has(j) && fired.add(j)).map((e) => e[1]);
       plan.push([camAt(shot.keys, t), evs]);
     }
-    await page.evaluate(([plan, dt]) => {
+    await page.evaluate(([plan, dt, warm]) => {
       const p = ICEWALK_ENGINE.player;
       const key = (k) => { window.dispatchEvent(new KeyboardEvent('keydown', { key: k })); window.dispatchEvent(new KeyboardEvent('keyup', { key: k })); };
       for (const [c, evs] of plan) {
@@ -61,9 +68,11 @@ const STEP = 1 / 10;
         }
         ICEWALK_ENGINE.step(dt, 1);
         p.x = c.x; p.z = c.z; p.yaw = c.yaw; p.pitch = c.pitch;
+        if (warm !== undefined) p.warmth = warm;
       }
+      document.getElementById('notice')?.classList.remove('show');
       ICEWALK_ENGINE.renderView();
-    }, [plan, STEP]);
+    }, [plan, STEP, shot.warmth]);
     const file = path.join(OUT, `${String(++n).padStart(2, '0')}_${id}.png`);
     await page.screenshot({ path: file });
     console.log('still', file);

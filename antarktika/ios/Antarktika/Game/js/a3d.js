@@ -1643,6 +1643,47 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   const clockMin = () => 190 + ((time - clock7.t0) * 1) % 14;   // one in-game minute per second, 03:10 → 03:24
   const clockText = (m) => { const mm = Math.floor(m) - 180; return '03:' + (mm < 10 ? '0' : '') + mm; };
   const goodwill = () => { const S = A.state; return [S.soldier6 === 'save', !S.spill6, S.load5 !== 'tam', S.spot6 <= 1].filter(Boolean).length; };
+
+  // Main-menu endings gallery: which of the three endings this device has seen (localStorage).
+  const ENDING_HINTS = {
+    antlasma: 'Güven puanı en az 3/4 iken kuleden ATCM’ye bağlan.',
+    muhur: 'Kulede şehrin buzun altına gömülmesine izin ver.',
+    dongu: 'Kulede yayını 72 saat geriye gönder.',
+  };
+  function endingsButton() {
+    const q = document.getElementById('qualityBtn'); if (!q) return;
+    let b = document.getElementById('endingsBtn');
+    if (!b) {
+      b = document.createElement('button'); b.id = 'endingsBtn'; b.type = 'button';
+      const cs = getComputedStyle(q);
+      for (const k of ['font', 'letterSpacing', 'color', 'background', 'border', 'borderRadius', 'padding', 'minHeight', 'marginTop', 'marginLeft', 'marginRight', 'cursor', 'textTransform', 'pointerEvents']) b.style[k] = cs[k];
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); endingsGallery(); });
+      q.after(b);
+    }
+    b.textContent = 'SONLAR · ' + endingsSeen().length + '/3';
+  }
+  function endingsGallery() {
+    const seen = endingsSeen();
+    let el = document.getElementById('a3dEndings');
+    if (!el) { el = document.createElement('div'); el.id = 'a3dEndings'; document.body.appendChild(el); }
+    el.style.cssText = 'position:fixed;inset:0;z-index:30002;display:flex;align-items:center;justify-content:center;background:#010608ee;color:#e6fbff;font:500 13px/1.5 system-ui;padding:20px;overflow:auto';
+    el.innerHTML = '';
+    const box = document.createElement('div'); box.style.cssText = 'max-width:900px;width:100%;text-align:center';
+    const h = document.createElement('div'); h.textContent = 'SONLAR · ' + seen.length + '/3'; h.style.cssText = 'font:800 22px system-ui;letter-spacing:4px;margin-bottom:14px';
+    const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:12px;flex-wrap:wrap;justify-content:center';
+    for (const key of ['antlasma', 'muhur', 'dongu']) {
+      const open = seen.includes(key), c = document.createElement('div');
+      c.className = 'a3dEndingCard'; c.dataset.key = key; c.dataset.open = open ? '1' : '0';
+      c.style.cssText = 'flex:1 1 240px;max-width:290px;border:1px solid ' + (open ? '#ffd3a3aa' : '#5c7c8866') + ';border-radius:8px;padding:12px;background:' + (open ? '#0d2a38' : '#06141c') + ';text-align:left';
+      const t = document.createElement('div'); t.textContent = open ? ENDINGS7[key][0] : '? ? ?'; t.style.cssText = 'font:800 15px system-ui;letter-spacing:3px;color:' + (open ? '#ffd3a3' : '#7d97a2') + ';margin-bottom:6px';
+      const p = document.createElement('div'); p.textContent = open ? ENDINGS7[key][1] : 'Kilitli · ' + ENDING_HINTS[key]; p.style.cssText = 'font-size:12px;color:' + (open ? '#cfe9f2' : '#7d97a2');
+      c.append(t, p); row.appendChild(c);
+    }
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'KAPAT';
+    btn.style.cssText = 'margin-top:16px;min-height:44px;padding:8px 26px;border-radius:8px;border:1px solid #b7e7ef99;background:#0d3346;color:#fff;font:700 13px system-ui;pointer-events:auto';
+    btn.addEventListener('click', () => el.remove());
+    box.append(h, row, btn); el.appendChild(box);
+  }
   function spire7() {
     const S = A.state;
     if (!S.tutorial.reveal7) {
@@ -1667,7 +1708,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   function finale7(key) {
     const S = A.state;
     S.ch7 = true; S.ending7 = key; clock7 = null;
-    const n = rememberEnding(key);
+    const n = rememberEnding(key); endingsButton();
     tone(key === 'muhur' ? 82 : key === 'dongu' ? 392 : 262, 3.4, 'sine', 0.2, key === 'muhur' ? 0.5 : 1.6); flash(key === 'dongu' ? '255,255,255' : key === 'muhur' ? '20,40,60' : '255,230,170', 0.95);
     journal('BÖLÜM 7 — 03:17 · SON: ' + ENDINGS7[key][0], ENDINGS7[key][1]);
     E.save?.();
@@ -1812,6 +1853,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       ext.uint = gl.getExtension('OES_element_index_uint');
       ext.aniso = gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic');
       if (location.protocol === 'file:') { A.status = 'unavailable'; A.error = 'file:// — modeller için uygulama veya http sunucusu gerekir'; return; }
+      try { endingsButton(); } catch (e) { /* menu not present */ }
       load().catch((e) => { A.status = 'failed'; A.error = String(e && e.message || e); console.warn('A3D yüklenemedi, prosedürel sahne kullanılıyor:', e); });
     },
     replaces(tag) { return A.ready && ['station', 'cave', 'crew:explorer'].includes(tag); },
@@ -1828,7 +1870,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     },
     chapter2Pressure,
     hallPressure,
-    syncAngle, clockMinutes: () => (clock7 ? clockMin() : null), dronePos: (i) => { const o = campOrigin(); return o ? dronePos(i, o) : null; }, detectRange: (warm, cover) => detectRange(warm, cover),
+    endingsGallery, endingsButton, syncAngle, clockMinutes: () => (clock7 ? clockMin() : null), dronePos: (i) => { const o = campOrigin(); return o ? dronePos(i, o) : null; }, detectRange: (warm, cover) => detectRange(warm, cover),
     snowFactor() { return A.zone === 'indoor' || A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' || A.zone === 'camp' ? 0 : A.zone === 'cave' ? 0.15 : 1; },
     serialize() { return JSON.parse(JSON.stringify(A.state)); },
     restore(s) { if (!s) return; Object.assign(A.state, s, { tutorial: s.tutorial || {}, bb: s.bb || [0, 0, 0, 0], bbSeen: s.bbSeen || [0, 0, 0, 0], ch2: !!s.ch2, inHall: !!s.inHall, ch3: !!s.ch3, kaanSeen: !!s.kaanSeen, kaanFree: !!s.kaanFree, kaanTalk: s.kaanTalk | 0, kaanTrust: s.kaanTrust | 0, heatCell: s.heatCell | 0, steles: s.steles || [0, 0, 0, 0, 0], stars: s.stars || [], inCity: !!s.inCity, ch4: !!s.ch4, syms: s.syms || [0, 0, 0, 0, 0, 0], stones: s.stones || [0, 0, 0], bridge: !!s.bridge, voice: s.voice | 0, ending4: s.ending4 || '', inGrid: !!s.inGrid, plane5: s.plane5 | 0, left5: s.left5 | 0, cable5: s.cable5 | 0, dials: s.dials || [2, 0, 1], grid5: !!s.grid5, ch5: !!s.ch5, load5: s.load5 || '', inCamp: !!s.inCamp, pump6: s.pump6 | 0, pumpP: s.pumpP ?? 38, relay6: s.relay6 | 0, soldier6: s.soldier6 || '', spill6: s.spill6 | 0, spot6: s.spot6 | 0, ch6: !!s.ch6, ch7: !!s.ch7, ending7: s.ending7 || '' }); sync5 = null; blackoutUntil = 0; detect6 = 0; caughtUntil = 0; clock7 = null; if (A.state.power) startHum(); },

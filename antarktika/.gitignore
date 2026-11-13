@@ -1,4 +1,7 @@
-# Blender autosave/backup files
-*.blend1
-*.blend2
+dist/
+steam/node_modules/
+steam/out/
+quest/assetlinks.json
+*.keystore
 __pycache__/
+*.blend1

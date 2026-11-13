@@ -403,6 +403,7 @@ def shot_match():
     render("match", frames)
 
 
-for s in SHOTS:
-    {"station": shot_station, "cave": shot_cave, "selin": shot_selin, "match": shot_match}[s]()
-    print("SHOT DONE", s)
+if __name__ == "__main__":
+    for s in SHOTS:
+        {"station": shot_station, "cave": shot_cave, "selin": shot_selin, "match": shot_match}[s]()
+        print("SHOT DONE", s)

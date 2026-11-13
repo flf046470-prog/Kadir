@@ -1,0 +1,26 @@
+{
+  "name": "antarktika-whiteout",
+  "productName": "ANTARKTIKA WHITEOUT",
+  "version": "1.0.0",
+  "description": "ANTARKTIKA: WHITEOUT — desktop and SteamVR shell for the WebGL/WebXR game",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "start:vr": "electron . --vr",
+    "dist:win": "electron-builder --win --x64 --dir",
+    "dist:linux": "electron-builder --linux --x64 --dir"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.yourcompany.antarktika.whiteout",
+    "directories": { "output": "out" },
+    "files": ["main.js", "package.json"],
+    "extraResources": [{ "from": "../ios/Antarktika/Game", "to": "Game" }],
+    "win": { "target": "dir", "icon": "icon.png" },
+    "linux": { "target": "dir", "category": "Game" }
+  }
+}
