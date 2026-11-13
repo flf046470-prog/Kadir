@@ -9,6 +9,7 @@
  *   electron . --vr       enters the immersive WebXR session as soon as the world is loaded
  *                         (Chromium's OpenXR backend → SteamVR must be the active OpenXR runtime)
  *   electron . --windowed 1600x900 window instead of full screen
+ *   electron . --smoke    loads the world, prints its status and exits (0 = ready); used by `npm run smoke`
  */
 const { app, BrowserWindow, Menu, session, shell } = require('electron');
 const http = require('http');
@@ -54,5 +55,13 @@ app.whenReady().then(async () => {
     if (input.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools();
   });
   await win.loadURL('http://127.0.0.1:' + port + '/index.html' + (VR ? '?autovr=1' : ''));
+  if (process.argv.includes('--smoke')) {
+    const t0 = Date.now();
+    const poll = setInterval(async () => {
+      const st = await win.webContents.executeJavaScript('window.ANTARKTIKA3D ? [ANTARKTIKA3D.status, !!navigator.xr, document.title] : null').catch(() => null);
+      if (st && st[0] === 'ready') { console.log('SMOKE ready', JSON.stringify(st), (Date.now() - t0) + ' ms'); clearInterval(poll); app.exit(0); }
+      else if (Date.now() - t0 > 240000) { console.log('SMOKE timeout', JSON.stringify(st)); clearInterval(poll); app.exit(1); }
+    }, 1000);
+  }
 });
 app.on('window-all-closed', () => app.quit());

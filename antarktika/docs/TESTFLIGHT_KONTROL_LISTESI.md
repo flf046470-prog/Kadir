@@ -34,6 +34,16 @@ Bu listedeki her adım gerçek cihazda yapılmalı. Bu repoda yaptığım testle
 - [ ] Duvarların, korkulukların ve mağara duvarlarının içinden geçilemiyor; kamera duvara girmiyor.
 - [ ] Hipotermi: dışarıda vücut ısısı düşüyor, istasyon içinde hızla artıyor.
 
+## 3b. Bölüm 3–7 (gerçek dokunmatik kontrollerle)
+
+- [ ] Bölüm 3, taş salon: çekirdekle mağaradan salona iniliyor; üç kürsü sırayla yanıyor, tavandaki yıldız haritası açılıyor; Kaan'la konuşma seçenekleri dokunmatikte seçilebiliyor.
+- [ ] Bölüm 4, göl şehri: köprüden kuleye yürünüyor; altı sembollü kristal dili ekranı parmakla kullanılabiliyor; üç cevaptan biri seçiliyor.
+- [ ] Bölüm 5, İlk Temas: son uçak kararı; iletim galerisinde kablo, üç kadran ve senkronoskop. Senkronoskop göstergesi dokunmatik düğmelerin altında kalmıyor ve doğru anda E'ye basılabiliyor.
+- [ ] Bölüm 6, Kış Ablukası: sondaj kampında dron uyarı göstergesi görünüyor; vücut ısısı yüksekken daha uzaktan fark ediliyor; kar duvarı arkasında gizlenilebiliyor; pompa basıncı düşürülmeden durdurulamıyor.
+- [ ] Bölüm 7, 03:17: kule saati 03:10'dan ilerliyor; 03:17'de E'ye basınca son seçimi geliyor. Üç sonun her biri en az bir kez görülüyor.
+- [ ] Ana menüde "SONLAR · n/3" düğmesi açılıyor; görülen sonlar açık, görülmeyenler ipucuyla kilitli. Uygulama kapatılıp açıldıktan sonra sayı korunuyor.
+- [ ] Bölüm sonu kartları ve seçim pencereleri çentik/Dynamic Island altında kalmıyor (güvenli alan).
+
 ## 4. Kayıt
 
 - [ ] Oyunun ortasında uygulamayı ana ekrana gönderin, sonra uygulama değiştiriciden tamamen kapatın.
@@ -62,12 +72,12 @@ Bu listedeki her adım gerçek cihazda yapılmalı. Bu repoda yaptığım testle
 
 - [ ] *Product ▸ Archive* ▸ *Distribute App* ▸ *TestFlight & App Store*.
 - [ ] İhracat uyumluluğu: `ITSAppUsesNonExemptEncryption = NO` zaten ayarlı.
-- [ ] Dahili test grubunda en az 3 farklı iPhone modeliyle 1–3. ve 5. bölümleri tekrarlayın.
+- [ ] Dahili test grubunda en az 3 farklı iPhone modeliyle 1–3., 3b ve 5. bölümleri tekrarlayın.
 - [ ] Çökme raporlarını Xcode ▸ Organizer ▸ Crashes'ten kontrol edin.
 
 ## 8. App Store gönderimi
 
 - [ ] Ekran görüntüleri (6.9" ve 6.5") ile tanıtım videosu yüklendi.
-- [ ] Yaş derecelendirmesi: şiddet yok, korku teması hafif → 9+ uygun görünüyor; formda doğrulayın.
+- [ ] Yaş derecelendirmesi: ekranda şiddet yok, oyuncu silahsız; korku/gerilim hafif (dronlardan saklanma, donan asker). Anketi kendiniz doldurun; sonuç 9+ ya da 12+ çıkabilir.
 - [ ] `VARLIK_LISANSLARI.md` içindeki "Kontrol gerekli" satırları kapatıldı.
 - [ ] App Review notu: oyun tamamen çevrimdışı; hesap yok; Meshy paneli kullanıcı dosyası yüklüyor ve hiçbir şey sunucuya gitmiyor.

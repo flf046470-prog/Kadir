@@ -164,6 +164,7 @@ def main():
     save(icon.resize((192, 192), Image.LANCZOS), Q + "/icon-192.png")
     save(icon.resize((512, 512), Image.LANCZOS), Q + "/icon-512.png")
     save(icon.resize((512, 512), Image.LANCZOS), Q + "/icon-512-maskable.png")   # full-bleed, opaque
+    save(icon.resize((512, 512), Image.LANCZOS), os.path.join(ROOT, "steam", "icon.png"))   # electron-builder window / exe icon
 
 
 if __name__ == "__main__":

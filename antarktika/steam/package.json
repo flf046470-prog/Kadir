@@ -8,6 +8,7 @@
   "scripts": {
     "start": "electron .",
     "start:vr": "electron . --vr",
+    "smoke": "electron . --windowed --smoke",
     "dist:win": "electron-builder --win --x64 --dir",
     "dist:linux": "electron-builder --linux --x64 --dir"
   },
