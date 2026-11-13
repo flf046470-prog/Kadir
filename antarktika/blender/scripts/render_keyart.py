@@ -165,16 +165,25 @@ def aurora(center, radius, height, arc_deg=(-70, 70), base=260.0, top=620.0, see
     mid = e.new(0.45)
     mid.color = (0.25, 0.95, 0.55, 1)
     nt.links.new(sep.outputs["Y"], cr.inputs["Fac"])
-    # vertical rays along U
-    wave = nt.nodes.new("ShaderNodeTexWave")
-    wave.inputs["Scale"].default_value = 38.0
-    wave.inputs["Distortion"].default_value = 11.0
-    wave.inputs["Detail"].default_value = 4.0
-    nt.links.new(tc.outputs["UV"], wave.inputs["Vector"])
+    # vertical rays: a function of U only (V is squashed to 0), so every ray runs straight up the curtain
+    mp = nt.nodes.new("ShaderNodeMapping")
+    mp.inputs["Scale"].default_value = (1.0, 0.0, 0.0)
+    nt.links.new(tc.outputs["UV"], mp.inputs["Vector"])
+    rays = nt.nodes.new("ShaderNodeTexNoise")
+    rays.inputs["Scale"].default_value = 95.0
+    rays.inputs["Detail"].default_value = 5.0
+    rays.inputs["Roughness"].default_value = 0.7
+    nt.links.new(mp.outputs["Vector"], rays.inputs["Vector"])
+    wave = nt.nodes.new("ShaderNodeValToRGB")          # contrast: thin bright rays on a dim glow
+    we = wave.color_ramp.elements
+    we[0].position, we[0].color = 0.36, (0.10, 0.10, 0.10, 1)
+    we[1].position, we[1].color = 0.72, (1, 1, 1, 1)
+    nt.links.new(rays.outputs["Fac"], wave.inputs["Fac"])
+    # slow folds: brightness varies along the arc in broad patches
     noise = nt.nodes.new("ShaderNodeTexNoise")
-    noise.inputs["Scale"].default_value = 3.5
-    noise.inputs["Detail"].default_value = 3.0
-    nt.links.new(tc.outputs["UV"], noise.inputs["Vector"])
+    noise.inputs["Scale"].default_value = 6.0
+    noise.inputs["Detail"].default_value = 2.0
+    nt.links.new(mp.outputs["Vector"], noise.inputs["Vector"])
     # fade: bright sharp lower edge, soft top, soft ends
     fade_y = nt.nodes.new("ShaderNodeValToRGB")
     fy = fade_y.color_ramp.elements
@@ -194,7 +203,7 @@ def aurora(center, radius, height, arc_deg=(-70, 70), base=260.0, top=620.0, see
     nt.links.new(sep.outputs["X"], fade_x.inputs["Fac"])
     m1 = nt.nodes.new("ShaderNodeMath")
     m1.operation = "MULTIPLY"
-    nt.links.new(wave.outputs["Fac"], m1.inputs[0])
+    nt.links.new(wave.outputs["Color"], m1.inputs[0])
     nt.links.new(noise.outputs["Fac"], m1.inputs[1])
     m2 = nt.nodes.new("ShaderNodeMath")
     m2.operation = "MULTIPLY"
