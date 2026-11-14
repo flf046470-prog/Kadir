@@ -4,8 +4,8 @@
 
 For each still a caption band is laid over the left of the frame (a dark gradient so the
 game image stays readable) and two sizes are written:
-  <out_dir>/6.9/<nn>.png  2868×1320  (iPhone 6.9" landscape — the required set)
-  <out_dir>/6.5/<nn>.png  2778×1284  (iPhone 6.5" landscape)
+  <out_dir>/6.9/<nn>.jpg  2868×1320  (iPhone 6.9" landscape — the required set)
+  <out_dir>/6.5/<nn>.jpg  2778×1284  (iPhone 6.5" landscape)
 Captions are Turkish (primary locale); English set in <out_dir>/en/... with --en.
 """
 import glob
@@ -37,7 +37,7 @@ CAPTIONS = {
     "c1_city_bridge": (("BUZUN ALTINDAKİ ŞEHİR", "Dört kilometre buzun altında,", "bir gölün ortasında ışıklar yanıyor."),
                        ("THE CITY UNDER THE ICE", "Four kilometres down, lights", "burn in the middle of a lake.")),
     "gr2_sync": (("İKİ ŞEBEKEYİ EŞLE", "Senkronoskobu izle, doğru anda", "şalteri kapat. Kış geliyor."),
-                 ("COUPLE THE TWO GRIDS", "Watch the synchroscope, close the", "breaker in phase. Winter is coming.")),
+                 ("SYNC THE GRIDS", "Watch the synchroscope and", "close the breaker in phase.")),
     "k1_camp_drone": (("SİLAHSIZSIN", "Termal dronlar sıcağı görür.", "Soğuk kal, gölgede yürü."),
                       ("YOU ARE UNARMED", "Thermal drones see warmth.", "Stay cold. Stay in cover.")),
     "t1_tower_clock": (("03:17", "Yedi bölüm, üç son.", "Saat geldiğinde ne yapacaksın?"),
@@ -59,8 +59,9 @@ def compose(src, caption, size):
     # left gradient for legibility
     grad = Image.new("L", (W, 1))
     for x in range(W):
-        u = x / (W * 0.52)
-        grad.putpixel((x, 0), int(205 * max(0.0, 1 - u) ** 1.6))
+        # solid behind the caption column, then a soft fade so in-world labels never cut the text
+        u = min(1.0, max(0.0, (x - W * 0.30) / (W * 0.26)))
+        grad.putpixel((x, 0), int(222 * (1 - u * u * (3 - 2 * u))))
     shade = Image.new("RGB", (W, H), (3, 12, 20))
     im = Image.composite(shade, im, grad.resize((W, H)))
     d = ImageDraw.Draw(im)
@@ -90,7 +91,7 @@ def main():
         for name, size in SIZES.items():
             d = os.path.join(out, ("en/" if lang else "") + name)
             os.makedirs(d, exist_ok=True)
-            compose(f, cap, size).save(os.path.join(d, "%02d.png" % i), optimize=True)
+            compose(f, cap, size).save(os.path.join(d, "%02d.jpg" % i), quality=93, subsampling=0)
         print("ok", i, shot)
 
 
