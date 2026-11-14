@@ -73,6 +73,7 @@ MATS = [
     C.mat_plain("M_Strap", (0.02, 0.02, 0.02), rough=0.6),                # 9
     C.mat_plain("M_Reflect", (0.80, 0.82, 0.80), rough=0.3),              # 10
     C.mat_painted_metal("M_Radio", (0.12, 0.13, 0.13), rough=0.4, metal=0.3, seams=False),  # 11
+    C.mat_fabric("M_Seam", (0.46, 0.065, 0.02), weave=220.0),           # 12  stitched baffle line, parka colour in shade
 ]
 
 bm = bmesh.new()
@@ -233,7 +234,7 @@ def _ring_at(t):
     return rings[-1][1], rings[-1][2]
 for _t in (0.14, 0.27, 0.40, 0.53, 0.66, 0.79):          # sewn-through baffle lines: a slightly darker, sunken seam
     _rx, _ry = _ring_at(_t); _z = 0.82 + _t * 0.74
-    profile_tube((0, 0, _z - 0.006), (0, 0, _z + 0.006), [(0.0, _rx + 0.003, _ry + 0.003, 0), (1.0, _rx + 0.003, _ry + 0.003, 0)], 24, 9, torso_w, caps=False)
+    profile_tube((0, 0, _z - 0.004), (0, 0, _z + 0.004), [(0.0, _rx + 0.0015, _ry + 0.0015, 0), (1.0, _rx + 0.0015, _ry + 0.0015, 0)], 24, 12, torso_w, caps=False)
 for _sx in (1, -1):
     box((0.12 * _sx, -0.168, 1.00), (0.075, 0.016, 0.085), 0, [("hips", 0.5), ("spine", 0.5)])      # hand-warmer pocket
     box((0.12 * _sx, -0.176, 1.045), (0.078, 0.008, 0.02), 9, [("hips", 0.5), ("spine", 0.5)])     # its zip flap
@@ -255,16 +256,16 @@ torus((0, -0.075, 1.70), 0.145, 0.04, (0, 1, 0.08), 6, [("head", 1.0)], segs=18,
 import random as _r
 _r.seed(7)
 _ax = Vector((0, 1, 0.08)).normalized(); _u, _v = frame(_ax)
-for _row, (_n, _rad, _len) in enumerate(((120, 0.15, 0.075), (90, 0.17, 0.06))):
+for _row, (_n, _rad, _len) in enumerate(((110, 0.142, 0.05), (100, 0.158, 0.055), (80, 0.172, 0.04))):
     for _i in range(_n):
         _a = _i / _n * math.tau + _r.uniform(-0.03, 0.03)
         _rd = _u * math.cos(_a) + _v * math.sin(_a)
         _base = Vector((0, -0.075 - _row * 0.012, 1.70)) + _rd * _rad
         _l = _len * _r.uniform(0.65, 1.35)
-        _dir = (_rd * 0.75 + Vector((0, -0.55, 0)) + Vector((_r.uniform(-.2, .2), _r.uniform(-.2, .2), _r.uniform(-.2, .2)))).normalized()
+        _dir = (_rd * 0.9 + Vector((0, -0.35, 0)) + Vector((_r.uniform(-.2, .2), _r.uniform(-.2, .2), _r.uniform(-.2, .2)))).normalized()
         _tip = _base + _dir * _l
         _t1, _t2 = frame(_dir)
-        _w = _r.uniform(0.010, 0.017)
+        _w = _r.uniform(0.016, 0.026)
         _vs = [bm.verts.new(_base + (_t1 * math.cos(k * 2.094) + _t2 * math.sin(k * 2.094)) * _w) for k in range(3)] + [bm.verts.new(_tip)]
         for _vv in _vs: weigh(_vv, [("head", 1.0)])
         for _f in ((_vs[0], _vs[1], _vs[3]), (_vs[1], _vs[2], _vs[3]), (_vs[2], _vs[0], _vs[3])):
