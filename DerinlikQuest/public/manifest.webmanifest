@@ -1,0 +1,18 @@
+{
+ "name": "DERİNLİK",
+ "short_name": "DERİNLİK",
+ "description": "First-person psychological horror. Four places, one hidden network, and a camcorder that sees what you don't.",
+ "lang": "en",
+ "start_url": "/",
+ "scope": "/",
+ "display": "standalone",
+ "orientation": "landscape",
+ "background_color": "#050506",
+ "theme_color": "#050506",
+ "categories": ["games"],
+ "icons": [
+  {"src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any"},
+  {"src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any"},
+  {"src": "/icons/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable"}
+ ]
+}

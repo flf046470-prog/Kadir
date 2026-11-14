@@ -1,0 +1,4 @@
+node_modules/
+plates/
+.compose.html
+__pycache__/
