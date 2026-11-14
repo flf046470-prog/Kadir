@@ -79,6 +79,8 @@ Textures must tile seamlessly. Budget: total inlined textures ≤ 6 MB on disk.
 | Module | Owns |
 |---|---|
 | `fx-post` | `FX.render` (EffectComposer: bloom, per-chapter grade, vignette, grain, chromatic aberration), the camcorder image look (replaces the CSS filter on `#view.cam`), Echo/Second-Voice distortion. Screen-space AO (GTAOPass) was tried and left out: it crashed the software GPU used for testing, so it could not be verified. |
+| `fx-atmos` | AgX tone mapping (exposure 1.35) in place of ACES; torch air light: the fog chunk of every built-in material integrates single scattering of the flashlight cone along the view ray (6 samples on *medium*, 10 on *high*; off on *low* and in VR). |
+| `fx-contact` | Contact shading: soft dark gradients where boxes meet floor/ceiling and under colliding props, one shared batched material. |
 | `fx-lighting` | Flashlight LED cookie, bounce light and flicker; lamp halos; hanging-bulb sway; one shadowed lamp on *high*; a per-chapter environment probe for materials marked `userData.fxReflective`. A visible beam mesh was tried and removed (it showed a ring artifact). |
 | `fx-particles` | Dust motes, drips/splashes, debris and dust bursts on `mover`/`slam`, steam, flame billboards on every `kind: 'flame'` light, gate particles |
 | `fx-materials` | Real-world surfaces: Blender-baked PBR sets in `textures/` (made by `tools/bake_textures.py`) applied on `material`/`build`. Covers soil, mud, rock and tuff, limestone, concrete, plaster, brick, wood, tile, painted and rusted metal, ice, frost and snow. Also world-space grime and wetness, decals, puddles, and environment dressing such as icicles, frozen puddles, snow drifts and mud. |
