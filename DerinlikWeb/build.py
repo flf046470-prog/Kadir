@@ -22,10 +22,11 @@ ap.add_argument("--only", default=None)
 ap.add_argument("--none", action="store_true")
 ap.add_argument("--offline", action="store_true")
 ap.add_argument("--demo", action="store_true")
+ap.add_argument("--src", default=str(root / "game.html"), help="game page to build (DERİNLİK II passes its generated page)")
 ap.add_argument("--out", default=str(root / "dist" / "index.html"))
 args = ap.parse_args()
 
-src = (root / "game.html").read_text(encoding="utf-8")
+src = pathlib.Path(args.src).read_text(encoding="utf-8")
 if args.demo:  # Steam demo: Sakarya only, then the demo end screen (game.html DEMO); before bundling strips comments
     assert "/*DEMO*/false" in src
     src = src.replace("/*DEMO*/false", "true")

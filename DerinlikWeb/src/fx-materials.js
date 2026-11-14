@@ -29,6 +29,8 @@ const KIND = {
   ossuary: { set: 'ossuary_wall' },
   rust: { set: 'metal_rust', frost: true },
   metal: { set: 'metal_rust', keepColor: true, frost: true, normalScale: .6 },
+  ice: { set: 'ice' },
+  snow: { set: 'snow' },
 };
 // Extra floor materials (registered in matCache so the core batches them like its own).
 const FLOORS = {
@@ -193,7 +195,7 @@ const FLOOR_RULES = [
   (m, z) => (m !== matCache.lime ? null : z < 14 ? 'mud' : z < 22 ? 'concrete' : 'soil'),                                       // Paris
 ];
 FX.on('build', (i) => {
-  uFrost.value = i === 2 && uFrostMap.value ? 1 : 0;
+  uFrost.value = (i === 2 || FX.frost) && uFrostMap.value ? 1 : 0;   // FX.frost: a game whose every chapter is frozen (DERİNLİK II)
   const rule = FLOOR_RULES[i];
   if (!rule) return;
   for (const o of W.group.children) {
