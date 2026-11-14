@@ -15,7 +15,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const html = fs.readFileSync(htmlPath);
 const server = http.createServer((req, res) => { if (req.url === '/') { res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }); return res.end(html); } res.writeHead(404); res.end(); }).listen(0);
 const url = `http://127.0.0.1:${server.address().port}/`;
-const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: PX, height: PX } });
 page.on('pageerror', (e) => console.log('page error:', e.message));
 await page.addInitScript(() => { try { localStorage.setItem('derinlik.quality', 'high'); localStorage.setItem('derinlik.lang', 'en'); } catch (_) {} delete window.AudioContext; delete window.webkitAudioContext; });

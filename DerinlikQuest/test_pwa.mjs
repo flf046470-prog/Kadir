@@ -8,7 +8,7 @@ const types = { '.html': 'text/html; charset=utf-8', '.webmanifest': 'applicatio
 const srv = http.createServer((q, r) => { let f = path.join(web, decodeURIComponent(q.url.split('?')[0])); if (f.endsWith('/')) f += 'index.html';
   if (!fs.existsSync(f)) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); r.end(fs.readFileSync(f)); }).listen(8770);
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
-const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const b = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined, args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const p = await b.newPage({ viewport: { width: 960, height: 540 } });
 const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 await p.goto('http://localhost:8770/', { waitUntil: 'commit', timeout: 120000 }); await p.waitForFunction(() => window.__derinlik, null, { timeout: 120000 });

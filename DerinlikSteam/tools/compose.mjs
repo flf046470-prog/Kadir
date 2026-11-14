@@ -64,7 +64,7 @@ const ASSETS = [
   { file: 'library_hero_3840x1240.png', ...{ w: 3840, h: 1240, bg: 'k_paris', pos: '50% 72%', shade: vignette(.45) } },
 ];
 
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || undefined });
 const tmp = path.join(here, '.compose.html');
 async function render(body, size, file, opts = {}) {
   fs.writeFileSync(tmp, `<!doctype html><meta charset="utf-8"><style>${CSS}</style><body>${body}</body>`);
