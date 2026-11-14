@@ -1672,6 +1672,8 @@ function ending(kind) {
   if (state.ended) return;
   state.ended = true; player.enabled = false; if (state.camRaised) toggleCam();
   try { localStorage.removeItem(SAVE_KEY); } catch (_) {} // the decision is final: another ending means a new playthrough
+  // the world this ending leaves behind, kept for DERİNLİK II (it starts from the last ending reached on this device)
+  try { localStorage.setItem('derinlik.legacy.v1', JSON.stringify({ ending: kind, choices: { ...state.choices }, time: Math.round(state.time) })); } catch (_) {}
   FX.emit('ending', kind);
   if (kind === 'geri' || kind === 'bekci') sfx.whisper({ x: 0, y: 2, z: 36 }, 3, .25); else sfx.rumble(null, 3);
   $('fade').style.opacity = '1'; $('hud').hidden = true; $('touch').hidden = true;
