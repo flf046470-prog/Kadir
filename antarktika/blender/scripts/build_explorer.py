@@ -226,15 +226,49 @@ def torso_w(t):
 
 profile_tube((0, 0, 0.82), (0, 0, 1.56), rings, 16, 0, torso_w)
 box((0, -0.172, 1.18), (0.01, 0.01, 0.32), 9, [("spine", 0.6), ("chest", 0.4)])          # zip
+def _ring_at(t):
+    for (t0, rx0, ry0, o0), (t1, rx1, ry1, o1) in zip(rings, rings[1:]):
+        if t0 <= t <= t1:
+            k = (t - t0) / (t1 - t0); return rx0 + (rx1 - rx0) * k, ry0 + (ry1 - ry0) * k
+    return rings[-1][1], rings[-1][2]
+for _t in (0.14, 0.27, 0.40, 0.53, 0.66, 0.79):          # sewn-through baffle lines: a slightly darker, sunken seam
+    _rx, _ry = _ring_at(_t); _z = 0.82 + _t * 0.74
+    profile_tube((0, 0, _z - 0.006), (0, 0, _z + 0.006), [(0.0, _rx + 0.003, _ry + 0.003, 0), (1.0, _rx + 0.003, _ry + 0.003, 0)], 24, 9, torso_w, caps=False)
+for _sx in (1, -1):
+    box((0.12 * _sx, -0.168, 1.00), (0.075, 0.016, 0.085), 0, [("hips", 0.5), ("spine", 0.5)])      # hand-warmer pocket
+    box((0.12 * _sx, -0.176, 1.045), (0.078, 0.008, 0.02), 9, [("hips", 0.5), ("spine", 0.5)])     # its zip flap
+    box((0.10 * _sx, -0.170, 1.335), (0.055, 0.014, 0.065), 0, [("chest", 1.0)])                   # chest pocket
+    box((0.10 * _sx, -0.178, 1.375), (0.058, 0.007, 0.02), 9, [("chest", 1.0)])
+box((0.0, -0.165, 0.84), (0.21, 0.01, 0.012), 9, [("hips", 1.0)])                                  # hem drawcord channel
+box((-0.155, -0.10, 1.42), (0.012, 0.06, 0.05), 10, [("chest", 1.0)])                               # reflective shoulder patch
+box((0.155, -0.10, 1.42), (0.012, 0.06, 0.05), 10, [("chest", 1.0)])
 # collar, neck, head, balaclava, helmet, goggles, fur hood ruff
 torus((0, 0.0, 1.565), 0.125, 0.055, (0, 0, 1), 6, [("neck", 0.6), ("chest", 0.4)], segs=16, sides=8)
 tube((0, 0.0, 1.55), (0, 0.0, 1.66), 0.07, 0.072, 10, 7, lambda t: [("neck", 1 - t * 0.6), ("head", t * 0.6)], rings=3)
 sphere((0, -0.01, 1.73), 0.112, 7, [("head", 1.0)], scale=(1.0, 1.08, 1.08), segs=14, rings=10)
-sphere((0, 0.008, 1.755), 0.132, 4, [("head", 1.0)], scale=(1.0, 1.1, 0.95), segs=16, rings=10, top_only=True)
-torus((0, 0.008, 1.758), 0.131, 0.012, (0, 0, 1), 9, [("head", 1.0)], segs=16, sides=4)
+sphere((0, 0.022, 1.745), 0.152, 0, [("head", 1.0)], scale=(1.0, 1.12, 1.02), segs=18, rings=12, top_only=True)
+sphere((0, 0.05, 1.70), 0.15, 0, [("head", 0.7), ("neck", 0.3)], scale=(1.0, 0.85, 0.9), segs=16, rings=10)
 torus((0, -0.004, 1.735), 0.118, 0.016, (0, 0.05, 1), 9, [("head", 1.0)], segs=16, sides=4)
 profile_tube((-0.085, -0.105, 1.735), (0.085, -0.105, 1.735), [(0.0, 0.03, 0.025, 0), (0.5, 0.036, 0.03, -0.012), (1.0, 0.03, 0.025, 0)], 8, 5, lambda t: [("head", 1.0)])
-torus((0, -0.075, 1.70), 0.145, 0.045, (0, 1, 0.08), 6, [("head", 1.0)], segs=18, sides=7)
+torus((0, -0.075, 1.70), 0.145, 0.04, (0, 1, 0.08), 6, [("head", 1.0)], segs=18, sides=7)
+# fur ruff: ~200 tapered tufts round the hood opening, two rows, leaning outward and forward, uneven like real coyote/wolf fur
+import random as _r
+_r.seed(7)
+_ax = Vector((0, 1, 0.08)).normalized(); _u, _v = frame(_ax)
+for _row, (_n, _rad, _len) in enumerate(((120, 0.15, 0.075), (90, 0.17, 0.06))):
+    for _i in range(_n):
+        _a = _i / _n * math.tau + _r.uniform(-0.03, 0.03)
+        _rd = _u * math.cos(_a) + _v * math.sin(_a)
+        _base = Vector((0, -0.075 - _row * 0.012, 1.70)) + _rd * _rad
+        _l = _len * _r.uniform(0.65, 1.35)
+        _dir = (_rd * 0.75 + Vector((0, -0.55, 0)) + Vector((_r.uniform(-.2, .2), _r.uniform(-.2, .2), _r.uniform(-.2, .2)))).normalized()
+        _tip = _base + _dir * _l
+        _t1, _t2 = frame(_dir)
+        _w = _r.uniform(0.010, 0.017)
+        _vs = [bm.verts.new(_base + (_t1 * math.cos(k * 2.094) + _t2 * math.sin(k * 2.094)) * _w) for k in range(3)] + [bm.verts.new(_tip)]
+        for _vv in _vs: weigh(_vv, [("head", 1.0)])
+        for _f in ((_vs[0], _vs[1], _vs[3]), (_vs[1], _vs[2], _vs[3]), (_vs[2], _vs[0], _vs[3])):
+            _ff = bm.faces.new(_f); _ff.material_index = 6; _ff.smooth = True
 # backpack with bedroll, straps, antenna; chest radio
 box((0, 0.255, 1.22), (0.165, 0.095, 0.22), 8, [("chest", 0.65), ("spine", 0.35)])
 box((0, 0.26, 1.08), (0.15, 0.09, 0.06), 8, [("spine", 0.8), ("chest", 0.2)])
