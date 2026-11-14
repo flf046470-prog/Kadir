@@ -11,7 +11,7 @@
 // plain objects by reference, so one update per frame reaches every program.
 
 renderer.toneMapping = THREE.AgXToneMapping;
-renderer.toneMappingExposure = 1.5;
+renderer.toneMappingExposure = 1.35;
 
 const BEAM = {
   uBeamPos: { value: { x: 0, y: 0, z: 0, w: 0 } },   // xyz torch origin (view space), w sample count
@@ -29,19 +29,19 @@ C.fog_pars_fragment = C.fog_pars_fragment.replace('varying float vFogDepth;', /*
 	uniform vec4 uBeamPos; uniform vec4 uBeamDir; uniform vec4 uBeamCol; uniform vec4 uBeamCone;
 	vec3 beamScatter( vec3 P, float sigma ) {
 		float L = length( P ); vec3 V = P / max( L, 1e-4 );
-		float tMax = min( L, uBeamCone.w ), n = uBeamPos.w, dt = tMax / n;
+		float t0 = min( L, .6 ), tMax = min( L, uBeamCone.w ), n = uBeamPos.w, dt = max( tMax - t0, 0.0 ) / n;  // the first .6 m: too close to the lens to read as a beam
 		float j = fract( sin( dot( gl_FragCoord.xy + uBeamCone.z, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 );
 		float g = uBeamCone.y, g2 = g * g;
 		vec3 acc = vec3( 0.0 );
 		for ( int i = 0; i < 12; i ++ ) {
 			if ( float( i ) >= n ) break;
-			float t = ( float( i ) + j ) * dt;
+			float t = t0 + ( float( i ) + j ) * dt;
 			vec3 X = V * t - uBeamPos.xyz; float d = length( X ); vec3 Ld = X / max( d, 1e-3 );
 			float spot = smoothstep( uBeamDir.w, uBeamCone.x, dot( Ld, uBeamDir.xyz ) );
 			float win = pow( clamp( 1.0 - pow( d / uBeamCone.w, 4.0 ), 0.0, 1.0 ), 2.0 );
 			float cosT = dot( Ld, - V );                        // light travelling along Ld, scattered towards the eye
 			float phase = ( 1.0 - g2 ) / ( 12.566 * pow( 1.0 + g2 - 2.0 * g * cosT, 1.5 ) );
-			acc += spot * win * phase * exp( - sigma * ( t + d ) ) / max( d, .15 );
+			acc += spot * win * phase * exp( - sigma * ( t + d ) ) / max( d, .6 );
 		}
 		return uBeamCol.rgb * acc * sigma * dt;
 	}`);
@@ -53,7 +53,7 @@ if (!/vFogPos = mvPosition/.test(C.fog_vertex) || !/beamScatter\( vFogPos/.test(
 
 // how much the air scatters relative to the fog density, per chapter: a dusty basement, dry tuff, damp concrete
 // with ice haze, limestone dust with candle smoke
-const DUST = [1.0, .75, 1.15, .9];
+const DUST = [.3, .22, .34, .27];
 let dust = DUST[0];
 FX.on('chapter', (i) => { dust = DUST[i] ?? 1; });
 
