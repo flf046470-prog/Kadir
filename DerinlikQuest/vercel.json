@@ -1,0 +1,36 @@
+{
+ "$schema": "https://openapi.vercel.sh/vercel.json",
+ "framework": null,
+ "installCommand": "cd ../DerinlikWeb && npm ci",
+ "buildCommand": "cd .. && python3 DerinlikQuest/make_quest.py",
+ "outputDirectory": "web",
+ "headers": [
+  {
+   "source": "/manifest.webmanifest",
+   "headers": [
+    {
+     "key": "Content-Type",
+     "value": "application/manifest+json"
+    }
+   ]
+  },
+  {
+   "source": "/.well-known/assetlinks.json",
+   "headers": [
+    {
+     "key": "Content-Type",
+     "value": "application/json"
+    }
+   ]
+  },
+  {
+   "source": "/",
+   "headers": [
+    {
+     "key": "Cache-Control",
+     "value": "no-cache"
+    }
+   ]
+  }
+ ]
+}
