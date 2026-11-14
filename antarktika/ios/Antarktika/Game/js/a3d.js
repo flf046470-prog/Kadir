@@ -17,9 +17,9 @@
   const SUN = [-0.58, 0.47, -0.68];
   const MAXB = 20;
   const QUALITY = {
-    low: { lights: 2, lod: 0.6, normalMap: false, texScale: 0.5, dataScale: 0.5, aniso: 1 },
-    balanced: { lights: 3, lod: 1.0, normalMap: true, texScale: 1, dataScale: 0.5, aniso: 2 },
-    cinematic: { lights: 4, lod: 1.5, normalMap: true, texScale: 1, dataScale: 1, aniso: 4 },
+    low: { lights: 2, lod: 0.6, normalMap: false, texScale: 0.5, dataScale: 0.5, aniso: 1, shadow: 0, shadowR: 0 },
+    balanced: { lights: 3, lod: 1.0, normalMap: true, texScale: 1, dataScale: 0.5, aniso: 2, shadow: 1024, shadowR: 30 },
+    cinematic: { lights: 4, lod: 1.5, normalMap: true, texScale: 1, dataScale: 1, aniso: 4, shadow: 2048, shadowR: 44 },
   };
   const A = {
     status: 'idle', progress: 0, error: null, models: {}, ready: false, zone: null, loadMs: 0,
@@ -237,22 +237,28 @@ attribute vec3 aPos;attribute vec3 aNorm;attribute vec2 aUV;attribute vec4 aTan;
 #ifdef SKIN
 attribute vec4 aJoint;attribute vec4 aWeight;uniform mat4 uBones[${MAXB}];
 #endif
-uniform mat4 uModel,uView,uProj;
-varying vec3 vPos,vNorm;varying vec2 vUV;varying vec4 vTan;varying float vDist;
+uniform mat4 uModel,uView,uProj,uShadowM;
+varying vec3 vPos,vNorm;varying vec2 vUV;varying vec4 vTan;varying float vDist;varying vec4 vSh;
 void main(){vec4 p=vec4(aPos,1.);vec4 n=vec4(aNorm,0.);vec4 t=vec4(aTan.xyz,0.);
 #ifdef SKIN
 mat4 sk=uBones[int(aJoint.x)]*aWeight.x+uBones[int(aJoint.y)]*aWeight.y+uBones[int(aJoint.z)]*aWeight.z+uBones[int(aJoint.w)]*aWeight.w;
 p=sk*p;n=sk*n;t=sk*t;
 #endif
 vec4 w=uModel*p;vPos=w.xyz;vNorm=(uModel*n).xyz;vTan=vec4((uModel*t).xyz,aTan.w==0.?1.:aTan.w);vUV=aUV;
-vec4 e=uView*w;vDist=length(e.xyz);gl_Position=uProj*e;}`;
+vSh=uShadowM*w;vec4 e=uView*w;vDist=length(e.xyz);gl_Position=uProj*e;}`;
   const FS = `
 precision highp float;
-varying vec3 vPos,vNorm;varying vec2 vUV;varying vec4 vTan;varying float vDist;
-uniform sampler2D uBaseTex,uOrmTex,uNrmTex,uEmiTex;
+varying vec3 vPos,vNorm;varying vec2 vUV;varying vec4 vTan;varying float vDist;varying vec4 vSh;
+uniform sampler2D uBaseTex,uOrmTex,uNrmTex,uEmiTex,uShadow;uniform float uShadowOn,uShadowTx;
 uniform vec4 uBase;uniform vec3 uEmissive;uniform vec4 uHas;uniform float uRough,uMetal,uInterior,uIce,uDecal,uAlpha;
 uniform vec3 uCam,uCamF,uAmbient,uFogC,uTorchP,uTorchD;uniform float uTime,uFlash,uFogD;
 uniform vec4 uLP[4];uniform vec3 uLC[4];uniform vec4 uScan;uniform float uScanAmt,uScanSel;
+float unpackD(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}
+float sTap(vec2 uv,float z){vec2 px=uv/uShadowTx-.5;vec2 f=fract(px);vec2 b=(floor(px)+.5)*uShadowTx;float a=step(z,unpackD(texture2D(uShadow,b))),c=step(z,unpackD(texture2D(uShadow,b+vec2(uShadowTx,0.)))),d=step(z,unpackD(texture2D(uShadow,b+vec2(0.,uShadowTx)))),e=step(z,unpackD(texture2D(uShadow,b+vec2(uShadowTx))));return mix(mix(a,c,f.x),mix(d,e,f.x),f.y);}
+float sPCF(vec2 uv,float z){float o=uShadowTx*.75;return (sTap(uv+vec2(-o,-o),z)+sTap(uv+vec2(o,-o),z)+sTap(uv+vec2(-o,o),z)+sTap(uv+vec2(o,o),z))*.25;}
+float sunShadow(float ndl){if(uShadowOn<.01)return 1.;vec3 s=vSh.xyz/vSh.w;if(s.x<.0||s.x>1.||s.y<.0||s.y>1.||s.z>1.)return 1.;
+float bias=.0008+.0025*(1.-ndl);float t=sPCF(s.xy,s.z-bias);
+float edge=smoothstep(0.,.06,min(min(s.x,1.-s.x),min(s.y,1.-s.y)));return mix(1.,t,edge*uShadowOn);}
 void main(){
 vec4 base=uBase;if(uHas.x>.5)base*=texture2D(uBaseTex,vUV);
 float fog=clamp(1.-exp(-pow(vDist*uFogD,1.32)),0.,.98);
@@ -264,11 +270,17 @@ if(uHas.z>.5){vec3 t=normalize(vTan.xyz-n*dot(n,vTan.xyz));vec3 b=cross(n,t)*vTa
 #endif
 vec3 V=normalize(uCam-vPos);if(dot(n,V)<-.05&&uIce<.5)n=-n;
 vec3 L=normalize(vec3(${SUN.join(',')}));float ao=orm.r,rough=clamp(orm.g,.05,1.),metal=orm.b;
-vec3 alb=base.rgb,col;float ndl=max(dot(n,L),0.);
-if(uInterior<.5){float sky=clamp(n.y*.28+.72,.37,1.);col=alb*((.43+.27*sky)*ao+.30*ndl*mix(1.,ao,.6));}
-else col=alb*uAmbient*ao;
-vec3 spec=vec3(0.);float shin=mix(96.,6.,rough);vec3 F0=mix(vec3(.04),alb,metal);
-if(uInterior<.5){vec3 H=normalize(L+V);spec+=F0*pow(max(dot(n,H),0.),shin)*ndl*(1.-rough)*1.6;}
+vec3 alb=base.rgb,col;float ndl=max(dot(n,L),0.);float nv=max(dot(n,V),.001);
+vec3 spec=vec3(0.);float shin=mix(96.,6.,rough);vec3 F0=mix(vec3(.04),alb,metal);vec3 dif=alb*(1.-metal*.8);
+if(uInterior<.5){float sky=clamp(n.y*.28+.72,.37,1.);float sh=sunShadow(ndl);
+vec3 skyC=vec3(.78,.86,1.)*(.36+.24*sky),sunC=vec3(1.,.93,.80)*.62;
+col=dif*(skyC*ao+sunC*ndl*sh*mix(1.,ao,.6));
+vec3 H=normalize(L+V);float nh=max(dot(n,H),0.),vh=max(dot(V,H),0.),a=rough*rough,a2=a*a,dd=nh*nh*(a2-1.)+1.,k=a*.5;
+float D=a2/(3.14159*dd*dd),Vis=.25/((ndl*(1.-k)+k)*(nv*(1.-k)+k));vec3 F=F0+(1.-F0)*pow(1.-vh,5.);
+spec+=min(D*Vis,30.)*F*ndl*sunC*sh*1.9;
+vec3 R=reflect(-V,n);vec3 env=mix(vec3(.80,.85,.86),vec3(.46,.57,.68),clamp(R.y*1.6,0.,1.));
+vec3 Fv=F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);spec+=Fv*env*ao*(1.-rough*.75)*.55;}
+else{col=dif*uAmbient*ao;vec3 Fv=F0+(max(vec3(1.-rough),F0)-F0)*pow(1.-nv,5.);spec+=Fv*uAmbient*ao*(1.-rough*.8)*.6;}
 for(int i=0;i<4;i++){vec3 d=uLP[i].xyz-vPos;float dist=length(d);float att=clamp(1.-dist/max(uLP[i].w,.01),0.,1.);att*=att;vec3 l=d/max(dist,.001);
 float nl=max(dot(n,l),0.);col+=alb*uLC[i]*nl*att*(1.-metal*.5);vec3 H=normalize(l+V);spec+=F0*uLC[i]*pow(max(dot(n,H),0.),shin)*nl*att*(1.-rough)*2.;}
 vec3 dv=vPos-uTorchP;float len=length(dv);float cone=dot(dv/max(len,.001),uTorchD);
@@ -474,7 +486,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const t = a.currentTime, o = a.createOscillator(), g = a.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t); o.frequency.exponentialRampToValueAtTime(freq * glide, t + dur);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(E.master); o.start(t); o.stop(t + dur + 0.02);
+    o.connect(g); g.connect(bus()); o.start(t); o.stop(t + dur + 0.02);
   }
   function noiseBurst(dur, f0, f1, gain, q = 0.8) {
     const a = ac(); if (!a) return;
@@ -482,12 +494,135 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
     const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
     s.buffer = b; f.type = 'bandpass'; f.Q.value = q; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(f1, t + dur);
-    g.gain.value = gain; s.connect(f); f.connect(g); g.connect(E.master); s.start(t);
+    g.gain.value = gain; s.connect(f); f.connect(g); g.connect(bus()); s.start(t);
+  }
+  /* ------------------------------------------------------------ sound realism
+   * Dry polar snow does not "thud": a boot compacting it makes a burst of tiny fractures (a crunch/squeak,
+   * most energy 1-5 kHz) in two clusters, heel then toe, over a low boot thump. Those are synthesised
+   * sample by sample into a small bank of variations at start. Wind is three layers: the engine's low
+   * rumble, a gusting band that howls, and a narrow whistle that rises in a storm. Parka nylon swishes
+   * with each step, breath is audible when running or cold, caves drip, and every sound gets the
+   * reverb of the space you are in (a long cold ring in ice caves and halls, a short one in the station). */
+  const SFX = { ready: false, bank: {}, bus: null, wet: null, conv: null, irZone: '', gust: null, whistle: null, hiss: null, gustT: 0, gustV: 0, nextDrip: 3, cave: null };
+  function bus() {
+    const a = ac(); if (!a) return E.master;
+    if (!SFX.bus) {
+      SFX.bus = a.createGain(); SFX.bus.connect(E.master);
+      SFX.conv = a.createConvolver(); SFX.wet = a.createGain(); SFX.wet.gain.value = 0;
+      SFX.bus.connect(SFX.conv); SFX.conv.connect(SFX.wet); SFX.wet.connect(E.master);
+    }
+    return SFX.bus;
+  }
+  function impulse(a, secs, bright) {
+    const len = Math.floor(a.sampleRate * secs), b = a.createBuffer(2, len, a.sampleRate);
+    for (let c = 0; c < 2; c++) { const d = b.getChannelData(c); let lp = 0;
+      for (let i = 0; i < len; i++) { const t = i / len, n = Math.random() * 2 - 1; lp += (n - lp) * (bright - t * bright * 0.8); d[i] = lp * Math.pow(1 - t, 2.2) * (i < a.sampleRate * 0.004 ? i / (a.sampleRate * 0.004) : 1); } }
+    return b;
+  }
+  function crunchBuffer(a, kind) {
+    const sr = a.sampleRate, dur = kind === 'ice' ? 0.16 : 0.24, len = Math.floor(sr * dur), b = a.createBuffer(1, len, sr), d = b.getChannelData(0);
+    const thumpF = kind === 'ice' ? 140 : 95;
+    for (let i = 0; i < len; i++) { const t = i / sr; d[i] = Math.sin(2 * Math.PI * thumpF * t) * Math.exp(-t * 38) * (kind === 'ice' ? 0.35 : 0.55); }
+    const events = kind === 'ice' ? 10 + (Math.random() * 6 | 0) : 34 + (Math.random() * 22 | 0);
+    for (let e = 0; e < events; e++) {
+      const heel = Math.random() < 0.55, t0 = heel ? Math.abs(rndN()) * 0.025 : 0.075 + Math.abs(rndN()) * 0.04;
+      const start = Math.floor(t0 * sr); if (start >= len) continue;
+      const ms = (kind === 'ice' ? 0.5 : 1) + Math.random() * 3, l = Math.floor(sr * ms / 1000), amp = (0.25 + Math.random() * 0.75) * (heel ? 1 : 0.7);
+      const ring = kind === 'ice' ? 2600 + Math.random() * 2400 : 0;
+      let hp = 0, prev = 0;
+      for (let i = 0; i < l && start + i < len; i++) {
+        const env = Math.exp(-i / (l * 0.28)); let n = Math.random() * 2 - 1;
+        hp = 0.82 * (hp + n - prev); prev = n;                                // one-pole high-pass: crisp, not hissy
+        d[start + i] += (ring ? Math.sin(2 * Math.PI * ring * i / sr) * 0.6 + hp * 0.4 : hp) * env * amp * 0.5;
+      }
+    }
+    let peak = 0; for (let i = 0; i < len; i++) peak = Math.max(peak, Math.abs(d[i]));
+    for (let i = 0; i < len; i++) d[i] /= peak || 1;
+    return b;
+  }
+  function rndN() { return (Math.random() + Math.random() + Math.random() - 1.5) / 1.5; }
+  function sfxInit() {
+    const a = ac(); if (!a || SFX.ready) return;
+    SFX.ready = true;
+    for (const k of ['snow', 'ice']) SFX.bank[k] = Array.from({ length: 8 }, () => crunchBuffer(a, k));
+    // nylon swish and breath share a short filtered noise buffer
+    const len = Math.floor(a.sampleRate * 0.5), nb = a.createBuffer(1, len, a.sampleRate), nd = nb.getChannelData(0);
+    for (let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+    SFX.noise = nb;
+    // wind layers on a looping noise source
+    const wlen = a.sampleRate * 4, wb = a.createBuffer(1, wlen, a.sampleRate), wd = wb.getChannelData(0); let pink = 0;
+    for (let i = 0; i < wlen; i++) { pink = 0.97 * pink + 0.03 * (Math.random() * 2 - 1); wd[i] = pink * 6 + (Math.random() * 2 - 1) * 0.15; }
+    const layer = (type, f, q) => { const src = a.createBufferSource(), fl = a.createBiquadFilter(), g = a.createGain(), pan = a.createStereoPanner ? a.createStereoPanner() : null;
+      src.buffer = wb; src.loop = true; src.loopStart = 0; src.playbackRate.value = 0.8 + Math.random() * 0.4; fl.type = type; fl.frequency.value = f; fl.Q.value = q; g.gain.value = 0;
+      src.connect(fl); fl.connect(g); if (pan) { g.connect(pan); pan.connect(E.master); } else g.connect(E.master); src.start(0, Math.random() * 3); return { fl, g, pan }; };
+    SFX.gust = layer('bandpass', 420, 0.9); SFX.whistle = layer('bandpass', 900, 14); SFX.hiss = layer('highpass', 3800, 0.5);
+    SFX.cave = layer('bandpass', 260, 2.2);
+  }
+  function oneShot(buf, gain, rate = 1, f = null) {
+    const a = ac(); if (!a || !buf) return;
+    const s = a.createBufferSource(), g = a.createGain(); s.buffer = buf; s.playbackRate.value = rate; g.gain.value = gain;
+    if (f) { const fl = a.createBiquadFilter(); fl.type = f.type; fl.frequency.value = f.freq; fl.Q.value = f.q || 0.7; s.connect(fl); fl.connect(g); } else s.connect(g);
+    g.connect(bus()); s.start(); return { s, g };
+  }
+  function swish(vol) {
+    const a = ac(); if (!a || !SFX.noise) return;
+    const t = a.currentTime, s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = SFX.noise; f.type = 'bandpass'; f.frequency.setValueAtTime(3200 + Math.random() * 1500, t); f.frequency.linearRampToValueAtTime(4800 + Math.random() * 1500, t + 0.14); f.Q.value = 1.3;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.05); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    s.connect(f); f.connect(g); g.connect(bus()); s.start(t, Math.random() * 0.3); s.stop(t + 0.2);
+  }
+  function breathe(run, cold) {
+    const a = ac(); if (!a || !SFX.noise) return;
+    const t = a.currentTime, vol = (run ? 0.05 : 0.018) * (0.7 + cold * 0.6);
+    for (const [st, dur, f0, f1, v] of [[0, run ? 0.32 : 0.5, 900, 1300, vol * 0.7], [run ? 0.4 : 0.9, run ? 0.42 : 0.7, 1400, 700, vol]]) {
+      const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+      s.buffer = SFX.noise; s.loop = true; f.type = 'bandpass'; f.Q.value = 0.9; f.frequency.setValueAtTime(f0, t + st); f.frequency.linearRampToValueAtTime(f1, t + st + dur);
+      g.gain.setValueAtTime(0.0001, t + st); g.gain.linearRampToValueAtTime(v, t + st + dur * 0.35); g.gain.linearRampToValueAtTime(0.0001, t + st + dur);
+      s.connect(f); f.connect(g); g.connect(bus()); s.start(t + st); s.stop(t + st + dur + 0.05);
+    }
   }
   function footstep(vol, surface) {
     if (vol <= 0.01 || !ac()) return;
+    sfxInit();
     if (surface === 'metal') { noiseBurst(0.09, 2200, 1500, vol * 0.5, 2.5); tone(310 + Math.random() * 40, 0.12, 'triangle', vol * 0.05, 0.9); }
-    else noiseBurst(0.12, 620, 420, vol * 0.45, 0.7);
+    else {
+      const kind = surface === 'ice' || A.zone === 'cave' ? 'ice' : 'snow', bank = SFX.bank[kind];
+      oneShot(bank[(Math.random() * bank.length) | 0], vol * (kind === 'ice' ? 0.22 : 0.3), 0.92 + Math.random() * 0.16);
+    }
+    swish(0.012 + vol * 0.012);
+  }
+  function sfxUpdate(dt) {
+    const a = ac(); if (!a) return;
+    sfxInit(); bus();
+    const p = E.player, now = a.currentTime;
+    const outdoor = !curLayer() && A.zone !== 'cave' && A.zone !== 'indoor', storm = FX.storm || 0;
+    // reverb of the space you are in
+    const zone = A.zone === 'cave' ? 'cave' : (A.zone === 'hall' || A.zone === 'city' || A.zone === 'grid' || A.zone === 'camp') ? 'hall' : A.zone === 'indoor' ? 'room' : 'out';
+    if (zone !== SFX.irZone) {
+      SFX.irZone = zone;
+      if (zone !== 'out') SFX.conv.buffer = impulse(a, zone === 'cave' ? 2.6 : zone === 'hall' ? 3.4 : 0.45, zone === 'room' ? 0.5 : 0.25);
+      SFX.wet.gain.setTargetAtTime(zone === 'cave' ? 0.55 : zone === 'hall' ? 0.45 : zone === 'room' ? 0.18 : 0, now, 0.3);
+    }
+    // gusts: a slowly wandering target strength, a little faster in a storm
+    SFX.gustT -= dt;
+    if (SFX.gustT <= 0) { SFX.gustT = 1.2 + Math.random() * 3.5 * (1 - storm * 0.5); SFX.gustV = Math.random() ** 1.6; }
+    const sheltered = outdoor ? 1 : zone === 'room' ? 0.12 : 0.05, g = (0.012 + storm * 0.07) * (0.35 + SFX.gustV) * sheltered;
+    SFX.gust.g.gain.setTargetAtTime(g, now, 0.6); SFX.gust.fl.frequency.setTargetAtTime(260 + SFX.gustV * 520 + storm * 200, now, 0.8);
+    SFX.whistle.g.gain.setTargetAtTime((storm > 0.25 ? (storm - 0.25) * 0.05 : 0) * SFX.gustV * sheltered, now, 0.7);
+    SFX.whistle.fl.frequency.setTargetAtTime(700 + SFX.gustV * 600, now, 1.2);
+    SFX.hiss.g.gain.setTargetAtTime(outdoor ? (0.004 + storm * 0.03) * (0.5 + SFX.gustV) : 0, now, 0.5);
+    if (SFX.gust.pan) SFX.gust.pan.pan.setTargetAtTime(Math.sin(time * 0.13) * 0.6, now, 1);
+    if (SFX.whistle.pan) SFX.whistle.pan.pan.setTargetAtTime(Math.sin(time * 0.21 + 1) * 0.7, now, 1);
+    // ice caves: a hollow draught and water dripping somewhere in the dark
+    SFX.cave.g.gain.setTargetAtTime(zone === 'cave' ? 0.02 + 0.015 * Math.sin(time * 0.3) : zone === 'hall' ? 0.008 : 0, now, 0.8);
+    SFX.nextDrip -= dt;
+    if (SFX.nextDrip <= 0 && (zone === 'cave' || zone === 'hall')) {
+      SFX.nextDrip = 1.5 + Math.random() * 5;
+      const o = a.createOscillator(), gg = a.createGain(), pan = a.createStereoPanner ? a.createStereoPanner() : null, t = now, f = 900 + Math.random() * 900;
+      o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 2.3, t + 0.05);
+      gg.gain.setValueAtTime(0.0001, t); gg.gain.exponentialRampToValueAtTime(0.03 + Math.random() * 0.03, t + 0.004); gg.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+      o.connect(gg); if (pan) { pan.pan.value = Math.random() * 1.6 - 0.8; gg.connect(pan); pan.connect(bus()); } else gg.connect(bus()); o.start(t); o.stop(t + 0.1);
+    }
   }
   function startHum() {
     const a = ac(); if (!a || hum) return;
@@ -681,6 +816,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
   /* ------------------------------------------------------------ update + draw */
   let doorSoundState = 0;
   function update(dt) {
+    A.frameNo = (A.frameNo | 0) + 1;
+    try { fxUpdate(dt); } catch (err) { if (!A.fxError) A.fxError = String(err && err.message || err); }
+    try { sfxUpdate(dt); } catch (err) { if (!A.sfxError) A.sfxError = String(err && err.message || err); }
     time += dt;
     const p = E.player;
     A.zone = zoneAt(p.x, p.z);
@@ -861,6 +999,276 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     gl.vertexAttribPointer(loc, buf.n, gl.FLOAT, false, 0, 0);
   }
 
+  /* ------------------------------------------------------------ sun shadows
+   * One ortho shadow map that follows the player (outdoors only). Depth is packed into RGBA8 so it works on
+   * every WebGL1 device (no depth-texture extension needed). Models sample it in the main shader; the snow
+   * receives model shadows through a thin "shadow catcher" built on the engine's own terrain grid, multiplied
+   * over the terrain with the blue-sky shade ratio, so a shadow on snow is blue like a real one. */
+  const SH = { size: 0, fb: null, tex: null, rb: null, m: new Float32Array(16), lvp: new Float32Array(16), frame: -1, on: 0, c: null, catcher: null };
+  const SVS = `attribute vec3 aPos;
+#ifdef SKIN
+attribute vec4 aJoint;attribute vec4 aWeight;uniform mat4 uBones[${MAXB}];
+#endif
+uniform mat4 uModel,uLVP;void main(){vec4 p=vec4(aPos,1.);
+#ifdef SKIN
+p=(uBones[int(aJoint.x)]*aWeight.x+uBones[int(aJoint.y)]*aWeight.y+uBones[int(aJoint.z)]*aWeight.z+uBones[int(aJoint.w)]*aWeight.w)*p;
+#endif
+gl_Position=uLVP*uModel*p;}`;
+  const SFS = `precision highp float;void main(){vec4 e=fract(gl_FragCoord.z*vec4(1.,255.,65025.,16581375.));e-=e.yzww*vec4(1./255.,1./255.,1./255.,0.);gl_FragColor=e;}`;
+  const CVS = `attribute vec3 aPos;attribute vec3 aNorm;uniform mat4 uView,uProj,uShadowM;varying vec4 vSh;varying vec3 vN;varying float vDist,vR;uniform vec2 uC;uniform float uR;
+void main(){vSh=uShadowM*vec4(aPos,1.);vN=aNorm;vR=length(aPos.xz-uC)/uR;vec4 e=uView*vec4(aPos,1.);vDist=length(e.xyz);gl_Position=uProj*e;}`;
+  const CFS = `precision highp float;varying vec4 vSh;varying vec3 vN;varying float vDist,vR;uniform sampler2D uShadow;uniform float uShadowOn,uShadowTx,uFogD;
+float unpackD(vec4 c){return dot(c,vec4(1.,1./255.,1./65025.,1./16581375.));}
+float sTap(vec2 uv,float z){vec2 px=uv/uShadowTx-.5;vec2 f=fract(px);vec2 b=(floor(px)+.5)*uShadowTx;float a=step(z,unpackD(texture2D(uShadow,b))),c=step(z,unpackD(texture2D(uShadow,b+vec2(uShadowTx,0.)))),d=step(z,unpackD(texture2D(uShadow,b+vec2(0.,uShadowTx)))),e=step(z,unpackD(texture2D(uShadow,b+vec2(uShadowTx))));return mix(mix(a,c,f.x),mix(d,e,f.x),f.y);}
+float sPCF(vec2 uv,float z){float o=uShadowTx*.75;return (sTap(uv+vec2(-o,-o),z)+sTap(uv+vec2(o,-o),z)+sTap(uv+vec2(-o,o),z)+sTap(uv+vec2(o,o),z))*.25;}
+void main(){vec3 s=vSh.xyz/vSh.w;if(s.x<0.||s.x>1.||s.y<0.||s.y>1.)discard;float t=sPCF(s.xy,s.z-.0012)*9.;
+vec3 n=normalize(vN);vec3 L=normalize(vec3(${SUN.join(',')}));float direct=max(dot(n,L),0.),sky=clamp(n.y*.28+.72,.37,1.);
+vec3 skyC=vec3(.78,.86,1.)*(.36+.24*sky);vec3 lit=skyC+vec3(1.,.93,.80)*.62*direct;
+float fog=clamp(1.-exp(-pow(vDist*uFogD,1.32)),0.,.98);float amt=(1.-t/9.)*uShadowOn*(1.-fog)*(1.-smoothstep(.82,1.,vR));
+if(amt<.003)discard;gl_FragColor=vec4(mix(vec3(1.),skyC/lit,amt),1.);}`;
+  // the engine's terrain grid (index.html: RES 246 over x -325..325, z -390..135); the catcher reuses its exact vertices
+  const TG = { res: 246, x0: -325, x1: 325, z0: -390, z1: 135 };
+  let shadowProg = {}, catcherProg = null;
+  function shProgram(skin) {
+    const k = skin ? 'skin' : 'rigid';
+    if (shadowProg[k]) return shadowProg[k];
+    const pre = skin ? '#define SKIN\n' : '';
+    const mk = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(o)); return o; };
+    const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, pre + SVS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, SFS)); gl.linkProgram(p);
+    return (shadowProg[k] = { p, uModel: gl.getUniformLocation(p, 'uModel'), uLVP: gl.getUniformLocation(p, 'uLVP'), uBones: gl.getUniformLocation(p, 'uBones[0]') || gl.getUniformLocation(p, 'uBones'),
+      aPos: gl.getAttribLocation(p, 'aPos'), aJoint: gl.getAttribLocation(p, 'aJoint'), aWeight: gl.getAttribLocation(p, 'aWeight') });
+  }
+  function shadowTarget(size) {
+    if (SH.size === size) return;
+    if (SH.fb) { gl.deleteFramebuffer(SH.fb); gl.deleteTexture(SH.tex); gl.deleteRenderbuffer(SH.rb); }
+    SH.size = size; SH.tex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SH.tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, size, size, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    SH.rb = gl.createRenderbuffer(); gl.bindRenderbuffer(gl.RENDERBUFFER, SH.rb); gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, size, size);
+    SH.fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, SH.fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, SH.tex, 0);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, SH.rb);
+  }
+  // light view/projection centred on c, snapped to whole texels so the shadow edges do not crawl as you walk
+  function sunMatrices(c, R, size) {
+    const L = SUN.map((v) => v / Math.hypot(...SUN)), f = [-L[0], -L[1], -L[2]];
+    let sx = f[1] * 0 - f[2] * 1, sy = f[2] * 0 - f[0] * 0, sz = f[0] * 1 - f[1] * 0; const sl = Math.hypot(sx, sy, sz); sx /= sl; sy /= sl; sz /= sl;
+    const ux = sy * f[2] - sz * f[1], uy = sz * f[0] - sx * f[2], uz = sx * f[1] - sy * f[0];
+    const ts = (2 * R) / size, cr = c[0] * sx + c[1] * sy + c[2] * sz, cu = c[0] * ux + c[1] * uy + c[2] * uz;
+    const dr = cr - Math.round(cr / ts) * ts, du = cu - Math.round(cu / ts) * ts;
+    const cc = [c[0] - sx * dr - ux * du, c[1] - sy * dr - uy * du, c[2] - sz * dr - uz * du], D = 160;
+    const e = [cc[0] + L[0] * D, cc[1] + L[1] * D, cc[2] + L[2] * D];
+    const view = new Float32Array([sx, ux, -f[0], 0, sy, uy, -f[1], 0, sz, uz, -f[2], 0,
+      -(sx * e[0] + sy * e[1] + sz * e[2]), -(ux * e[0] + uy * e[1] + uz * e[2]), f[0] * e[0] + f[1] * e[1] + f[2] * e[2], 1]);
+    const n = 1, fa = D + 140, ortho = new Float32Array([1 / R, 0, 0, 0, 0, 1 / R, 0, 0, 0, 0, -2 / (fa - n), 0, 0, 0, -(fa + n) / (fa - n), 1]);
+    const lvp = M4.mul(ortho, view), bias = new Float32Array([0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0.5, 0.5, 0.5, 1]);
+    SH.lvp = lvp; SH.m = M4.mul(bias, lvp);
+  }
+  function renderShadows(eye, q, items, storm) {
+    const outdoor = !curLayer() && A.zone !== 'cave' && A.zone !== 'indoor';
+    SH.on = outdoor && q.shadow ? Math.max(0, 1 - storm * 0.85) : 0;
+    if (!SH.on) return;
+    if (SH.frame === A.frameNo) return;            // XR renders two eyes per frame: one shadow pass is enough
+    SH.frame = A.frameNo;
+    const R = q.shadowR, fwdX = Math.sin(E.player.yaw), fwdZ = -Math.cos(E.player.yaw);
+    const c = [eye[0] + fwdX * R * 0.45, E.terrainY(eye[0], eye[2]), eye[2] + fwdZ * R * 0.45];   // most of the map in front of you
+    const prevFb = gl.getParameter(gl.FRAMEBUFFER_BINDING), vp = gl.getParameter(gl.VIEWPORT);   // read before shadowTarget binds its own
+    SH.c = c; shadowTarget(q.shadow); sunMatrices(c, R, q.shadow);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, null);   // never sample the map while drawing into it
+    gl.bindFramebuffer(gl.FRAMEBUFFER, SH.fb); gl.viewport(0, 0, SH.size, SH.size);
+    gl.clearColor(1, 1, 1, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.disable(gl.BLEND);
+    const casters = [];
+    for (const e of world.draw) {
+      if (!live(e) || !e.visible || !e.m || e.ex.a3d_decal || e.ex.a3d_group === 'glyph' || e.ex.a3d_noshadow) continue;
+      for (const pr of e.prims) {
+        if (pr.mat.blend) continue;
+        const cc = M4.xform(e.m, pr.center[0], pr.center[1], pr.center[2]);
+        if (Math.hypot(cc[0] - c[0], cc[2] - c[2]) - pr.radius > R * 1.42) continue;
+        casters.push({ pr, m: e.m });
+      }
+    }
+    for (const it of items) if (it.skin) casters.push(it);
+    const off = new Set();
+    for (const it of casters) {
+      const P = shProgram(!!it.skin); gl.useProgram(P.p);
+      gl.uniformMatrix4fv(P.uLVP, false, SH.lvp); gl.uniformMatrix4fv(P.uModel, false, it.m);
+      if (it.skin) gl.uniformMatrix4fv(P.uBones, false, it.skin.mats);
+      const b = it.pr.bufs;
+      gl.bindBuffer(gl.ARRAY_BUFFER, b.aPos.b); gl.enableVertexAttribArray(P.aPos); gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0); off.add(P.aPos);
+      if (it.skin) for (const [nm, loc] of [['aJoint', P.aJoint], ['aWeight', P.aWeight]]) { gl.bindBuffer(gl.ARRAY_BUFFER, b[nm].b); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 4, gl.FLOAT, false, 0, 0); off.add(loc); }
+      if (it.pr.index) { gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, it.pr.index); gl.drawElements(gl.TRIANGLES, it.pr.count, it.pr.itype, 0); }
+      else gl.drawArrays(gl.TRIANGLES, 0, it.pr.count);
+      A.stats.shadowDraws = (A.stats.shadowDraws || 0) + 1;
+    }
+    for (const loc of off) gl.disableVertexAttribArray(loc);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, prevFb); gl.viewport(vp[0], vp[1], vp[2], vp[3]);
+  }
+  function catcherMesh(c, R) {
+    const key = Math.round(c[0] / 6) + ',' + Math.round(c[2] / 6) + ',' + R;
+    if (SH.catcher && SH.catcher.key === key) return SH.catcher;
+    const dx = (TG.x1 - TG.x0) / TG.res, dz = (TG.z1 - TG.z0) / TG.res;
+    const i0 = Math.max(0, Math.floor((c[0] - R - TG.x0) / dx)), i1 = Math.min(TG.res, Math.ceil((c[0] + R - TG.x0) / dx));
+    const j0 = Math.max(0, Math.floor((c[2] - R - TG.z0) / dz)), j1 = Math.min(TG.res, Math.ceil((c[2] + R - TG.z0) / dz));
+    const W = i1 - i0 + 1, pos = [], nrm = [], idx = [];
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = TG.x0 + i * dx, z = TG.z0 + j * dz, y = E.terrainY(x, z);
+      const nx = E.terrainY(x - 0.6, z) - E.terrainY(x + 0.6, z), nz = E.terrainY(x, z - 0.6) - E.terrainY(x, z + 0.6), l = Math.hypot(nx, 1.2, nz);
+      pos.push(x, y + 0.03, z); nrm.push(nx / l, 1.2 / l, nz / l);
+    }
+    for (let j = 0; j < j1 - j0; j++) for (let i = 0; i < i1 - i0; i++) { const a = j * W + i, b = a + W; idx.push(a, b, a + 1, a + 1, b, b + 1); }
+    if (SH.catcher) { gl.deleteBuffer(SH.catcher.p); gl.deleteBuffer(SH.catcher.n); gl.deleteBuffer(SH.catcher.i); }
+    const mk = (target, data) => { const b = gl.createBuffer(); gl.bindBuffer(target, b); gl.bufferData(target, data, gl.STATIC_DRAW); return b; };
+    SH.catcher = { key, p: mk(gl.ARRAY_BUFFER, new Float32Array(pos)), n: mk(gl.ARRAY_BUFFER, new Float32Array(nrm)), i: mk(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx)), count: idx.length };
+    return SH.catcher;
+  }
+  function drawCatcher(view, proj, fogD) {
+    if (!SH.on || !SH.c) return;
+    const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced, R = q.shadowR, C = catcherMesh(SH.c, R);
+    if (!catcherProg) {
+      const mk = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(o)); return o; };
+      const p = gl.createProgram(); gl.attachShader(p, mk(gl.VERTEX_SHADER, CVS)); gl.attachShader(p, mk(gl.FRAGMENT_SHADER, CFS)); gl.linkProgram(p);
+      catcherProg = { p, aPos: gl.getAttribLocation(p, 'aPos'), aNorm: gl.getAttribLocation(p, 'aNorm') };
+      for (const nm of ['uView', 'uProj', 'uShadowM', 'uShadow', 'uShadowOn', 'uShadowTx', 'uFogD', 'uC', 'uR']) catcherProg[nm] = gl.getUniformLocation(p, nm);
+    }
+    const P = catcherProg; gl.useProgram(P.p);
+    gl.uniformMatrix4fv(P.uView, false, view); gl.uniformMatrix4fv(P.uProj, false, proj); gl.uniformMatrix4fv(P.uShadowM, false, SH.m);
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SH.tex); gl.uniform1i(P.uShadow, 6);
+    gl.uniform1f(P.uShadowOn, SH.on); gl.uniform1f(P.uShadowTx, 1 / SH.size); gl.uniform1f(P.uFogD, fogD); gl.uniform2f(P.uC, SH.c[0], SH.c[2]); gl.uniform1f(P.uR, R);
+    gl.bindBuffer(gl.ARRAY_BUFFER, C.p); gl.enableVertexAttribArray(P.aPos); gl.vertexAttribPointer(P.aPos, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ARRAY_BUFFER, C.n); gl.enableVertexAttribArray(P.aNorm); gl.vertexAttribPointer(P.aNorm, 3, gl.FLOAT, false, 0, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, C.i);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(false); gl.enable(gl.BLEND); gl.blendFunc(gl.DST_COLOR, gl.ZERO);
+    gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -3);
+    gl.drawElements(gl.TRIANGLES, C.count, gl.UNSIGNED_SHORT, 0);
+    gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.BLEND); gl.depthMask(true);
+    gl.disableVertexAttribArray(P.aPos); gl.disableVertexAttribArray(P.aNorm);
+  }
+
+  /* ------------------------------------------------------------ atmosphere effects
+   * Breath vapour (cold air, faster when running), spindrift (wind-blown snow skimming the ground outdoors),
+   * ice dust that only shows inside the torch beam in dark places, and frost creeping in at the screen edges
+   * when body heat drops. All camera-facing soft particles in one dynamic buffer. */
+  const WIND = [0.85, 0, 0.53];
+  const FX = { breath: [], drift: [], motes: [], next: 0, buf: null, prog: null, storm: 0, frost: null, frostA: 0 };
+  const FXVS = `attribute vec3 aC;attribute vec4 aQ;attribute vec2 aK;uniform mat4 uView,uProj;uniform vec3 uRight,uUp,uWind;
+varying vec2 vUV;varying float vA,vK,vDist;
+void main(){vec3 r=uRight,u=uUp;float sz=aQ.z;if(aK.x>.5&&aK.x<1.5){r=uWind*aK.y;u=vec3(0.,.28,0.);}
+vec3 p=aC+(r*aQ.x+u*aQ.y)*sz;vUV=aQ.xy*.5+.5;vA=aQ.w;vK=aK.x;vec4 e=uView*vec4(p,1.);vDist=length(e.xyz);gl_Position=uProj*e;}`;
+  const FXFS = `precision mediump float;varying vec2 vUV;varying float vA,vK,vDist;uniform float uFogD;
+void main(){vec2 q=vUV*2.-1.;float r=length(q);float a=(1.-smoothstep(.15,1.,r));
+vec3 c=vK<.5?vec3(.86,.90,.93):vK<1.5?vec3(.93,.96,.98):vec3(1.,.96,.86);
+if(vK>1.5)a=pow(a,3.);a*=vA*(1.-clamp(1.-exp(-pow(vDist*uFogD,1.32)),0.,.98));if(a<.004)discard;gl_FragColor=vec4(c,a);}`;
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const coldHere = () => !(A.zone === 'indoor' && A.state.power) && A.zone !== 'camp_hut';
+  const darkHere = () => A.zone === 'cave' || A.zone === 'hall' || A.zone === 'grid' || (A.zone === 'indoor' && !A.state.power) || A.zone === 'city';
+  function fxUpdate(dt) {
+    const p = E.player; if (!p || E.state !== 'play') return;
+    const ex = [Math.sin(p.yaw), 0, -Math.cos(p.yaw)], eyeY = (E.eyeY ? E.eyeY() : groundY(p.x, p.z) + 1.72);
+    const speed = hands.speed || 0, outdoor = !curLayer() && A.zone !== 'cave' && A.zone !== 'indoor';
+    // breath: a puff every 2.2-3.6 s walking, 1.1 s running; bigger when cold
+    FX.next -= dt;
+    if (FX.next <= 0 && coldHere()) {
+      const run = speed > 4.2, cold = 1 - clamp((p.warmth ?? 100) / 100, 0, 1);
+      FX.next = run ? rnd(1.0, 1.25) : rnd(2.2, 3.6);
+      if (run || cold > 0.55) try { breathe(run, cold); } catch (e) { /* audio not started */ }
+      const n = run ? 7 : 5;
+      for (let i = 0; i < n; i++) FX.breath.push({ x: p.x + ex[0] * 0.42, y: eyeY - 0.14, z: p.z + ex[2] * 0.42,
+        vx: ex[0] * rnd(0.45, 0.9) + WIND[0] * 0.25 * FX.storm + rnd(-0.08, 0.08), vy: rnd(0.04, 0.16), vz: ex[2] * rnd(0.35, 0.8) + WIND[2] * 0.25 * FX.storm + rnd(-0.08, 0.08),
+        age: -i * 0.035, life: rnd(1.1, 1.6) * (run ? 0.8 : 1), s0: rnd(0.05, 0.08), a: (run ? 0.30 : 0.24) * (0.75 + cold * 0.5) });
+    }
+    for (const b of FX.breath) { b.age += dt; if (b.age < 0) continue; b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; b.vx *= 1 - dt * 1.4; b.vz *= 1 - dt * 1.4; }
+    FX.breath = FX.breath.filter((b) => b.age < b.life);
+    // spindrift: streaks racing along the wind just above the snow, denser in a storm
+    const nDrift = outdoor ? Math.round(30 + FX.storm * 110) : 0;
+    while (FX.drift.length < nDrift) FX.drift.push({ x: p.x + rnd(-22, 22), z: p.z + rnd(-22, 22), h: rnd(0.02, 0.7), sp: rnd(4, 9), life: rnd(0.6, 2), age: 0, len: rnd(0.6, 1.8) });
+    if (FX.drift.length > nDrift) FX.drift.length = nDrift;
+    for (const d of FX.drift) {
+      d.age += dt; const v = d.sp * (0.6 + FX.storm);
+      d.x += WIND[0] * v * dt; d.z += WIND[2] * v * dt;
+      if (d.age > d.life || Math.hypot(d.x - p.x, d.z - p.z) > 24) { d.x = p.x + rnd(-22, 22); d.z = p.z + rnd(-22, 22); d.age = 0; d.life = rnd(0.6, 2); d.h = rnd(0.02, 0.7); }
+    }
+    // ice dust: drifts slowly around you in dark places, visible only where the torch beam catches it
+    const nMotes = darkHere() ? 140 : 0;
+    while (FX.motes.length < nMotes) FX.motes.push({ x: p.x + rnd(-7, 7), y: eyeY + rnd(-1.6, 1.4), z: p.z + rnd(-7, 7), vx: rnd(-0.05, 0.05), vy: rnd(-0.07, 0.01), vz: rnd(-0.05, 0.05), ph: rnd(0, 6.3) });
+    if (FX.motes.length > nMotes) FX.motes.length = nMotes;
+    for (const m of FX.motes) {
+      m.x += (m.vx + Math.sin(time * 0.7 + m.ph) * 0.03) * dt; m.y += m.vy * dt; m.z += (m.vz + Math.cos(time * 0.6 + m.ph) * 0.03) * dt;
+      if (Math.hypot(m.x - p.x, m.z - p.z) > 7.5 || m.y < eyeY - 1.8) { m.x = p.x + rnd(-7, 7); m.y = eyeY + rnd(-0.2, 1.5); m.z = p.z + rnd(-7, 7); }
+    }
+    // frost on the visor edges: below 55 % body heat it creeps in, and clears slowly in the warm
+    const target = clamp((55 - (p.warmth ?? 100)) / 45, 0, 1) * (E.xr ? 0 : 1);
+    FX.frostA += (target - FX.frostA) * Math.min(1, dt * (target > FX.frostA ? 0.25 : 0.6));
+    frostOverlay(FX.frostA);
+  }
+  function frostOverlay(a) {
+    if (!FX.frost) {
+      if (a < 0.01) return;
+      const c = document.createElement('canvas'); c.id = 'a3dFrost'; c.width = 512; c.height = 288;
+      c.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:15;opacity:0;mix-blend-mode:screen';
+      const g = c.getContext('2d'), W = c.width, H = c.height;
+      // dendritic frost: many short branching strokes seeded from the edges, thinning towards the centre
+      for (let i = 0; i < 260; i++) {
+        const side = i % 4; let x = side === 0 ? 0 : side === 1 ? W : Math.random() * W, y = side === 2 ? 0 : side === 3 ? H : Math.random() * H;
+        if (side < 2) y = Math.random() * H; let ang = Math.atan2(H / 2 - y, W / 2 - x) + rnd(-0.9, 0.9), len = rnd(18, 70);
+        g.strokeStyle = `rgba(225,242,250,${rnd(0.18, 0.45)})`; g.lineWidth = rnd(0.5, 1.4);
+        for (let k = 0; k < 6 && len > 3; k++) {
+          const nx = x + Math.cos(ang) * len, ny = y + Math.sin(ang) * len;
+          g.beginPath(); g.moveTo(x, y); g.lineTo(nx, ny); g.stroke();
+          for (let b = 0; b < 2; b++) { const ba = ang + (b ? 1 : -1) * rnd(0.6, 1.0), bl = len * 0.45; g.beginPath(); g.moveTo((x + nx) / 2, (y + ny) / 2); g.lineTo((x + nx) / 2 + Math.cos(ba) * bl, (y + ny) / 2 + Math.sin(ba) * bl); g.stroke(); }
+          x = nx; y = ny; ang += rnd(-0.5, 0.5); len *= 0.7;
+        }
+      }
+      const rg = g.createRadialGradient(W / 2, H / 2, H * 0.25, W / 2, H / 2, W * 0.62);
+      rg.addColorStop(0, 'rgba(0,0,0,1)'); rg.addColorStop(1, 'rgba(0,0,0,0)');
+      g.globalCompositeOperation = 'destination-out'; g.fillStyle = rg; g.fillRect(0, 0, W, H);
+      g.globalCompositeOperation = 'source-over';
+      const edge = g.createRadialGradient(W / 2, H / 2, H * 0.4, W / 2, H / 2, W * 0.7);
+      edge.addColorStop(0, 'rgba(200,230,245,0)'); edge.addColorStop(1, 'rgba(200,230,245,0.35)');
+      g.fillStyle = edge; g.fillRect(0, 0, W, H);
+      document.body.appendChild(c); FX.frost = c;
+    }
+    FX.frost.style.opacity = (a * 0.9).toFixed(3);
+  }
+  function drawFX(view, proj, opts, fogD) {
+    const quads = [];
+    const push = (x, y, z, size, alpha, kind, stretch) => { for (const [cx, cy] of [[-1, -1], [1, -1], [1, 1], [-1, -1], [1, 1], [-1, 1]]) quads.push(x, y, z, cx, cy, size, alpha, kind, stretch); };
+    for (const b of FX.breath) { if (b.age < 0) continue; const t = b.age / b.life; push(b.x, b.y, b.z, b.s0 + t * 0.32, b.a * Math.sin(Math.PI * Math.min(1, t * 1.6 + 0.08)) * (1 - t), 0, 1); }
+    const st = 0.20 + FX.storm * 0.35;
+    for (const d of FX.drift) { const t = d.age / d.life; push(d.x, groundY(d.x, d.z) + d.h, d.z, 0.16, st * Math.sin(Math.PI * t), 1, d.len); }
+    if (opts.torch && FX.motes.length) {
+      const P = (opts.xr && opts.xr.torch) ? opts.xr.torch.p : opts.eye, D = (opts.xr && opts.xr.torch) ? opts.xr.torch.d : opts.fwd;
+      for (const m of FX.motes) {
+        const dx = m.x - P[0], dy = m.y - P[1], dz = m.z - P[2], l = Math.hypot(dx, dy, dz); if (l < 0.25) continue;
+        const cone = (dx * D[0] + dy * D[1] + dz * D[2]) / l, inBeam = clamp((cone - 0.90) / 0.07, 0, 1) * (1 - clamp(l / 7.5, 0, 1));
+        if (inBeam > 0.02) push(m.x, m.y, m.z, 0.018, inBeam * (0.55 + 0.45 * Math.sin(time * 9 + m.ph * 3)), 2, 1);
+      }
+    }
+    if (!quads.length) return;
+    if (!FX.prog) {
+      const mk = (t, src) => { const o = gl.createShader(t); gl.shaderSource(o, src); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(o)); return o; };
+      const pr = gl.createProgram(); gl.attachShader(pr, mk(gl.VERTEX_SHADER, FXVS)); gl.attachShader(pr, mk(gl.FRAGMENT_SHADER, FXFS)); gl.linkProgram(pr);
+      FX.prog = { p: pr, aC: gl.getAttribLocation(pr, 'aC'), aQ: gl.getAttribLocation(pr, 'aQ'), aK: gl.getAttribLocation(pr, 'aK') };
+      for (const nm of ['uView', 'uProj', 'uRight', 'uUp', 'uWind', 'uFogD']) FX.prog[nm] = gl.getUniformLocation(pr, nm);
+      FX.buf = gl.createBuffer();
+    }
+    const P = FX.prog; gl.useProgram(P.p);
+    gl.uniformMatrix4fv(P.uView, false, view); gl.uniformMatrix4fv(P.uProj, false, proj);
+    gl.uniform3f(P.uRight, view[0], view[4], view[8]); gl.uniform3f(P.uUp, view[1], view[5], view[9]); gl.uniform3fv(P.uWind, WIND); gl.uniform1f(P.uFogD, fogD);
+    gl.bindBuffer(gl.ARRAY_BUFFER, FX.buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(quads), gl.DYNAMIC_DRAW);
+    const st9 = 36;
+    gl.enableVertexAttribArray(P.aC); gl.vertexAttribPointer(P.aC, 3, gl.FLOAT, false, st9, 0);
+    gl.enableVertexAttribArray(P.aQ); gl.vertexAttribPointer(P.aQ, 4, gl.FLOAT, false, st9, 12);
+    gl.enableVertexAttribArray(P.aK); gl.vertexAttribPointer(P.aK, 2, gl.FLOAT, false, st9, 28);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); gl.enable(gl.DEPTH_TEST);
+    gl.drawArrays(gl.TRIANGLES, 0, quads.length / 9);
+    gl.depthMask(true); gl.disable(gl.BLEND);
+    gl.disableVertexAttribArray(P.aC); gl.disableVertexAttribArray(P.aQ); gl.disableVertexAttribArray(P.aK);
+    A.stats.fx = quads.length / 54;
+  }
+
   function draw(view, proj, eye, fwd, opts) {
     if (!A.ready) return;
     const q = QUALITY[window.ICEWALK_VISUALS?.quality] || QUALITY.balanced;
@@ -923,6 +1331,9 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       }
     }
     items.sort((a, b) => (a.decal - b.decal) || (a.blend - b.blend) || (a.blend ? b.d - a.d : 0));
+    A.stats.shadowDraws = 0;
+    try { renderShadows(eye, q, items, storm); drawCatcher(view, proj, fogD); } catch (err) { SH.on = 0; if (!A.shadowError) { A.shadowError = String(err && err.message || err); console.warn('A3D gölge kapatıldı:', err); } }
+    if (SH.on) { gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SH.tex); }
 
     let cur = null;
     gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL);
@@ -942,6 +1353,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
         gl.uniform4fv(u.uLP, LP); gl.uniform3fv(u.uLC, LC);
         gl.uniform4f(u.uScan, scan.x, groundY(scan.x, scan.z) + 1, scan.z, scanR); gl.uniform1f(u.uScanAmt, scanAmt);
         gl.uniform1i(u.uBaseTex, 2); gl.uniform1i(u.uOrmTex, 3); gl.uniform1i(u.uNrmTex, 4); gl.uniform1i(u.uEmiTex, 5);
+        gl.uniform1i(u.uShadow, 6); gl.uniform1f(u.uShadowOn, SH.on); gl.uniform1f(u.uShadowTx, 1 / Math.max(1, SH.size)); gl.uniformMatrix4fv(u.uShadowM, false, SH.m);
       }
       const u = cur.u, mat = it.pr.mat;
       gl.uniformMatrix4fv(u.uModel, false, it.m);
@@ -967,6 +1379,8 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
       if (it.blend || it.decal) { gl.disable(gl.BLEND); gl.depthMask(true); gl.disable(gl.POLYGON_OFFSET_FILL); }
       A.stats.draws++; A.stats.tris += it.pr.tris;
     }
+    FX.storm = storm;
+    try { drawFX(view, proj, { ...opts, eye, fwd }, fogD); } catch (err) { if (!A.fxError) { A.fxError = String(err && err.message || err); console.warn('A3D efekt:', err); } }
     drawHands(eye, fwd, opts, view, proj);
     for (const loc of attribsOn) gl.disableVertexAttribArray(loc);
     attribsOn.clear();
@@ -1010,7 +1424,7 @@ gl_FragColor=vec4(clamp(pow(max(col,0.),vec3(.95)),0.,1.),base.a*uAlpha);}`;
     const U = progH.u;
     gl.uniformMatrix4fv(U.uView, false, view); gl.uniformMatrix4fv(U.uProj, false, xr ? worldProj : hp);
     gl.uniform3fv(U.uCam, eye); gl.uniform3fv(U.uCamF, fwd); gl.uniform3fv(U.uTorchP, eye); gl.uniform3fv(U.uTorchD, fwd); gl.uniform1f(U.uFlash, 0); gl.uniform1f(U.uFogD, 0);
-    gl.uniform1f(U.uScanAmt, 0); gl.uniform1i(U.uBaseTex, 2); gl.uniform1i(U.uOrmTex, 3); gl.uniform1i(U.uNrmTex, 4); gl.uniform1i(U.uEmiTex, 5);
+    gl.uniform1f(U.uScanAmt, 0); gl.uniform1f(U.uShadowOn, 0); gl.uniform1i(U.uBaseTex, 2); gl.uniform1i(U.uOrmTex, 3); gl.uniform1i(U.uNrmTex, 4); gl.uniform1i(U.uEmiTex, 5);
     const rs = smooth(0, 1, hands.raise), pk = Math.sin(hands.poke * Math.PI);
     for (const n2 of m.nodes) {
       if (n2.mesh === undefined) continue;

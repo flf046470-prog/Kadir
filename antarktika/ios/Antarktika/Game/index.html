@@ -547,7 +547,7 @@ float ns(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(hash(
 // Subpixel jitter and two differently scaled layers break obvious tiling.
 vec3 matTex(vec2 world,vec2 tile,float scale){vec2 tileUV=vec2(.001)+fract(world*scale)*.498;return texture2D(uAtlas,tile*.5+tileUV).rgb;}
 void main(){vec3 n=normalize(vNorm);vec3 sunlight=normalize(vec3(-.58,.47,-.68));vec3 viewDir=normalize(uCam-vPos);float direct=max(dot(n,sunlight),0.);float skyBounce=clamp(n.y*.28+.72,.37,1.);
-float ambient=.43+.27*skyBounce+.23*direct;float coarse=ns(vPos.xz*.17);float micro=ns(vPos.xz*1.67);
+float ambient=.43+.27*skyBounce+.23*direct;vec3 litC=vec3(.78,.86,1.)*(.36+.24*skyBounce)+vec3(1.,.93,.80)*.62*direct;float coarse=ns(vPos.xz*.17);float micro=ns(vPos.xz*1.67);
 vec3 col=vec3(.7);float rough=.85;
 if(uKind<.5){
   vec2 windUV=vec2(vPos.x*.96+vPos.z*.12,vPos.z*.38-vPos.x*.08);
@@ -562,7 +562,7 @@ if(uKind<.5){
   float exposure=1.-smoothstep(.37,.93,n.y)+1.-smoothstep(-7.5,-1.5,vPos.y);
   float blue=clamp(exposure*.46+(coarse-.5)*.19+crack*.29,0.,.82);
   col=mix(snow,ice,blue);col+=vec3(.012,.025,.028)*(micro-.5);
-  col*=ambient+(.04*micro);rough=mix(.94,.23,blue);
+  col*=litC+(.04*micro);rough=mix(.94,.23,blue);
   // Glint from rough wind-polished crust, not a uniform computer-generated shine.
   col+=vec3(.18,.22,.24)*pow(max(dot(n,normalize(vec3(-.6,.5,-.65))),0.),22.)*max(0.,grain-.45)*.13;
 } else if(uKind<1.5){
@@ -571,16 +571,20 @@ if(uKind<.5){
   vec3 snow=matTex(vPos.xz,vec2(0.,0.),.14);
   float strata=ns(vec2(vPos.y*.09,vPos.z*.13));float frost=clamp(smoothstep(.18,.70,n.y)+strata*.22,0.,1.);
   float sediment=ns(vec2(vPos.y*.35,vPos.x*.06))*.09;
-  col=mix(ice*.9-sediment*.14,snow,frost*.76)*ambient;
-  rough=mix(.24,.92,frost);
+  col=mix(ice*.9-sediment*.14,snow,frost*.76);
+  vec3 rk=matTex(vPos.zy,vec2(0.,1.),.06)*blend.x+matTex(vPos.xz,vec2(0.,1.),.06)*blend.y+matTex(vPos.xy,vec2(0.,1.),.06)*blend.z;
+  rk=rk*vec3(.40,.37,.35)+vec3(.014,.009,.004)*sin(vPos.y*1.7+strata*6.);
+  float cliff=(1.-smoothstep(.42,.80,n.y+(strata-.5)*.5+(ns(vPos.xz*.05)-.5)*.3))*smoothstep(3.,12.,vPos.y);
+  col=mix(col,rk,clamp(cliff,0.,.92));col*=litC;
+  rough=mix(mix(.24,.92,frost),.97,cliff);
 } else if(uKind<2.5){
   vec3 blend=pow(abs(n),vec3(3.));blend/=max(.0001,blend.x+blend.y+blend.z);
   vec3 rock=matTex(vPos.zy,vec2(0.,1.),.08)*blend.x+matTex(vPos.xz,vec2(0.,1.),.08)*blend.y+matTex(vPos.xy,vec2(0.,1.),.08)*blend.z;
   float strata=sin(vPos.y*.69+coarse*3.8)*.055;
-  col=(rock+strata)*ambient*.88;rough=.96;
+  col=(rock*vec3(.62,.58,.54)+strata)*litC*.92;rough=.96;
 } else if(uKind<3.5){
   vec3 coated=matTex(vPos.xz+vec2(vPos.y*.22),vec2(1.,1.),.17);
-  col=mix(coated*uTint*1.45,uTint,.24)*ambient;rough=.51;
+  col=mix(coated*uTint*1.45,uTint,.24)*litC;rough=.51;
 } else if(uKind<4.5){col=uTint*(.42+.52*direct)+vec3(.09,.035,.008);rough=.46;}
 else if(uKind<5.5){col=uTint*(.52+.49*direct);rough=.35;}
 else if(uKind<6.5){col=uTint*(1.2+.24*sin(uTime*2.7));rough=.32;}
@@ -802,7 +806,7 @@ const drop=groundY(nx,nz)-groundY(player.x,player.z);let blocked=drop>1.1&&Math.
 if(groundY(nx,nz)<groundY(player.x,player.z)-2.5)blocked=true;
 if(!blocked){player.dist+=Math.hypot(nx-player.x,nz-player.z);player.x=nx;player.z=nz;}else{player.spdX*=.2;player.spdZ*=.2;}
 let v=Math.hypot(player.spdX,player.spdZ);player.walkPhase+=v*dt*1.45;player.bob=mix(player.bob,Math.sin(player.walkPhase*2)*Math.min(.052,v*.011),1-Math.exp(-dt*10));player.lean=mix(player.lean,(-x*.017)+Math.sin(player.walkPhase)*Math.min(.008,v*.0018),1-Math.exp(-dt*4));
-if(v>1.25){footTimer-=dt;if(footTimer<=0){const surf=window.ANTARKTIKA3D?window.ANTARKTIKA3D.surface(player.x,player.z):'snow';if(surf==='metal')window.ANTARKTIKA3D.footstep(clamp(v/5,.6,1.5),'metal');else stepSound(clamp(v/5,.6,1.5));if(!blocked&&surf!=='metal')window.ICEWALK_TRACKS.stamp(player.x,player.z,player.spdX,player.spdZ,elapsed);footTimer=run?.33:.47;}}else footTimer=0;
+if(v>1.25){footTimer-=dt;if(footTimer<=0){const surf=window.ANTARKTIKA3D?window.ANTARKTIKA3D.surface(player.x,player.z):'snow';if(window.ANTARKTIKA3D&&window.ANTARKTIKA3D.ready&&window.ANTARKTIKA3D.footstep)window.ANTARKTIKA3D.footstep(clamp(v/5,.6,1.5),surf);else stepSound(clamp(v/5,.6,1.5));if(!blocked&&surf!=='metal')window.ICEWALK_TRACKS.stamp(player.x,player.z,player.spdX,player.spdZ,elapsed);footTimer=run?.33:.47;}}else footTimer=0;
 player.stamina=clamp(player.stamina+(run&&moving?-18:12)*dt,0,100);
 let nearShelter=Math.hypot(player.x-23,player.z-27)<21;const zone=window.ANTARKTIKA3D?.zone||null;
 player.warmth=clamp(player.warmth+(zone==='indoor'?11:nearShelter?7.2:(-.095-storm*(zone==='cave'?.07:.24))*(1-window.ICEWALK_CARGO.heatBonus))*dt,0,100);
