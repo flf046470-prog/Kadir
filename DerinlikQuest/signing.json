@@ -1,0 +1,6 @@
+{
+ "_comment": "Public identity of the Meta Quest signing key (the key itself and its password are NOT in the repository). assetlinks.json is built from this.",
+ "package": "com.derinlik.quest",
+ "alias": "derinlik",
+ "sha256": "2B:36:45:0F:2D:56:D4:3A:CB:1E:33:8F:A0:29:67:C2:4D:03:84:9E:95:2D:42:3B:28:5B:67:F7:D8:36:CF:2B"
+}
