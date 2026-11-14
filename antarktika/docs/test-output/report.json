@@ -1,5 +1,5 @@
 {
-  "started": "2026-11-14T15:56:32.434Z",
+  "started": "2026-11-14T16:50:22.999Z",
   "checks": [
     {
       "name": "GLB models load (station, ice cave, explorer)",
@@ -7,7 +7,7 @@
       "detail": {
         "status": "ready",
         "error": null,
-        "loadMs": 6179
+        "loadMs": 5809
       }
     },
     {
@@ -24,7 +24,7 @@
         "from": 1.0382052410754008,
         "to": 2.759999990463257,
         "pos": [
-          12.11,
+          12.3,
           27
         ]
       }
@@ -101,13 +101,13 @@
       "ok": true,
       "detail": {
         "n0": {
-          "x": 28.21731402703278,
-          "z": 18.367803892076008,
+          "x": 27.500051334268456,
+          "z": 18.332776892474953,
           "clip": "Walk"
         },
         "n1": {
-          "x": 30.464837284884105,
-          "z": 18.473457703041543,
+          "x": 31.0667155789521,
+          "z": 18.50360020374669,
           "clip": "Walk"
         }
       }
@@ -226,7 +226,7 @@
       "name": "three quality levels change render resolution",
       "ok": true,
       "detail": {
-        "loadMs": 6179,
+        "loadMs": 5809,
         "quality_low": {
           "canvas": [
             819,
@@ -234,7 +234,7 @@
           ],
           "draws": 52,
           "a3dLights": 2,
-          "fps": 1
+          "fps": 0
         },
         "quality_balanced": {
           "canvas": [
@@ -252,7 +252,7 @@
           ],
           "draws": 67,
           "a3dLights": 4,
-          "fps": 1
+          "fps": 0
         }
       }
     }
@@ -261,12 +261,12 @@
     {
       "name": "01_station_exterior",
       "file": "01_station_exterior.png",
-      "fps": 1,
-      "p95": 3416.5,
+      "fps": 2,
+      "p95": 3616.5,
       "draws": 64,
-      "tris": 104799,
+      "tris": 107700,
       "a3dDraws": 16,
-      "a3dTris": 17502,
+      "a3dTris": 19006,
       "culled": 6,
       "lights": 3
     },
@@ -274,11 +274,11 @@
       "name": "02_airlock_dark",
       "file": "02_airlock_dark.png",
       "fps": 1,
-      "p95": 3416.5,
+      "p95": 3199.9,
       "draws": 46,
-      "tris": 75990,
+      "tris": 77387,
       "a3dDraws": 15,
-      "a3dTris": 17478,
+      "a3dTris": 18982,
       "culled": 7,
       "lights": 3
     },
@@ -286,11 +286,11 @@
       "name": "03_lab_powered",
       "file": "03_lab_powered.png",
       "fps": 1,
-      "p95": 3216.6,
+      "p95": 3199.9,
       "draws": 40,
-      "tris": 55818,
+      "tris": 57215,
       "a3dDraws": 15,
-      "a3dTris": 17478,
+      "a3dTris": 18982,
       "culled": 7,
       "lights": 3
     },
@@ -298,11 +298,11 @@
       "name": "04_control_room",
       "file": "04_control_room.png",
       "fps": 1,
-      "p95": 3216.6,
+      "p95": 3249.9,
       "draws": 44,
-      "tris": 82586,
+      "tris": 83983,
       "a3dDraws": 11,
-      "a3dTris": 17350,
+      "a3dTris": 18854,
       "culled": 11,
       "lights": 3
     },
@@ -310,11 +310,11 @@
       "name": "05_cave_outside",
       "file": "05_cave_outside.png",
       "fps": 1,
-      "p95": 3216.6,
+      "p95": 3249.9,
       "draws": 63,
-      "tris": 126933,
+      "tris": 127966,
       "a3dDraws": 11,
-      "a3dTris": 13719,
+      "a3dTris": 14289,
       "culled": 11,
       "lights": 3
     },
@@ -322,11 +322,11 @@
       "name": "06_cave_tunnel_torch",
       "file": "06_cave_tunnel_torch.png",
       "fps": 1,
-      "p95": 3216.6,
+      "p95": 3199.9,
       "draws": 53,
-      "tris": 102535,
+      "tris": 102986,
       "a3dDraws": 11,
-      "a3dTris": 13719,
+      "a3dTris": 14289,
       "culled": 11,
       "lights": 2
     },
@@ -334,11 +334,11 @@
       "name": "07_cave_chamber",
       "file": "07_cave_chamber.png",
       "fps": 1,
-      "p95": 3149.9,
+      "p95": 3049.9,
       "draws": 52,
-      "tris": 99153,
+      "tris": 99614,
       "a3dDraws": 11,
-      "a3dTris": 13719,
+      "a3dTris": 14289,
       "culled": 11,
       "lights": 2
     },
@@ -346,53 +346,53 @@
       "name": "08_cave_chamber_solved",
       "file": "08_cave_chamber_solved.png",
       "fps": 1,
-      "p95": 2933.2,
+      "p95": 3216.5,
       "draws": 53,
-      "tris": 99231,
+      "tris": 99694,
       "a3dDraws": 12,
-      "a3dTris": 13799,
+      "a3dTris": 14369,
       "culled": 11,
       "lights": 3
     },
     {
       "name": "09_npc_selin",
       "file": "09_npc_selin.png",
-      "fps": 2,
-      "p95": 2883.2,
+      "fps": 1,
+      "p95": 3049.9,
       "draws": 70,
-      "tris": 148125,
+      "tris": 151026,
       "a3dDraws": 12,
-      "a3dTris": 26816,
+      "a3dTris": 28320,
       "culled": 10,
       "lights": 3
     },
     {
       "name": "11_first_person_hands",
       "file": "11_first_person_hands.png",
-      "fps": 5,
-      "p95": 2649.9,
+      "fps": 1,
+      "p95": 3049.9,
       "draws": 65,
-      "tris": 108157,
+      "tris": 111054,
       "a3dDraws": 16,
-      "a3dTris": 17502,
+      "a3dTris": 19006,
       "culled": 6,
       "lights": 3
     },
     {
       "name": "10_after_continue",
       "file": "10_after_continue.png",
-      "fps": 1,
-      "p95": 2933.3,
+      "fps": 3,
+      "p95": 2883.3,
       "draws": 46,
-      "tris": 85802,
+      "tris": 87552,
       "a3dDraws": 11,
-      "a3dTris": 17350,
+      "a3dTris": 18854,
       "culled": 11,
       "lights": 3
     }
   ],
   "perf": {
-    "loadMs": 6179,
+    "loadMs": 5809,
     "quality_low": {
       "canvas": [
         819,
@@ -400,7 +400,7 @@
       ],
       "draws": 52,
       "a3dLights": 2,
-      "fps": 1
+      "fps": 0
     },
     "quality_balanced": {
       "canvas": [
@@ -418,14 +418,14 @@
       ],
       "draws": 67,
       "a3dLights": 4,
-      "fps": 1
+      "fps": 0
     }
   },
   "console": [],
   "a3d": {
     "status": "ready",
     "error": null,
-    "loadMs": 5999,
+    "loadMs": 8797,
     "zone": null,
     "state": {
       "power": false,
@@ -509,7 +509,7 @@
     },
     "stats": {
       "draws": 16,
-      "tris": 17502,
+      "tris": 19006,
       "lights": 4,
       "culled": 6,
       "shadowDraws": 14,
@@ -615,7 +615,7 @@
       }
     }
   },
-  "finished": "2026-11-14T16:04:54.523Z",
+  "finished": "2026-11-14T16:59:31.109Z",
   "passed": 18,
   "failed": 0
 }
