@@ -12,6 +12,8 @@
  *   electron . --smoke    loads the world, prints its status and exits (0 = ready); used by `npm run smoke`
  */
 const { app, BrowserWindow, Menu, session, shell } = require('electron');
+const SMOKE = process.argv.includes('--smoke');
+if (SMOKE) app.commandLine.appendSwitch('enable-unsafe-swiftshader');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -54,7 +56,9 @@ app.whenReady().then(async () => {
     if (input.key === 'F11') win.setFullScreen(!win.isFullScreen());
     if (input.key === 'F12' && !app.isPackaged) win.webContents.toggleDevTools();
   });
-  await win.loadURL('http://127.0.0.1:' + port + '/index.html' + (VR ? '?autovr=1' : ''));
+  // --smoke may run on a machine with no GPU (CI); there the engine needs leave to use the software renderer
+  const q = [VR && 'autovr=1', SMOKE && 'forcewebgl=1'].filter(Boolean).join('&');
+  await win.loadURL('http://127.0.0.1:' + port + '/index.html' + (q ? '?' + q : ''));
   if (process.argv.includes('--smoke')) {
     const t0 = Date.now();
     const poll = setInterval(async () => {
