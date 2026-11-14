@@ -33,6 +33,8 @@ const STEP = 1 / 10;
   await page.evaluate((q) => { localStorage.clear(); ICEWALK_VISUALS.quality = q; }, argv.includes('--hq') ? 'cinematic' : 'balanced');
   await page.click('#skipPrologue'); await page.waitForTimeout(300);
   if ((await page.evaluate(() => ICEWALK_DIAGNOSTICS().mode)) !== 'play') { await page.click('#startBtn'); await page.waitForTimeout(300); }
+  // clean plates for --hud off (Meta / Steam store art): no key-hint strip or help button either
+  if (argv.includes('--hud') && argv[argv.indexOf('--hud') + 1] === 'off') await page.addStyleTag({ content: '#mouseHint,#helpButton{display:none!important}' });
   let n = 0;
   for (const [id, tEnd] of STILLS) {
     const shot = SHOTS.find((s) => s.id === id);

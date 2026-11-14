@@ -1,7 +1,7 @@
 """Fast store video from in-engine stills (tools/capture_stills.cjs) — slow push-ins and crossfades.
 
     python3 tools/make_still_trailer.py <stills_dir> <out.mp4> --size 1920x886 [--open keyart.jpg] [--close keyart.jpg]
-                                        [--secs 3.3] [--max 29.5] [--skip 09]
+                                        [--secs 3.3] [--max 29.5] [--skip 09] [--silent]
 
 Used for the App Store app preview (1920x886, in-app frames only, <= 30 s) and the Steam / Meta trailers
 (1920x1080 with key-art title and end cards). Frame-by-frame gameplay capture under the software renderer
@@ -40,11 +40,19 @@ def main():
         flt.append(f"[{prev}][v{i}]xfade=transition=fade:duration={xf}:offset={off:.3f}[x{i}]")
         prev = f"x{i}"
     end = min(off + n / fps, float(arg("--max", "1e9")))
+    # sound bed (wind, whistle, snow hiss, drone; a soft low hit on every cut) unless --silent
+    bed = None
+    if "--silent" not in sys.argv:
+        bed = os.path.splitext(out)[0] + ".bed.wav"
+        cuts = ",".join(f"{(i * (n / fps - xf)):.2f}" for i in range(1, len(files)))
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "make_soundbed.py"), bed, f"{end:.2f}", "--hits", cuts], check=True)
     flt.append(f"[{prev}]fade=t=in:st=0:d=0.4,fade=t=out:st={end-0.6:.2f}:d=0.6,format=yuv420p[out]")
-    subprocess.run(["ffmpeg", "-y", "-v", "error"] + inp + ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+    subprocess.run(["ffmpeg", "-y", "-v", "error"] + inp + (["-i", bed] if bed else ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]) + [
                     "-filter_complex", ";".join(flt), "-map", "[out]", "-map", f"{len(files)}:a", "-t", f"{end:.2f}",
                     "-c:v", "libx264", "-profile:v", "high", "-pix_fmt", "yuv420p", "-preset", "medium", "-b:v", "10M",
                     "-r", str(fps), "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-movflags", "+faststart", out], check=True)
+    if bed:
+        os.remove(bed)
     print("ok", out, f"{end:.1f}s", W, H)
 
 
