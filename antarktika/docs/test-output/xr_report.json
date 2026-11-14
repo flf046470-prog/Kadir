@@ -4,8 +4,8 @@
       "name": "VR session renders stereo frames (2 views per frame)",
       "ok": true,
       "detail": {
-        "frames": 12,
-        "views": 24
+        "frames": 13,
+        "views": 26
       }
     },
     {
@@ -18,7 +18,7 @@
         ],
         "to": [
           -2,
-          29.83
+          29.71
         ]
       }
     },

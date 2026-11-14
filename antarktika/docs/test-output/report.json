@@ -1,5 +1,5 @@
 {
-  "started": "2026-11-08T20:00:49.186Z",
+  "started": "2026-11-14T15:56:32.434Z",
   "checks": [
     {
       "name": "GLB models load (station, ice cave, explorer)",
@@ -7,7 +7,7 @@
       "detail": {
         "status": "ready",
         "error": null,
-        "loadMs": 8054
+        "loadMs": 6179
       }
     },
     {
@@ -24,7 +24,7 @@
         "from": 1.0382052410754008,
         "to": 2.759999990463257,
         "pos": [
-          12.3,
+          12.11,
           27
         ]
       }
@@ -101,13 +101,13 @@
       "ok": true,
       "detail": {
         "n0": {
-          "x": 27.664148076490967,
-          "z": 18.341172794931218,
+          "x": 28.21731402703278,
+          "z": 18.367803892076008,
           "clip": "Walk"
         },
         "n1": {
-          "x": 31.051046099863875,
-          "z": 18.502814596005674,
+          "x": 30.464837284884105,
+          "z": 18.473457703041543,
           "clip": "Walk"
         }
       }
@@ -226,22 +226,22 @@
       "name": "three quality levels change render resolution",
       "ok": true,
       "detail": {
-        "loadMs": 8054,
+        "loadMs": 6179,
         "quality_low": {
           "canvas": [
             819,
             460
           ],
-          "draws": 51,
+          "draws": 52,
           "a3dLights": 2,
-          "fps": 0
+          "fps": 1
         },
         "quality_balanced": {
           "canvas": [
             1024,
             576
           ],
-          "draws": 51,
+          "draws": 64,
           "a3dLights": 3,
           "fps": 1
         },
@@ -250,7 +250,7 @@
             1024,
             576
           ],
-          "draws": 51,
+          "draws": 67,
           "a3dLights": 4,
           "fps": 1
         }
@@ -262,9 +262,9 @@
       "name": "01_station_exterior",
       "file": "01_station_exterior.png",
       "fps": 1,
-      "p95": 4849.8,
-      "draws": 51,
-      "tris": 86055,
+      "p95": 3416.5,
+      "draws": 64,
+      "tris": 104799,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -274,9 +274,9 @@
       "name": "02_airlock_dark",
       "file": "02_airlock_dark.png",
       "fps": 1,
-      "p95": 4599.8,
+      "p95": 3416.5,
       "draws": 46,
-      "tris": 75945,
+      "tris": 75990,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -286,9 +286,9 @@
       "name": "03_lab_powered",
       "file": "03_lab_powered.png",
       "fps": 1,
-      "p95": 4416.4,
+      "p95": 3216.6,
       "draws": 40,
-      "tris": 55773,
+      "tris": 55818,
       "a3dDraws": 15,
       "a3dTris": 17478,
       "culled": 7,
@@ -298,9 +298,9 @@
       "name": "04_control_room",
       "file": "04_control_room.png",
       "fps": 1,
-      "p95": 3649.9,
+      "p95": 3216.6,
       "draws": 44,
-      "tris": 82541,
+      "tris": 82586,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -310,9 +310,9 @@
       "name": "05_cave_outside",
       "file": "05_cave_outside.png",
       "fps": 1,
-      "p95": 3299.9,
-      "draws": 52,
-      "tris": 102444,
+      "p95": 3216.6,
+      "draws": 63,
+      "tris": 126933,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -322,9 +322,9 @@
       "name": "06_cave_tunnel_torch",
       "file": "06_cave_tunnel_torch.png",
       "fps": 1,
-      "p95": 3299.9,
-      "draws": 52,
-      "tris": 102444,
+      "p95": 3216.6,
+      "draws": 53,
+      "tris": 102535,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -334,9 +334,9 @@
       "name": "07_cave_chamber",
       "file": "07_cave_chamber.png",
       "fps": 1,
-      "p95": 3133.2,
-      "draws": 51,
-      "tris": 99082,
+      "p95": 3149.9,
+      "draws": 52,
+      "tris": 99153,
       "a3dDraws": 11,
       "a3dTris": 13719,
       "culled": 11,
@@ -345,10 +345,10 @@
     {
       "name": "08_cave_chamber_solved",
       "file": "08_cave_chamber_solved.png",
-      "fps": 0,
-      "p95": 3116.6,
-      "draws": 52,
-      "tris": 99162,
+      "fps": 1,
+      "p95": 2933.2,
+      "draws": 53,
+      "tris": 99231,
       "a3dDraws": 12,
       "a3dTris": 13799,
       "culled": 11,
@@ -357,10 +357,10 @@
     {
       "name": "09_npc_selin",
       "file": "09_npc_selin.png",
-      "fps": 1,
-      "p95": 3049.8,
-      "draws": 54,
-      "tris": 118903,
+      "fps": 2,
+      "p95": 2883.2,
+      "draws": 70,
+      "tris": 148125,
       "a3dDraws": 12,
       "a3dTris": 26816,
       "culled": 10,
@@ -369,10 +369,10 @@
     {
       "name": "11_first_person_hands",
       "file": "11_first_person_hands.png",
-      "fps": 1,
-      "p95": 2666.5,
-      "draws": 52,
-      "tris": 89417,
+      "fps": 5,
+      "p95": 2649.9,
+      "draws": 65,
+      "tris": 108157,
       "a3dDraws": 16,
       "a3dTris": 17502,
       "culled": 6,
@@ -382,9 +382,9 @@
       "name": "10_after_continue",
       "file": "10_after_continue.png",
       "fps": 1,
-      "p95": 3299.9,
-      "draws": 45,
-      "tris": 85954,
+      "p95": 2933.3,
+      "draws": 46,
+      "tris": 85802,
       "a3dDraws": 11,
       "a3dTris": 17350,
       "culled": 11,
@@ -392,22 +392,22 @@
     }
   ],
   "perf": {
-    "loadMs": 8054,
+    "loadMs": 6179,
     "quality_low": {
       "canvas": [
         819,
         460
       ],
-      "draws": 51,
+      "draws": 52,
       "a3dLights": 2,
-      "fps": 0
+      "fps": 1
     },
     "quality_balanced": {
       "canvas": [
         1024,
         576
       ],
-      "draws": 51,
+      "draws": 64,
       "a3dLights": 3,
       "fps": 1
     },
@@ -416,7 +416,7 @@
         1024,
         576
       ],
-      "draws": 51,
+      "draws": 67,
       "a3dLights": 4,
       "fps": 1
     }
@@ -425,7 +425,7 @@
   "a3d": {
     "status": "ready",
     "error": null,
-    "loadMs": 7847,
+    "loadMs": 5999,
     "zone": null,
     "state": {
       "power": false,
@@ -511,7 +511,9 @@
       "draws": 16,
       "tris": 17502,
       "lights": 4,
-      "culled": 6
+      "culled": 6,
+      "shadowDraws": 14,
+      "fx": 54
     },
     "textureMB": 177.1,
     "colliders": 198,
@@ -613,7 +615,7 @@
       }
     }
   },
-  "finished": "2026-11-08T20:09:59.727Z",
+  "finished": "2026-11-14T16:04:54.523Z",
   "passed": 18,
   "failed": 0
 }
