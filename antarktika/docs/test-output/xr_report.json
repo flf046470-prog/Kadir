@@ -1,0 +1,38 @@
+{
+  "checks": [
+    {
+      "name": "VR session renders stereo frames (2 views per frame)",
+      "ok": true,
+      "detail": {
+        "frames": 13,
+        "views": 26
+      }
+    },
+    {
+      "name": "left stick walks the player head-relative (forward = -z)",
+      "ok": true,
+      "detail": {
+        "from": [
+          -2,
+          33
+        ],
+        "to": [
+          -2,
+          29.71
+        ]
+      }
+    },
+    {
+      "name": "A3D world and controller hands draw in VR",
+      "ok": true,
+      "detail": {
+        "draws": 9
+      }
+    },
+    {
+      "name": "no page errors in the VR path",
+      "ok": true,
+      "detail": []
+    }
+  ]
+}

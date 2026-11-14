@@ -1,0 +1,17 @@
+{
+  "name": "ANTARKTIKA: WHITEOUT",
+  "short_name": "WHITEOUT",
+  "description": "Antarktika'da susan bir istasyon, buzun altında bir medeniyet. Yedi bölümlük birinci şahıs keşif ve bulmaca oyunu.",
+  "lang": "tr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#030a10",
+  "theme_color": "#06202e",
+  "icons": [
+    { "src": "/icons/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+    { "src": "/icons/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+  ]
+}
