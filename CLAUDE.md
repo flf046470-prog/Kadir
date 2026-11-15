@@ -17,6 +17,9 @@ what you would guess, and defects that were found by measuring rather than by re
   container must never run.
 - **Platform split is absolute.** Gameplay lives once in `@kc/core`. A platform supplies intent in
   and reads state out; a gameplay rule must never be written three times.
+- **Priority is VR; there will be no mobile release** (owner, 2026-11-15). Spend effort on the
+  headset first, PC second. The mobile platform code stays — it shares `@kc/core` and costs nothing
+  to keep — but gets no new work, and nothing is deleted without the owner asking for it.
 - **VR is OpenXR-compatible (WebXR) and hand/physics-driven.** The stick is an accessibility
   fallback, deliberately slower, never the primary locomotion.
 - **Fairness is a hard constraint.** No loot boxes, no gacha, no pay-to-win; every in-game item is
