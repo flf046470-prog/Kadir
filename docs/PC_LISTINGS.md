@@ -192,11 +192,35 @@ Written to `packaging/epic/listing/`:
 at 320 kb/s, which is Epic's carousel specification and what Steam recommends. It needs an ffmpeg
 with libx264 (`pip install imageio-ffmpeg`), because Playwright's own ffmpeg writes only VP8.
 
-Every shot is solo practice with bots, filmed through the menus a player uses, with the game's
-clock stepped exactly 1/30 s per frame. Under swiftshader the game draws about a frame a second,
-so recorded in real time it would play back as a slideshow. The interface is hidden, and the
-soundtrack is the game's own score rendered offline. The recorded sound effects are left out
-because their commercial use depends on the ElevenLabs plan (`assets/audio/provenance.json`).
+It opens on real kangaroos, in cinema bars: dawn over a waterhole, a kangaroo lifting its head to
+look straight into the camera, and one bounding away through dry grass. At 7.2 s that last shot
+breaks into blocks and comes back together as the player's own kangaroo bounding away in the game,
+while the bars slide off and the picture opens out to the game's full frame; by 8.8 s it is the
+game. The title follows the first game shot, over its last frame. The build measures the finished
+file to prove it: black bars over the footage, a picture in blocks at the middle of the change,
+and an open frame after it.
+
+The real footage is stock video from Pexels, under the Pexels License (read 2026-11-15), which
+allows modifying it and using it in advertising and does not ask for credit. It is not committed:
+`assets/trailer/plates.json` records each file's address, size and sha256, and the build downloads
+it into `dist/trailer-stock/` and refuses one that is not byte for byte the file whose licence was
+read. One of the three is HDR (HLG) and is tone-mapped to SDR; decoded as SDR it came out grey.
+The credit below goes wherever the video is posted with a description; one creator's profile asks
+for it.
+
+```
+Opening footage from Pexels: "Sunrise drone footage of kangaroos in Australia" by Tetrakis Sphericon; "Kangaroo in Australian bushland" and "Kangaroos hopping through Australian grassland" by Joolsmagools.
+```
+
+Every game shot is solo practice with bots, filmed through the menus a player uses, with the
+game's clock stepped exactly 1/30 s per frame. Under swiftshader the game draws about a frame a
+second, so recorded in real time it would play back as a slideshow. The interface is hidden.
+
+Under the real footage the soundtrack is wind, dry grass and birds, synthesised by the build from
+a fixed seed, since the footage has no sound of its own; a sweep rises into the change and a hit
+lands on it, and from there it is the game's own score rendered offline. The recorded sound effects
+are left out because their commercial use depends on the ElevenLabs plan
+(`assets/audio/provenance.json`).
 
 ## Trailer captions
 
