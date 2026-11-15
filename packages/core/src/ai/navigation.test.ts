@@ -73,9 +73,9 @@ describe('a bot racing a route', () => {
      *
      * Six metres: three times anything a wall-leaner managed. It was fifteen, the middle of that
      * gap, until solid rocks (A32) let a jungle racer reach checkpoint 3 forty seconds sooner —
-     * a platform 13 m up a tree that no bot can climb — so it was already under it when this
-     * starts measuring, and circled there 9 m wide. HEAD's bot circles the same spot, just later.
-     * That is the bots' missing climb, not a wedge. Asserted per bot rather than on the best of
+     * a platform 13 m up a tree that no bot could then climb — so it was already under it when
+     * this starts measuring, and circled there 9 m wide. Bots climb now (see "a racer climbing"),
+     * and a bot that cannot find a way up still circles rather than wedges. Asserted per bot rather than on the best of
      * them, because the failure was never the whole field at once.
      */
     for (const entry of listLevels()) {
@@ -99,6 +99,42 @@ describe('a bot racing a route', () => {
       const { best } = race(entry.id, 120);
       expect(best, `${entry.id}: the whole field stalled at checkpoint ${best}`).toBeGreaterThanOrEqual(2);
     }
+  });
+});
+
+describe('a racer climbing', () => {
+  it('climbs instead of grabbing and letting go over and over', () => {
+    /**
+     * Every grab and every mantle plays a sound and a pulse. On the jungle course racers holding
+     * grab among the canyon's boulders mantled onto one and took its flank again the very next
+     * tick: 14,147 grabs in a 300-second race of six. Before that, holding jump as well launched
+     * them off any wall — or the floor — fifteen times a second, which is how they "climbed".
+     * Measured with the wait after a mantle: 1,804 over the same race.
+     */
+    const level = buildLevel('jungle-world');
+    const sim = new Simulation({ level, modeId: 'parkour', seed: 1 });
+    const bots: Bot[] = [];
+    for (let i = 0; i < 6; i++) {
+      sim.addPlayer({ id: `b${i}`, name: `B${i}` });
+      bots.push(new Bot(`b${i}`, { skill: 0.7, seed: 30 + i }));
+    }
+    let grabs = 0;
+    let launches = 0;
+    for (let tick = 0; tick < 60 * 150; tick++) {
+      for (const bot of bots) {
+        const self = sim.players.get(bot.playerId)!;
+        sim.setIntent(bot.playerId, bot.think(self, sim.players.values(), level, 1 / 60, sim.mode.objectiveFor?.(self) ?? null), false);
+      }
+      sim.step();
+      for (const e of sim.events.drain()) {
+        if (e.type === 'grab') grabs++;
+        if (e.type === 'climbLaunch' && e.data === 'climb') launches++;
+      }
+    }
+    expect(launches, 'launches off a wall without a press of jump').toBeLessThan(20);
+    expect(grabs).toBeLessThan(2500);
+    // And they climb: the jungle's second and third checkpoints are each up a tree.
+    expect(Math.max(...[...sim.players.values()].map((p) => p.checkpointIndex))).toBeGreaterThanOrEqual(3);
   });
 });
 

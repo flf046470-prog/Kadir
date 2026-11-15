@@ -77,7 +77,7 @@ export function buildJungleWorld(seed = JUNGLE_SEED): LevelDef {
     // 8: boundary walls stop where their run ends instead of padding onto the floor beside it.
     //    It had closed the gap round the north end of the canyon's west wall to 0.5 m.
     // 9: a fight cage beside the lobby, and a tenth door (Cage Fight) in the ring.
-    version: 10,
+    version: 11,
     seed,
     killPlaneY,
     // 90 is the largest radius that abandons the empty margin and the smallest that keeps every
@@ -140,6 +140,8 @@ const band = (x: number, lo: number, hi: number, blend: number): number =>
 
 /** Mixed with the level seed, so a different seed is a different floor as well as different trees. */
 const RELIEF_SALT = hashString('kangaroo-chase/jungle-world/relief');
+/** The trunks the tree village's platforms stand on: a little thicker than a jungle tree's. */
+const VILLAGE_TRUNK_RADIUS = 0.6;
 
 /**
  * The shape of the jungle floor. Three terms, and only the first is held flat round the things
@@ -341,8 +343,18 @@ function buildJungleDistrict(b: LevelBuilder, rand: Rand): void {
     const angle = (i / 7) * Math.PI * 2;
     const x = -30 + Math.sin(angle) * villageRadius;
     const z = 10 + Math.cos(angle) * villageRadius;
-    b.platform(x, 12 + (i % 3) * 2.2, z, 5, 5, 'jungle', angle);
-    b.prop('banner', vec3(x, 12 + (i % 3) * 2.2, z), angle, 1, i % 3);
+    const y = 12 + (i % 3) * 2.2;
+    b.platform(x, y, z, 5, 5, 'jungle', angle);
+    b.prop('banner', vec3(x, y, z), angle, 1, i % 3);
+    // The trunk each platform is built on, on its outer edge and standing a metre proud of it, so
+    // climbing it ends in a mantle onto the boards. There was none: twelve to sixteen metres up
+    // over open ground, the village — and the race's third checkpoint on it — could be reached
+    // only by holding grab and jump, which launched a player off the floor fifteen times a second.
+    // Under the middle of a platform a trunk would lead only to its underside. No random draws, so
+    // nothing placed after the village moves.
+    const out = 2.5 + VILLAGE_TRUNK_RADIUS;
+    const top = y + 1;
+    b.cylinder(vec3(x + Math.sin(angle) * out, top / 2, z + Math.cos(angle) * out), VILLAGE_TRUNK_RADIUS, top / 2, 'wood', 'jungle');
   }
 
   b.spawn(vec3(0, 0.5, -14), 0, 'jungle', 'runner');

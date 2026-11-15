@@ -163,6 +163,19 @@ export interface PlayerState {
   /** 0..1 hop charge. */
   charge: number;
   chargeHeld: boolean;
+  /**
+   * Jump was held on the last tick. Letting go of a grip is a fresh press of jump, never a held
+   * one: read as held, every tick re-gripped the wall and launched off it again, 15 launches a
+   * second, and holding grab and jump at the foot of a wall rose 7.4 m in 3 s where climbing it
+   * rose 0.3.
+   */
+  jumpHeld: boolean;
+  /**
+   * Seconds before a grip can take hold again after launching off one. A grab that is still held
+   * re-gripped the wall it had just been launched from on the very next tick, and that grip
+   * stopped the launch dead: off a wall, grab held, a launch moved nobody.
+   */
+  regripTimer: number;
 
   coyoteTimer: number;
   jumpBufferTimer: number;
@@ -283,6 +296,8 @@ export function createPlayerState(options: CreatePlayerOptions): PlayerState {
     winded: false,
     charge: 0,
     chargeHeld: false,
+    jumpHeld: false,
+    regripTimer: 0,
 
     coyoteTimer: 0,
     jumpBufferTimer: 0,
@@ -343,6 +358,8 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
   player.staggerTimer = 0;
   player.charge = 0;
   player.chargeHeld = false;
+  player.jumpHeld = false;
+  player.regripTimer = 0;
   player.alive = true;
   player.health = 100;
   player.stamina = 100;

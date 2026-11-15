@@ -3793,3 +3793,31 @@ second) → the results panel is up and the wrist hidden → the head is turned 
 down the rows until the ray hovers **Play again** (`__kcVr().hovered`) → the left mouse (right
 trigger) starts the next round with the wrist back. Mutation: taking the wrist out of `setInMatch`
 fails two checks (39/41): no wrist in the round, none after Play again.
+
+## Holding grab and jump was a rocket, and it hid five climbing bugs
+
+Found by a soak of every mode on every map (`.probe/soak.ts`): parkour on the outback emitted
+**18,302 grabs and 18,302 launches** in one race. Launching off a grip read jump as *held*, and a
+held grab re-gripped the next tick, so grab + jump held launched a player off any climbable wall —
+or the floor — every tick: 7.4 m of rise in 3 s where climbing the same wall rose 0.3 m. It was the
+only way bots ever climbed. Launching is a press now (`PlayerState.jumpHeld`). With the rocket gone,
+what it had been covering:
+
+- **The assisted climb gripped the floor.** The nearest climbable surface to the chest is often the
+  ground a metre below; a PC player holding grab mid-floor froze. Floors (`isFloor`) and undersides
+  (`isCeiling`) are never taken; at the foot of a wall the floor is skipped and the hand stays on the
+  wall's plane.
+- **A point exactly on a face has no normal side**: `closestSurface` answered straight up, which
+  read the wall as a floor. The climb asks from `CLIMB_PROBE_OFF` (0.1 m) off the wall.
+- **A held grab killed every launch** by re-gripping the next tick, and re-took a boulder right
+  after mantling onto it (a grab and a mantle every other tick). `regripTimer`
+  (`REGRIP_AFTER_LAUNCH`, 0.3 s) after either.
+- **A mantle could not clear the lip**: a flat `jumpForce × 0.55` rose 0.4 m from 1.1 m below it.
+  It now lifts the feet over the lip plus `MANTLE_CLEARANCE`, capped at a jump.
+- **The jungle's tree village could not be reached** — platforms 12–16 m over open ground, the race's
+  third checkpoint on one. Each now stands on a trunk at its outer edge (jungle `version` 11); a bot
+  heads for the foot of something climbable under an overhead objective (`Bot.climbFoot`).
+
+Six bots, 4 seeds × 200 s of parkour: jungle median furthest checkpoint 2 → 4, glacier and outback
+unchanged at 4 and 3; launches without a press 0. `navigation.test.ts` → "a racer climbing" and four
+locomotion tests hold it; seven mutations each fail one.

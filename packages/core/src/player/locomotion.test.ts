@@ -178,6 +178,91 @@ describe('locomotion — shared across platforms', () => {
     expect(climber.velocity.y).toBeGreaterThan(0);
     expect(heightBefore).toBeGreaterThan(1);
   });
+
+  it('holds no floor with the grab button: on open ground it walks on', () => {
+    // The nearest climbable surface to the chest is often the ground a metre below it, and the
+    // assisted climb took it: a player holding grab mid-floor froze in a "climb" going nowhere.
+    const walker = createPlayerState({ id: 'p8', position: vec3(0, 0.5, -30) });
+    const intent = createIntent();
+    intent.buttons = Buttons.GrabRight;
+    intent.moveZ = 1;
+    typesOf(ctx);
+    run(walker, ctx, intent, 60);
+    expect(walker.climbing).toBe(false);
+    expect(walker.position.z).toBeGreaterThan(-27);
+    expect(typesOf(ctx)).not.toContain('grab');
+  });
+
+  it('climbs a wall to the top and mantles onto it once, grab held throughout', () => {
+    // Climbing up from the foot of a wall, the floor below is nearer than the wall; a point on the
+    // wall's own face has no side to take a normal from. Both used to end the climb at once.
+    // A wall across +z this time: on the x-facing one above, a point on the face happened to
+    // come back with the right normal, and the bug went unseen.
+    const wallWorld = new PhysicsWorld([
+      { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(60, 2, 60), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+      { kind: 'box', id: 1, center: vec3(0, 6, 24), half: vec3(8, 6, 0.6), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+    ]);
+    ctx = makeContext(wallWorld);
+    const climber = createPlayerState({ id: 'p9', position: vec3(0, 0.5, 22.9) });
+    const intent = createIntent();
+    intent.buttons = Buttons.GrabLeft;
+    intent.moveZ = 1;
+    let top = 0;
+    let mantles = 0;
+    let firstMantle = -1;
+    for (let i = 0; i < 360; i++) {
+      run(climber, ctx, intent, 1);
+      top = Math.max(top, climber.position.y);
+      for (const e of ctx.events.drain()) {
+        if (e.type === 'climbLaunch' && e.data === 'mantle') {
+          mantles++;
+          if (firstMantle < 0) firstMantle = i;
+        }
+      }
+      if (firstMantle >= 0 && i > firstMantle + 60) break;
+    }
+    expect(firstMantle).toBeGreaterThan(0);
+    // Up the whole 12 m and onto it, and one mantle, not one every other tick.
+    expect(top).toBeGreaterThan(12);
+    expect(mantles).toBe(1);
+  });
+
+  it('scrambles onto a boulder and stays off it a moment, rather than re-gripping every other tick', () => {
+    // A boulder's flank is steep enough to grip and its top flat enough to stand on, and with grab
+    // held the climber mantled onto it, took the flank again the next tick and mantled again.
+    ctx = makeContext(
+      new PhysicsWorld([
+        { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(60, 2, 60), yaw: 0, surface: { ...DEFAULT_SURFACE } },
+        { kind: 'sphere', id: 1, center: vec3(0, 0.6, 2.4), radius: 1.5, surface: { ...DEFAULT_SURFACE, material: 'rock' } },
+      ]),
+    );
+    const climber = createPlayerState({ id: 'p10', position: vec3(0, 0.5, 0) });
+    const intent = createIntent();
+    intent.buttons = Buttons.GrabLeft;
+    intent.moveZ = 1;
+    run(climber, ctx, intent, 120);
+    const grabs = typesOf(ctx).filter((t) => t === 'grab').length;
+    expect(grabs).toBeLessThanOrEqual(8);
+  });
+
+  it('launches once per press of jump, however long grab and jump are both held', () => {
+    // Held, a grab re-grips the wall the tick after a launch; a held jump launched off it again,
+    // every tick — measured 15 launches a second and 7.4 m of rise in 3 s on the outback's gorge
+    // wall, where climbing it rose 0.3 m.
+    const climber = createPlayerState({ id: 'p7', position: vec3(4.6, 0.5, 0) });
+    const intent = createIntent();
+    intent.lookYaw = Math.PI / 2;
+    intent.buttons = Buttons.GrabLeft | Buttons.Jump;
+    typesOf(ctx);
+    run(climber, ctx, intent, 180);
+    expect(typesOf(ctx).filter((t) => t === 'climbLaunch')).toHaveLength(1);
+    // Let go of jump and press it again: that is a second launch.
+    intent.buttons = Buttons.GrabLeft;
+    run(climber, ctx, intent, 30);
+    intent.buttons = Buttons.GrabLeft | Buttons.Jump;
+    run(climber, ctx, intent, 2);
+    expect(typesOf(ctx).filter((t) => t === 'climbLaunch')).toHaveLength(1);
+  });
 });
 
 /**

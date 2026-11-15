@@ -2,6 +2,7 @@ import { canUse } from '../gadgets/loadout.js';
 import { selectedGadget } from '../gadgets/state.js';
 import { Rand } from '../math/rand.js';
 import { v3distance } from '../math/vec3.js';
+import { isGrabbable } from '../physics/types.js';
 import { Buttons, createIntent } from '../input/intent.js';
 import type { InputIntent } from '../input/intent.js';
 import type { PlayerState } from '../player/state.js';
@@ -72,6 +73,8 @@ const GUARD_BASE = 0.15;
 const GUARD_SKILL = 0.6;
 /** Further than this from its opponent a fighter has nothing to guard against. */
 const GUARD_RANGE = 2.5;
+/** How far from under an overhead objective a bot looks for something to climb up to it. */
+const CLIMB_FOOT_SEARCH = 10;
 
 /** Within this many metres of its objective a bot slows down rather than sprinting past. */
 const ARRIVE_RADIUS = 4;
@@ -88,6 +91,7 @@ export class Bot {
   private aimHigh = false;
   /** Whether this bot is holding its guard up, and how long until it decides again. */
   private guardUp = false;
+  private readonly climbFootPoint = { x: 0, y: 0, z: 0 };
   private guardTimer = 0;
   private fireTimer = 0;
   private aimError = 0;
@@ -187,6 +191,7 @@ export class Bot {
       // a sloppy line rather than running the course on rails, which is what makes a race worth
       // entering.
       objective = this.routeOut(self, level, objective);
+      objective = this.climbFoot(self, level, objective);
       const dx = objective.x - self.position.x;
       const dz = objective.z - self.position.z;
       const want = Math.atan2(dx, dz);
@@ -311,7 +316,16 @@ export class Bot {
       const rise = objective.y - self.position.y;
       const flat = Math.hypot(objective.x - self.position.x, objective.z - self.position.z);
       if (rise > 1.5 && flat < 10) {
-        intent.buttons |= Buttons.GrabLeft | Buttons.GrabRight | Buttons.Jump;
+        // Climb the way a player does: hold grab and push up the wall. It used to hold jump as
+        // well, which launched it off the wall every tick and re-gripped the next — a rocket up
+        // any wall at 15 launches a second, and the only way a bot ever climbed. Launching is a
+        // press now (`PlayerState.jumpHeld`), so the bot climbs, and mantles at the top.
+        intent.buttons |= Buttons.GrabLeft | Buttons.GrabRight;
+        intent.buttons &= ~Buttons.Jump;
+        if (self.climbing) {
+          intent.moveX = 0;
+          intent.moveZ = 1;
+        }
       }
     }
 
@@ -344,6 +358,38 @@ export class Bot {
    * end, which `LevelBuilder.enclose` now walls. A pit declares its exit (`ZoneDef.exits`); the bot
    * walks to its foot, then up to its top, then carries on.
    */
+  /**
+   * The objective overhead and nothing in reach to climb: head for the foot of whatever climbable
+   * thing stands under it — a trunk, a pillar, a wall — keeping the objective's height, so the
+   * climb below still knows the way is up.
+   *
+   * A racer steered straight under a checkpoint 13 m up and ran rings there: before climbing was
+   * a press, it got up by launching off the ground fifteen times a second, and once that was gone
+   * the jungle's second and third checkpoints, each on a platform up a tree, could not be reached.
+   */
+  private climbFoot(self: PlayerState, level: LevelDef, objective: Vec3): Vec3 {
+    if (self.climbing || objective.y - self.position.y <= 1.5) return objective;
+    if (Math.hypot(objective.x - self.position.x, objective.z - self.position.z) > 12) return objective;
+    let best: Vec3 | null = null;
+    let bestDistance = CLIMB_FOOT_SEARCH;
+    for (const collider of level.colliders) {
+      if ((collider.kind !== 'box' && collider.kind !== 'cylinder') || !isGrabbable(collider.surface)) continue;
+      const halfY = collider.kind === 'box' ? collider.half.y : collider.halfHeight;
+      // Standing on the ground the bot is on, and rising to somewhere near the objective's height.
+      if (collider.center.y - halfY > self.position.y + 1.5 || collider.center.y + halfY < objective.y - 4) continue;
+      const d = Math.hypot(collider.center.x - objective.x, collider.center.z - objective.z);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = collider.center;
+      }
+    }
+    if (!best) return objective;
+    this.climbFootPoint.x = best.x;
+    this.climbFootPoint.y = objective.y;
+    this.climbFootPoint.z = best.z;
+    return this.climbFootPoint;
+  }
+
   private routeOut(self: PlayerState, level: LevelDef, objective: Vec3): Vec3 {
     const p = self.position;
     // In a pit is a height, not a zone name: below the top of a way out of a zone you are inside,

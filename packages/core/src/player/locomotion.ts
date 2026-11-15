@@ -83,11 +83,15 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   const climbing = updateClimb(player, intent, ctx, dt, !frozen && (grabLeft || grabRight), handDriven);
 
   const wantsJump = hasButton(intent.buttons, Buttons.Jump);
+  const jumpPressed = wantsJump && !player.jumpHeld;
+  player.jumpHeld = wantsJump;
   if (wantsJump) player.jumpBufferTimer = cfg.jumpBufferTime;
 
   if (!handDriven && !climbing) {
     applyGroundAndAir(player, intent, ctx, dt, wantsJump);
-  } else if (wantsJump && (climbing || handDriven)) {
+  } else if (jumpPressed) {
+    // A press, not a hold (`PlayerState.jumpHeld`): a held grab re-grips the wall next tick, and
+    // a held jump would launch off it again, every tick, straight up the wall.
     launchFromGrab(player, ctx, climbing);
   }
 
@@ -113,6 +117,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
 function advanceTimers(player: PlayerState, dt: number): void {
   player.coyoteTimer = Math.max(0, player.coyoteTimer - dt);
   player.jumpBufferTimer = Math.max(0, player.jumpBufferTimer - dt);
+  player.regripTimer = Math.max(0, player.regripTimer - dt);
   player.staggerTimer = Math.max(0, player.staggerTimer - dt);
   player.invulnTimer = Math.max(0, player.invulnTimer - dt);
   player.tagCooldown = Math.max(0, player.tagCooldown - dt);
@@ -468,7 +473,7 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
       }
     }
 
-    if (hand.gripHeld && !hand.anchored) {
+    if (hand.gripHeld && !hand.anchored && player.regripTimer <= 0) {
       if (closestHold(player, ctx, hand.world, cfg.handGrabRadius)) {
         hand.anchored = true;
         // The anchor is where the hand closed, not the nearest point of the surface. A hand closes
@@ -621,6 +626,7 @@ function updateClimb(
 
   const chestY = player.position.y + player.height * 0.62;
   if (!player.climbing) {
+    if (player.regripTimer > 0) return false;
     v3set(
       _tmp,
       player.position.x + _forward.x * cfg.gripReach * 0.55,
@@ -628,7 +634,10 @@ function updateClimb(
       player.position.z + _forward.z * cfg.gripReach * 0.55,
     );
     ctx.world.closestSurface(_surface, _tmp, cfg.gripReach, true);
-    if (!_surface.hit) return false;
+    // A floor is not a wall. The nearest climbable thing to the chest is often the ground under
+    // the feet, a metre down, and gripping it froze a player who held grab in the middle of the
+    // jungle floor in a "climb" that went nowhere.
+    if (!_surface.hit || isFloor(_surface.normal) || isCeiling(_surface.normal)) return false;
     player.climbing = true;
     v3copy(player.climbAnchor, _surface.point);
     v3copy(player.climbNormal, _surface.normal);
@@ -653,15 +662,34 @@ function updateClimb(
   v3normalize(_tmp2, _tmp2);
 
   const climbStep = cfg.climbSpeed * dt;
+  // Asked from a little off the wall: a point exactly on a face is at distance 0 from it, and the
+  // nearest-point query has no side to take a normal from there — it answered straight up, which
+  // read the wall as a floor.
   v3set(
     _tmp,
-    player.climbAnchor.x + _tmp2.x * intent.moveX * climbStep,
-    player.climbAnchor.y + intent.moveZ * climbStep * Math.max(0.35, tangentUpY),
-    player.climbAnchor.z + _tmp2.z * intent.moveX * climbStep,
+    player.climbAnchor.x + _tmp2.x * intent.moveX * climbStep + player.climbNormal.x * CLIMB_PROBE_OFF,
+    player.climbAnchor.y + intent.moveZ * climbStep * Math.max(0.35, tangentUpY) + player.climbNormal.y * CLIMB_PROBE_OFF,
+    player.climbAnchor.z + _tmp2.z * intent.moveX * climbStep + player.climbNormal.z * CLIMB_PROBE_OFF,
   );
 
   ctx.world.closestSurface(_surface, _tmp, cfg.gripReach, true);
-  if (_surface.hit) {
+  if (
+    _surface.hit &&
+    ((isFloor(_surface.normal) && _surface.point.y < player.climbAnchor.y - 0.05) || isCeiling(_surface.normal))
+  ) {
+    // The ground at the foot of the wall, nearer than the wall itself: stay on the wall, moved
+    // along its own plane. Taken as the anchor, it pinned the climber to the floor. The same for
+    // the underside of something jutting out of the wall: a climber who took it hung there for
+    // good — a jungle racer under a branch 9.6 m up its tree, for 100 seconds — and climbing on
+    // past it reaches its top, which is a mantle onto it.
+    const off = (_tmp.x - player.climbAnchor.x) * player.climbNormal.x + (_tmp.y - player.climbAnchor.y) * player.climbNormal.y + (_tmp.z - player.climbAnchor.z) * player.climbNormal.z;
+    v3set(_surface.point, _tmp.x - player.climbNormal.x * off, _tmp.y - player.climbNormal.y * off, _tmp.z - player.climbNormal.z * off);
+    v3copy(_surface.normal, player.climbNormal);
+    _surface.colliderIndex = player.climbCollider;
+  }
+  // Ground at or above the hand is the top of the wall, and reaching it is a mantle: gripped
+  // instead, the anchor crept on across the top and the climber hung off the lip below it.
+  if (_surface.hit && !isFloor(_surface.normal)) {
     v3copy(player.climbAnchor, _surface.point);
     v3copy(player.climbNormal, _surface.normal);
     player.climbCollider = _surface.colliderIndex;
@@ -669,9 +697,17 @@ function updateClimb(
     // Climbed off the top edge: convert into a mantle.
     player.climbing = false;
     player.climbCollider = -1;
-    player.velocity.y = Math.max(player.velocity.y, cfg.jumpForce * 0.55);
+    // Enough to lift the feet over the lip the hand is on, and a hand's breadth more. A flat
+    // jumpForce × 0.55 rose 0.4 m from hanging 1.1 m below it, and the climber fell back down the
+    // wall they had just climbed. Capped at a jump: this is a scramble, not a launch.
+    const lip = player.climbAnchor.y - player.position.y + MANTLE_CLEARANCE;
+    const lift = Math.min(cfg.jumpForce, Math.sqrt(2 * cfg.gravity * Math.max(0, lip)));
+    player.velocity.y = Math.max(player.velocity.y, cfg.jumpForce * 0.55, lift);
     player.velocity.x += _forward.x * 2.4;
     player.velocity.z += _forward.z * 2.4;
+    // A held grab took the same rock again the next tick and mantled again: on the canyon's
+    // boulders, a grab and a mantle every other tick, each with its sound, for as long as it was held.
+    player.regripTimer = REGRIP_AFTER_LAUNCH;
     ctx.events.emit('climbLaunch', player.id, player.position, ctx.tick, 0.5, { data: 'mantle' });
     return false;
   }
@@ -693,6 +729,29 @@ function updateClimb(
   return true;
 }
 
+/**
+ * How long after launching off a grip a held grab cannot take hold again: long enough to be clear
+ * of the wall it left (a launch carries the body away from it at 3.9 m/s), short enough to catch
+ * the next one in a gap-to-gap leap.
+ */
+export const REGRIP_AFTER_LAUNCH = 0.3;
+
+/** How far over the lip a mantle lifts the feet. */
+const MANTLE_CLEARANCE = 0.2;
+
+/** How far off the wall the assisted climb asks for the surface under its hand. */
+const CLIMB_PROBE_OFF = 0.1;
+
+/** A surface the capsule can stand on: the assisted climb holds walls, never these. */
+function isFloor(normal: Vec3): boolean {
+  return normal.y >= DEFAULT_MOVE_PARAMS.minGroundNormalY;
+}
+
+/** The underside of something, which the assisted climb cannot go up. */
+function isCeiling(normal: Vec3): boolean {
+  return normal.y <= -DEFAULT_MOVE_PARAMS.minGroundNormalY;
+}
+
 /** Jumping off a grip (hand anchor or assisted climb) — the swing-and-launch trick. */
 function launchFromGrab(player: PlayerState, ctx: LocomotionContext, climbing: boolean): void {
   const cfg = player.config;
@@ -711,6 +770,7 @@ function launchFromGrab(player: PlayerState, ctx: LocomotionContext, climbing: b
     hand.anchorCollider = -1;
   }
   releasePull(player);
+  player.regripTimer = REGRIP_AFTER_LAUNCH;
 
   // Existing velocity (from swinging) is preserved and added to, not replaced.
   player.velocity.x += dirX * cfg.climbLaunchForce * 0.55;
