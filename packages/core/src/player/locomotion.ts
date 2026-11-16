@@ -68,7 +68,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
   startPunchThrows(player, intent, frozen, ctx);
   updateHandPoses(player, intent, dt, grabLeft, grabRight, prevYaw);
 
-  const handsAnchored = updateHandGrips(player, ctx);
+  const handsAnchored = updateHandGrips(player, ctx, prevYaw);
   const handDriven = handsAnchored > 0;
 
   if (handDriven) {
@@ -403,6 +403,25 @@ function stepAgainstBody(hand: HandState, prevYaw: number, yaw: number): number 
   );
 }
 
+/**
+ * Move a fresh anchor (at `hand.world`) back by the part of this tick's hand motion, against the
+ * body, that ran along the surface with outward `normal`, so the next correction carries it on.
+ */
+function keepSweep(hand: HandState, origin: Vec3, prevYaw: number, normal: Vec3): void {
+  const c = Math.cos(prevYaw);
+  const s = Math.sin(prevYaw);
+  const l = hand.prevLocal;
+  // Where the hand was against the body at the start of the tick, set down where the body is now.
+  // `localToWorld`'s axes at `prevYaw`: right (-cos, 0, sin), forward (sin, 0, cos).
+  const dx = hand.world.x - (origin.x - c * l.x + s * l.z);
+  const dy = hand.world.y - (origin.y + l.y);
+  const dz = hand.world.z - (origin.z + s * l.x + c * l.z);
+  const into = dx * normal.x + dy * normal.y + dz * normal.z;
+  hand.anchor.x -= dx - into * normal.x;
+  hand.anchor.y -= dy - into * normal.y;
+  hand.anchor.z -= dz - into * normal.z;
+}
+
 function localToWorld(out: Vec3, origin: Vec3, local: Vec3): Vec3 {
   return v3set(
     out,
@@ -439,7 +458,7 @@ function closestHold(player: PlayerState, ctx: LocomotionContext, point: Vec3, r
 }
 
 /** Acquire / release hand anchors. Returns how many hands are anchored. */
-function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
+function updateHandGrips(player: PlayerState, ctx: LocomotionContext, prevYaw: number): number {
   const cfg = player.config;
   let anchored = 0;
   for (let i = 0; i < 2; i++) {
@@ -480,7 +499,18 @@ function updateHandGrips(player: PlayerState, ctx: LocomotionContext): number {
         // up to `handGrabRadius` short of a wall (or inside it — hands are not collided), and
         // anchoring on the surface yanked the body that far in one tick: 0.2 m short was a 12 m/s
         // lurch of the camera on every such grab. The surface only decides whether a grab counts.
+        //
+        // But the part of this tick's motion that ran *along* the surface was already a pull: a
+        // hand sweeping back over the ground or down a wall as it closes is dragging on it. Set
+        // where it ended, that motion was thrown away and the body stood still for the tick —
+        // every grab from a flight was a dead stop (a gallop at 6 m/s strokes fell to 0 on each
+        // plant), and the zero then sat in the release's `PULL_WINDOW`. Motion *into* the surface
+        // is the hand arriving, not pushing, and stays thrown away: kept, a hand slapping down
+        // onto the floor as it closed bounced the body off it. Measured against the body at the
+        // old yaw, so a head turn is not a sweep.
         v3copy(hand.anchor, hand.world);
+        // A pose jump's `prevLocal` is snapped, but a snap turn's yaw is not: no sweep to keep.
+        if (!hand.jumped) keepSweep(hand, player.position, prevYaw, _surface.normal);
         hand.anchorCollider = _surface.colliderIndex;
         ctx.events.emit('grab', player.id, _surface.point, ctx.tick, 1, {
           material: _surface.surface.material,

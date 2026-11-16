@@ -695,6 +695,54 @@ describe('a hand pushes along the floor it stands on', () => {
   });
 });
 
+describe('a hand keeps the sweep it closed in', () => {
+  /**
+   * A player flying forward at 6 m/s, 0.3 m over a dirt floor, one hand held still against the body
+   * just over the floor; on the third tick the hand moves `step` (body-local) and closes. Returns
+   * the body's velocity after that tick.
+   */
+  function closeWhileFlying(step: { x: number; y: number; z: number }, turn = 0) {
+    const ctx = makeContext(testWorld());
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0.3, -20) });
+    player.velocity.z = 6;
+    const intent = createIntent();
+    intent.headHeight = 1.6;
+    intent.lookYaw = 0;
+    intent.hands = [createHandIntent(), createHandIntent()];
+    const hand = intent.hands[1]!;
+    hand.tracked = true;
+    hand.pos = { x: 0.25, y: -0.1, z: 0.3 };
+    run(player, ctx, intent, 2);
+    expect(player.hands[1].anchored).toBe(false);
+    hand.pos = { x: 0.25 + step.x, y: -0.1 + step.y, z: 0.3 + step.z };
+    hand.grip = 1;
+    intent.lookYaw = turn;
+    run(player, ctx, intent, 1);
+    expect(player.hands[1].anchored, 'the hand did not take hold of the floor').toBe(true);
+    return { ...player.velocity };
+  }
+
+  it('carries a sweep along the floor on the tick the hand closes, instead of stopping dead', () => {
+    // Sweeping back at 6 m/s as it closes: the body goes on at 6, as it will on every tick after.
+    const v = closeWhileFlying({ x: 0, y: 0, z: -0.1 });
+    expect(v.z).toBeGreaterThan(5);
+    // And a hand closing while still against the body is a catch: that stops the body, as before.
+    expect(closeWhileFlying({ x: 0, y: 0, z: 0 }).z).toBeLessThan(0.5);
+  });
+
+  it('does not bounce the body off a floor the hand arrives on as it closes', () => {
+    // Coming down onto the floor at 9 m/s: that is reaching it, not pushing on it.
+    const v = closeWhileFlying({ x: 0, y: -0.15, z: 0 });
+    expect(v.y).toBeLessThan(0.5);
+  });
+
+  it('takes no sweep from a snap turn on the tick the hand closes', () => {
+    // A 30° snap carries a still hand 0.16 m round through the world: a pose jump, not a sweep.
+    const v = closeWhileFlying({ x: 0, y: 0, z: 0 }, Math.PI / 6);
+    expect(Math.hypot(v.x, v.z)).toBeLessThan(0.5);
+  });
+});
+
 describe('a hand that jumps is not a pull', () => {
   let world: PhysicsWorld;
   let ctx: LocomotionContext;

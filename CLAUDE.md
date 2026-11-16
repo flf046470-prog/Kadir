@@ -3824,3 +3824,37 @@ what it had been covering:
 Six bots, 4 seeds × 200 s of parkour: jungle median furthest checkpoint 2 → 4, glacier and outback
 unchanged at 4 and 3; launches without a press 0. `navigation.test.ts` → "a racer climbing" and four
 locomotion tests hold it; seven mutations each fail one.
+
+## A hand that closed mid-sweep stopped the body dead
+
+VR core movement, measured on `stepPlayer` with synthetic arm strokes (`.probe/vr-core.ts`). The
+model itself is Gorilla Tag's: while a hand holds, the body moves exactly against the hand's motion
+relative to it, and a flight keeps its speed (no air drag). What was wrong was the tick a hand
+closes. The anchor was set where the hand *ended* that tick, so the correction for it was zero and
+`applyHandCorrection` **set** the body's velocity to zero: flying at 7.9 m/s, a hand planted while
+already sweeping back at 6 m/s stopped the body for a tick, every plant. In a knuckle-walk the
+fresh hand's zero was averaged with the holding hand's pull and halved that tick; the zero then sat
+in the release's `PULL_WINDOW`.
+
+`keepSweep` moves a fresh anchor back by the part of that tick's motion, against the body, that ran
+**along** the surface, so the next correction carries it on. Motion **into** the surface is thrown
+away: kept whole, a hand slapping down onto the floor as it closed bounced the body up (the
+synthetic knuckle-walker hovered 0.3 m up, airborne 100 % of the time). Measured at the old yaw, as
+`stepAgainstBody` is, so a head turn is not a sweep; skipped on a pose jump, whose `prevLocal` is
+snapped but whose yaw is not (a 30° snap otherwise read as a 12 m/s sweep).
+
+| arm stroke | knuckle-walk before → after | gallop (both hands, flights) before → after |
+| --- | --- | --- |
+| 3 m/s | 2.79 → 3.00 | 2.37 → 2.45 |
+| 4 m/s | 3.62 → 3.81 | 3.60 → 3.75 |
+| 6 m/s | 5.14 → 6.00 | 5.02 → 5.94 |
+| 8 m/s | 6.48 → 6.86 | 5.17 → 8.38 |
+
+A catch is unchanged: a hand still against the body that closes on a branch stops a falling or
+flying body as before. Every Gorilla Tag P0 gate probe (`gt-gates*`, `gt-spoof`, `snapdrop`,
+`rate`) prints byte-identical output before and after, and the climb-rate table did not move.
+`locomotion.test.ts` → "a hand keeps the sweep it closed in"; three mutations (no sweep, motion into
+the surface kept, no pose-jump guard) each fail only their own test.
+
+`regripTimer` (from "Holding grab and jump was a rocket") does not reach arms-first VR: only a jump
+press off a grip and the assisted climb's mantle set it, and arms-first sends no Jump.

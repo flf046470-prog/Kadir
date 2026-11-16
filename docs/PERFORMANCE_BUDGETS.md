@@ -21,14 +21,19 @@ Flat dirt, steady state (mean over 5–35 s; peak in brackets). Probe: `.probe/a
 | VR assisted stick (0.55 of the stick) | 3.96 (3.96) |
 | VR assisted stick + sprint | 4.52 (5.35) |
 | VR seated stick (1.0) | 7.20 (7.20) |
-| VR arms, 2 m/s strokes | 1.91 (2.00) |
-| VR arms, 3 m/s strokes | 2.79 (3.00) |
-| VR arms, 4 m/s strokes | 3.62 (4.00) |
-| VR arms, 6 m/s strokes | 5.14 (6.00) |
-| VR arms, 8 m/s strokes | 6.48 (8.00) |
+| VR arms, 2 m/s strokes | 2.00 (2.00) |
+| VR arms, 3 m/s strokes | 3.00 (3.00) |
+| VR arms, 4 m/s strokes | 3.81 (4.00) |
+| VR arms, 6 m/s strokes | 6.00 (6.00) |
+| VR arms, 8 m/s strokes | 6.86 (8.00) |
 
-**The gap:** an arms-first player matches a PC run only at about 9 m/s of sustained arm stroke,
-and a held sprint not at all. A relaxed 4 m/s stroke is half a PC run.
+Re-measured 2026-11-16 after a hand that closed mid-sweep stopped being a dead stop (CLAUDE.md, "A
+hand that closed mid-sweep stopped the body dead"); before it the arms rows read 1.91 / 2.79 / 3.62
+/ 5.14 / 6.48. Galloping (both hands together, a flight between plants, `.probe/vr-core.ts`) at 6
+and 8 m/s strokes now runs at 5.94 and 8.38 m/s, from 5.02 and 5.17.
+
+**The gap:** an arms-first player matches a PC run at about 7–8 m/s of sustained arm stroke, and a
+held sprint not at all. A relaxed 4 m/s stroke is just over half a PC run.
 
 ### Turning
 
@@ -85,15 +90,20 @@ alternates with the seed.
 
 | map | VR strokes | chaser share PC / VR | VR catches PC | PC catches VR | mean speed PC / VR | stuck PC / VR |
 | --- | --- | --- | --- | --- | --- | --- |
-| jungle | 4 m/s | 9.5 % / 23.8 % | 3 | 11 | 7.06 / 3.28 | 2.8 % / 9.2 % |
-| jungle | 6 m/s | 9.2 % / 24.1 % | 17 | 26 | 7.21 / 4.49 | 2.0 % / 9.5 % |
-| jungle | 8 m/s | 10.5 % / 22.8 % | 16 | 22 | 7.25 / 5.22 | 1.8 % / 16.5 % |
-| glacier | 4 m/s | 10.4 % / 22.9 % | 6 | 13 | 6.84 / 3.11 | 4.4 % / 13.3 % |
-| glacier | 6 m/s | 10.3 % / 23.0 % | 12 | 22 | 6.92 / 4.28 | 3.6 % / 12.9 % |
-| glacier | 8 m/s | 8.7 % / 24.7 % | 11 | 20 | 6.75 / 5.16 | 4.4 % / 15.6 % |
-| outback | 4 m/s | 8.3 % / 25.1 % | 18 | 24 | 6.73 / 3.38 | 3.4 % / 4.2 % |
-| outback | 6 m/s | 7.4 % / 25.9 % | 19 | 26 | 6.91 / 4.61 | 2.6 % / 6.9 % |
-| outback | 8 m/s | 13.1 % / 20.3 % | 27 | 31 | 7.06 / 5.72 | 2.9 % / 6.8 % |
+| jungle | 4 m/s | 7.5 % / 25.8 % | 6 | 14 | 7.01 / 3.64 | 2.7 % / 5.9 % |
+| jungle | 6 m/s | 11.0 % / 22.3 % | 10 | 19 | 7.09 / 4.98 | 2.3 % / 14.1 % |
+| jungle | 8 m/s | 12.7 % / 20.6 % | 28 | 31 | 7.15 / 6.43 | 2.4 % / 8.1 % |
+| glacier | 4 m/s | 12.2 % / 21.1 % | 8 | 15 | 6.77 / 3.49 | 5.2 % / 9.3 % |
+| glacier | 6 m/s | 9.8 % / 23.5 % | 4 | 13 | 6.93 / 5.18 | 2.0 % / 9.2 % |
+| glacier | 8 m/s | 9.9 % / 23.5 % | 16 | 24 | 6.94 / 6.32 | 3.7 % / 9.4 % |
+| outback | 4 m/s | 7.6 % / 25.7 % | 20 | 27 | 6.83 / 3.67 | 3.0 % / 3.5 % |
+| outback | 6 m/s | 7.2 % / 26.1 % | 41 | 46 | 6.88 / 5.45 | 2.6 % / 5.5 % |
+| outback | 8 m/s | 11.1 % / 22.3 % | 53 | 56 | 6.96 / 6.52 | 2.7 % / 3.9 % |
+
+Re-measured 2026-11-16, after the fix to a hand closing mid-sweep. VR mean speed rose on every row
+(jungle 8 m/s 5.22 → 6.43) and VR catches PC more often at 8 m/s (outback 27 → 53), but the chaser
+share hardly moved (20.3–25.9 % before, 20.6–26.1 % now): the speed lost at every plant was not
+what the gap is made of.
 
 All six PC: every player is the chaser 16.7 % of the time, as it should be.
 
