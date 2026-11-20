@@ -159,9 +159,13 @@ passes. Writing the code does not tick it.
   rounds.
 - [ ] **A19. Rooms per box**, load-tested locally against the built server. Exit: the number,
   written in `CLAUDE.md` beside the per-room figures.
-- [ ] **A20. The crossplay decision**, from A3's numbers (`docs/PERFORMANCE_BUDGETS.md`, "Chase
+- [x] **A20. The crossplay decision**, from A3's numbers (`docs/PERFORMANCE_BUDGETS.md`, "Chase
   outcome") and the Boxing probe (options A–D in the Ultimate Edition roadmap). Exit: a measured
   recommendation in that file.
+  Done 2026-11-20: full crossplay, no VR speed multiplier. A galloping arms-first player at 8 m/s
+  strokes is already at parity (chaser 9–20 % against a fair 16.7 %); Gorilla Tag's release
+  multiplier ×1.3 turned the gap round for vigorous players and moved moderate ones inside the
+  noise. Overturned only by real-headset stroke speeds.
 - [ ] **A21. The Next Fest demo build**: Kangaroo Chase, Roo Ball and the Training Room on one map,
   behind a build flag. Exit: `check:smoke` against the demo build.
 

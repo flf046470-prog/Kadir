@@ -3872,3 +3872,15 @@ and mashing buys nothing (5.25–5.42 against 5.33). The galloping figures above
 except E2, which reads 2.00 from the first tick. The slider stays in the tuning panel.
 `locomotion.test.ts` → "takes hold with two hands without overshooting them"; the default back at
 1.3 fails it (2.6 against 2.0).
+
+## Crossplay: decided, and a VR speed multiplier was measured and refused (A20)
+
+Full crossplay, no input-based queues until a ranked mode exists, no VR release multiplier. The
+knuckle-walk chase table made arms-first look 1.2–1.6× over its chaser share, but a knuckle-walk
+never flies; galloping (both hands together, `.probe/a3-chase.ts` with `GAIT=gallop`) at 8 m/s
+strokes is already at parity (VR chaser 9–20 %, VR catches PC as often as PC catches VR). Gorilla
+Tag's lever, the release speed × a constant, was patched into `releasePull` for the probe only:
+×1.3 turned the gap round for vigorous players (VR 8.6 m/s mean against PC 7.2) and moved
+6 m/s strokes inside the noise. It pays effort, not need. **Each chase cell is ±6 points at 16
+seeds** — a lone row moving 5 points is not a result. Table and the condition that would overturn
+it (real-headset stroke speeds): `docs/PERFORMANCE_BUDGETS.md`, "The crossplay decision (A20)".

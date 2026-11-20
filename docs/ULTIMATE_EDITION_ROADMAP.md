@@ -228,8 +228,8 @@ The loop is in place: XP, coins, achievements, Challenges, events, season track,
 - **Crossplay decision (options A–D)** from Phase 2's numbers plus the Boxing probe.
   - Honest PC and VR are within 10 % in Boxing today.
   - The working recommendation is **A (full crossplay) for casual play, with D (separate
-    competitive queues) only if ranked is added**. It is confirmed or overturned by measurement,
-    not by this paragraph.
+    competitive queues) only if ranked is added**. Confirmed by measurement on 2026-11-20
+    (`docs/PERFORMANCE_BUDGETS.md`, "The crossplay decision (A20)").
 - **Hosting, TURN, load test.** Rooms per box, measured. Hosting is account-gated.
 
 ### Phase 13 — PC optimization · VR/Quest optimization · **VERY LARGE** (hardware-gated)

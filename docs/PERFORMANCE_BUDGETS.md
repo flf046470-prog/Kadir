@@ -120,7 +120,48 @@ boulders and the rink's 1.8 m rock rim with one hand on the ice. A real player w
 walks into. On the outback, where little blocks it, the VR stuck share is close to PC's and the
 chaser gap is as wide as anywhere.
 
-What to do about the gap is roadmap A20 (the crossplay decision). This table is its input.
+What to do about the gap is decided below, in "The crossplay decision (A20)".
+
+### The crossplay decision (A20)
+
+**Recommendation: full crossplay in every mode, no VR speed multiplier, and no input-based
+queues until there is a ranked mode.** Measured 2026-11-20 with the same probe and a second VR
+gait, the gallop (`GAIT=gallop`: both hands planted together, a flight between plants, the way
+arm-locomotion players actually cover ground). 16 seeds × 90 s per row; chaser share, fair 16.7 %.
+
+| map | VR gallop | release ×1 PC / VR | ×1.15 PC / VR | ×1.3 PC / VR |
+| --- | --- | --- | --- | --- |
+| jungle | 6 m/s | 11.0 / 22.3 | 14.5 / 18.8 | 10.9 / 22.4 |
+| jungle | 8 m/s | 13.8 / 19.5 | 17.3 / 16.1 | 22.5 / 10.9 |
+| glacier | 6 m/s | 10.8 / 22.5 | 11.4 / 22.0 | 16.0 / 17.3 |
+| glacier | 8 m/s | 24.0 / 9.3 | 24.7 / 8.7 | 21.4 / 11.9 |
+| outback | 6 m/s | 10.1 / 23.2 | 8.2 / 25.2 | 13.1 / 20.2 |
+| outback | 8 m/s | 15.6 / 17.7 | 13.2 / 20.1 | 14.6 / 18.7 |
+
+The release multiplier is Gorilla Tag's lever: the speed kept on letting go, times a constant. It
+was tried as a probe-only patch to `releasePull` and not shipped. On flat ground it moves a
+gallop by exactly its factor (8 m/s strokes: 7.64 → 8.52 → 9.39 m/s mean).
+
+- **A vigorous arms-first player is already at parity.** Galloping at 8 m/s strokes, VR is the
+  chaser 9–20 % of the round against PC's 14–24 %, and VR catches PC as often as the other way
+  round (jungle 18/22, outback 60/58). The knuckle-walk table above is the worst case, not the
+  typical one: one hand always holds, so it never flies.
+- **A multiplier pays the wrong player.** At 8 m/s strokes ×1.3, VR averages 8.55–8.75 m/s against
+  PC's 7.1–7.4 and is the chaser 11–19 %: the gap turns round. At 6 m/s, where the gap is, ×1.3
+  moves VR from 22–23 % to 17–22 %, inside this table's noise. It scales effort, and the players
+  who most need help are the ones putting in least.
+- **The noise is about ±6 points per row.** Same speed, different multiplier rows move by that
+  much with no trend (glacier 6 m/s: 22.5, 22.0, 17.3). Read each cell as a range.
+- **What is left is effort, and that is the genre.** A relaxed 4–6 m/s stroke is slower than a PC
+  run, as a slow runner is slower than a fast one. The accessibility answer is the assisted stick
+  (seated, limited reach), which CLAUDE.md keeps deliberately slower than arms.
+
+**What would overturn it:** stroke speeds from a real headset. If real players' sustained gallop
+sits near 4–6 m/s rather than 8, the gap is real for most of them, and the first lever to measure
+then is the PC side (sprint stamina), not a VR multiplier that rewards those already fast. That
+measurement is hardware-gated (Track B).
+
+Boxing needs nothing: honest PC and VR punches are within 10 % (CLAUDE.md, "Turning was a punch").
 
 ### Defects found by measuring this, and fixed
 
