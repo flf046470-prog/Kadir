@@ -225,6 +225,7 @@ passes. Writing the code does not tick it.
 | December | **B5. Steamworks and Epic developer accounts**, the two $100 fees, tax and bank forms; then the Coming Soon pages from `pack:pc:listing`, `pack:trailer` and `docs/PC_LISTINGS.md`. Release date "To be announced". | every store date below |
 | Q1 2027 | **B6. Hardware**: one headset (Quest 3, or PC VR through SteamVR) and two or three Windows PCs, for a hardware pass (Phase 13) and measured system requirements. Code signing for Windows. | ticking "VR Supported"; a SmartScreen-clean installer |
 | when the domain exists | **B8. An appeal contact** for bans, at a URL the ban message can name (`docs/META_STORE_RESEARCH.md` §4). | fair bans |
+| when wanted | **B9. PlayStation.** A PlayStation Partners account (Sony approves each developer), a devkit, and the engine for a native port. The game's rules are engine-free TypeScript (`@kc/core`), so a port keeps them and replays recorded intents to prove it. Controller-only play is done (`check:pad`). See `docs/STORES.md` → PlayStation Store. | a PS5 release |
 | Q2 2027 | **B7. Decisions**: free-to-play or paid; a paid ElevenLabs plan for the recorded effects, or synthesis only; the IARC rating; TURN for voice (`KC_TURN_URLS`/`KC_TURN_SECRET`). | Next Fest, Early Access |
 
 ### The store dates, if Track B keeps up

@@ -16,6 +16,7 @@ import { Renderer } from './render/Renderer.js';
 import { LocalStore } from './storage/LocalStore.js';
 import { Hud } from './ui/Hud.js';
 import { resolveAssetUrl } from './render/AssetLibrary.js';
+import { PadMenuNavigator } from './ui/padNav.js';
 import { Shell } from './ui/Shell.js';
 import { TuningStore } from './game/TuningStore.js';
 import { SocialClient, parseSocialRow, vrSocialRows } from './social/SocialClient.js';
@@ -873,6 +874,28 @@ async function main(): Promise<void> {
     // no menu, no round and no way back except reloading.
     else if (inMatch) closeMenu();
   });
+
+  // The whole game from a controller: Start/Options pauses (as Escape), the D-pad or stick moves
+  // between controls, A/Cross chooses, B/Circle goes back. Not in a headset, whose menus are 3D
+  // panels with their own ray.
+  if (device.kind !== 'vr') {
+    const padNav = new PadMenuNavigator({
+      root: () => (shell.currentScreen === 'none' ? null : shell.element),
+      onMenu: () => {
+        if (hud?.chatFocused) hud.toggleChat();
+        else if (shell.currentScreen === 'none') {
+          if (inMatch) openMenu();
+        } else if (inMatch) closeMenu();
+      },
+      onBack: () => {
+        if (inMatch) closeMenu();
+        else if (shell.currentScreen !== 'menu' && shell.currentScreen !== 'name') shell.show('menu');
+      },
+    });
+    padNav.start();
+    // `check:pad` asks which controls the D-pad cannot reach; webdriver only, reads only.
+    if (navigator.webdriver) (window as unknown as { __kcPadNav?: PadMenuNavigator }).__kcPadNav = padNav;
+  }
 
   const savedName = store.loadName();
   if (session && savedName) await bootGame(savedName);

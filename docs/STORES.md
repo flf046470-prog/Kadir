@@ -8,7 +8,8 @@ chosen. The game is one web build; the store packages wrap it differently.
 | Meta Horizon Store | Immersive WebXR PWA via Bubblewrap (TWA → APK/AAB) | Native WebXR | Buildable here; needs a signing key and a developer account |
 | Steam | Desktop shell + bundled-browser VR launch | SteamVR via OpenXR | Buildable here; needs a Steamworks appid |
 | Google Play | Landscape TWA via Bubblewrap (APK/AAB) | — (phone is flat) | Buildable here; needs a signing key and a developer account |
-| Microsoft Store | Hosted PWA as MSIX | — (desktop is flat) | Manifest and tile art buildable here; `makeappx` needs Windows |
+| Microsoft Store | Hosted PWA as MSIX | — (desktop is flat) | Manifest, tile art, listing art and the `.msix` itself all buildable here (`pack:msstore:msix`, no Windows SDK); needs a Partner Center identity and a live origin |
+| PlayStation Store | — (a native port; see below) | PS VR2 reaches the game today through SteamVR | Not buildable here: needs a Sony partner account, devkit and SDK |
 | Apple App Store | — | — | Not set up |
 
 ---
@@ -386,11 +387,56 @@ screenshot, 200 characters or fewer.
   a review risk; failing to declare one you do use means the feature silently never works, for
   everyone, with no error.
 
+### Controller-only play
+
+A Store player may never touch the keyboard: a Windows PC on a TV, an Xbox controller and nothing
+else. Until 2026-11-20 they could not get past the name screen. A pad drove a round
+(`PCInput.readGamepad`) and nothing else: no pad button opened the menu, and no menu read the pad.
+Now `ui/padNav.ts` moves focus with the D-pad or left stick, A chooses, B goes back, and Menu pauses.
+The tutorial lists the controller's buttons when one is connected, from `PAD_BINDINGS`, the same
+table the game reads. `npm run check:pad` drives all of it with a stubbed pad and no keyboard or
+mouse. It reaches all 8 screens off the main menu, finds no control the D-pad cannot reach on any
+of them, and starts, pauses and resumes a round. It is in CI.
+
+The Store's own "Xbox controller" input declaration in Partner Center is an honest tick for this
+build now. It was not one before.
+
 ### What Windows players get
 
 The flat desktop game — the same one Steam ships, running in the Store's PWA container instead of
 Electron. No WebXR: a headset on Windows goes through the Steam build. The two are separate
 listings of the same game and can be published independently.
+
+## PlayStation Store
+
+**Not buildable from this repository, and not a packaging step.** Every other store here takes the
+web build in a wrapper: a TWA, an MSIX pointing at an origin, an Electron shell. A PlayStation title
+is a native application built with Sony's SDK on a devkit. The SDK, the devkits and the
+certification requirements (TRC) are under NDA and available only to registered partners.
+Neither the PS5 browser nor any public web runtime is a route to the PlayStation Store for a game.
+So this is a port, and it starts with an account, not with code:
+
+1. **Register at PlayStation Partners** (partners.playstation.net) as a company. Sony approves
+   developers individually, and the devkit is loaned or bought after approval.
+2. **Choose the engine for the port.** The game's rules live in `@kc/core` as plain TypeScript with
+   no DOM and no three.js (`ARCHITECTURE.md`), which is what makes a port possible at all. Sony
+   supports Unity and Unreal on PS5. A port would reimplement rendering, input and the platform
+   layer there and keep the simulation's rules, measured against `@kc/core` by replaying recorded
+   intents. That is the "never rewrite gameplay three times" rule turned into a test rather than
+   broken. Choosing an engine changes the whole project, so it is the owner's call (ROADMAP B9).
+3. **PS VR2 on PS5** is a separate certification on top of the flat game.
+
+**What is ready for it already:**
+
+- **Controller-only play** (above, under Microsoft Store). The DualSense uses the same standard
+  Gamepad mapping in a browser, so `check:pad` covers it too. Every binding names both pads
+  ("A / Cross", "LT / L2").
+- **PS VR2 players can play the VR game now, on PC.** Sony's PlayStation VR2 PC adapter (released
+  2024) puts the headset on SteamVR, and the Steam build hands VR off to a browser on SteamVR's
+  OpenXR runtime (`packages/shell/src/openxr.ts`). This route has not been tried on a real PS VR2
+  here, because there is no headset here (CLAUDE.md, VR section). It is OpenXR doing what it is for.
+- **Fairness and the economy** already meet what console stores look at hardest: no loot boxes,
+  no money prices, server-validated rewards.
 
 ## Apple App Store
 

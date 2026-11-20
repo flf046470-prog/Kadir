@@ -105,3 +105,6 @@ jobs:
       # mouse into the simulation, a refused VR session falling back to the desktop game, and the
       # simulator staying off beside a real headset.
       - run: npm run check:xrsim
+      # The whole game from a controller alone: every screen reached and left with the D-pad, a
+      # round started, paused with Start, and no pad press leaking past a menu into the player.
+      - run: npm run check:pad

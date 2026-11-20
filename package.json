@@ -63,6 +63,7 @@
     "check:shell": "node scripts/check-shell.mjs",
     "check:crossplay": "node scripts/check-crossplay.mjs",
     "check:xrsim": "node scripts/check-xrsim.mjs",
+    "check:pad": "node scripts/check-pad.mjs",
     "play:xrsim": "npm run build:client && npm run build:server && node -e \"console.log('Desktop VR simulator: open http://localhost:8787/?xrsim')\" && node dist/server/main.js",
     "capture:shots": "node scripts/capture-shots.mjs",
     "pack:preview": "node scripts/pack-preview.mjs",

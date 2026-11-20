@@ -38,6 +38,47 @@ const PC_CONTROL_HINTS = [
   { action: 'Camera: first / third person', hint: 'P' },
 ];
 
+/**
+ * The controller's buttons: the one table `readGamepad` reads and the tutorial lists, so the two
+ * cannot drift (the same rule as `VR_BINDINGS`). Standard Gamepad mapping, which is the same on an
+ * Xbox pad and a DualSense; each hint names both.
+ *
+ * Why each is where it is:
+ * - The left trigger guards, beside the right trigger's punch, as a boxing game's pad does. It used
+ *   to sprint too, a second binding for what the left stick click already does.
+ * - Gadget fire is on the west face button, not the right bumper. The bumper already grabs with
+ *   the right hand, and sharing it meant every ledge you caught also pulled the trigger: measured
+ *   at one `gadgetUse` and a freeze-gun charge — a quarter of the round's ammunition — per grab,
+ *   in a game whose whole traversal is grabbing.
+ * - D-pad up cycles, D-pad down opens the shop, and the right stick click is push-to-talk — the
+ *   same shape as the VR controller mapping.
+ * - Start/Options (9) pauses and B/Circle backs out of menus; both are read by `ui/padNav.ts`, not
+ *   here, because a menu is not an intent.
+ */
+export const PAD_BINDINGS: readonly { index: number; button: number; action: string; hint: string }[] = [
+  { index: 0, button: Buttons.Jump, action: 'Hop (hold to charge)', hint: 'A / Cross' },
+  { index: 10, button: Buttons.Sprint, action: 'Sprint', hint: 'Left stick click (L3)' },
+  { index: 1, button: Buttons.Crouch, action: 'Crouch', hint: 'B / Circle' },
+  { index: 4, button: Buttons.GrabLeft, action: 'Grab / climb, left hand', hint: 'LB / L1' },
+  { index: 5, button: Buttons.GrabRight, action: 'Grab / climb, right hand', hint: 'RB / R1' },
+  { index: 7, button: Buttons.PunchRight, action: 'Punch', hint: 'RT / R2' },
+  { index: 6, button: Buttons.Guard, action: 'Guard (hold)', hint: 'LT / L2' },
+  { index: 3, button: Buttons.Emote, action: 'Emote', hint: 'Y / Triangle' },
+  { index: 2, button: Buttons.UseGadget, action: 'Use gadget', hint: 'X / Square' },
+  { index: 12, button: Buttons.CycleGadget, action: 'Next gadget', hint: 'D-pad up' },
+  { index: 13, button: Buttons.Shop, action: 'Shop / board', hint: 'D-pad down' },
+  { index: 11, button: Buttons.Talk, action: 'Push to talk', hint: 'Right stick click (R3)' },
+];
+
+/** The tutorial's list for a controller: sticks, `PAD_BINDINGS`, and the pause button. */
+const PAD_CONTROL_HINTS = [
+  { action: 'Move', hint: 'Left stick' },
+  { action: 'Look', hint: 'Right stick' },
+  ...PAD_BINDINGS.map(({ action, hint }) => ({ action, hint })),
+  { action: 'Menu / pause', hint: 'Menu / Options' },
+  { action: 'In menus', hint: 'D-pad to move, A / Cross to choose, B / Circle to go back' },
+];
+
 export class PCInput implements PlatformInput {
   readonly kind = 'pc' as const;
 
@@ -50,6 +91,10 @@ export class PCInput implements PlatformInput {
    * the camera would not turn.
    */
   get controlHints(): { action: string; hint: string }[] {
+    // A controller in hand gets the controller's buttons: read when the screen is drawn, so a pad
+    // plugged in before the tutorial opens is the list it shows.
+    const pads = typeof navigator !== 'undefined' ? (navigator.getGamepads?.() ?? []) : [];
+    if (this.padEnabled && [...pads].some((p) => p?.connected)) return PAD_CONTROL_HINTS;
     return [
       { action: 'Move', hint: 'W A S D' },
       { action: 'Look', hint: this.pointerLockBlocked ? 'Drag with the mouse' : 'Mouse' },
@@ -57,6 +102,8 @@ export class PCInput implements PlatformInput {
     ];
   }
 
+  /** Cached from `sample()` for `controlHints`, which is read when a screen is drawn. */
+  private padEnabled = true;
   private keys = new Set<string>();
   private mouseButtons = new Set<number>();
   private yaw = 0;
@@ -173,6 +220,7 @@ export class PCInput implements PlatformInput {
     }
     if (this.mouseButtons.has(0)) buttons |= Buttons.PunchRight;
 
+    this.padEnabled = settings.controls.gamepadEnabled;
     if (settings.controls.gamepadEnabled) {
       const pad = this.readGamepad(dt, settings);
       if (pad) {
@@ -207,26 +255,9 @@ export class PCInput implements PlatformInput {
     );
 
     let buttons = 0;
-    const pressed = (i: number): boolean => pad.buttons[i]?.pressed === true;
-    if (pressed(0)) buttons |= Buttons.Jump;
-    // The left trigger guards, beside the right trigger's punch, as a boxing game's pad does. It used
-    // to sprint too, a second binding for what the left stick click already does.
-    if (pressed(10)) buttons |= Buttons.Sprint;
-    if (pressed(6)) buttons |= Buttons.Guard;
-    if (pressed(1)) buttons |= Buttons.Crouch;
-    if (pressed(4)) buttons |= Buttons.GrabLeft;
-    if (pressed(5)) buttons |= Buttons.GrabRight;
-    if (pressed(3)) buttons |= Buttons.Emote;
-    if (pressed(7)) buttons |= Buttons.PunchRight;
-    // Gadget fire is on the west face button, not the right bumper. The bumper already grabs with
-    // the right hand, and sharing it meant every ledge you caught also pulled the trigger: measured
-    // at one `gadgetUse` and a freeze-gun charge — a quarter of the round's ammunition — per grab,
-    // in a game whose whole traversal is grabbing. D-pad up cycles, D-pad down opens the shop, and
-    // the right stick click is push-to-talk — the same shape as the VR controller mapping.
-    if (pressed(2)) buttons |= Buttons.UseGadget;
-    if (pressed(12)) buttons |= Buttons.CycleGadget;
-    if (pressed(13)) buttons |= Buttons.Shop;
-    if (pressed(11)) buttons |= Buttons.Talk;
+    for (const binding of PAD_BINDINGS) {
+      if (pad.buttons[binding.index]?.pressed === true) buttons |= binding.button;
+    }
 
     return { moveX: move.x, moveZ: -move.y, buttons };
   }

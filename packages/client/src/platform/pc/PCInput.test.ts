@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Buttons, DEFAULT_SETTINGS, createIntent } from '@kc/core';
-import { PCInput } from './PCInput.js';
+import { PAD_BINDINGS, PCInput } from './PCInput.js';
 
 /**
  * Mouse look when the browser refuses pointer lock.
@@ -319,6 +319,22 @@ describe('the gamepad mapping', () => {
     for (const action of ['Jump', 'Sprint', 'Crouch', 'GrabLeft', 'GrabRight', 'PunchRight', 'Guard', 'Emote', 'UseGadget', 'CycleGadget', 'Shop', 'Talk'] as const) {
       expect(reachable & Buttons[action], `${action} is unreachable on a gamepad`).toBeTruthy();
     }
+  });
+
+  it('shows a controller player the controller, every binding with the button that does it', () => {
+    // The tutorial listed W A S D and the mouse to someone holding a pad. The list is drawn from
+    // `PAD_BINDINGS`, the table `readGamepad` reads, so each row names the index that really acts.
+    withPadButton(-1, () => {
+      const hints = input.controlHints;
+      expect(hints.some((h) => /W A S D/.test(h.hint))).toBe(false);
+      expect(hints.find((h) => h.action === 'Menu / pause')?.hint).toMatch(/Options/);
+      for (const binding of PAD_BINDINGS) {
+        expect(hints.find((h) => h.action === binding.action)?.hint).toBe(binding.hint);
+        expect(maskFor(binding.index)).toBe(binding.button);
+      }
+    });
+    // No pad: the keyboard list.
+    expect(input.controlHints.some((h) => /W A S D/.test(h.hint))).toBe(true);
   });
 });
 

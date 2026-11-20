@@ -3904,3 +3904,31 @@ shipped `game/thirdPersonCamera.ts`): the camera was within 10 cm of a wall on 3
 The camera only ever stands nearer the head than `THIRD_PERSON_CAMERA_DISTANCE`, so concealment's
 vantages (which assume it can be anywhere out to that distance) still cover it. First person, the
 default, never reaches this code.
+
+## The whole game from a controller (console and Microsoft Store readiness)
+
+A pad drove a round and nothing else. No pad button opened the menu (Start and Back/Share were bound
+to nothing) and no menu read the pad, so a controller-only player stopped at the name screen. And a
+menu opened over a match still fed the pad to the simulation: the A that confirms a menu row jumped
+the player behind it. `ui/padNav.ts` (`PadMenuNavigator`, its own rAF, so it works before a match
+exists) moves focus with the D-pad or left stick; A clicks; B clicks the screen's Back button (else
+closes the menu in a match); Start toggles the menu, as Escape does. Left/right adjust a slider or a
+drop-down. Not in VR, whose menus are 3-D panels.
+
+- **A flat-screen menu owns the controls** (`GameClient.frame`, `menuOwnsInput`): under any shell
+  screen the intent is zeroed, not sampled. VR excluded.
+- **The press that closes a menu is the menu's** (`heldFromMenu`): whatever is held on the first frame
+  of play is masked until released. Without it, A on Resume closed the menu and jumped; a mouse click
+  on Resume would have been a punch.
+- **`pickNext` scores edge gaps, not centres.** By centres, Down on Settings never landed on a slider
+  in fifteen presses: a wide bar's centre is far off to the side of the checkbox above it.
+- **`PAD_BINDINGS`** in `PCInput.ts` is the one table `readGamepad` reads and the tutorial lists
+  (shown when a pad is connected), naming both pads ("A / Cross").
+- `npm run check:pad` (CI browser job) stubs `navigator.getGamepads` and uses no keyboard or mouse.
+  It sweeps all 8 screens off the main menu with `__kcPadNav.unreachable()` (webdriver only: a BFS
+  over the same `pickNext` graph) and finds nothing unreachable. It then plays, pauses, changes a
+  slider, backs out and resumes: 21/21. Three mutations each fail only their own check: no
+  menu gating, no held-press mask, centre scoring (a unit test).
+- **PlayStation is a native port behind a Sony partner account**, not a package. See `docs/STORES.md`
+  → PlayStation Store and ROADMAP B9. PS VR2 players reach the VR game today through Sony's PC
+  adapter and SteamVR, but that route has not been tried on a real headset here.

@@ -223,6 +223,10 @@ export class GameClient {
   private intent: InputIntent = createIntent();
   /** True while a text field owns the keyboard; see `setInputSuspended`. */
   private inputSuspended = false;
+  /** A menu covered the world last frame (`frame`). */
+  private menuHadInput = false;
+  /** Buttons held down as a menu closed, ignored until released. */
+  private heldFromMenu = 0;
 
   private accumulator = 0;
   /** Headset poses read at each tick's own time rather than the frame's (`tickResample.ts`). */
@@ -1168,13 +1172,30 @@ export class GameClient {
     this.stats.fps = this.stats.fps * 0.9 + (1000 / Math.max(1, dtMs)) * 0.1;
 
     this.renderer.governFrame(dtMs, time);
-    if (this.inputSuspended) {
+    // A flat-screen menu over the world owns the controls: the pad's A/Cross confirms a menu row
+    // (`ui/padNav.ts`), and read here as well it jumped the player behind the menu. A headset's
+    // menus are panels in the world and its hands stay live.
+    const menuOwnsInput = this.input.kind !== 'vr' && this.callbacks.worldCovered();
+    if (this.inputSuspended || menuOwnsInput) {
       // Look is still sampled so the camera does not lurch when the composer closes; movement
       // and buttons stay zeroed by `setInputSuspended`.
       this.intent.tick = this.sim.tick;
+      if (menuOwnsInput) {
+        this.intent.moveX = 0;
+        this.intent.moveZ = 0;
+        this.intent.buttons = 0;
+        this.intent.voice = 0;
+      }
     } else {
       this.input.sample(this.intent, dt, this.settings);
+      // A press that closed a menu is the menu's: A on Resume, Enter, a click on a button. Still
+      // held on the first frame of play it was read as a jump or a punch, so whatever is down when
+      // the menu goes is ignored until it is let go.
+      if (this.menuHadInput) this.heldFromMenu = this.intent.buttons;
+      this.heldFromMenu &= this.intent.buttons;
+      this.intent.buttons &= ~this.heldFromMenu;
     }
+    this.menuHadInput = menuOwnsInput;
     this.updateMicrophone(dt);
 
     // A headset's frames do not line up with the 60 Hz ticks: each tick reads the tracked pose at

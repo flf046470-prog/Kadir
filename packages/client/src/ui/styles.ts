@@ -27,6 +27,7 @@ export const UI_CSS = `
 .kc-btn:active { transform: scale(0.97); }
 .kc-btn--primary { background: linear-gradient(180deg,#4caf50,#2f7d36); border-color: rgba(255,255,255,0.28); }
 .kc-btn--primary:hover { background: linear-gradient(180deg,#5cc460,#37913f); }
+.kc-pad-focus, .kc-pad-focus:focus { outline: 3px solid #ffd166; outline-offset: 3px; box-shadow: 0 0 0 6px rgba(255,209,102,0.25); }
 .kc-btn--danger { background: rgba(140,40,40,0.85); }
 .kc-btn:disabled { opacity: .45; cursor: not-allowed; }
 
