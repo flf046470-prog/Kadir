@@ -460,3 +460,45 @@ describe('the body yaw', () => {
     expect(player.position.z).toBeLessThan(-0.3);
   });
 });
+
+/**
+ * VRC.Quest.Input.4: without input focus (the Universal Menu open, the headset off) all input is
+ * ignored. WebXR says so with `session.visibilityState`; nothing read it.
+ */
+describe('input focus', () => {
+  it('ignores every input while the session is blurred, and keeps the last pose', () => {
+    const set = headset();
+    const settings = settingsWith({ vrLocomotion: 'assisted' });
+    const session = { visibilityState: 'visible' };
+    Object.assign(set.input, { session });
+    expect(set.input.focused).toBe(true);
+
+    const intent = createIntent();
+    set.input.updateTracking(DT, settings);
+    set.input.sample(intent, DT, settings);
+    const yaw = intent.lookYaw;
+
+    session.visibilityState = 'visible-blurred';
+    expect(set.input.focused).toBe(false);
+    // The trigger fires the gadget and the stick walks — while focused.
+    setButton(set.pads[1], TRIGGER, 1);
+    set.pads[0]!.axes[3] = -1;
+    set.camera.quaternion.setFromEuler(new THREE.Euler(0, 1.2, 0, 'YXZ'));
+    // Several frames: the controller is read a frame ahead of the intent.
+    for (let i = 0; i < 4; i++) {
+      set.input.updateTracking(DT, settings);
+      set.input.sample(intent, DT, settings);
+      expect(intent.buttons).toBe(0);
+      expect(intent.moveZ).toBe(0);
+      expect(intent.lookYaw).toBe(yaw);
+    }
+
+    session.visibilityState = 'visible';
+    for (let i = 0; i < 4; i++) {
+      set.input.updateTracking(DT, settings);
+      set.input.sample(intent, DT, settings);
+    }
+    expect(intent.buttons).not.toBe(0);
+    expect(intent.lookYaw).not.toBe(yaw);
+  });
+});

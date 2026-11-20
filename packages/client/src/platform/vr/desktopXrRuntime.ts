@@ -60,6 +60,8 @@ interface IwerDevice {
   controllers: Partial<Record<'left' | 'right', IwerController>>;
   activeSession: { end(): Promise<void> } | undefined;
   installRuntime(options?: { forceInstall?: boolean }): void;
+  readonly visibilityState: XRVisibilityState;
+  updateVisibilityState(state: XRVisibilityState): void;
 }
 
 /**
@@ -113,6 +115,13 @@ function drive(device: IwerDevice, sim: DesktopXr): void {
     'keydown',
     (event) => {
       if (!presenting() || isTextInput(event.target)) return;
+      // The Meta button: the system menu takes input focus from the session (`visible-blurred`),
+      // which is what Meta's pause and input-focus checks are about.
+      if (event.code === 'KeyM') {
+        device.updateVisibilityState(device.visibilityState === 'visible' ? 'visible-blurred' : 'visible');
+        event.preventDefault();
+        return;
+      }
       if (event.code === 'KeyH') {
         overlay.toggleHelp();
         event.preventDefault();

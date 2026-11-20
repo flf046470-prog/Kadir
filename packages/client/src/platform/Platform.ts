@@ -114,6 +114,12 @@ export interface PlatformInput {
    * platform decides whether it can express it. Only VR implements this today — a phone's
    * vibrator is too coarse for events this frequent, and a desktop has nothing to buzz.
    */
+  /**
+   * False while the runtime has taken input focus away: a headset's system menu is open or the
+   * headset is off (WebXR `visibilityState` other than `visible`). Only VR implements it; absent
+   * means always focused. Meta's VRC.Quest.Input.4 and Functional.2 hang off it (`GameClient`).
+   */
+  readonly focused?: boolean;
   feedback?(event: HapticEvent, hand?: 'left' | 'right' | 'both', scale?: number): void;
   /**
    * Point the view where the simulation just turned the player (a `placed` event).

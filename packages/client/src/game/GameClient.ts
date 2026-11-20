@@ -225,6 +225,8 @@ export class GameClient {
   private inputSuspended = false;
   /** A menu covered the world last frame (`frame`). */
   private menuHadInput = false;
+  /** A single-player round paused for lost headset focus (`frame`). */
+  private focusPaused = false;
   /** Buttons held down as a menu closed, ignored until released. */
   private heldFromMenu = 0;
 
@@ -427,6 +429,11 @@ export class GameClient {
     /** The screen's right in the world: the drawn camera's own x axis, flattened. */
     screenRight: { x: number; z: number };
     buttons: number;
+    /** The simulation's tick, and whether a lost headset focus has paused a solo round. */
+    tick: number;
+    paused: boolean;
+    /** Whether the local avatar's hands are drawn. */
+    handsDrawn: boolean;
     /** VR only: the eye in the world, its distance to the nearest wall, and how dark that made the view. */
     eye: { x: number; y: number; z: number; clearance: number; cover: number };
     hands: {
@@ -451,6 +458,9 @@ export class GameClient {
       position: { ...self.position },
       screenRight: { x: right.x / flat, z: right.z / flat },
       buttons: this.intent.buttons,
+      tick: this.sim.tick,
+      paused: this.focusPaused,
+      handsDrawn: this.localAvatar?.hands.some((h) => h.visible) ?? false,
       eye: {
         x: this.eyeWorld.x,
         y: this.eyeWorld.y,
@@ -1204,8 +1214,17 @@ export class GameClient {
     if (resample) this.tickPoses.capture(this.intent);
     else this.tickPoses.reset();
 
+    // A headset without input focus (Universal Menu open, headset off) pauses a single-player
+    // round and its sound — VRC.Quest.Functional.2. Online the room goes on without you; only the
+    // input is ignored (`VRInput.sample`), since nobody else's round can wait.
+    const unfocused = this.input.focused === false;
+    const paused = unfocused && this.soloPractice;
+    if (paused !== this.focusPaused) {
+      this.focusPaused = paused;
+      this.audio.setPaused(paused);
+    }
     // Fixed-step simulation with a bounded catch-up, so a hitch cannot spiral.
-    this.accumulator += dt;
+    this.accumulator = paused ? 0 : this.accumulator + dt;
     let steps = 0;
     while (this.accumulator >= TICK_DT && steps < 5) {
       this.accumulator -= TICK_DT;
@@ -1315,6 +1334,9 @@ export class GameClient {
       // whole group took the tracked hands and the role ring with it, and in a headset those are
       // the only two things about yourself you can see at all.
       this.localAvatar.setFirstPerson(this.input.kind === 'vr' || this.firstPerson);
+      // Without input focus the runtime draws its own menu and hands; ours must not be drawn
+      // (VRC.Quest.Input.4). `update` shows them again every frame, so this runs after it.
+      if (this.input.focused === false) for (const hand of this.localAvatar.hands) hand.visible = false;
     }
 
     const voicePositions = new Map<string, { x: number; y: number; z: number }>();

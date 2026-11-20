@@ -312,6 +312,7 @@ export function simControls(): SimControlLine[] {
     { keys: 'Hold L', does: 'Lean your head forward (room-scale), e.g. into a wall' },
     { keys: 'X', does: 'Put both hands back and look level' },
     { keys: 'Y', does: 'Switch between controllers and bare hands (hand tracking; the grip keys pinch)' },
+    { keys: 'M', does: 'Open or close the headset\'s system menu (the session loses input focus)' },
     { keys: 'H', does: 'Show or hide this help' },
   );
   return lines;

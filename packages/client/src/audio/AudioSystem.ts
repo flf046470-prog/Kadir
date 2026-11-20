@@ -69,6 +69,14 @@ export class AudioSystem {
    * Caught rather than propagated because there is nothing for a caller to do about it. The next
    * gesture calls this again.
    */
+  /** Suspend or resume every sound at once: a paused single-player round is silent. */
+  setPaused(paused: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    if (paused && ctx.state === 'running') void ctx.suspend().catch(() => undefined);
+    if (!paused && ctx.state === 'suspended') void ctx.resume().catch(() => undefined);
+  }
+
   async resume(): Promise<void> {
     if (!this.ctx) this.init();
     if (this.ctx?.state === 'suspended') {

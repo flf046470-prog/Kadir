@@ -3932,3 +3932,28 @@ drop-down. Not in VR, whose menus are 3-D panels.
 - **PlayStation is a native port behind a Sony partner account**, not a package. See `docs/STORES.md`
   → PlayStation Store and ROADMAP B9. PS VR2 players reach the VR game today through Sony's PC
   adapter and SteamVR, but that route has not been tried on a real headset here.
+
+## Meta's focus checks: the Universal Menu paused nothing
+
+Read from Meta's own list of common VRC failures (2026-11-20). Two checks failed by construction,
+because nothing read a WebXR session's `visibilityState`. It goes to `visible-blurred` when the
+Universal Menu opens, and to `hidden` when the headset comes off.
+
+- **VRC.Quest.Input.4**: without input focus, ignore all input and stop drawing tracked hands.
+  `VRInput.focused` is the state, and `sample` then zeroes buttons and movement and keeps the last
+  pose, so a hand on a wall still holds and nobody falls for opening a menu. `GameClient` hides the
+  local avatar's hands after `update`, which shows them again every frame.
+- **VRC.Quest.Functional.2**: a single-player app pauses. A solo practice round stops the
+  simulation (the accumulator stays at 0) and suspends the `AudioContext` (`AudioSystem.setPaused`).
+  Online the room cannot wait; only the input is ignored.
+- The desktop simulator's **M** is the Meta button (`device.updateVisibilityState`). `check:xrsim`
+  checks four things while it is open: the round pauses, the tick stands still, the hands are hidden
+  and a Space press reaches nothing. Closing it resumes the round (46/46). Two mutations each failed
+  their own test: no input guard (unit), and the accumulator still running (`tick 2176 → 2206`).
+- **`npx tsc -b` at the repo root writes `.js` next to every `.ts`, and vitest then imports the
+  stale `.js`.** A mutant "survived" that way until the 327 emitted files were deleted. Use
+  `npm run typecheck`, never a bare `tsc -b`. If a mutant survives against reason, run
+  `git status --untracked-files=all | grep '\.js$'`.
+- **Unreal / an Unreal MCP cannot run here.** UE5 on Linux is built from source in Epic's private
+  GitHub org, which needs an Epic account linked. It also needs about 100 GB (28 GB free) and a GPU
+  (none). Nothing in this session is connected to an Unreal Editor, and no report should say so.

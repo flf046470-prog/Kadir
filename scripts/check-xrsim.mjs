@@ -315,6 +315,32 @@ try {
     const standing = (await self(page)).headHeight;
     check('holding C ducks the head below the crouch line', Boolean(ducked), ducked ? `${ducked.headHeight.toFixed(2)} m` : `still ${standing.toFixed(2)} m`);
 
+    // The headset's system menu (M, the Meta button): Meta's VRC.Quest.Functional.2 pauses a
+    // single-player round, and VRC.Quest.Input.4 hides our hands and ignores input.
+    await page.keyboard.press('KeyM');
+    const blurred = await page.waitForFunction(() => {
+      const v = window.__kcSelf?.();
+      return v && v.paused ? v : null;
+    }, null, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
+    check('the system menu pauses a practice round', Boolean(blurred));
+    if (blurred) {
+      await wait(1500);
+      const later = await self(page);
+      check('…the simulation stands still while it is open', later.tick === blurred.tick, `tick ${blurred.tick} → ${later.tick}`);
+      check('…our hands are not drawn', later.handsDrawn === false);
+      await page.keyboard.down('Space');
+      await wait(600);
+      const pressed = await self(page);
+      await page.keyboard.up('Space');
+      check('…and a button pressed meanwhile reaches nothing', (pressed.buttons & BIT.Jump) === 0);
+    }
+    await page.keyboard.press('KeyM');
+    const back = await page.waitForFunction((t0) => {
+      const v = window.__kcSelf?.();
+      return v && !v.paused && v.tick > t0 + 2 && v.handsDrawn ? v : null;
+    }, blurred?.tick ?? 0, { timeout: 15000 }).then((h) => h.jsonValue()).catch(() => null);
+    check('closing the system menu resumes the round with the hands back', Boolean(back));
+
     // The end of a round. The flat results screen is DOM, which a headset never draws: the round
     // used to end on nothing, with the wrist HUD hidden for good. The round is ended on demand
     // (`__kcEndRound`), because a practice round lasts minutes and this runs at a frame or two a

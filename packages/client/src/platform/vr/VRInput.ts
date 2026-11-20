@@ -131,6 +131,17 @@ export class VRInput implements PlatformInput {
   private readonly frames = new FrameRateMeter();
   private buttons = 0;
 
+  /**
+   * Whether the session has input focus. Meta's Universal Menu, or taking the headset off, turns a
+   * WebXR session's `visibilityState` to `visible-blurred` or `hidden`. Nothing listened for it, so
+   * two certification checks failed by construction: VRC.Quest.Input.4 (stop drawing the hands and
+   * ignore all input without focus) and VRC.Quest.Functional.2 (single player pauses).
+   */
+  get focused(): boolean {
+    const state = this.session?.visibilityState;
+    return state === undefined || state === 'visible';
+  }
+
   /** Fired when the XR session starts/ends so the app can switch UI hosts. */
   onSessionChange: ((active: boolean) => void) | null = null;
 
@@ -327,6 +338,16 @@ export class VRInput implements PlatformInput {
     // facing away from where its player looked, and the hands held up in front of the face were
     // behind the body. The test harness had made the same assumption, so nothing caught it until
     // a real WebXR runtime did (`check:xrsim`).
+    // No input focus (the system menu, or the headset off): ignore all input, as VRC.Quest.Input.4
+    // asks. The intent keeps its last pose, so a hand on a wall still holds it and nobody falls
+    // because they opened a menu; nothing is pressed and nothing moves.
+    if (!this.focused) {
+      out.moveX = 0;
+      out.moveZ = 0;
+      out.buttons = 0;
+      out.voice = 0;
+      return;
+    }
     const bodyYaw = wrapAngle(this.headYaw + this.turnOffset + Math.PI);
     out.lookYaw = bodyYaw;
     out.lookPitch = this.headPitch;
@@ -433,6 +454,8 @@ export class VRInput implements PlatformInput {
   }
 
   private onSessionStart = (): void => {
+    // A session started by the page (`enterVr`) or by the browser (a PWA launched immersive).
+    this.session ??= this.renderer.renderer.xr.getSession();
     this.onSessionChange?.(true);
   };
 
