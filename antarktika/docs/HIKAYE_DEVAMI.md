@@ -1,0 +1,109 @@
+# Hikâyenin devamı — Bölüm 2–7 senaryo planı
+
+Mevcut dikey dilim (istasyon, jeneratör, 3.17 MHz, buz mağarası, A1 çekirdeği) **Bölüm 1**'dir.
+
+## Bölüm 2 · "Gelecekten Yayın" — UYGULANDI (kara kutu görevi, `js/a3d.js`, test: `tools/chapter2_test.cjs` 11/11)
+- Kanca: 3.17 MHz yayını 72 saat sonrasından geliyor; konuşan oyuncunun kendi sesi.
+- Mekân: verici direği + kara kutunun düştüğü buzul yarığı (orijinal oyundaki 6 görevin verici/kara kutu bölgesi).
+- Bulmaca: kara kutu kaydını 4 parçadan birleştirme (tarayıcı Q ile parça bulunur, telsizde sıraya dizilir).
+- Dönüm: Dr. Selin'in sesi, onun "geldiği" saatten önce yapılmış kayıtta da var → güven ikilemi.
+- Mekanik: 03:17'ye yaklaştıkça tipi ve ses bozulması artar (zaman baskısı).
+- Varlıklar: `build_crevasse.py` (yarık, kara kutu enkazı), `INT_blackbox_1..4`, `INT_transmitter`.
+
+## Bölüm 3 · "HELIKON Kapısı" — UYGULANDI (WIP: `build_helikon_hall.py`, `js/a3d.js`, test: `tools/chapter3_test.cjs`)
+- İşaret duvarı Bölüm 2'den sonra açılır; oyuncu buzun ~30 m altındaki tonozlu salona iner (ayrı katman, `state.inHall`).
+- Salon −41°C: tek sıcak nokta ısı kuyusu. Yanlış hamle soğuk dalgasıyla vücut ısısı düşürür.
+- Kaan Erdem buzda donmuş; çözmek için yüzeydeki jeneratörün yedek ISI HÜCRESİ getirilir (geri dönüş yolculuğu).
+- Bulmaca: 5 stel, her birinde takımyıldız + saat işareti (Q okur, E yakar). Sıra o gecenin saatleri:
+  02:58 → 03:06 → 03:12 → 03:17. 03:41 "henüz yaşanmadı" — yakılırsa harita söner.
+- Kaan'ın güven sorusu (`kaanTrust` ±1) Bölüm 4–7 diyaloglarını etkiler.
+
+---
+
+# Gerçekçilik ilkesi (Bölüm 4–7)
+
+Hikâyenin bilim-kurgu çekirdeği (buz altındaki medeniyet, zamanda geri gelen yayın) dışındaki her şey
+**gerçek dünyanın kurallarıyla** işler. Oyuncu asker değil, sivil bir istasyon mühendisidir.
+
+**Dayanak alınan gerçek çerçeve** (oyun içi belgelerde ve günlükte geçer; yayından önce metinler kaynağından bir kez daha doğrulanmalı):
+- **Antarktika Antlaşması (1959):** Kıta yalnızca barışçıl amaçlarla kullanılır; askerî üs, manevra ve silah denemesi yasak. Antlaşma tarafları birbirinin istasyonunu denetleyebilir.
+- **Madrid Protokolü (Çevre Koruma Protokolü, 1991):** Bilimsel araştırma dışındaki maden/kaynak faaliyetini yasaklar.
+- **Buz altı gölleri:** Gerçekte Vostok Gölü gibi ~4 km buzun altında sıvı göller vardır; HELIKON şehri böyle bir göl havzasına kuruludur.
+- **Lojistik:** Kışın (Mart–Ekim) kıtaya uçuşlar neredeyse durur; ikmal kayaklı nakliye uçakları ve buzkıran gemilerle yazın yapılır. 2091'de bile kriz bu takvimle kilitlenir: kim kışı burada geçirirse o belirler.
+- **İklim:** −40/−60°C, katabatik rüzgârlar, aylarca süren karanlık. Donma, yakıt ve ısı her bölümde hayatta kalma mekaniğinin temeli kalır.
+
+**Taraflar:** Gerçek ülke adı verilmez (siyasi tepki, mağaza incelemesi ve yaş derecelendirmesi riski).
+Gerçek kurumlar kullanılır, devletler genel adlarla anılır:
+- **Antarktika Antlaşması Danışma Toplantısı (ATCM)** ve **BM Güvenlik Konseyi** — diplomatik sahne.
+- **Antarktika Acil Durum Koalisyonu (AAK):** Antlaşmanın askerî yasağını "olağanüstü hal" gerekçesiyle askıya alan antlaşma tarafı devletlerin geçici gücü. Bayraksız, gri üniformalı; komuta merkezi kıyıdaki eski bir lojistik üssünde.
+- **Kıta Bilim Konsorsiyumu:** İstasyon ekiplerinin sivil birliği; koalisyona karşı bilim insanlarının sesi.
+- **Helikonlar:** Buz altındaki medeniyet. Silahları yok; enerjileri jeotermal ve kristal rezonans. Savunmaları buzu hareket ettirmek, elektroniği susturmak ve tüneller kapatmak.
+
+**Şiddet sınırı:** Ekranda kan, infaz yok; çatışma uzaktan, sesle, telsizden, haberlerden duyulur. Oyuncu kimseye ateş etmez.
+Hedef yaş derecelendirmesi 12+.
+
+---
+
+## Bölüm 4 · "Üç Cevap" — UYGULANDI (`build_helikon_city.py`, `js/a3d.js`, test: `tools/chapter4_test.cjs`)
+- Üç halkalı kapı (Bölüm 3 sonrası) buzun ~38 m altındaki göl havzasına açılır (katman `city`, `state.inCity`).
+  Gerçek dayanak: buz altı gölleri (Vostok) basınç ve jeotermal ısıyla sıvı kalır; su −3°C, hava −4°C; dipte jeotermal ışıma.
+- **Kristal dili:** 6 sembol — ◆ BİZ, ◇ SİZ, △ ZAMAN, ≈ SU, □ KAPI, ○ SESSİZLİK. Üç sembol taşı (Q ya da E) ikişer sembol öğretir; sözlük günlüğe yazılır.
+- **Köprü taşı:** kıyıdaki iki taşın dört sembolü bilinince kristal köprü sudan yükselir, kuzey duvarındaki şehrin pencereleri yanar
+  (köprü zemini/çarpışması `a3d_cond` ile koşullu).
+- **Kristal kule:** üç cümleyi sembollerle söyler; bilinmeyen sembol çevrilmez (adadaki üçüncü taş gerekir).
+- **Seçim (`ending4`):** *Sus* / *Cevap ver* / *Kapıdan geç* → bölüm sonu kartı. Her durumda 03:17 kaydı bir uyduya çoktan ulaşmıştır;
+  seçim krizin nasıl başladığını belirler (Bölüm 5).
+
+## Bölüm 5 · "İlk Temas" — Mart, son uçak — UYGULANDI (`build_helikon_grid.py`, `js/a3d.js`, test: `tools/chapter5_test.cjs`)
+- **Son uçak:** Bölüm 4 bitince görev oyuncuyu istasyon telsizine yollar. Pilot, sezonun son kayaklı uçağının 40 dakika sonra kalkacağını söyler;
+  Ekim'e kadar uçuş yoktur. *Uçağa bin* bir sondur ("AYRILIŞ", `left5`); telsize yeniden gidilerek geri alınabilir. *Kal* → `plane5`.
+- **Haber ve gerçekçi zemin:** Uplink'ten gelen haberde ATCM olağanüstü oturumda; bazı taraflar 1991 Madrid Protokolü'nün maden kaynakları yasağının
+  (Madde 7) "bilinmeyen bir enerji kaynağını" kapsamadığını savunuyor. Yakıt hesabı: 16.000 L Antarktika dizeli, 60 kVA jeneratör kış yükünde
+  ~8 L/saat → 83 gün; kutup gecesi ~180 gün. Fark 97 gün: Helikon ısısı olmadan kış geçmez.
+- **İletim galerisi (katman `grid`, `state.inGrid`):** salondaki ısı kuyusundan merdivenle 12 m aşağı, 40 m oyulmuş galeri (+4°C, jeotermal),
+  duvarlarda ışıyan iletkenler, sonunda Helikon çekirdeği ve tavanı delen 840 m'lik istasyon sondaj kuyusu (Bölüm 1'deki sondaj).
+- **Mekanik — iki şebekeyi paralel bağlamak (gerçek senkronizasyon kuralları):** önce kuyudan sarkan istasyon kablosu bağlanır; panel istasyon
+  tarafını gösterir (400 V · 50 Hz · L1-L2-L3). Üç düğüm (gerilim / frekans / faz sırası) buna eşlenir. Şalter yalnızca senkronoskop ibresi
+  saat 12'deyken (faz açısı ≤ 20°) kapatılabilir. Yanlış değerde ya da yanlış anda kapatmak koruma rölesini açtırır: galeri kararır,
+  6 sn soğuk dalgası (−18°C, vücut ısısı −15).
+- **İlk temas:** bağlantı kurulunca çekirdek oyuncuya dönük ilk deseni gösterir: ◆ ≈ ◇ ("biz · su · siz").
+- **Selin / Kaan ayrılığı (`kaanTrust` metni değiştirir):** Selin (konsorsiyum) tam yük ister, Kaan Helikon kuyularının soğumasından korkar.
+  Seçim `load5`: *Tam yük 60 kW* / *Paylaş 35 kW* / *Sınırlı 20 kW* → bölüm sonu kartı; Bölüm 6'nın başlangıç koşulu.
+
+## Bölüm 6 · "Kış Ablukası" — Haziran, kutup gecesi — UYGULANDI (`build_drill_camp.py`, `js/a3d.js`, test: `tools/chapter6_test.cjs`)
+- **Giriş:** Bölüm 5 bitince iletim galerisindeki Helikon çekirdeği kuzeyde bir tünel gösterir (çekirdeğe E). Tünel, buzun 35 m altında
+  bir mağaraya, koalisyonun sondaj kampına açılır (katman `camp`, `state.inCamp`).
+- **Gerçekçi dayanak:** Kamp, kerosen bazlı sondaj sıvısı kullanır (gerçek Vostok kuyusu kerosen + HCFC-141b ile doldurulmuştu; Whillans
+  Gölü'nde olduğu gibi sıcak su sondajı temiz ama yavaş alternatiftir). Bu enlemde jeostasyoner uydular ufkun altında kalır, kutupları
+  alçak yörüngeli Iridium ağı kapsar.
+- **Silahsız oynanış:**
+  - **Gizlilik:** İki termal dron sabit güzergâhta devriye gezer. Görüş menzili vücut ısısına bağlı: 5 m (soğuk) – 12 m (sıcak); kar
+    bloğu siperinde menzil %45'e iner. Dron görürse ekran kırmızıya döner, oyuncu tünele çekilir (ısı −8, `spot6` artar).
+    Konteynerlerin yanında ısınılır (+5/sn) ama menzil de büyür: ısınma ile saklanma arasında denge.
+  - **Sabotaj 1 — sondaj sıvısı pompası:** Önce motor durdurulur; basınç 38 bar'dan 4 sn'de sıfıra iner. Vana basınç sıfırlanmadan kapatılırsa
+    su darbesi hortumu patlatır, kerosen yayılır (`spill6`). Sıfırdayken kapatmak temiz kapanıştır.
+  - **Sabotaj 2 — uydu rölesi:** Anten fişini çekmek; röle, ikinci dronun devriye alanının içindedir.
+  - **Kurtarma:** Hipotermik çavuş Dagan: ısıt ve kurtar (vücut ısısı −30) ya da bırak.
+- **Sonuç (`ch6`):** Üç iş bitince bölüm sonu kartı; metin pompa (temiz/sızıntı), asker (kurtarıldı/bırakıldı) ve yakalanma sayısına göre
+  değişir. Bölüm 7'nin başlangıç koşulları.
+- **Şiddet sınırı:** Ekranda çatışma yok; dronlar silahsız, yakalanma = tünele geri dönüş.
+
+## Bölüm 7 · "03:17" — Ağustos, ilk güneş — UYGULANDI (`js/a3d.js`, test: `tools/chapter7_test.cjs`)
+- **Durum:** Helikonlar kıyı buz sahanlığını yarmaya hazırlanır (küresel deniz seviyesi tehdidi), koalisyon tahliye eder. Telsiz oyuncuyu Bölüm 4'teki kristal kuleye çağırır.
+- **Sırrın çözümü:** Telsizdeki 03:17 sesi oyuncunun kendi sesidir; kulenin kristal rezonansı sözü 72 saat geriye taşır. Kule başında günlüğe düşer.
+- **Mekanik — kule saati:** Kuleye ilk E bir saat başlatır (03:10 → 03:24, saniyede bir dakika, ekranda büyük saat). Yayın, saat 03:17'yi (±0,9 dk) gösterirken E'ye basılarak başlatılır;
+  erken ya da geç basınca saat yeniden başlar, kuleden uzaklaşmak da saati sıfırlar.
+- **Güven puanı (0–4):** Önceki bölümlerdeki seçimlerden gelir: asker kurtarıldı mı (Bölüm 6), kerosen sızıntısı yok mu, yük tam çekilmedi mi (Bölüm 5), en çok bir kez yakalandın mı.
+  Antarktika Antlaşması kararları konsensüsle alınır; güven burada para birimidir.
+- **Sonlar (`ending7`, kayıtta; `localStorage` sonlar galerisi, "Açılan sonlar n/3"):**
+  1. **Antlaşma** — yalnızca güven ≥ 3 iken sunulur: ATCM'ye canlı bağlanılır; havza, Madrid Protokolü Ek V kapsamında özel korunan alan ilan edilir, sondaj durur, ortak bilim komisyonu kurulur.
+  2. **Mühür** — şehir kendini 4 km buzun altına gömer; koalisyon "sondaj kazası" der; oyuncunun günlüğü tek tanık.
+  3. **Döngü** — yayın 72 saat geriye gider; yeni oyunda günlükte "déjà vu" notu belirir.
+- Üç son da bölüm sonu kartıyla kapanır; oyun tamamlanınca HUD "OYUN TAMAMLANDI · SON: …" der.
+
+## Bölüm sonrası
+- Bölümler 1–7 oyunda tamam. Mağazada Bölüm 4–7 "ücretsiz güncelleme" olarak öne çıkarılabilir (karar sahibinin).
+- Her bölüm: 1 yeni Blender mekânı + 1 yeni mekanik + test betiği + kayıt alanları.
+
+## Teknik yol
+Her bölüm aynı boru hattını kullanır: Blender betiği → GLB (`INT_/COL_/FLOOR_/PATH_` extras) → `a3d.js` `interactInner` yeni durumları → `serialize/restore` alanları → `play_test.cjs` kontrolleri.
