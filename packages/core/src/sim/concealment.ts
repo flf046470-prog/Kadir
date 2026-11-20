@@ -32,7 +32,7 @@ import type { PlayerState } from '../player/state.js';
 export const CONCEAL_GRACE = VOICE_FAR;
 
 /**
- * How far behind the head the flat-screen camera sits. `GameClient` places its camera by this
+ * How far behind the head the flat-screen camera sits. `thirdPersonCamera.ts` places it by this
  * number, and concealment tests sight from wherever it can be — two copies would drift, and the
  * day the camera moved further back, players would vanish from its edges.
  */

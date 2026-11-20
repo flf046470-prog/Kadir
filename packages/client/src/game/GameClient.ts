@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import {
   Bot,
   Buttons,
-  THIRD_PERSON_CAMERA_DISTANCE,
   MicGate,
   Simulation,
   TICK_DT,
@@ -50,6 +49,7 @@ import { LevelRenderer } from '../render/LevelRenderer.js';
 import { practiceLevelFor } from './practice.js';
 import { drawsFrame } from './backdrop.js';
 import { placedHands } from './firstPerson.js';
+import { easeCameraTo, thirdPersonCameraTarget } from './thirdPersonCamera.js';
 import { captureFocusOf, captureViewOf } from './captureView.js';
 import type { CaptureView } from './captureView.js';
 import { Renderer } from '../render/Renderer.js';
@@ -120,12 +120,6 @@ interface RemotePlayer {
   entry: RosterEntry;
 }
 
-/**
- * Owned by `@kc/core` because the server tests sight from wherever this camera can be: in a mode
- * about hiding, an opponent it could see must be sent (`sim/concealment.ts`).
- */
-const CAMERA_DISTANCE = THIRD_PERSON_CAMERA_DISTANCE;
-const CAMERA_HEIGHT = 1.35;
 /**
  * How far above the player's own pitch the flat-screen camera orbits, and how far ahead of the
  * kangaroo it looks. It used to sit at head height looking level: in every captured gameplay
@@ -1486,23 +1480,14 @@ export class GameClient {
     const dirZ = Math.cos(this.cameraYaw) * cosPitch;
     const dirY = Math.sin(orbitPitch);
 
-    let distance = CAMERA_DISTANCE;
-    // Keep the camera out of walls: cast backwards from the head and pull in on a hit.
-    this.sim.world.raycast(
-      this.raycastResult,
-      { x: px, y: headY, z: pz },
-      { x: -dirX, y: -dirY + 0.12, z: -dirZ },
-      CAMERA_DISTANCE + 0.4,
-    );
-    if (this.raycastResult.hit) distance = Math.max(1.2, this.raycastResult.distance - 0.35);
-
+    // Out of walls and with the player in view: see `thirdPersonCamera.ts`.
+    thirdPersonCameraTarget(this.tmpVec, this.sim.world, this.raycastResult, { x: px, y: headY, z: pz }, this.cameraYaw, orbitPitch);
     // The landing dip: a light drop in camera height, decaying back over the same
     // handful of frames `landingKick` decays over. Applied to the position only, with `lookAt`
     // left on the player below, so the dip reads as the ground meeting the camera rather than as
     // the whole view sliding — a byproduct of leaving `lookAt` alone rather than a second effect.
-    const dip = this.landingKick * LANDING_DIP_HEIGHT;
-    this.tmpVec.set(px - dirX * distance, headY - dirY * distance + CAMERA_HEIGHT * 0.25 - dip, pz - dirZ * distance);
-    this.renderer.camera.position.lerp(this.tmpVec, follow);
+    this.tmpVec.y -= this.landingKick * LANDING_DIP_HEIGHT;
+    easeCameraTo(this.renderer.camera.position, this.tmpVec, follow, this.sim.world);
     // Look ahead of the kangaroo along its facing, further at speed, and follow the player's own
     // pitch so looking up still looks up.
     const ahead = CAMERA_LOOK_AHEAD + Math.min(1.5, this.cameraSpeed * CAMERA_SPEED_LOOK_AHEAD);

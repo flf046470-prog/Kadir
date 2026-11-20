@@ -96,9 +96,13 @@ passes. Writing the code does not tick it.
   now 22.6 m), and per-axis gamepad sticks (CLAUDE.md, "A VR grab, from the trigger to the
   river"). The gap it leaves is A20's: synthetic arms-first players are the chaser 20–26 % of a
   Kangaroo Chase round against a fair 16.7 %, PC players 7–13 %.
-- [ ] **A4. The third-person camera's occlusion** (Phase 3). Measure the share of frames with
+- [x] **A4. The third-person camera's occlusion** (Phase 3). Measure the share of frames with
   geometry between the camera and the player; add pull-in or fade if that share is material; lock-on
   framing for Boxing. Exit: the occlusion share before and after.
+  Done 2026-11-20 (`game/thirdPersonCamera.ts`, `.probe/a4-occlusion.ts`, six bots × 4 rounds a
+  map): camera within 10 cm of a wall 3.7 / 1.2 / 3.4 % of frames → 0 on every map; player hidden
+  from it 3.1 / 1.4 / 2.7 % → 0.06 / 0.14 / 0.06 % (jungle / glacier / outback). Lock-on framing
+  for Boxing was not built: first person is the default view since, and it frames a fight itself.
 - [ ] **A5. VR forearms** (Phase 3). Forearms by IK from the tracked hands, so climbing shows arms
   rather than floating fists. Exit: a forearm in a headset-camera render; a test on the IK.
 

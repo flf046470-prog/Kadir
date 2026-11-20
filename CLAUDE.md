@@ -3884,3 +3884,23 @@ Tag's lever, the release speed × a constant, was patched into `releasePull` for
 6 m/s strokes inside the noise. It pays effort, not need. **Each chase cell is ±6 points at 16
 seeds** — a lone row moving 5 points is not a result. Table and the condition that would overturn
 it (real-headset stroke speeds): `docs/PERFORMANCE_BUDGETS.md`, "The crossplay decision (A20)".
+
+## The third-person camera stood in walls (A4)
+
+Measured on the real `PhysicsWorld` with six bots (`.probe/a4-occlusion.ts`, which imports the
+shipped `game/thirdPersonCamera.ts`): the camera was within 10 cm of a wall on 3.7 % / 1.2 % /
+3.4 % of frames (jungle / glacier / outback) and the player was hidden from it on 3.1 / 1.4 /
+2.7 %. Now 0 % and 0.06 / 0.14 / 0.06 %. Three causes, one test each, each mutation-tested:
+
+- **The pull-in ray tested a different line from the one the camera stood on** (orbit direction
+  tilted up 0.12; the camera was then raised a quarter of `CAMERA_HEIGHT`). It is cast along the
+  camera's own line.
+- **A ray is not a camera**: running beside a wall the line misses it by centimetres and the camera
+  stands in it. The point walks in until it is `CAMERA_CLEARANCE` (0.2 m) from every solid.
+- **The 16/s ease dragged the camera through corners.** An eased point that is not clear takes the
+  target. And with no room behind at all (backed into a corner, which was every remaining frame)
+  it rises over the head and looks down, `LIFTS` 0.5 / 0.9 / 1.3 rad.
+
+The camera only ever stands nearer the head than `THIRD_PERSON_CAMERA_DISTANCE`, so concealment's
+vantages (which assume it can be anywhere out to that distance) still cover it. First person, the
+default, never reaches this code.
