@@ -120,6 +120,8 @@ export interface PlatformInput {
    * means always focused. Meta's VRC.Quest.Input.4 and Functional.2 hang off it (`GameClient`).
    */
   readonly focused?: boolean;
+  /** False for a tracked hand that must not be drawn this frame (a bare hand the runtime lost). VR only. */
+  handVisible?(index: number): boolean;
   feedback?(event: HapticEvent, hand?: 'left' | 'right' | 'both', scale?: number): void;
   /**
    * Point the view where the simulation just turned the player (a `placed` event).

@@ -50,6 +50,8 @@ export interface HudModel {
   status: string;
   /** False in modes with no gadgets at all: the strip is hidden, not drawn empty. */
   gadgetsVisible: boolean;
+  /** Empty while connected; otherwise what the connection is doing and what that means. */
+  connection: string;
 }
 
 export interface HudModelInput {
@@ -59,9 +61,27 @@ export interface HudModelInput {
   nameOf?(id: string): string | undefined;
   /** Scoreboard rows that fit: short screens only have room for a few. */
   scoreLimit: number;
+  /** `connectionNotice` of the game's network state; omitted reads as connected. */
+  connection?: string;
 }
 
-export function buildHudModel({ state, local, localId, nameOf, scoreLimit }: HudModelInput): HudModel {
+/**
+ * What a player is told about the network, in a sentence that says what it means for them.
+ *
+ * Meta's VRC.Quest.Functional.7: an app that needs the internet for a feature must tell a player
+ * without a connection that it does. The game fell back to offline practice silently: the flat HUD
+ * showed the word "offline" in its corner and a headset showed nothing at all (the HUD is DOM),
+ * so a player in a headset could not tell an empty room from no internet.
+ */
+export function connectionNotice(status: string, browserOnline: boolean): string {
+  if (status === 'reconnecting') return 'Connection lost. Reconnecting...';
+  if (status !== 'offline') return '';
+  return browserOnline
+    ? 'Game server unreachable. Playing offline practice.'
+    : 'No internet connection. Online play needs one; playing offline practice.';
+}
+
+export function buildHudModel({ state, local, localId, nameOf, scoreLimit, connection = '' }: HudModelInput): HudModel {
   const role = local?.role ?? 'idle';
   const g = local?.gadgets;
   const status = g ? statusLabel(g) : '';
@@ -81,6 +101,7 @@ export function buildHudModel({ state, local, localId, nameOf, scoreLimit }: Hud
     slots,
     status,
     gadgetsVisible: !!g && (carrying || g.cash > 0 || g.armour > 0 || !!status),
+    connection,
   };
 }
 

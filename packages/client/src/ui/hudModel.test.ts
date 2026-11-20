@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createPlayerState } from '@kc/core';
 import type { ModeStateView } from '@kc/core';
-import { buildHudModel } from './hudModel.js';
+import { buildHudModel, connectionNotice } from './hudModel.js';
 
 function view(over: Partial<ModeStateView> = {}): ModeStateView {
   return { modeId: 'tag', phase: 'playing', timeRemaining: 65, scores: {}, roles: {}, headline: 'Go!', ...over };
@@ -68,5 +68,15 @@ describe('buildHudModel', () => {
     const flipped = [{ a: 'z', b: 'me', aName: 'Zed', bName: 'Me', remaining: 1 }] as ModeStateView['bouts'];
     expect(buildHudModel({ ...base, state: view({ bouts: flipped }), local: undefined }).bout?.label).toBe('FIGHT · Zed');
     expect(buildHudModel({ ...base, state: view({ bouts: [] }), local: undefined }).bout).toBeNull();
+  });
+});
+
+describe('connectionNotice (VRC.Quest.Functional.7)', () => {
+  it('says nothing while connected and names the cause when not', () => {
+    expect(connectionNotice('connected', true)).toBe('');
+    expect(connectionNotice('idle', true)).toBe('');
+    expect(connectionNotice('reconnecting', true)).toMatch(/Reconnecting/);
+    expect(connectionNotice('offline', false)).toMatch(/No internet connection.*Online play needs one/);
+    expect(connectionNotice('offline', true)).toMatch(/server unreachable/i);
   });
 });

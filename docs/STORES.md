@@ -20,6 +20,28 @@ Meta supports WebXR PWAs as a first-class product type — no engine, no native 
 packaged with Meta's Bubblewrap fork into an Android app that launches the site in a Trusted Web
 Activity.
 
+
+### Meta's common VRC failures, against this build
+
+From Meta's list of the most often failed checks (developers.meta.com, "Common VRC failures",
+updated 2026-05-01, read 2026-11-20):
+
+| VRC | Status | Evidence |
+| --- | --- | --- |
+| Asset.2: no taglines on cover art | met | `pack-meta-listing.mjs` draws the name and the kangaroo only; the tagline it carried was removed |
+| Asset.5: screenshots representative, no added logos/text | met | real gameplay frames with the game's own HUD |
+| Functional.2: single player pauses on Universal Menu / headset off | met | `VRInput.focused`; `check:xrsim` opens the menu (M) and the tick stands still |
+| Functional.7: say when the internet is needed and absent | met | `connectionNotice` on the wrist panel and as a flat toast |
+| Input.2: grab with the grip, not the trigger | met | squeeze only (`VRInput.updateTracking`); the trigger is the gadget |
+| Input.4: without focus, hide hands and ignore input | met | `VRInput.sample` and `GameClient`; `check:xrsim` |
+| Input.6: hands hidden when not tracked | met for bare hands | a lost bare hand is held and not drawn (`VRInput.test.ts`) |
+| Input.7: respect switching controllers ↔ hands | met | `check:xrsim` switches with Y |
+| Input.8: the system gesture triggers nothing | unknown | WebXR exposes no system-gesture state; needs a headset |
+| Security.1: entitlement check within 10 s | unknown for a TWA | Meta's Platform SDK is native; ask Meta which applies to a web app before submitting |
+| Security.2: minimum permissions | met | microphone only, for voice |
+| Performance.1: 72 fps | budgeted, not measured on a device | CLAUDE.md, "The frame budget" |
+| Tracking.1: declared play mode works | to declare | standing/roomscale; seated is a comfort setting |
+
 ### What is already in the repo
 
 * `packages/client/public/manifest.webmanifest` — `display: fullscreen`, landscape, `id`, `scope`,
@@ -162,6 +184,21 @@ is `kangaroo.glb` posed from its own run clip, every backdrop is a frame of the 
 Steam's capsules carry the name and nothing else, as its rules require. `scripts/lib/copy.test.ts`
 holds the copy in that file — and in `docs/META_LISTING.md` — to each store's limits and to the
 game's own numbers.
+
+
+### Steam Deck Verified, measured
+
+Valve's review criteria (partner.steamgames.com/doc/steamdeck/compat, read 2026-11-20), against
+this build:
+
+| Criterion | Status | Evidence |
+| --- | --- | --- |
+| All content reachable with the default controller configuration | met | `check:pad`: every control on all 8 screens off the main menu, plus a round started, paused and resumed, with no keyboard or mouse |
+| Glyphs match the active input; no keyboard glyphs on the controller | met for the tutorial and HUD | `PAD_BINDINGS` drives the tutorial when a pad is connected; the HUD's gadget slots carry slot names, not keys |
+| Text at least 9 px at 1280x800 (12 recommended) | 12 px everywhere | `check:pad` runs at 1280x800 and fails below 12 px |
+| No text entry required | met | an empty name plays as "Roo"; chat is optional |
+| Runs on the Deck | native Linux build | `pack:steam` targets `win32,linux` |
+| Default settings run well on Deck hardware | not measured | needs a Deck (ROADMAP B6) |
 
 ## Epic Games Store
 

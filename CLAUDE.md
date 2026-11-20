@@ -3957,3 +3957,21 @@ Universal Menu opens, and to `hidden` when the headset comes off.
 - **Unreal / an Unreal MCP cannot run here.** UE5 on Linux is built from source in Epic's private
   GitHub org, which needs an Epic account linked. It also needs about 100 GB (28 GB free) and a GPU
   (none). Nothing in this session is connected to an Unreal Editor, and no report should say so.
+
+## The Meta and Steam Deck checklists, measured (2026-11-20)
+
+`docs/STORES.md` has both tables, each item with its evidence or "unknown".
+
+- **VRC.Quest.Asset.2**: the Meta covers carried a tagline, which is the failure word for word.
+  It was removed (`TAGLINE = null`). Do not put one back.
+- **VRC.Quest.Functional.7**: going offline fell back to practice silently. A headset saw nothing,
+  because the HUD is DOM. `connectionNotice` now puts a line on the wrist panel (`connection` is in
+  `WRIST_FIELDS`) and shows a flat toast. Mutation: deleting the wrist line fails `wristPanel.test.ts`.
+- **VRC.Quest.Input.6**: a bare hand three.js has lost (its joints are `visible: false`) is held
+  where it was, so a climber does not drop, and it is not drawn (`VRInput.handVisible`). Mutation:
+  reading invisible joints fails `VRInput.test.ts`.
+- **Steam Deck**: `check:pad` runs at the Deck's 1280x800 and fails on text under 12 px, Valve's
+  recommendation (9 is required). Five 11 px styles were raised to 12. A Linux build is in
+  `pack:steam`.
+- Unknown until a headset or a question to Meta: Input.8 (the system gesture) and whether
+  Security.1 (the entitlement check) applies to a TWA.

@@ -175,8 +175,13 @@ const browser = await chromium.launch(launch);
 /** The kangaroo alone, as a data URI — the same cut-out the app icon is built from. */
 const glyph = imageDataUri(icon);
 
-/** Meta's covers carry a line under the name; Steam's may not (see `renderCover`). */
-const TAGLINE = 'Tag, parkour and traps &mdash; hands-first in VR';
+/**
+ * No tagline. The covers used to carry one ("Tag, parkour and traps — hands-first in VR"), and
+ * Meta lists exactly that as a common certification failure: VRC.Quest.Asset.2, "Store cover art
+ * images must have clear branding without extraneous text, taglines, or banners" (read from
+ * Meta's common-VRC-failures page, 2026-11-20). The name and the kangaroo, as on Steam.
+ */
+const TAGLINE = null;
 
 // Key art: one capture per size, so each is framed for its own aspect rather than cropped.
 for (const spec of KEY_ART) {

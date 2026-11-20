@@ -335,6 +335,25 @@ describe('bare hands', () => {
     expect(player.hands[0].gripHeld).toBe(false);
   });
 
+  it('are not drawn when the runtime loses them, and are held where they were (VRC.Quest.Input.6)', () => {
+    const { set } = bareHands();
+    const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });
+    poseHand(set, 1, new THREE.Vector3(-0.3, 1.2, 0.4), false);
+    poseHand(set, 0, new THREE.Vector3(0.3, 1.2, 0.4), false);
+    frame(set, player, 0, [[0, 0, 0], [0, 0, 0]], DEFAULT_SETTINGS);
+    expect(set.input.handVisible(1)).toBe(true);
+    // Out of the cameras' view: three.js keeps the joints' last pose and marks them invisible.
+    // Moved too, to prove the stale pose is not read.
+    poseHand(set, 1, new THREE.Vector3(-0.9, 0.2, 0.9), false);
+    for (const joint of Object.values((set.hands[1] as unknown as { joints: Record<string, THREE.Object3D> }).joints)) joint.visible = false;
+    const intent = frame(set, player, 0, [[0, 0, 0], [0, 0, 0]], DEFAULT_SETTINGS);
+    expect(set.input.handVisible(1)).toBe(false);
+    expect(set.input.handVisible(0)).toBe(true);
+    expect(intent.hands![1]!.tracked).toBe(true);
+    expect(intent.hands![1]!.pos.x).toBeCloseTo(0.3, 2);
+    expect(intent.hands![1]!.pos.y).toBeCloseTo(1.2, 2);
+  });
+
   it('do not fire the gadget with the pinch their gamepad reports as a trigger', () => {
     const { set, pinchPads } = bareHands();
     const player = createPlayerState({ id: 'vr', position: vec3(0, 0, 0) });

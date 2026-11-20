@@ -23,7 +23,7 @@ import { SocialClient, parseSocialRow, vrSocialRows } from './social/SocialClien
 import { VRMenu } from './ui/VRPanels.js';
 import { vrResultsContent } from './ui/vrResults.js';
 import { VRWristHud } from './ui/VRWristHud.js';
-import { buildHudModel } from './ui/hudModel.js';
+import { buildHudModel, connectionNotice } from './ui/hudModel.js';
 import { button, el } from './ui/dom.js';
 import { injectStyles } from './ui/styles.js';
 import { StreamerMask } from './ui/streamer.js';
@@ -182,6 +182,8 @@ async function main(): Promise<void> {
   const streamer = new StreamerMask(session?.playerId ?? '');
   streamer.enabled = settings.streamerMode;
 
+  /** The game's connection, for `connectionNotice` on the wrist and the HUD. */
+  let netStatus = 'idle';
   const shell = new Shell(
     {
       root: shellRoot,
@@ -371,7 +373,14 @@ async function main(): Promise<void> {
           hud?.update(state, game?.localPlayer);
           if (wristHud) {
             wristHud.update(
-              buildHudModel({ state, local: game?.localPlayer, localId: session?.playerId ?? '', nameOf: (id) => game?.nameOf(id), scoreLimit: 3 }),
+              buildHudModel({
+                state,
+                local: game?.localPlayer,
+                localId: session?.playerId ?? '',
+                nameOf: (id) => game?.nameOf(id),
+                scoreLimit: 3,
+                connection: connectionNotice(netStatus, navigator.onLine),
+              }),
             );
           }
         },
@@ -390,7 +399,13 @@ async function main(): Promise<void> {
           }
         },
         onMicState: (enabled, open, muted) => hud?.setMicState(enabled, open, muted),
-        onNetStatus: (status) => hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`),
+        onNetStatus: (status) => {
+          netStatus = status;
+          hud?.setStatus(`${status} · ${Math.round(game?.stats.fps ?? 0)} fps`);
+          // The same sentence on a flat screen, once, when it changes.
+          const notice = connectionNotice(status, navigator.onLine);
+          if (notice) hud?.showToast(notice, 5000);
+        },
         onChat: (from, text, channel, own) => hud?.pushChat(from, text, channel, own),
         onNotice: (text) => shell.setNotice(streamer.text(text)),
         onRoomState: (code, isPrivate, lobby) => {

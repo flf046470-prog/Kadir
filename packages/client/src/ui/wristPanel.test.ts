@@ -55,3 +55,17 @@ describe('wristLines', () => {
     expect(chargeBar(2)).toBe('[##########]');
   });
 });
+
+describe('the wrist and the connection', () => {
+  it('tells a headset player there is no internet, right under the headline', async () => {
+    const { buildHudModel, connectionNotice } = await import('./hudModel.js');
+    const { wristLines } = await import('./wristPanel.js');
+    const state = {
+      modeId: 'kangaroo-chase', phase: 'playing', timeRemaining: 60, headline: 'Chase', scores: {},
+    } as never;
+    const offline = buildHudModel({ state, local: undefined, localId: 'me', scoreLimit: 3, connection: connectionNotice('offline', false) });
+    expect(wristLines(offline)[2]?.text).toMatch(/No internet/);
+    const online = buildHudModel({ state, local: undefined, localId: 'me', scoreLimit: 3 });
+    expect(wristLines(online).some((l) => /internet|server/i.test(l.text))).toBe(false);
+  });
+});

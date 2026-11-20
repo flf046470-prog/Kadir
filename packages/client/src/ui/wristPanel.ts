@@ -24,6 +24,7 @@ export const WRIST_FIELDS = [
   'slots',
   'status',
   'gadgetsVisible',
+  'connection',
 ] as const satisfies readonly (keyof HudModel)[];
 
 /** Fields deliberately not drawn on the wrist, each with the reason. */
@@ -46,6 +47,7 @@ export function wristLines(m: HudModel): WristLine[] {
     { text: `${m.roleLabel}  ${m.timer}`, tone: 'title' },
     { text: m.headline, tone: 'normal' },
   ];
+  if (m.connection) lines.push({ text: m.connection, tone: 'warn' });
   if (m.tally?.length) lines.push({ text: m.tally.map((t) => t.text).join(' · '), tone: 'dim' });
   if (m.bout) lines.push({ text: `${m.bout.label}  ${m.bout.clock}`, tone: 'warn' });
   if (m.status) lines.push({ text: m.status, tone: 'warn' });

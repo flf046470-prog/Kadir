@@ -52,7 +52,7 @@ export const UI_CSS = `
 .kc-card p { margin: 0; font-size: 13px; opacity: .72; line-height: 1.4; }
 .kc-card--selected { outline: 2px solid #ffd166; }
 .kc-swatch { height: 54px; border-radius: 10px; }
-.kc-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .8; }
+.kc-tag { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; opacity: .8; }
 .kc-panel { background: rgba(12,22,15,.9); border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 18px; width: min(620px, 94vw); display: flex; flex-direction: column; gap: 12px; max-height: 76vh; overflow-y: auto; }
 .kc-field { display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 14px; }
 .kc-field input[type=range] { flex: 1; accent-color: #4caf50; }
@@ -125,7 +125,7 @@ export const UI_CSS = `
 .kc-headline { font-size: clamp(18px, 4vw, 28px); font-weight: 800; text-shadow: 0 2px 10px rgba(0,0,0,.7); }
 /* Population by side. Sits under the round clock because it is the other half of the score. */
 .kc-tally { display: flex; gap: 10px; justify-content: center; margin-top: 4px; }
-.kc-tally-item { font-size: 11px; font-weight: 700; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.45); text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+.kc-tally-item { font-size: 12px; font-weight: 700; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; background: rgba(0,0,0,.45); text-shadow: 0 1px 4px rgba(0,0,0,.8); }
 .kc-tally--chaser { color: #ffb4a2; }
 .kc-tally--runner { color: #a8e6a3; }
 .kc-tally--fighter { color: #ffd166; }
@@ -141,7 +141,7 @@ export const UI_CSS = `
 .kc-role--chaser { background: #d33; } .kc-role--runner { background: #2b7fd4; } .kc-role--other { background: #555; }
 .kc-scores { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); font-size: 13px; text-align: right; background: rgba(0,0,0,.35); padding: 8px 12px; border-radius: 10px; min-width: 130px; }
 .kc-scores div { display: flex; justify-content: space-between; gap: 12px; }
-.kc-status { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); font-size: 11px; opacity: .6; font-variant-numeric: tabular-nums; }
+.kc-status { position: absolute; bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left)); font-size: 12px; opacity: .6; font-variant-numeric: tabular-nums; }
 .kc-chat { position: absolute; bottom: 70px; left: max(12px, env(safe-area-inset-left)); width: min(420px, 46vw); font-size: 13px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
 .kc-chat-log { display: flex; flex-direction: column; gap: 3px; max-height: 30vh; overflow-y: auto; scrollbar-width: none; }
 .kc-chat-log::-webkit-scrollbar { display: none; }
@@ -189,7 +189,7 @@ export const UI_CSS = `
 .kc-lobby-row--ready { background: rgba(76,175,80,.22); }
 .kc-lobby-tick { width: 14px; flex: none; text-align: center; opacity: .8; }
 .kc-lobby-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.kc-lobby-animal { font-size: 11px; opacity: .6; text-transform: capitalize; }
+.kc-lobby-animal { font-size: 12px; opacity: .6; text-transform: capitalize; }
 .kc-xpbar { position: relative; height: 22px; border-radius: 11px; background: rgba(255,255,255,.1); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .kc-xpbar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg,#4caf50,#8bc34a); }
 .kc-xpbar span { position: relative; font-size: 12px; font-weight: 700; }
@@ -223,7 +223,7 @@ export const UI_CSS = `
 .kc-pill { background: rgba(0,0,0,.42); border-radius: 999px; padding: 8px 14px; font-size: 13px; font-weight: 600; }
 .kc-currency { display: flex; align-items: center; gap: 6px; }
 .kc-daily { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
-.kc-daily div { background: rgba(255,255,255,.08); border-radius: 8px; padding: 8px 4px; text-align: center; font-size: 11px; }
+.kc-daily div { background: rgba(255,255,255,.08); border-radius: 8px; padding: 8px 4px; text-align: center; font-size: 12px; }
 .kc-daily div.claimable { background: rgba(76,175,80,.5); outline: 1px solid #ffd166; }
 .kc-results { width: min(560px, 94vw); }
 .kc-results table { width: 100%; border-collapse: collapse; font-size: 14px; }

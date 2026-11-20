@@ -66,7 +66,7 @@ const PAD = { A: 0, B: 1, START: 9, UP: 12, DOWN: 13, LEFT: 14, RIGHT: 15 };
 const JUMP = 1;
 
 try {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   await context.addInitScript(() => {
     localStorage.setItem(
       'kc.settings.v1',
@@ -121,6 +121,33 @@ try {
     return false;
   };
   const self = () => page.evaluate(() => window.__kcSelf?.() ?? null);
+  /**
+   * The smallest text on screen, in CSS px at the Steam Deck's 1280x800 (this page's viewport), with
+   * where it is. Valve's Deck Verified rule is 9 px minimum, 12 recommended.
+   */
+  const smallestText = () =>
+    page.evaluate(() => {
+      let min = Infinity;
+      let where = '';
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const text = n.textContent?.trim();
+        const el = n.parentElement;
+        if (!text || !el) continue;
+        const style = getComputedStyle(el);
+        if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0 || r.bottom < 0 || r.top > innerHeight) continue;
+        if (el.closest('.kc-hidden')) continue;
+        const size = parseFloat(style.fontSize);
+        if (size < min) {
+          min = size;
+          where = `${el.className || el.tagName}: "${text.slice(0, 30)}"`;
+        }
+      }
+      return { min, where };
+    });
+  const fontReport = [];
   /**
    * Walk the focus to the control labelled `text` with the D-pad alone, pressing towards where it
    * sits on screen as a player looking at it would. True once it has focus.
@@ -187,6 +214,7 @@ try {
     }
     await press(PAD.A);
     await wait(500);
+    fontReport.push({ screen: label, ...(await smallestText()) });
     const gaps = await unreachable();
     if (gaps.length) check(`every control on "${label}" is reachable`, false, gaps.join(', '));
     else swept.push(label);
@@ -207,6 +235,8 @@ try {
   const playing = await until(async () => (await page.evaluate(() => document.querySelector('.kc-root')?.childElementCount ?? 1)) === 0 && (await self()) !== null, 40_000);
   check('A/Cross starts a practice round', playing);
 
+  await wait(1500);
+  fontReport.push({ screen: 'HUD in a round', ...(await smallestText()) });
   // In play, A is a jump: the intent carries it.
   await setButton(PAD.A, true);
   const jumped = await until(async () => (((await self())?.buttons ?? 0) & JUMP) !== 0, 8000);
@@ -279,6 +309,11 @@ try {
   const jumpsAgain = await until(async () => (((await self())?.buttons ?? 0) & JUMP) !== 0, 8000);
   await setButton(PAD.A, false);
   check('the pad plays again after resuming', jumpsAgain);
+  fontReport.push({ screen: 'main menu', ...(await page.evaluate(() => null)) });
+  fontReport.pop();
+  for (const f of fontReport) console.log(`  text ${String(f.min).padStart(5)} px  ${f.screen}  (${f.where})`);
+  const worst = fontReport.reduce((a, b) => (b.min < a.min ? b : a), { min: Infinity });
+  check('no text under 12 px at 1280x800 (Steam Deck: 9 required, 12 recommended)', worst.min >= 12, `${worst.min} px on ${worst.screen}: ${worst.where}`);
 } catch (error) {
   check('the run completed', false, String(error?.message ?? error));
 } finally {

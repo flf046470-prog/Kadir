@@ -1337,6 +1337,10 @@ export class GameClient {
       // Without input focus the runtime draws its own menu and hands; ours must not be drawn
       // (VRC.Quest.Input.4). `update` shows them again every frame, so this runs after it.
       if (this.input.focused === false) for (const hand of this.localAvatar.hands) hand.visible = false;
+      // A bare hand out of the cameras' view is not drawn frozen in the air (VRC.Quest.Input.6).
+      this.localAvatar.hands.forEach((hand, i) => {
+        if (this.input.handVisible?.(i) === false) hand.visible = false;
+      });
     }
 
     const voicePositions = new Map<string, { x: number; y: number; z: number }>();

@@ -22,6 +22,8 @@ interface HandTracker {
   gripValue: number;
   /** Where a bare, joint-tracked hand is, in the world: its palm. Null for a controller. */
   palm: THREE.Vector3 | null;
+  /** A bare hand the runtime has lost (its joints have no pose): held where it was, and not drawn. */
+  lost: boolean;
 }
 
 const HAND_LOCAL = new THREE.Vector3();
@@ -142,6 +144,11 @@ export class VRInput implements PlatformInput {
     return state === undefined || state === 'visible';
   }
 
+  /** Whether hand `i` should be drawn: false for a bare hand the runtime has lost (VRC.Quest.Input.6). */
+  handVisible(i: number): boolean {
+    return !this.hands[i]?.lost;
+  }
+
   /** Fired when the XR session starts/ends so the app can switch UI hosts. */
   onSessionChange: ((active: boolean) => void) | null = null;
 
@@ -169,6 +176,7 @@ export class VRInput implements PlatformInput {
       tracked: false,
       gripValue: 0,
       palm: null,
+      lost: false,
     };
 
     controller.addEventListener('connected', (event) => {
@@ -253,7 +261,16 @@ export class VRInput implements PlatformInput {
 
     for (const hand of this.hands) {
       if (!hand.tracked) continue;
-      hand.palm = hand.source?.hand ? readPalm(hand.hand, hand.palm ?? new THREE.Vector3()) : null;
+      if (hand.source?.hand) {
+        // A bare hand out of the cameras' view has no joint poses. Its last palm is kept (the
+        // simulation sees a still hand, as for a controller out of view, so a climber does not
+        // drop), and it is not drawn: VRC.Quest.Input.6.
+        hand.lost = readPalm(hand.hand, PALM_OUT) === null;
+        if (!hand.lost) hand.palm = (hand.palm ?? new THREE.Vector3()).copy(PALM_OUT);
+      } else {
+        hand.palm = null;
+        hand.lost = false;
+      }
       handWorld(hand, WORLD);
       if (dt > 0) {
         hand.velocity.subVectors(WORLD, hand.lastWorld).divideScalar(dt);
@@ -512,11 +529,13 @@ function readPalm(hand: THREE.XRHandSpace, out: THREE.Vector3): THREE.Vector3 | 
   const joints = hand.joints as Record<string, THREE.XRJointSpace | undefined>;
   const base = joints['middle-finger-metacarpal'];
   const knuckle = joints['middle-finger-phalanx-proximal'];
-  if (!base || !knuckle) return null;
+  // three.js keeps a joint's last pose and sets `visible` false when the runtime has none.
+  if (!base || !knuckle || !base.visible || !knuckle.visible) return null;
   base.getWorldPosition(out);
   return out.add(knuckle.getWorldPosition(PALM_TMP)).multiplyScalar(0.5);
 }
 const PALM_TMP = new THREE.Vector3();
+const PALM_OUT = new THREE.Vector3();
 
 /** Where a hand is in the world: a bare hand's palm, else its controller's grip space. */
 function handWorld(hand: HandTracker, out: THREE.Vector3): THREE.Vector3 {
