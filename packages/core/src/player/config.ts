@@ -75,7 +75,14 @@ export interface MovementConfig {
 
   // --- VR hands ---
   handGrabRadius: number;
-  /** Multiplier when both hands are anchored — two hands really are stronger. */
+  /**
+   * Multiplier on the hand correction when both hands are anchored. **1: no bonus.** The anchors
+   * are fixed, so any other value is paid back by the error it leaves: at 1.3 a two-hand plant
+   * overshot the hands by 30 % for a tick and rang for four (7.44, 5.21, 5.88, 5.68 m/s against a
+   * 5.73 m/s pull, a jolt in the headset on every plant), the steady pull was the same as one
+   * hand's, and opening and closing both hands every 3 ticks beat holding them (6.07 against
+   * 5.49 m/s) — mashing the grip paid. Kept as a tuning slider, not a default.
+   */
   handTwoHandMultiplier: number;
   /**
    * The fastest an anchored hand may move relative to the body and still pull it (m/s). A faster
@@ -130,7 +137,7 @@ export const DEFAULT_MOVEMENT: MovementConfig = {
   gripThreshold: 0.55,
 
   handGrabRadius: 0.28,
-  handTwoHandMultiplier: 1.3,
+  handTwoHandMultiplier: 1,
   maxHandSpeed: HUMAN_HAND_SPEED,
   handPushForce: 1.15,
 

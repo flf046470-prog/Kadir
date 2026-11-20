@@ -109,7 +109,7 @@ export const TUNABLES = [
   {
     field: 'handTwoHandMultiplier',
     label: 'Two-hand bonus',
-    effect: 'Extra strength when both hands are anchored.',
+    effect: 'Extra pull when both hands are anchored. Above 1 it overshoots each two-hand grab, and re-gripping pays.',
     min: 1,
     max: 2.2,
     step: 0.05,

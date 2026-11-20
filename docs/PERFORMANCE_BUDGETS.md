@@ -30,7 +30,8 @@ Flat dirt, steady state (mean over 5–35 s; peak in brackets). Probe: `.probe/a
 Re-measured 2026-11-16 after a hand that closed mid-sweep stopped being a dead stop (CLAUDE.md, "A
 hand that closed mid-sweep stopped the body dead"); before it the arms rows read 1.91 / 2.79 / 3.62
 / 5.14 / 6.48. Galloping (both hands together, a flight between plants, `.probe/vr-core.ts`) at 6
-and 8 m/s strokes now runs at 5.94 and 8.38 m/s, from 5.02 and 5.17.
+and 8 m/s strokes now runs at 5.73 and 7.64 m/s, from 5.02 and 5.17 (two-hand bonus at 1, see
+CLAUDE.md, "Two hands were a spring").
 
 **The gap:** an arms-first player matches a PC run at about 7–8 m/s of sustained arm stroke, and a
 held sprint not at all. A relaxed 4 m/s stroke is just over half a PC run.

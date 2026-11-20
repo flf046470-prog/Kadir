@@ -891,8 +891,36 @@ describe('a hand that jumps is not a pull', () => {
       run(player, ctx, intent, 1);
       fastest = Math.max(fastest, v3length(player.velocity));
     }
-    // Two hands are stronger (`handTwoHandMultiplier`), but never faster than one hand can move.
+    // However `handTwoHandMultiplier` is tuned, never faster than one hand can move.
     expect(fastest).toBeLessThanOrEqual(DEFAULT_MOVEMENT.maxHandSpeed + 0.5);
+  });
+
+  it('takes hold with two hands without overshooting them, and pays nothing for re-gripping', () => {
+    // Both hands pulling down at a steady 2 m/s: the body rises at 2 m/s from the tick they close.
+    const steady = holding([0, 1]);
+    const rise: number[] = [];
+    for (let i = 0; i < 8; i++) {
+      for (const hand of steady.intent.hands ?? []) hand.pos.y -= 2 * DT;
+      run(steady.player, ctx, steady.intent, 1);
+      rise.push(steady.player.velocity.y);
+    }
+    for (const vy of rise) expect(Math.abs(vy - 2)).toBeLessThan(0.1);
+
+    // The same pull, the grip opened for a tick every third tick and closed again: no faster.
+    const mash = holding([0, 1]);
+    const y0 = mash.player.position.y;
+    const held = holding([0, 1]);
+    const h0 = held.player.position.y;
+    for (let i = 0; i < 30; i++) {
+      for (const hand of mash.intent.hands ?? []) {
+        hand.pos.y -= 2 * DT;
+        hand.grip = i % 3 === 0 ? 0 : 1;
+      }
+      for (const hand of held.intent.hands ?? []) hand.pos.y -= 2 * DT;
+      run(mash.player, ctx, mash.intent, 1);
+      run(held.player, ctx, held.intent, 1);
+    }
+    expect(mash.player.position.y - y0).toBeLessThanOrEqual(held.player.position.y - h0 + 0.01);
   });
 
   /** A 2 m/s pull sampled once per display frame into 60 Hz ticks, as GameClient does it. */

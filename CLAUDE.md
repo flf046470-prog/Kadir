@@ -2770,7 +2770,7 @@ before anything changed:
 | modified client, hand yanked 0.55 m a tick along a wall | **17.3 m/s** (fast human 5.1, run 7.2) | 0 |
 | best spoof left (just under a pose jump) | 9.1 m/s | 9.1 m/s |
 | release speed of a steady 2 m/s pull, 72–144 Hz vs 60 | up to 21 % off (42 % at 90 Hz) | under 10 % |
-| two hands vs one, same pull | 1.3× on the first tick, then equal | unchanged |
+| two hands vs one, same pull | 1.3× on the first tick, then equal | equal from the first tick (see "Two hands were a spring") |
 
 The replay tool on the same scripted session (hang, pull, re-reach, 0.5 s occlusion, snap, let go;
 `--max-reach 2.0`, this game's envelope, `--max-speed 12`): before **fail** — `SPEED_LIMIT` ×3 at
@@ -3858,3 +3858,17 @@ the surface kept, no pose-jump guard) each fail only their own test.
 
 `regripTimer` (from "Holding grab and jump was a rocket") does not reach arms-first VR: only a jump
 press off a grip and the assisted climb's mantle set it, and arms-first sends no Jump.
+
+### Two hands were a spring
+
+`handTwoHandMultiplier` (1.3) scaled the hand correction when both hands held. The anchors are
+fixed, so the extra 30 % is paid back by the error it leaves: a damped ring, not strength. A steady
+two-hand pull measured exactly a one-hand pull, and each two-hand plant overshot for a tick and rang
+for four (7.44 / 5.21 / 5.88 / 5.68 m/s against a 5.73 m/s gallop) — a jolt in the headset on every
+plant. Worse, it paid to mash: opening and closing both hands every 3 ticks while pulling at 6 m/s
+ran 6.07 m/s against 5.49 held (`.probe/regrip.ts`). At **1** the plant is flat (5.73 every tick)
+and mashing buys nothing (5.25–5.42 against 5.33). The galloping figures above become 7.64 at
+8 m/s strokes (8.38 was the overshoot); the knuckle-walk and every Gorilla Tag gate are unchanged
+except E2, which reads 2.00 from the first tick. The slider stays in the tuning panel.
+`locomotion.test.ts` → "takes hold with two hands without overshooting them"; the default back at
+1.3 fails it (2.6 against 2.0).
