@@ -63,8 +63,10 @@ app.whenReady().then(async () => {
     const t0 = Date.now();
     const poll = setInterval(async () => {
       const st = await win.webContents.executeJavaScript('window.ANTARKTIKA3D ? [ANTARKTIKA3D.status, !!navigator.xr, document.title] : null').catch(() => null);
-      if (st && st[0] === 'ready') { console.log('SMOKE ready', JSON.stringify(st), (Date.now() - t0) + ' ms'); clearInterval(poll); app.exit(0); }
-      else if (Date.now() - t0 > 240000) { console.log('SMOKE timeout', JSON.stringify(st)); clearInterval(poll); app.exit(1); }
+      // a packaged Windows exe has no console, so the result can also go to a file (SMOKE_OUT)
+      const done = (msg, code) => { console.log(msg); if (process.env.SMOKE_OUT) fs.writeFileSync(process.env.SMOKE_OUT, msg + '\n'); clearInterval(poll); app.exit(code); };
+      if (st && st[0] === 'ready') done('SMOKE ready ' + JSON.stringify(st) + ' ' + (Date.now() - t0) + ' ms', 0);
+      else if (Date.now() - t0 > 240000) done('SMOKE timeout ' + JSON.stringify(st), 1);
     }, 1000);
   }
 });

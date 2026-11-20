@@ -1,0 +1,95 @@
+# Windows builds of ANTARKTIKA: WHITEOUT (antarktika/steam, Electron).
+#
+#  - Microsoft Store package (.appx) for Partner Center. MSIX/AppX tools run only on Windows, so this
+#    cannot be built in the Linux dev container. The Store re-signs the package on submission; the
+#    identity values must match Partner Center ▸ Product identity exactly. Set them as repository
+#    variables (Settings ▸ Secrets and variables ▸ Actions ▸ Variables):
+#        MSSTORE_IDENTITY_NAME            Package/Identity/Name           e.g. 12345Studio.AntarktikaWhiteout
+#        MSSTORE_PUBLISHER                Package/Identity/Publisher      e.g. CN=1A2B3C4D-....
+#        MSSTORE_PUBLISHER_DISPLAY_NAME   Package/Properties/PublisherDisplayName
+#    Without them the package is built with placeholders (good for checking the build, not for upload).
+#  - Unpacked Windows build (zip) for Steam, smoke-tested: the exe starts and loads the 3D world.
+name: windows-store
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "antarktika/steam/**"
+      - "antarktika/ios/Antarktika/Game/**"
+      - ".github/workflows/windows-store.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+        working-directory: antarktika/steam
+    env:
+      ID_NAME: ${{ vars.MSSTORE_IDENTITY_NAME || 'ANTARKTIKA.WHITEOUT.PLACEHOLDER' }}
+      ID_PUBLISHER: ${{ vars.MSSTORE_PUBLISHER || 'CN=00000000-0000-0000-0000-000000000000' }}
+      ID_PUBLISHER_NAME: ${{ vars.MSSTORE_PUBLISHER_DISPLAY_NAME || 'PUBLISHER_DISPLAY_NAME' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: antarktika/steam/package-lock.json
+      - run: npm ci
+
+      - name: Windows build (unpacked, for Steam)
+        run: npx electron-builder --win --x64 --dir --publish never
+
+      - name: Smoke test — the exe loads the world
+        timeout-minutes: 6
+        run: |
+          export SMOKE_OUT="$PWD/smoke.log"
+          "out/win-unpacked/ANTARKTIKA WHITEOUT.exe" --windowed --smoke || true
+          cat smoke.log
+          grep -q "SMOKE ready" smoke.log
+
+      - name: Microsoft Store package (.appx)
+        run: >
+          npx electron-builder --win appx --x64 --publish never
+          -c.appx.identityName="$ID_NAME"
+          -c.appx.publisher="$ID_PUBLISHER"
+          -c.appx.publisherDisplayName="$ID_PUBLISHER_NAME"
+
+      - name: Check the package manifest
+        shell: pwsh
+        run: |
+          $appx = Get-ChildItem out -Filter *.appx | Select-Object -First 1
+          if (-not $appx) { throw "no .appx produced" }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [IO.Compression.ZipFile]::OpenRead($appx.FullName)
+          $entry = $zip.Entries | Where-Object { $_.FullName -eq 'AppxManifest.xml' }
+          $xml = New-Object IO.StreamReader($entry.Open()); $m = $xml.ReadToEnd(); $xml.Close()
+          $names = $zip.Entries.FullName
+          $zip.Dispose()
+          Write-Output $m
+          foreach ($need in 'runFullTrust','Windows.Desktop','Square150x150Logo','Wide310x150Logo') {
+            if ($m -notmatch $need) { throw "manifest is missing $need" }
+          }
+          if (-not ($names -match '^app/resources/Game/index.html$' -or $names -match 'resources/Game/index.html')) { throw "game files missing from the package" }
+          "{0}  {1:N1} MB" -f $appx.Name, ($appx.Length / 1MB)
+
+      - name: Zip the Steam build
+        shell: pwsh
+        run: Compress-Archive -Path "out/win-unpacked/*" -DestinationPath out/AntarktikaWhiteout-win64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: microsoft-store-appx
+          path: antarktika/steam/out/*.appx
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: steam-win64
+          path: antarktika/steam/out/AntarktikaWhiteout-win64.zip
+          if-no-files-found: error

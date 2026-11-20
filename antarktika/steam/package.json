@@ -10,7 +10,8 @@
     "start:vr": "electron . --vr",
     "smoke": "electron . --windowed --smoke",
     "dist:win": "electron-builder --win --x64 --dir",
-    "dist:linux": "electron-builder --linux --x64 --dir"
+    "dist:linux": "electron-builder --linux --x64 --dir",
+    "dist:store": "electron-builder --win appx --x64"
   },
   "devDependencies": {
     "electron": "^33.0.0",
@@ -18,10 +19,44 @@
   },
   "build": {
     "appId": "com.yourcompany.antarktika.whiteout",
-    "directories": { "output": "out" },
-    "files": ["main.js", "package.json"],
-    "extraResources": [{ "from": "../ios/Antarktika/Game", "to": "Game" }],
-    "win": { "target": "dir", "icon": "icon.png" },
-    "linux": { "target": "dir", "category": "Game" }
+    "directories": {
+      "output": "out",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../ios/Antarktika/Game",
+        "to": "Game"
+      }
+    ],
+    "win": {
+      "target": [
+        "dir"
+      ],
+      "icon": "icon.png"
+    },
+    "linux": {
+      "target": "dir",
+      "category": "Game"
+    },
+    "appx": {
+      "identityName": "ANTARKTIKA.WHITEOUT.PLACEHOLDER",
+      "publisher": "CN=00000000-0000-0000-0000-000000000000",
+      "publisherDisplayName": "PUBLISHER_DISPLAY_NAME",
+      "applicationId": "AntarktikaWhiteout",
+      "displayName": "ANTARKTIKA: WHITEOUT",
+      "backgroundColor": "#030a10",
+      "languages": [
+        "tr-TR",
+        "en-US"
+      ],
+      "showNameOnTiles": false,
+      "addAutoLaunchExtension": false,
+      "artifactName": "AntarktikaWhiteout-${version}-${arch}.${ext}"
+    }
   }
 }
