@@ -157,11 +157,12 @@ without a browser; the full run needs Playwright and drives the real, built game
 
 ## What this cannot produce, said plainly rather than guessed at
 
-- **First-person screenshots.** Meta prefers first-person POV ("1-2 third-person/mixed reality
-  shots allowed") because the product is judged by what a headset wearer sees. There is no
-  headset in this environment and, per CLAUDE.md, there never will be — so the five screenshots
-  here are captured from the desktop third-person camera every non-VR platform genuinely uses.
-  Real gameplay, not a mockup, but not the headset's own view. Replacing them with real captures
+- **A headset's own render.** Meta prefers first-person POV ("1-2 third-person/mixed reality
+  shots allowed") because the product is judged by what a headset wearer sees. Three of the five
+  screenshots are the flat-screen first-person view (the eyes a headset player has, from the same
+  head position) and two are third-person, within the allowance. There is no headset in this
+  environment, so none is a headset's own render: real gameplay, not a mockup, but not the
+  headset's frame. Replacing them with real captures
   from an actual Quest session is the one asset upgrade worth doing before submission if a
   headset becomes available.
 - **The trailer video.** Meta wants 30 seconds to 2 minutes of MP4/H.264/AAC. What

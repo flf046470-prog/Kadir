@@ -4026,3 +4026,28 @@ proximity voice, friends and parties, cosmetics, throwable balls. Missing, in th
 
 Still to do, in order: swinging vines (`GripKind 'vine'` is authored and inert), swimming (water is
 only slippery floor), moving platforms.
+
+## Baked ground occlusion: every tier, every frame, VR included
+
+Asked for realism on every frame (`Gerçekçiliği arttır oyunun her karesi için`). Screen-space AO
+(`postChain.ts`) is high tier only and never in a headset, so on every other frame ground under a
+tree, against a cliff or beside a boulder was lit by the sky as brightly as a clearing.
+`render/groundOcclusion.ts` bakes it at load from the level's own `PhysicsWorld`: 19 fixed rays per
+terrain vertex (`GROUND_AO_DIRECTIONS`, `GROUND_AO_REACH` 8 m, quadratic falloff), stored as a
+`groundAo` attribute; `withGroundOcclusion` multiplies **indirect light only** by it (direct sun is
+the shadow map's). Zero per-frame cost. Measured: jungle 110 ms / outback 63 ms at load (desktop),
+36 % / 11.5 % of the ground below 0.9. The glacier has no terrain and is not touched.
+
+Three sampling mistakes, each found by the wall test and now pinned:
+
+- **Rays weighted by elevation alone undercount a wall.** Each band carries its share of the
+  cosine-weighted sky (sin²b − sin²a), so the weights sum to 1.
+- **Band offsets decide what an axis-aligned wall catches.** Stepped 0.7 rad per band the foot of a
+  wall caught 3 of 8, 2 of 6 and 1 of 4 rays; a half step still put two of six along the wall. A
+  quarter step (π / 2n) splits every band exactly in half on both axes, with no ray along one.
+- **A linear falloff at 4 m left the foot of a 6 m wall at 0.87.** Quadratic at 8 m blocks 0.38 of
+  the sky there against the geometry's 0.48, and fades with no edge.
+
+The terrain material gets its own program key: surface materials share `triplanar:…`, and a box
+handed the terrain's program reads the missing attribute as 0 and goes black. Seven mutations, each
+failing `groundOcclusion.test.ts`. Not yet checked in a rendered frame.

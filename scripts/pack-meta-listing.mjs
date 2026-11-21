@@ -49,7 +49,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { BACKGROUND, brandGlyph, captureBestFrame, enterMatch, imageDataUri, pinStoreQuality, releaseKeys, renderCover, serveDist } from './lib/listing.mjs';
+import { BACKGROUND, brandGlyph, captureBestHeldFrame, enterMatch, imageDataUri, pinStoreQuality, releaseKeys, renderCover, rollPastCountdown, serveDist } from './lib/listing.mjs';
+import { timeControlSource } from './lib/trailer.mjs';
 import { compose, decodePng, encodePngRGB } from './lib/png.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -89,11 +90,15 @@ const KEY_ART = [
  * real modes too; five slots is the constraint, not a judgement about the other four.
  */
 const SHOTS = [
-  { file: '01-kangaroo-chase.png', mode: 'Kangaroo Chase' },
-  { file: '02-the-hunt.png', mode: 'The Hunt' },
-  { file: '03-freeze-tag.png', mode: 'Freeze Tag' },
-  { file: '04-king-of-the-hill.png', mode: 'King of the Hill' },
-  { file: '05-conversion-duel.png', mode: 'Conversion Duel' },
+  // Maps as on Steam, chosen by measured share of time with somebody close and in sight
+  // (CLAUDE.md, "Which map a screenshot is shot on is measured"). Meta wants first-person shots and
+  // allows one or two third-person ones, so three are the flat-screen first-person view — the eyes
+  // a headset player has, though not a headset's own render — and two keep the kangaroo in frame.
+  { file: '01-kangaroo-chase.png', mode: 'Kangaroo Chase', map: 'Jungle World', view: 'first' },
+  { file: '02-the-hunt.png', mode: 'The Hunt', map: 'Outback Station', view: 'first' },
+  { file: '03-roo-ball.png', mode: 'Roo Ball', map: 'Jungle World', view: 'first' },
+  { file: '04-king-of-the-hill.png', mode: 'King of the Hill', map: 'Glacier World', view: 'third' },
+  { file: '05-conversion-duel.png', mode: 'Conversion Duel', map: 'Glacier World', view: 'third' },
 ];
 const SHOT_SIZE = { width: 2560, height: 1440 };
 
@@ -209,12 +214,19 @@ for (const spec of KEY_ART) {
 // Screenshots: the HUD stays on — it is what the player actually sees, not marketing material —
 // and nothing is drawn over the frame.
 for (const shot of SHOTS) {
-  const context = await browser.newContext({ viewport: SHOT_SIZE, deviceScaleFactor: 1 });
-  await pinStoreQuality(context);
+  // Held clock, menus at 1280x720, the window grown only for the frame kept (as the Steam capture):
+  // with the clock running a 2560x1440 frame took longer than Playwright's timeout to draw, and the
+  // old blind sprint photographed walls.
+  console.log(`pack:meta:listing — screenshot: ${shot.mode} on ${shot.map} (${shot.view} person)`);
+  const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 });
+  await pinStoreQuality(context, shot.view);
+  await context.addInitScript(timeControlSource());
   const page = await context.newPage();
+  page.setDefaultTimeout(180_000);
   try {
-    await enterMatch(page, base, shot.mode, problem);
-    const frame = await captureBestFrame(page);
+    await enterMatch(page, base, shot.mode, problem, shot.map, { held: true });
+    if (!(await rollPastCountdown(page))) problem(`${shot.mode} on ${shot.map}: the round never left its countdown`);
+    const frame = await captureBestHeldFrame(page, SHOT_SIZE);
 
     await mkdir(outDir, { recursive: true });
     const file = path.join(outDir, shot.file);

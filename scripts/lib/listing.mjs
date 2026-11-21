@@ -154,14 +154,15 @@ export function pngDataUri(bytes) {
  * does what it is for — drops the tier — so the art would show the low tier while claiming to be
  * the game. A fixed tier is not governed. Call before the first navigation.
  */
-export async function pinStoreQuality(context) {
-  await context.addInitScript(() => {
+export async function pinStoreQuality(context, view = 'third') {
+  await context.addInitScript((v) => {
     localStorage.setItem(
       'kc.settings.v1',
-      // Third person: every shot, cover and trailer is composed around the kangaroo in frame.
-      JSON.stringify({ graphics: { quality: 'high', shadows: true, postProcessing: true, renderScale: 1, sceneryDetail: 1 }, controls: { view: 'third' } }),
+      // Third person by default: every cover and trailer is composed around the kangaroo in frame.
+      // Meta's screenshots ask for first person, the view a headset player has.
+      JSON.stringify({ graphics: { quality: 'high', shadows: true, postProcessing: true, renderScale: 1, sceneryDetail: 1 }, controls: { view: v } }),
     );
-  });
+  }, view);
 }
 
 /**

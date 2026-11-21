@@ -1,8 +1,9 @@
 import { DistantLand } from './DistantLand.js';
 import * as THREE from 'three';
-import { colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
+import { PhysicsWorld, colliderBottom, heightfieldMaxX, heightfieldMaxZ } from '@kc/core';
 import type { BoxCollider, Collider, HeightfieldCollider, LevelDef, PropInstance, SurfaceMaterial } from '@kc/core';
 import { terrainGeometry } from './Terrain.js';
+import { applyGroundOcclusion, bakeGroundOcclusion, withGroundOcclusion } from './groundOcclusion.js';
 import { cliffGeometry } from './Cliffs.js';
 import { buildCageFence } from './Cage.js';
 import { createSurfaceMaterial, surfaceQualityFor } from './surfaces.js';
@@ -636,10 +637,18 @@ export class LevelRenderer {
    * Its own material rather than the instanced boxes' one of the same surface, because the boxes
    * are flat-shaded on the untextured tier and a flat-shaded grid shows every 2 m cell as a facet.
    */
+  /** The level's colliders as a physics world, built only if there is terrain to bake occlusion for. */
+  private occlusionWorld: PhysicsWorld | null = null;
+
   private buildTerrain(collider: HeightfieldCollider): void {
     const geometry = terrainGeometry(collider);
+    // Baked from the same colliders players stand among, once, at load (`groundOcclusion.ts`).
+    this.occlusionWorld ??= new PhysicsWorld(this.level.colliders);
+    applyGroundOcclusion(geometry, bakeGroundOcclusion(collider, this.occlusionWorld));
     const color = MATERIAL_COLORS[collider.surface.material] ?? 0x888888;
-    const material = createSurfaceMaterial(collider.surface.material, surfaceQualityFor(this.profile), { color, flatShading: false });
+    const material = withGroundOcclusion(
+      createSurfaceMaterial(collider.surface.material, surfaceQualityFor(this.profile), { color, flatShading: false }),
+    );
     this.disposables.push(geometry, material);
     const mesh = new THREE.Mesh(geometry, material);
     mesh.castShadow = this.profile.shadows;
