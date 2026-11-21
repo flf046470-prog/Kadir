@@ -70,6 +70,7 @@ export function stepPlayer(player: PlayerState, intent: InputIntent, ctx: Locomo
 
   const handsAnchored = updateHandGrips(player, ctx, prevYaw);
   const handDriven = handsAnchored > 0;
+  detectHandTaps(player, ctx);
 
   if (handDriven) {
     applyHandCorrection(player, handsAnchored, dt);
@@ -616,6 +617,47 @@ function releasePull(player: PlayerState): void {
 }
 
 /** Palm push: shoving a surface with an open hand still moves you (no grip required). */
+/** A hand this close to a surface is on it. */
+export const HAND_TAP_DISTANCE = 0.06;
+/** A hand has left a surface once it is this far away, and may tap it again. */
+export const HAND_TAP_RELEASE = 0.12;
+/**
+ * The slowest arrival that is a tap. Below it a hand settling onto a wall, or resting on a branch
+ * while the body sways, would tick like a clock.
+ */
+export const HAND_TAP_SPEED = 0.7;
+
+/**
+ * Report a tracked hand striking a surface it is not holding — the knock that tells a headset
+ * player, and everyone near them, that a hand has met the world. Gorilla Tag's movement is built
+ * on that sound; here it was silent, so a knuckle-walk across the jungle floor made no noise at all.
+ *
+ * Once per arrival: `touching` holds until the hand is `HAND_TAP_RELEASE` away again. A pose jump
+ * is not an arrival, and an anchored hand already reported itself with `grab`.
+ */
+function detectHandTaps(player: PlayerState, ctx: LocomotionContext): void {
+  for (let i = 0; i < player.hands.length; i++) {
+    const hand = player.hands[i]!;
+    if (!hand.tracked || hand.anchored || hand.jumped) {
+      hand.touching = hand.anchored;
+      continue;
+    }
+    ctx.world.closestSurface(_surface, hand.world, HAND_TAP_RELEASE, false);
+    if (!_surface.hit || _surface.distance > HAND_TAP_RELEASE) {
+      hand.touching = false;
+      continue;
+    }
+    if (hand.touching || _surface.distance > HAND_TAP_DISTANCE) continue;
+    hand.touching = true;
+    const into = -v3dot(hand.velocity, _surface.normal);
+    if (into < HAND_TAP_SPEED) continue;
+    ctx.events.emit('handTap', player.id, _surface.point, ctx.tick, into, {
+      material: _surface.surface.material,
+      data: i === LEFT ? 'left' : 'right',
+    });
+  }
+}
+
 function applyPalmPush(player: PlayerState, ctx: LocomotionContext, dt: number): void {
   const cfg = player.config;
   for (const hand of player.hands) {

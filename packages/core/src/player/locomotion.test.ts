@@ -580,6 +580,36 @@ describe('VR hand physics', () => {
     expect(player.velocity.x).toBeLessThan(vxBefore); // pushed back, away from the surface
   });
 
+  it('reports one hand tap per arrival on a surface, and none for a slow touch', () => {
+    const player = createPlayerState({ id: 'tap', position: vec3(5.0, 3, 0) });
+    const intent = vrIntent({ x: 0, y: 1.4, z: -0.2 }, 0);
+    intent.lookYaw = Math.PI / 2; // facing the wall face at x = 5.4
+    const taps = () => ctx.events.drain().filter((e) => e.type === 'handTap');
+    const move = (dz: number, ticks: number) => {
+      const found = [];
+      for (let i = 0; i < ticks; i++) {
+        intent.hands![1]!.pos.z += dz;
+        ctx.tick++;
+        stepPlayer(player, intent, ctx, DT);
+        // Hold the body still so the hand's distance to the wall is the hand's alone.
+        player.position.x = 5.0;
+        player.velocity.x = player.velocity.z = 0;
+        found.push(...taps());
+      }
+      return found;
+    };
+    move(0, 10);
+    const first = move(0.05, 12); // 3 m/s into the wall, and on into it
+    expect(first.length).toBe(1);
+    expect(first[0]!.data).toBe('right');
+    expect(first[0]!.magnitude).toBeGreaterThan(2);
+    expect(move(0, 20).length).toBe(0); // resting on it is not another tap
+    expect(move(-0.05, 14).length).toBe(0); // leaving is silent
+    expect(move(0.05, 14).length).toBe(1); // and the next arrival taps again
+    move(-0.05, 14);
+    expect(move(0.004, 220).length).toBe(0); // 0.24 m/s, on into the wall: a hand settling, not a knock
+  });
+
   it('does not let a hand grab a NoGrip surface', () => {
     const smooth = new PhysicsWorld([
       { kind: 'box', id: 0, center: vec3(0, -2, 0), half: vec3(30, 2, 30), yaw: 0, surface: { ...DEFAULT_SURFACE } },

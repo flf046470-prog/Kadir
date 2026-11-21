@@ -31,7 +31,7 @@ import type {
 import { InterpolationBuffer, PredictionBuffer } from '@kc/net';
 import type { IceServerConfig, LobbyPlayer, ModActionKind, ModReportView, Platform, RosterEntry, RoundRewards, ServerMessage } from '@kc/net';
 import { TuningStore } from './TuningStore.js';
-import { AudioSystem } from '../audio/AudioSystem.js';
+import { AudioSystem, handTapLevel } from '../audio/AudioSystem.js';
 import { VoiceChat } from '../audio/VoiceChat.js';
 import { NetClient } from '../net/NetClient.js';
 import type { NetStatus } from '../net/NetClient.js';
@@ -1000,6 +1000,9 @@ export class GameClient {
         break;
       case 'grab':
         feedback('grab');
+        break;
+      case 'handTap':
+        feedback('tap', event.data === 'left' ? 'left' : 'right', handTapLevel(event.magnitude));
         break;
       case 'release':
         feedback('release');

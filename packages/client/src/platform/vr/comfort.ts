@@ -243,6 +243,8 @@ export function approach(current: number, target: number, dt: number, perSecond 
 
 export type HapticEvent =
   | 'grab'
+  /** A hand knocked on a surface it did not hold, in that hand only. */
+  | 'tap'
   | 'release'
   | 'land'
   | 'hardLand'
@@ -270,6 +272,8 @@ export interface HapticPulse {
  */
 const HAPTICS: Record<HapticEvent, HapticPulse> = {
   grab: { intensity: 0.45, durationMs: 25 },
+  // Short and scaled by the knock's speed: a knuckle-walk taps four or five times a second a hand.
+  tap: { intensity: 0.5, durationMs: 14 },
   release: { intensity: 0.15, durationMs: 15 },
   land: { intensity: 0.3, durationMs: 20 },
   hardLand: { intensity: 0.75, durationMs: 60 },

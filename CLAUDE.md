@@ -4003,3 +4003,26 @@ water) and sprites (name tags). Four mutations, each failing its own test.
 **Not yet measured in a browser.** `.probe/ao-ab.mjs` draws one held frame with AO off and on
 (`window.__kcAo`, webdriver only) on each map; its first run timed out sharing four cores with the
 store capture. Judge the radius and intensity on those frames before tuning them.
+
+## Gorilla Tag parity: a hand that tags, and a hand that knocks
+
+Asked that nothing Gorilla Tag has be missing (`Gorilla tag oyundan eksik kalan özellikleri olmasın`).
+Compared at the design level only — what a player can do, never code or art. Already here: arm
+locomotion and climbing, bouncy mushrooms, tag / infection / hunt / freeze tag, room codes,
+proximity voice, friends and parties, cosmetics, throwable balls. Missing, in the order taken:
+
+1. **A hand never tagged.** `findTags` measured body centres only, so a headset player's arms did
+   nothing in tag. `handGap` now tags with a hand within `HAND_TAG_REACH` (0.12 m) of the target's
+   capsule surface: a tracked hand unless it is a pose jump, a placed hand during a throw (`striking`
+   — the punch button is the PC/mobile swipe). Server positions only; the envelope `sanitizeIntent`
+   clamps hands into bounds what a modified client can reach. Bots are byte-identical (they neither
+   track hands nor throw in chase: 75 / 131 tags over 8 seeds on jungle / outback, both ways).
+2. **A hand on a surface made no sound.** `detectHandTaps` (`locomotion.ts`) emits `handTap` once per
+   arrival of a tracked, unanchored hand within `HAND_TAP_DISTANCE` (6 cm) at ≥ `HAND_TAP_SPEED`
+   (0.7 m/s), re-armed past `HAND_TAP_RELEASE` (12 cm). Audible from everyone in earshot (the
+   material's landing recording, quiet and bright, `handTapLevel`), and a short pulse in that hand.
+   Three mutations each fail `locomotion.test.ts` → "reports one hand tap per arrival"; the speed
+   rule's first test could not fail — its slow hand never reached the wall — and was lengthened.
+
+Still to do, in order: swinging vines (`GripKind 'vine'` is authored and inert), swimming (water is
+only slippery floor), moving platforms.

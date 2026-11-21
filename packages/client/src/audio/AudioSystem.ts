@@ -214,6 +214,9 @@ export class AudioSystem {
       case 'grab':
         this.click(at, event.material === 'wood' ? 520 : 380);
         break;
+      case 'handTap':
+        this.handTap(at, event.magnitude, event.material);
+        break;
       case 'release':
         this.click(at, 240, 0.05);
         break;
@@ -629,6 +632,18 @@ export class AudioSystem {
     this.impact(at, FOOTFALL_LEVEL, 80 + materialPitch(material));
   }
 
+  /**
+   * A palm knocking on a surface: the landing recordings for that ground, short, bright and quiet,
+   * louder with the speed of the knock. Heard from every player in earshot, which is the point:
+   * in a game of tag you can hear somebody climbing towards you before you see them.
+   */
+  private handTap(at: { x: number; y: number; z: number }, speed: number, material?: SurfaceMaterial): void {
+    const level = handTapLevel(speed);
+    const family = landingFamily(material, 0);
+    if (family && this.playSample(family, at, 0.12 + level * 0.3, 1.45)) return;
+    this.impact(at, 0.1 + level * 0.3, 140 + materialPitch(material));
+  }
+
   /** Play one variant of a recorded family at a position. False if nothing is loaded yet. */
   private playSample(family: SampleFamily, at: { x: number; y: number; z: number }, level: number, rate: number): boolean {
     const ctx = this.ctx;
@@ -818,4 +833,13 @@ export function materialPitch(material?: SurfaceMaterial): number {
     default:
       return 0;
   }
+}
+
+/**
+ * How hard a hand tap is, 0..1, from its speed into the surface (m/s). A brush at the threshold is a
+ * whisper; a slap at 6 m/s — a fast arm stroke — is full. Shared by the sound and the haptic pulse so
+ * the two always agree on how hard the knock was.
+ */
+export function handTapLevel(speed: number): number {
+  return Math.max(0, Math.min(1, (speed - 0.7) / 5.3));
 }

@@ -10,6 +10,11 @@ export type SimEventType =
   | 'land'
   | 'wallBounce'
   | 'grab'
+  /**
+   * A tracked hand struck a surface without holding it: the knock of a palm on bark, rock or ice.
+   * `data` is 'left' or 'right', `material` the surface, `magnitude` the speed into it (m/s).
+   */
+  | 'handTap'
   | 'release'
   | 'climbLaunch'
   | 'tag'

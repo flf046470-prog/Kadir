@@ -93,6 +93,11 @@ export interface HandState {
    * combat resolver only ever looks at hand velocity.
    */
   punchThrow: number;
+  /**
+   * True while this tracked hand rests on a surface, so a tap is reported once when it arrives and
+   * not again until it has left (`HAND_TAP_RELEASE`). Simulation-only; not on the wire.
+   */
+  touching: boolean;
 }
 
 export function createHandState(): HandState {
@@ -113,6 +118,7 @@ export function createHandState(): HandState {
     striking: false,
     punchCooldown: 0,
     punchThrow: 0,
+    touching: false,
   };
 }
 
@@ -385,6 +391,7 @@ export function respawnPlayer(player: PlayerState, position: Vec3, tick: number)
     // there too while `prevWorld` is still back at the old position, and the resulting velocity
     // is a phantom punch or wall-launch waiting to happen. See HandState.posed.
     hand.posed = false;
+    hand.touching = false;
   }
 }
 
