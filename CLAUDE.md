@@ -3978,3 +3978,28 @@ Universal Menu opens, and to `hidden` when the headset comes off.
   `pack:steam`.
 - Unknown until a headset: Input.8 (the system gesture). **Security.1 (entitlement check) is not
   required**: Meta's VRC table marks it recommended, and it guards purchases a free game does not have.
+
+## The high tier drew without antialiasing, and at four times the pixels
+
+Asked for realism and light (`Gerçekçilik, ışıklar`). Reading the post-processing chain found two
+defects before anything was added, both pinned in `render/postChain.test.ts`:
+
+- **`antialias: true` multisamples the canvas only.** With post-processing on, the scene is drawn
+  into `EffectComposer`'s own target, created with no samples, so the high tier — the only one that
+  both antialiases and post-processes — had the hardest edges in the game. The target carries
+  `COMPOSER_SAMPLES` (4) now.
+- **The pixel ratio was applied twice.** `EffectComposer.setSize` multiplies by its own pixel ratio;
+  `Renderer.onResize` passed it device pixels, so a 2× display drew the chain at 4× the canvas's
+  pixels (and bloom, resized separately, at another size). `resizePostChain` passes CSS pixels.
+- `EffectComposer.dispose` frees its own buffers, not its passes': bloom's mip chain leaked on every
+  governor tier change. `disposePostChain` frees every pass.
+
+**Ambient occlusion** (`SolidGtaoPass`, three's GTAO, `AO_RADIUS` 0.9 m world-space, blend 0.85) runs
+on the high tier only, never in VR (`profileFor` has no post-processing there). Its normal pass
+draws everything opaque, so `skipInNormalPass` hides what is not drawn as a solid surface: anything
+transparent or not writing depth (the VR vignette quad, the cage fence, a role ring at opacity 0,
+water) and sprites (name tags). Four mutations, each failing its own test.
+
+**Not yet measured in a browser.** `.probe/ao-ab.mjs` draws one held frame with AO off and on
+(`window.__kcAo`, webdriver only) on each map; its first run timed out sharing four cores with the
+store capture. Judge the radius and intensity on those frames before tuning them.

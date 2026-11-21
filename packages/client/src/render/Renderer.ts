@@ -3,10 +3,7 @@ import type { LevelDef, QualityTier, Settings } from '@kc/core';
 import { profileFor } from '../platform/Platform.js';
 import type { PerformanceProfile, PlatformKind } from '../platform/Platform.js';
 import { isDemotion, nextTier } from './governor.js';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { buildPostChain, disposePostChain, resizePostChain, type PostChain } from './postChain.js';
 import { buildSkyEnvironment } from './sky.js';
 import { SKY_PHOTOS, loadSkyPhoto, skyRotation } from './hdriSky.js';
 
@@ -160,8 +157,7 @@ export class Renderer {
    * `Settings.postProcessing` has existed since the settings screen did — offered as a toggle, set
    * true on the high profile — and had no consumer anywhere in the codebase. It switched nothing.
    */
-  private composer: EffectComposer | null = null;
-  private bloom: UnrealBloomPass | null = null;
+  private post: PostChain | null = null;
 
   private profile: PerformanceProfile;
   /** Kept so a settings change can recompute the profile — `profileFor` needs the platform. */
@@ -257,33 +253,20 @@ export class Renderer {
    * constructor.
    */
   private buildComposer(): void {
-    this.composer?.dispose();
-    this.composer = null;
-    this.bloom = null;
+    if (this.post) disposePostChain(this.post);
+    this.post = null;
     if (!this.profile.postProcessing) return;
+    this.post = buildPostChain(this.renderer, this.scene, this.camera, { antialias: this.profile.antialias });
+  }
 
-    const composer = new EffectComposer(this.renderer);
-    composer.addPass(new RenderPass(this.scene, this.camera));
+  /** Whether ambient occlusion is drawn this frame (false with no post-processing). */
+  get ambientOcclusion(): boolean {
+    return this.post?.ao.enabled ?? false;
+  }
 
-    /**
-     * Bloom, thresholded above what a *diffuse* surface can produce.
-     *
-     * The first attempt used 0.85, the value most examples ship, and the glacier came back washed
-     * to near-white while the jungle looked right — which is the whole diagnosis: the threshold is
-     * compared against linear radiance before tone mapping, and a white snowfield with albedo 0.9
-     * under a sun at 1.9 plus the environment sits around 1.2 to 1.8. The entire floor qualified as
-     * a highlight, so bloom stopped being a highlight effect and became a fog.
-     *
-     * Above 2.0 only things genuinely brighter than a lit white surface spill: the sun's specular
-     * glint off ice, a crystal, a torch. Strength can then be higher than it could when everything
-     * qualified, because far less of the screen does.
-     */
-    const bloom = new UnrealBloomPass(new THREE.Vector2(1, 1), 0.45, 0.5, 2);
-    composer.addPass(bloom);
-    this.bloom = bloom;
-
-    composer.addPass(new OutputPass());
-    this.composer = composer;
+  /** Turn ambient occlusion off and on, for an A/B under automation; the profile still decides. */
+  setAmbientOcclusion(enabled: boolean): void {
+    if (this.post) this.post.ao.enabled = enabled;
   }
 
   applyLevel(level: LevelDef): void {
@@ -494,7 +477,7 @@ export class Renderer {
     // `isPresenting` is checked as well as the profile because a session can begin after the
     // renderer was built — the player enters VR from a desktop page — and a composer left running
     // into an XR frame renders one eye of the wrong buffer.
-    if (this.composer && !this.renderer.xr.isPresenting) this.composer.render();
+    if (this.post && !this.renderer.xr.isPresenting) this.post.composer.render();
     else this.renderer.render(this.scene, this.camera);
   }
 
@@ -550,7 +533,7 @@ export class Renderer {
     this.disposed = true;
     this.skyPhoto?.dispose();
     globalThis.removeEventListener('resize', this.onResize);
-    this.composer?.dispose();
+    if (this.post) disposePostChain(this.post);
     this.environment?.dispose();
     this.renderer.setAnimationLoop(null);
     this.renderer.dispose();
@@ -563,10 +546,6 @@ export class Renderer {
     this.camera.aspect = width / Math.max(1, height);
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(width, height, false);
-    // The composer owns render targets sized in device pixels, so it needs the pixel ratio applied
-    // — `setSize` on the renderer does that itself, `EffectComposer.setSize` does not.
-    const ratio = this.renderer.getPixelRatio();
-    this.composer?.setSize(width * ratio, height * ratio);
-    this.bloom?.setSize(width * ratio, height * ratio);
+    if (this.post) resizePostChain(this.post, this.renderer, width, height);
   };
 }

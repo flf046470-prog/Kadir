@@ -436,10 +436,17 @@ async function main(): Promise<void> {
         __kcSelf?: () => unknown;
         __kcVr?: () => unknown;
         __kcEndRound?: () => void;
+        __kcAo?: (enabled: boolean) => boolean;
       };
       hooks.__kcView = () => game?.captureView() ?? null;
       hooks.__kcHideSelf = (hidden) => game?.setSelfVisible(!hidden);
       hooks.__kcSelf = () => game?.selfView() ?? null;
+      // Ambient occlusion off and on for a fixed-camera A/B of the same frame; returns whether it is
+      // drawn (false when the profile has no post-processing). Changes what this tab draws only.
+      hooks.__kcAo = (enabled) => {
+        renderer.setAmbientOcclusion(enabled);
+        return renderer.ambientOcclusion;
+      };
       // The headset's panels and wrist, and a round ended on demand, for `check:xrsim`'s end-of-round
       // check. The first only reads; the second ends a practice round, as its clock would.
       hooks.__kcVr = () => ({
