@@ -1,3 +1,4 @@
+import { activeInput, markInput } from '../activeInput.js';
 import { Buttons } from '@kc/core';
 import type { InputIntent, Settings } from '@kc/core';
 import { HoldOrToggle } from '../latch.js';
@@ -94,7 +95,9 @@ export class PCInput implements PlatformInput {
     // A controller in hand gets the controller's buttons: read when the screen is drawn, so a pad
     // plugged in before the tutorial opens is the list it shows.
     const pads = typeof navigator !== 'undefined' ? (navigator.getGamepads?.() ?? []) : [];
-    if (this.padEnabled && [...pads].some((p) => p?.connected)) return PAD_CONTROL_HINTS;
+    // Steam Deck review: glyphs follow the input in use, so a pad that is plugged in but not being
+    // used does not hide the keys from a keyboard player (`activeInput`).
+    if (this.padEnabled && activeInput() !== 'keys' && [...pads].some((p) => p?.connected)) return PAD_CONTROL_HINTS;
     return [
       { action: 'Move', hint: 'W A S D' },
       { action: 'Look', hint: this.pointerLockBlocked ? 'Drag with the mouse' : 'Mouse' },
@@ -258,6 +261,7 @@ export class PCInput implements PlatformInput {
     for (const binding of PAD_BINDINGS) {
       if (pad.buttons[binding.index]?.pressed === true) buttons |= binding.button;
     }
+    if (buttons !== 0 || move.x !== 0 || move.y !== 0 || look.x !== 0 || look.y !== 0) markInput('pad');
 
     return { moveX: move.x, moveZ: -move.y, buttons };
   }
@@ -267,6 +271,7 @@ export class PCInput implements PlatformInput {
     // Never swallow keys while the player is typing into a UI field.
     if (isTextInput(event.target)) return;
     this.keys.add(event.code);
+    markInput('keys');
     if (event.code === 'Space' || event.code.startsWith('Arrow')) event.preventDefault();
   };
 
@@ -283,6 +288,7 @@ export class PCInput implements PlatformInput {
   private onMouseDown = (event: MouseEvent): void => {
     if (isTextInput(event.target)) return;
     this.mouseButtons.add(event.button);
+    markInput('keys');
     this.dragging = true;
     this.dragDistance = 0;
     this.requestPointerLock();

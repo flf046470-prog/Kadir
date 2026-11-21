@@ -37,7 +37,7 @@ updated 2026-05-01, read 2026-11-20):
 | Input.6: hands hidden when not tracked | met for bare hands | a lost bare hand is held and not drawn (`VRInput.test.ts`) |
 | Input.7: respect switching controllers ↔ hands | met | `check:xrsim` switches with Y |
 | Input.8: the system gesture triggers nothing | unknown | WebXR exposes no system-gesture state; needs a headset |
-| Security.1: entitlement check within 10 s | unknown for a TWA | Meta's Platform SDK is native; ask Meta which applies to a web app before submitting |
+| Security.1: entitlement check within 10 s | not required | Meta's VRC table marks it "+" (recommended), not "✓" (required), and its page says "entitlement checks are not required". It is anti-piracy, and the game is free: there is no purchase to verify (read 2026-11-21) |
 | Security.2: minimum permissions | met | microphone only, for voice |
 | Performance.1: 72 fps | budgeted, not measured on a device | CLAUDE.md, "The frame budget" |
 | Tracking.1: declared play mode works | to declare | standing/roomscale; seated is a comfort setting |
@@ -194,7 +194,7 @@ this build:
 | Criterion | Status | Evidence |
 | --- | --- | --- |
 | All content reachable with the default controller configuration | met | `check:pad`: every control on all 8 screens off the main menu, plus a round started, paused and resumed, with no keyboard or mouse |
-| Glyphs match the active input; no keyboard glyphs on the controller | met for the tutorial and HUD | `PAD_BINDINGS` drives the tutorial when a pad is connected; the HUD's gadget slots carry slot names, not keys |
+| Glyphs match the active input; no keyboard glyphs on the controller | met for the tutorial and HUD | The tutorial shows `PAD_BINDINGS` while the pad is the input in use (`platform/activeInput.ts`: the last device touched, so a Deck sees buttons and a keyboard player with a pad plugged in sees keys). The HUD's gadget slots carry slot names, not keys |
 | Text at least 9 px at 1280x800 (12 recommended) | 12 px everywhere | `check:pad` runs at 1280x800 and fails below 12 px |
 | No text entry required | met | an empty name plays as "Roo"; chat is optional |
 | Runs on the Deck | native Linux build | `pack:steam` targets `win32,linux` |

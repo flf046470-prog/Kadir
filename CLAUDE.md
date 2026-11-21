@@ -3970,8 +3970,11 @@ Universal Menu opens, and to `hidden` when the headset comes off.
 - **VRC.Quest.Input.6**: a bare hand three.js has lost (its joints are `visible: false`) is held
   where it was, so a climber does not drop, and it is not drawn (`VRInput.handVisible`). Mutation:
   reading invisible joints fails `VRInput.test.ts`.
+- **Glyphs follow the input in use, not what is plugged in** (`platform/activeInput.ts`, set by
+  `PCInput` key/mouse/pad activity and by `padNav`). Mutation: hints keyed on "a pad is connected"
+  fails `PCInput.test.ts`.
 - **Steam Deck**: `check:pad` runs at the Deck's 1280x800 and fails on text under 12 px, Valve's
   recommendation (9 is required). Five 11 px styles were raised to 12. A Linux build is in
   `pack:steam`.
-- Unknown until a headset or a question to Meta: Input.8 (the system gesture) and whether
-  Security.1 (the entitlement check) applies to a TWA.
+- Unknown until a headset: Input.8 (the system gesture). **Security.1 (entitlement check) is not
+  required**: Meta's VRC table marks it recommended, and it guards purchases a free game does not have.

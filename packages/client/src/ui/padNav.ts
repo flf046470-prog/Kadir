@@ -1,3 +1,4 @@
+import { markInput } from '../platform/activeInput.js';
 /**
  * Playing the whole game from a controller.
  *
@@ -228,7 +229,10 @@ export class PadMenuNavigator {
       if (root) this.focusDefault(root);
       return;
     }
-    for (const action of this.edges.update(pad, dt)) this.act(action, root);
+    for (const action of this.edges.update(pad, dt)) {
+      markInput('pad');
+      this.act(action, root);
+    }
   }
 
   private act(action: PadAction, root: HTMLElement | null): void {

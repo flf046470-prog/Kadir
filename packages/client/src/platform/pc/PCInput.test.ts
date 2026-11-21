@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { Buttons, DEFAULT_SETTINGS, createIntent } from '@kc/core';
 import { PAD_BINDINGS, PCInput } from './PCInput.js';
+import { resetActiveInput } from '../activeInput.js';
 
 /**
  * Mouse look when the browser refuses pointer lock.
@@ -335,6 +336,24 @@ describe('the gamepad mapping', () => {
     });
     // No pad: the keyboard list.
     expect(input.controlHints.some((h) => /W A S D/.test(h.hint))).toBe(true);
+  });
+
+  it('shows the glyphs of the input in use, not of whatever is plugged in (Steam Deck review)', () => {
+    resetActiveInput();
+    const keyboardHints = () => input.controlHints.some((h) => /W A S D/.test(h.hint));
+    withPadButton(-1, () => {
+      // A pad plugged in and nothing touched yet: a Deck, whose controls are a pad, sees buttons.
+      expect(keyboardHints()).toBe(false);
+      // A key pressed: this player is on the keyboard, whatever else is connected.
+      dom.fire('keydown', { code: 'KeyW', repeat: false, target: null, preventDefault: () => {} });
+      expect(keyboardHints()).toBe(true);
+    });
+    // Back on the pad: a button press in play brings the pad's glyphs back.
+    withPadButton(0, () => {
+      input.sample(createIntent(), 1 / 60, DEFAULT_SETTINGS);
+      expect(keyboardHints()).toBe(false);
+    });
+    resetActiveInput();
   });
 });
 
