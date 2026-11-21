@@ -1,0 +1,59 @@
+{
+  "$comment": [
+    "The real footage the store trailer opens on, before it turns into the game (scripts/pack-trailer.mjs).",
+    "Stock video from Pexels, under the Pexels License (read 2026-11-15, https://www.pexels.com/license/): free to use and to modify, advertising included, attribution not required. Not allowed: selling unaltered copies, implying that anyone in the footage endorses the game, or redistributing it on another stock or wallpaper site.",
+    "So the files are not committed: the trailer build downloads each one into dist/trailer-stock/ and refuses it unless its size and sha256 match what is recorded here, which is the version whose licence was read.",
+    "Each plate takes `frames` consecutive source frames from `startFrame` and plays one per trailer frame at 30 fps: a 60 fps source plays at half speed. `transfer` is the source's transfer characteristic as ffprobe reports it; HLG (arib-std-b67) is tone-mapped to SDR BT.709. `push` is a slow zoom in on (x, y), as shares of the frame.",
+    "Credited in docs/PC_LISTINGS.md, under the trailer captions, although the licence does not ask for it: Tetrakis Sphericon's profile asks for a shout-out."
+  ],
+  "licence": {
+    "name": "Pexels License",
+    "url": "https://www.pexels.com/license/",
+    "read": "2026-11-15"
+  },
+  "plates": [
+    {
+      "id": "dawn",
+      "title": "Sunrise drone footage of kangaroos in Australia",
+      "page": "https://www.pexels.com/video/sunrise-drone-footage-of-kangaroos-in-australia-31500288/",
+      "creator": "Tetrakis Sphericon",
+      "creatorPage": "https://www.pexels.com/@tristo",
+      "url": "https://videos.pexels.com/video-files/31500288/13430414_1920_1080_60fps.mp4",
+      "bytes": 16185760,
+      "sha256": "d3113c29d1a75edc5ef71fb5703a3fdb7bf3617ce32ec99409a97979a551e73d",
+      "transfer": "bt709",
+      "startFrame": 0,
+      "frames": 93,
+      "note": "The first 1.55 s at half speed: the sun coming up over a waterhole, two kangaroos crossing the slope below it."
+    },
+    {
+      "id": "look",
+      "title": "Kangaroo in Australian bushland",
+      "page": "https://www.pexels.com/video/kangaroo-in-australian-bushland-37954592/",
+      "creator": "Joolsmagools",
+      "creatorPage": "https://www.pexels.com/@joolsmagools",
+      "url": "https://videos.pexels.com/video-files/37954592/16104709_1920_1080_30fps.mp4",
+      "bytes": 24768819,
+      "sha256": "77ae6203f44c588d417bb70508db5bb38701f8a460a2de4175521addbdb7390f",
+      "transfer": "bt709",
+      "startFrame": 13,
+      "frames": 80,
+      "note": "0.45–3.1 s: a grazing kangaroo lifts its head and looks straight into the camera."
+    },
+    {
+      "id": "hop",
+      "title": "Kangaroos hopping through Australian grassland",
+      "page": "https://www.pexels.com/video/kangaroos-hopping-through-australian-grassland-36247533/",
+      "creator": "Joolsmagools",
+      "creatorPage": "https://www.pexels.com/@joolsmagools",
+      "url": "https://videos.pexels.com/video-files/36247533/15371971_3840_2160_30fps.mp4",
+      "bytes": 103388589,
+      "sha256": "ab589a54ea7328fdf3e3fc0531bbd033983ba675f8560bbf08ce7408b9a4bbdb",
+      "transfer": "arib-std-b67",
+      "startFrame": 42,
+      "frames": 108,
+      "push": { "from": 1.15, "to": 1.75, "x": 0.48, "y": 0.58 },
+      "note": "1.4–5.0 s of the 4K version, pushed in: a kangaroo turns and bounds away from the camera through dry grass. The trailer turns into the game on this shot, into the chase on the outback seen from behind the player's own kangaroo."
+    }
+  ]
+}

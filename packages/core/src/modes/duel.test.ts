@@ -1,0 +1,446 @@
+import { describe, expect, it } from 'vitest';
+
+import { buildJungleWorld } from '../world/jungle.js';
+import { Simulation, TICK_DT } from '../sim/simulation.js';
+import type { PlayerState } from '../player/state.js';
+import { DUEL_DEF, DuelMode } from './duel.js';
+import './duel.js';
+import './chase.js';
+
+function startedDuel(playerCount = 6, seed = 11) {
+  const sim = new Simulation({ level: buildJungleWorld(), modeId: 'duel', seed });
+  for (let i = 0; i < playerCount; i++) sim.addPlayer({ id: `p${i}`, name: `P${i}` });
+  sim.stepMany(Math.ceil((DUEL_DEF.countdownSeconds + 0.5) / TICK_DT));
+  return sim;
+}
+
+function byRole(sim: Simulation, role: PlayerState['role']): PlayerState[] {
+  return [...sim.players.values()].filter((p) => p.role === role);
+}
+
+/** Put a kangaroo close enough to a human that the tag rules fire. */
+function bringTogether(kangaroo: PlayerState, human: PlayerState): void {
+  human.position.x = kangaroo.position.x + 0.4;
+  human.position.y = kangaroo.position.y;
+  human.position.z = kangaroo.position.z;
+  kangaroo.invulnTimer = 0;
+  human.invulnTimer = 0;
+  kangaroo.tagCooldown = 0;
+  human.tagCooldown = 0;
+}
+
+describe('starting a duel round', () => {
+  it('splits the lobby evenly, unlike every other chasing mode', () => {
+    /**
+     * This used to start two kangaroos against four humans, inheriting the one-in-three ratio the
+     * tag modes use. It is the wrong ratio here, and not by a little: losing a bout moves you to
+     * the other side, so the population is a random walk with an absorbing barrier at each end,
+     * and starting at 2-4 puts the kangaroos two losses from extinction while the humans are four
+     * from it. Measured over six full rounds of bots at the old ratio, the kangaroos won none of
+     * them and five rounds were over inside a hundred seconds of a three-hundred-second round.
+     * At an even split the same measurement gives 7 of 12 to the kangaroos.
+     */
+    const sim = startedDuel(6);
+    expect(byRole(sim, 'chaser')).toHaveLength(3);
+    expect(byRole(sim, 'runner')).toHaveLength(3);
+  });
+
+  it('always deals at least one kangaroo, even in a two-player room', () => {
+    const sim = startedDuel(2);
+    expect(byRole(sim, 'chaser').length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('gives each side the matching body', () => {
+    const sim = startedDuel(6);
+    for (const p of byRole(sim, 'chaser')) expect(p.animalId).toBe('kangaroo');
+    for (const p of byRole(sim, 'runner')) expect(p.animalId).toBe('human');
+  });
+});
+
+describe('a catch starts a bout', () => {
+  it('pulls both fighters into the ring', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+
+    bringTogether(kangaroo, human);
+    sim.stepMany(2);
+
+    expect(mode.activeBouts).toHaveLength(1);
+    expect(kangaroo.role).toBe('fighter');
+    expect(human.role).toBe('fighter');
+  });
+
+  it('places them apart and facing each other', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+
+    bringTogether(kangaroo, human);
+    sim.stepMany(1);
+
+    const bout = mode.activeBouts[0];
+    expect(bout).toBeDefined();
+    // Separated rather than standing inside each other, and within arm's reach.
+    const gap = Math.hypot(kangaroo.position.x - human.position.x, kangaroo.position.z - human.position.z);
+    expect(gap).toBeGreaterThan(1);
+    expect(gap).toBeLessThan(2.5);
+  });
+
+  it('resets both to full health, so a worn-down chaser is not doomed', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    kangaroo.health = 12;
+
+    bringTogether(kangaroo, human);
+    sim.stepMany(1);
+
+    expect(kangaroo.health).toBe(100);
+    expect(human.health).toBe(100);
+  });
+
+  it('locks everyone else out — a fighter cannot be caught by a third party', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const [kangarooA, kangarooB] = byRole(sim, 'chaser') as [PlayerState, PlayerState];
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+
+    bringTogether(kangarooA, human);
+    sim.stepMany(2);
+    // Now walk the second kangaroo straight into the ring.
+    kangarooB.position.x = human.position.x + 0.3;
+    kangarooB.position.y = human.position.y;
+    kangarooB.position.z = human.position.z;
+    kangarooB.invulnTimer = 0;
+    kangarooB.tagCooldown = 0;
+    sim.stepMany(4);
+
+    expect(mode.activeBouts).toHaveLength(1);
+    expect(kangarooB.role).toBe('chaser');
+  });
+});
+
+describe('winning a bout', () => {
+  function boutOf(sim: Simulation): { kangaroo: PlayerState; human: PlayerState } {
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.stepMany(2);
+    return { kangaroo, human };
+  }
+
+  it('converts the loser to the winner’s species', () => {
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+
+    human.health = 0;
+    sim.stepMany(2);
+
+    expect(human.role).toBe('chaser');
+    expect(human.animalId).toBe('kangaroo');
+    expect(kangaroo.role).toBe('chaser');
+  });
+
+  it('works the other way too — a human who wins takes the kangaroo', () => {
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+
+    kangaroo.health = 0;
+    sim.stepMany(2);
+
+    expect(kangaroo.role).toBe('runner');
+    expect(kangaroo.animalId).toBe('human');
+    expect(human.role).toBe('runner');
+  });
+
+  it('leaves both untouchable for a moment so the loser is not instantly re-caught', () => {
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+    human.health = 0;
+    sim.stepMany(2);
+
+    expect(human.invulnTimer).toBeGreaterThan(0);
+    expect(kangaroo.invulnTimer).toBeGreaterThan(0);
+  });
+
+  it('decides a bout that runs out of time on health', () => {
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+    human.health = 30;
+    kangaroo.health = 80;
+
+    sim.stepMany(Math.ceil(21 / TICK_DT));
+
+    expect(human.role).toBe('chaser');
+    expect(human.animalId).toBe('kangaroo');
+  });
+
+  it('calls a dead-even bout a draw, converting nobody', () => {
+    /**
+     * The tie used to be awarded to the human, so that catching-and-waiting could not be a
+     * strategy. Right instinct, wrong remedy: measured across six rounds of bots, the clock decided
+     * eleven of forty-seven bouts and *every one* of those eleven went to the human, while the
+     * thirty-six knockouts split exactly eighteen-all. The tiebreak was not settling rare dead
+     * heats — it was handing a quarter of all bouts to one species, and with the absorbing barrier
+     * above it cost the kangaroos every round.
+     *
+     * A draw removes the bias without rewarding the staller: an unmoved population is exactly what
+     * a fight nobody won should produce.
+     */
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+    human.health = 100;
+    kangaroo.health = 100;
+
+    sim.stepMany(Math.ceil(21 / TICK_DT));
+
+    expect(human.role).toBe('runner');
+    expect(human.animalId).toBe('human');
+    // The kangaroo walks out a kangaroo — nobody was converted in either direction.
+    expect(kangaroo.role).toBe('chaser');
+    expect(kangaroo.animalId).toBe('kangaroo');
+    // And both get the post-bout immunity, so the draw does not simply restart itself.
+    expect(human.invulnTimer).toBeGreaterThan(0);
+    expect(kangaroo.invulnTimer).toBeGreaterThan(0);
+  });
+
+  it('still converts on a clock decision when one fighter is ahead', () => {
+    // The draw must not swallow ordinary decisions: a single point of health still settles it.
+    const sim = startedDuel(6);
+    const { kangaroo, human } = boutOf(sim);
+    human.health = 99;
+    kangaroo.health = 100;
+
+    sim.stepMany(Math.ceil(21 / TICK_DT));
+
+    expect(human.role).toBe('chaser');
+    expect(human.animalId).toBe('kangaroo');
+  });
+
+  it('never leaves a fighter stranded when their opponent disconnects', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const { kangaroo, human } = boutOf(sim);
+
+    sim.removePlayer(human.id);
+    sim.stepMany(2);
+
+    expect(mode.activeBouts).toHaveLength(0);
+    expect(kangaroo.role).toBe('chaser');
+  });
+});
+
+/**
+ * Regression cover for the bug this mode found: with combat enabled globally, two players simply
+ * standing near each other traded punches, and each punch granted 0.25 s of hit-immunity that the
+ * catch check read as "untouchable". Catches failed for a reason invisible to the player.
+ */
+describe('who may hit whom', () => {
+  it('lets the two fighters of a bout hit each other', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.stepMany(2);
+
+    expect(mode.canDamage(kangaroo, human)).toBe(true);
+    expect(mode.canDamage(human, kangaroo)).toBe(true);
+  });
+
+  it('refuses every punch thrown outside a bout', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+
+    expect(mode.canDamage(kangaroo, human)).toBe(false);
+    expect(mode.canDamage(human, kangaroo)).toBe(false);
+  });
+
+  it('refuses a third party punching into a bout', () => {
+    const sim = startedDuel(6);
+    const mode = sim.mode as DuelMode;
+    const [kangarooA, kangarooB] = byRole(sim, 'chaser') as [PlayerState, PlayerState];
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangarooA, human);
+    sim.stepMany(2);
+
+    expect(mode.canDamage(kangarooB, human)).toBe(false);
+    expect(mode.canDamage(human, kangarooB)).toBe(false);
+  });
+
+  it('does not let two players standing together punch away each other’s catchability', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    // One tick is all it takes: before the fix, the accidental punch fired here and the catch
+    // on the same tick was swallowed by the immunity it granted.
+    sim.stepMany(1);
+
+    expect(human.role).toBe('fighter');
+    expect(kangaroo.role).toBe('fighter');
+  });
+});
+
+describe('ending a duel round', () => {
+  it('ends early once nobody is human any more', () => {
+    const sim = startedDuel(3);
+    for (const player of sim.players.values()) {
+      player.role = 'chaser';
+      player.animalId = 'kangaroo';
+    }
+    sim.stepMany(2);
+    expect(sim.finished()).toBe(true);
+  });
+
+  it('ends early when the kangaroos are the ones wiped out', () => {
+    /**
+     * Only the other half of this existed, and the gap was not cosmetic. With no kangaroo left
+     * alive nobody can catch anyone, so no bout can start, so nothing can convert a player back:
+     * it is an absorbing state, and the round sat in it running down a five-minute clock with no
+     * gameplay available to anyone. Measured over six rounds of bots before the fix, the kangaroos
+     * were wiped out in four of them, and those rounds spent 92, 128, 187 and 217 seconds in a
+     * state where nothing could happen — 104 seconds per round averaged over all six.
+     */
+    const sim = startedDuel(3);
+    for (const player of sim.players.values()) {
+      player.role = 'runner';
+      player.animalId = 'human';
+    }
+    sim.stepMany(2);
+    expect(sim.finished()).toBe(true);
+    expect(sim.results().winnerIds.toSorted()).toEqual([...sim.players.keys()].toSorted());
+  });
+
+  it('does not end a round that still has both species standing', () => {
+    // The guard the two tests above would pass just as happily if the round simply ended on tick
+    // two regardless of who was left.
+    const sim = startedDuel(6);
+    sim.stepMany(120);
+    expect(sim.finished()).toBe(false);
+  });
+
+  it('gives the round to whichever species is larger at the bell', () => {
+    const sim = startedDuel(6);
+    sim.endRound('time');
+    const humans = byRole(sim, 'runner').map((p) => p.id);
+    expect(sim.results().winnerIds.toSorted()).toEqual(humans.toSorted());
+  });
+
+  it('leaves nobody spectating — losing puts you on the other team', () => {
+    const sim = startedDuel(6);
+    const { human } = (() => {
+      const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+      const h = byRole(sim, 'runner')[0] as PlayerState;
+      bringTogether(kangaroo, h);
+      sim.stepMany(2);
+      h.health = 0;
+      sim.stepMany(2);
+      return { human: h };
+    })();
+
+    expect(human.role).not.toBe('spectator');
+    expect(human.alive).toBe(true);
+    for (const player of sim.players.values()) {
+      expect(['chaser', 'runner', 'fighter'], player.id).toContain(player.role);
+    }
+  });
+});
+
+/**
+ * What the mode tells the client about itself.
+ *
+ * Added because the client was told nothing. A catch starts a twenty-second boxing match and the
+ * only announcement was a `roundState` event that no handler anywhere matched, so two players were
+ * pulled a metre and a half apart with no opponent name, no clock and no sign that the teleport was
+ * a fight rather than a bug. The population — which in this mode *is* the score — was equally
+ * invisible: it lives in the headline, and the headline is replaced by "X caught Y!" the instant
+ * anything interesting happens.
+ */
+describe('what a duel publishes to the HUD', () => {
+  it('counts both species while nobody is fighting', () => {
+    const sim = startedDuel(6);
+    const tally = sim.mode.state().tally;
+    expect(tally).toBeDefined();
+    expect(tally?.chaser).toBe(3);
+    expect(tally?.runner).toBe(3);
+    expect(tally?.fighter).toBe(0);
+    // Everyone is accounted for; a player who fell out of the tally is a player the scoreboard
+    // silently stops representing.
+    expect((tally?.chaser ?? 0) + (tally?.runner ?? 0) + (tally?.fighter ?? 0)).toBe(6);
+  });
+
+  it('moves the two fighters out of their species and into the ring', () => {
+    const sim = startedDuel(6);
+    bringTogether(byRole(sim, 'chaser')[0] as PlayerState, byRole(sim, 'runner')[0] as PlayerState);
+    sim.step();
+
+    const tally = sim.mode.state().tally;
+    expect(tally?.fighter).toBe(2);
+    expect(tally?.chaser).toBe(2);
+    expect(tally?.runner).toBe(2);
+    // The two in the ring left their species; nobody was lost on the way.
+    expect((tally?.chaser ?? 0) + (tally?.runner ?? 0) + (tally?.fighter ?? 0)).toBe(6);
+  });
+
+  it('publishes the bout with both names and a clock', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.step();
+
+    const bouts = sim.mode.state().bouts;
+    expect(bouts).toHaveLength(1);
+    const bout = bouts?.[0];
+    // Both ids, so a client can find its own bout in a list broadcast to the whole room.
+    expect([bout?.a, bout?.b].sort()).toEqual([kangaroo.id, human.id].sort());
+    // Names resolved server-side: a bout can involve someone across the map whom the client has
+    // culled and has no avatar for.
+    expect([bout?.aName, bout?.bName].sort()).toEqual([kangaroo.name, human.name].sort());
+    expect(bout?.remaining).toBeGreaterThan(0);
+  });
+
+  it('counts the bout clock down', () => {
+    const sim = startedDuel(6);
+    bringTogether(byRole(sim, 'chaser')[0] as PlayerState, byRole(sim, 'runner')[0] as PlayerState);
+    sim.step();
+    const first = sim.mode.state().bouts?.[0]?.remaining ?? 0;
+
+    sim.stepMany(60);
+    const later = sim.mode.state().bouts?.[0]?.remaining ?? 0;
+    expect(later).toBeLessThan(first);
+    // A second of ticks should cost about a second, not a frame and not the whole bout.
+    expect(first - later).toBeCloseTo(1, 1);
+  });
+
+  it('clears the bout when it resolves', () => {
+    const sim = startedDuel(6);
+    const kangaroo = byRole(sim, 'chaser')[0] as PlayerState;
+    const human = byRole(sim, 'runner')[0] as PlayerState;
+    bringTogether(kangaroo, human);
+    sim.step();
+    expect(sim.mode.state().bouts).toHaveLength(1);
+
+    human.health = 0;
+    sim.step();
+    // A panel that outlives its fight would sit on screen for the rest of the round.
+    expect(sim.mode.state().bouts).toHaveLength(0);
+    expect(sim.mode.state().tally?.fighter).toBe(0);
+  });
+
+  it('publishes nothing of the sort for a mode that has no bouts', () => {
+    // `tally` and `bouts` are optional on the shared view, and a mode that does not fill them must
+    // leave them absent rather than sending empty ones the HUD would render as blank panels.
+    const sim = new Simulation({ level: buildJungleWorld(), modeId: 'kangaroo-chase', seed: 3 });
+    for (let i = 0; i < 4; i++) sim.addPlayer({ id: `p${i}`, name: `P${i}` });
+    sim.stepMany(60);
+    expect(sim.mode.state().bouts).toBeUndefined();
+    expect(sim.mode.state().tally).toBeUndefined();
+  });
+});

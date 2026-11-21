@@ -1,0 +1,21 @@
+// Steamworks app build script.
+//
+// Upload with:
+//   steamcmd +login <builduser> +run_app_build ../packaging/steam/steamworks/app_build.vdf +quit
+//
+// Replace __APPID__ and __DEPOTID__ with the values from your Steamworks app admin page. They
+// are not secrets, but they are per-app, so they are templated rather than committed.
+"appbuild"
+{
+	"appid"		"__APPID__"
+	"desc"		"Kangaroo Chase"
+	"buildoutput"	"../../../dist/steam-build"
+	"contentroot"	"../../../dist/steam/"
+	"setlive"	""            // leave empty; set a branch by hand once the build is tested
+	"preview"	"0"
+
+	"depots"
+	{
+		"__DEPOTID__"	"depot_build.vdf"
+	}
+}
