@@ -4000,9 +4000,12 @@ draws everything opaque, so `skipInNormalPass` hides what is not drawn as a soli
 transparent or not writing depth (the VR vignette quad, the cage fence, a role ring at opacity 0,
 water) and sprites (name tags). Four mutations, each failing its own test.
 
-**Not yet measured in a browser.** `.probe/ao-ab.mjs` draws one held frame with AO off and on
-(`window.__kcAo`, webdriver only) on each map; its first run timed out sharing four cores with the
-store capture. Judge the radius and intensity on those frames before tuning them.
+**The first A/B frame found the AO pass painting every log and bush black.** Props and logs ship
+without a normal attribute and are drawn with `flatShading`; GTAO's own `MeshNormalMaterial` is not
+flat, read the missing attribute as zero, and scored them fully occluded (jungle canyon, fixed
+camera: the fallen log went from tan to near black, the ferns dark green to black). Its normal
+material is flat now (`postChain.test.ts`). **Any override-material pass must handle normal-less
+geometry** — `.probe/ao-ab.mjs` (`window.__kcAo`, webdriver only) is the check.
 
 ## Gorilla Tag parity: a hand that tags, and a hand that knocks
 

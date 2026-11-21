@@ -105,6 +105,11 @@ export function buildPostChain(
   composer.addPass(new RenderPass(scene, camera));
 
   const ao = new SolidGtaoPass(scene, camera, Math.max(1, size.x * ratio), Math.max(1, size.y * ratio));
+  // Every prop and log ships without a normal attribute and is drawn with `flatShading`, which
+  // derives normals from screen-space derivatives. The pass's own `MeshNormalMaterial` is not flat,
+  // so it read a missing attribute as zero and every log, bush and fern came out fully occluded —
+  // near black in a real frame. Flat normals are the true face normals, which is what AO wants.
+  ao.normalMaterial.flatShading = true;
   ao.updateGtaoMaterial({ radius: AO_RADIUS, thickness: AO_THICKNESS, distanceExponent: 1, scale: 1, samples: 16 });
   ao.blendIntensity = AO_INTENSITY;
   composer.addPass(ao);

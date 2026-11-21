@@ -39,6 +39,10 @@ describe('post-processing chain', () => {
     expect(names.at(-1)).toBe('OutputPass');
   });
 
+  it('draws the AO normal pass with face normals, so props without a normal attribute are not black', () => {
+    expect(chain().post.ao.normalMaterial.flatShading).toBe(true);
+  });
+
   it('frees every pass’s buffers', () => {
     const { post } = chain();
     let freed = 0;
